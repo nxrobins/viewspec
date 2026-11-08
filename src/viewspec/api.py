@@ -23,6 +23,7 @@ from viewspec.app_bundle import (
 from viewspec.app_react import REACT_APP_MANIFEST
 from viewspec.app_reports import APP_BUNDLE_DEFAULT_REPORT
 from viewspec.app_shell import APP_SHELL_INDEX, APP_SHELL_MANIFEST
+from viewspec.compact_form import detect_compact
 from viewspec.compiler import compile as compile_intent
 from viewspec.design_md import DesignSystemContext
 from viewspec.html_verify import HTML_VERIFY_TARGETS, html_artifact_target, load_mcp_render
@@ -36,13 +37,19 @@ from viewspec.prove import prove as prove_intent
 from viewspec.types import ASTBundle, IntentBundle
 from viewspec.verification import VerificationPlan
 
-INIT_DEFAULT_OUT = {"intent": "viewspec.intent.json", "app": "viewspec.app.json", "design": "DESIGN.md"}
+INIT_DEFAULT_OUT = {
+    "intent": "viewspec.intent.json",
+    "app": "viewspec.app.json",
+    "design": "DESIGN.md",
+    "compact": "viewspec.compact.json",
+}
 VERIFY_DEFAULT_OUT = ".viewspec-verification"
 
 
 def source_kind(path: str | Path) -> str:
     """Return ``"app_bundle"`` or ``"intent_bundle"`` for a JSON source file.
 
+    An IntentBundle in the compact authoring form (``"format": "compact"``) is an ``intent_bundle``.
     An unreadable or malformed file falls back to its name, so the validator for that kind can
     report the actual problem.
     """
@@ -52,7 +59,7 @@ def source_kind(path: str | Path) -> str:
             payload = json.loads(handle.read(APP_BUNDLE_MAX_BYTES + 1))
     except (OSError, ValueError, RecursionError):
         return "app_bundle" if is_app_name else "intent_bundle"
-    if not isinstance(payload, dict) or {"substrate", "view_spec"} & payload.keys():
+    if not isinstance(payload, dict) or {"substrate", "view_spec"} & payload.keys() or detect_compact(payload):
         return "intent_bundle"
     return "app_bundle" if is_app_name or {"app", "routes", "screens"} & payload.keys() else "intent_bundle"
 

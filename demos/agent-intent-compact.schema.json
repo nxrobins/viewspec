@@ -1,0 +1,900 @@
+{
+  "$defs": {
+    "action": {
+      "additionalProperties": false,
+      "properties": {
+        "collection": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "select",
+            "submit",
+            "navigate",
+            "search",
+            "filter",
+            "sort",
+            "paginate"
+          ]
+        },
+        "label": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "payload": {
+          "items": {
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "target": {
+          "pattern": "^(region|binding|motif|view):[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label"
+      ],
+      "type": "object"
+    },
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "label": {
+          "not": {
+            "type": "null"
+          }
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "value": {
+          "not": {
+            "type": "null"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ],
+      "type": "object"
+    },
+    "motif_comparison": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^[A-Za-z0-9_.-]+$",
+                "type": "string"
+              },
+              "label": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "value": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "label",
+              "value"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "type": "array"
+        },
+        "kind": {
+          "const": "comparison"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "items"
+      ],
+      "type": "object"
+    },
+    "motif_dashboard": {
+      "additionalProperties": false,
+      "properties": {
+        "cards": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^[A-Za-z0-9_.-]+$",
+                "type": "string"
+              },
+              "label": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "present_as": {
+                "enum": [
+                  "badge",
+                  "image_slot",
+                  "input",
+                  "label",
+                  "rich_text",
+                  "rule",
+                  "text",
+                  "value"
+                ]
+              },
+              "value": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "label",
+              "value"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "type": "array"
+        },
+        "group": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "dashboard"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "cards"
+      ],
+      "type": "object"
+    },
+    "motif_detail": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^[A-Za-z0-9_.-]+$",
+                "type": "string"
+              },
+              "label": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "value": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "values": {
+                "additionalProperties": {
+                  "not": {
+                    "type": "null"
+                  }
+                },
+                "propertyNames": {
+                  "not": {
+                    "enum": [
+                      "label",
+                      "value",
+                      "description"
+                    ]
+                  },
+                  "pattern": "^[A-Za-z0-9_.-]+$"
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "type": "array"
+        },
+        "group": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "detail"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "fields"
+      ],
+      "type": "object"
+    },
+    "motif_empty_state": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "not": {
+            "type": "null"
+          }
+        },
+        "group": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "empty_state"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "title": {
+          "not": {
+            "type": "null"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "title"
+      ],
+      "type": "object"
+    },
+    "motif_error_state": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "not": {
+            "type": "null"
+          }
+        },
+        "group": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "error_state"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "title": {
+          "not": {
+            "type": "null"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "title"
+      ],
+      "type": "object"
+    },
+    "motif_form": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^[A-Za-z0-9_.-]+$",
+                "type": "string"
+              },
+              "label": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "value": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "type": "array"
+        },
+        "group": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "form"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "fields"
+      ],
+      "type": "object"
+    },
+    "motif_hero": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "not": {
+            "type": "null"
+          }
+        },
+        "eyebrow": {
+          "not": {
+            "type": "null"
+          }
+        },
+        "group": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "hero"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "title": {
+          "not": {
+            "type": "null"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "title"
+      ],
+      "type": "object"
+    },
+    "motif_list": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "id": {
+                "pattern": "^[A-Za-z0-9_.-]+$",
+                "type": "string"
+              },
+              "label": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "value": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "values": {
+                "additionalProperties": {
+                  "not": {
+                    "type": "null"
+                  }
+                },
+                "propertyNames": {
+                  "not": {
+                    "enum": [
+                      "label",
+                      "value",
+                      "description"
+                    ]
+                  },
+                  "pattern": "^[A-Za-z0-9_.-]+$"
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "type": "array"
+        },
+        "kind": {
+          "const": "list"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "items"
+      ],
+      "type": "object"
+    },
+    "motif_loading_state": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "not": {
+            "type": "null"
+          }
+        },
+        "group": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "loading_state"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "title": {
+          "not": {
+            "type": "null"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "title"
+      ],
+      "type": "object"
+    },
+    "motif_outline": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^[A-Za-z0-9_.-]+$",
+                "type": "string"
+              },
+              "label": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "type": "array"
+        },
+        "kind": {
+          "const": "outline"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "items"
+      ],
+      "type": "object"
+    },
+    "motif_table": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "table"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^[A-Za-z0-9_.-]+$",
+                "type": "string"
+              },
+              "label": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "value": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "values": {
+                "additionalProperties": {
+                  "not": {
+                    "type": "null"
+                  }
+                },
+                "propertyNames": {
+                  "not": {
+                    "enum": [
+                      "label",
+                      "value",
+                      "description"
+                    ]
+                  },
+                  "pattern": "^[A-Za-z0-9_.-]+$"
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "region": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "layout": {
+          "enum": [
+            "stack",
+            "grid",
+            "cluster"
+          ]
+        },
+        "max_children": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_children": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "parent": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "role": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "style": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "target": {
+          "pattern": "^(?:(?:region|binding|motif|view):)?[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "token": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "token"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://viewspec.dev/agent-intent-compact.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The compact authoring form of a ViewSpec IntentBundle: ViewSpecBuilder calls as JSON. ViewSpec normalizes it into the canonical IntentBundle before validation and compilation.",
+  "properties": {
+    "actions": {
+      "items": {
+        "$ref": "#/$defs/action"
+      },
+      "maxItems": 64,
+      "type": "array"
+    },
+    "aesthetic": {
+      "enum": [
+        "aesthetic.calm_ops",
+        "aesthetic.premium_saas",
+        "aesthetic.data_dense",
+        "aesthetic.editorial_product",
+        "aesthetic.executive_review",
+        "aesthetic.brutalist",
+        "aesthetic.neon_cyber",
+        "aesthetic.warm_organic"
+      ]
+    },
+    "format": {
+      "const": "compact",
+      "description": "Marks the compact form. Canonical bundles have no format key."
+    },
+    "id": {
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "type": "string"
+    },
+    "inputs": {
+      "items": {
+        "$ref": "#/$defs/input"
+      },
+      "maxItems": 200,
+      "type": "array"
+    },
+    "motifs": {
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/motif_table"
+          },
+          {
+            "$ref": "#/$defs/motif_dashboard"
+          },
+          {
+            "$ref": "#/$defs/motif_outline"
+          },
+          {
+            "$ref": "#/$defs/motif_comparison"
+          },
+          {
+            "$ref": "#/$defs/motif_list"
+          },
+          {
+            "$ref": "#/$defs/motif_form"
+          },
+          {
+            "$ref": "#/$defs/motif_detail"
+          },
+          {
+            "$ref": "#/$defs/motif_empty_state"
+          },
+          {
+            "$ref": "#/$defs/motif_loading_state"
+          },
+          {
+            "$ref": "#/$defs/motif_error_state"
+          },
+          {
+            "$ref": "#/$defs/motif_hero"
+          }
+        ]
+      },
+      "maxItems": 32,
+      "type": "array"
+    },
+    "regions": {
+      "items": {
+        "$ref": "#/$defs/region"
+      },
+      "maxItems": 32,
+      "type": "array"
+    },
+    "root": {
+      "additionalProperties": false,
+      "properties": {
+        "max_children": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_children": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Optional IntentBundle schema version. Documents without schema_version are schema version 1.",
+      "type": "integer"
+    },
+    "styles": {
+      "items": {
+        "$ref": "#/$defs/style"
+      },
+      "maxItems": 400,
+      "type": "array"
+    },
+    "title": {
+      "not": {
+        "type": "null"
+      }
+    }
+  },
+  "required": [
+    "format",
+    "id"
+  ],
+  "title": "ViewSpec Agent IntentBundle Compact Form",
+  "type": "object",
+  "x-viewspec-compact-item-keys": {
+    "comparison": "items",
+    "dashboard": "cards",
+    "detail": "fields",
+    "form": "fields",
+    "list": "items",
+    "outline": "items",
+    "table": "rows"
+  },
+  "x-viewspec-intent-schema-versions": [
+    1
+  ],
+  "x-viewspec-invariants": [
+    "A compact document normalizes to the canonical IntentBundle that the same ViewSpecBuilder calls export.",
+    "Derived item ids are <motif>_<row|card|field|item|branch>_<n>, counting every item of the motif.",
+    "Without regions, the bundle has the root region and a main region; with regions, root plus the listed ones.",
+    "Motifs, inputs, styles, the aesthetic profile and actions normalize in that order.",
+    "Every id must be unique within its kind, and node and binding ids must not collide.",
+    "Action payload entries name field or input ids, which bind to <id>_value, or binding ids.",
+    "bulk_action is not available in the compact form.",
+    "Unknown keys are rejected instead of silently ignored.",
+    "The canonical validator runs on the normalized bundle; its issues keep canonical $.view_spec paths."
+  ]
+}

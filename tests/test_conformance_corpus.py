@@ -29,14 +29,21 @@ def test_public_verification_corpus_has_unique_executable_semantic_cases():
         "app-queue",
         "collection-states",
         "data-dense-dashboard",
+        "data-dense-dashboard-compact",
         "dense-operational-console",
         "interactive-form",
+        "invoice-table",
+        "invoice-table-compact",
+        "kpi-dashboard",
+        "kpi-dashboard-compact",
         "landing-intent",
         "multi-step-workflow",
         "outcome-states",
+        "pricing-comparison",
+        "pricing-comparison-compact",
         "settings",
     ]
-    assert len(corpus.cases) == 10
+    assert len(corpus.cases) == 17
     assert all(case.source_path.is_file() for case in corpus.cases)
     assert all(case.expected_status == "conformant" for case in corpus.cases)
     assert {case.screen_id for case in corpus.cases if case.kind == "app_screen"} == {

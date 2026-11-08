@@ -134,10 +134,15 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
     if manifest.get("manifest_schema_version") != MANIFEST_SCHEMA_VERSION:
         errors.append(f"manifest_schema_version must be {MANIFEST_SCHEMA_VERSION}")
     _validate_manifest_envelope(manifest, errors)
-    for key in ("raw_source_hash", "source_hash", "artifact_hash"):
+    for key in ("raw_source_hash", "source_hash", "artifact_hash", "compact_source_sha256"):
         value = manifest.get(key)
         if value is not None and (not isinstance(value, str) or not HASH_RE.match(value)):
             errors.append(f"manifest {key} must be a sha256 hex string")
+    source_format = manifest.get("source_format")
+    if source_format is not None and source_format not in {"canonical", "compact"}:
+        errors.append("manifest source_format must be canonical or compact")
+    if (source_format == "compact") != ("compact_source_sha256" in manifest):
+        errors.append("manifest compact_source_sha256 must be present exactly when source_format is compact")
     design_hash = manifest.get("design_hash")
     if design_hash is not None and (not isinstance(design_hash, str) or not HASH_RE.match(design_hash)):
         errors.append("manifest design_hash must be null or a sha256 hex string")

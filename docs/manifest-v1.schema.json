@@ -29,6 +29,11 @@
     "source_name": { "type": ["string", "null"] },
     "raw_source_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "source_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "source_format": {
+      "enum": ["canonical", "compact"],
+      "description": "The authoring form of the IntentBundle source. Absent means canonical. For compact, source_hash is the sha256 of the normalized canonical bundle and compact_source_sha256 is the sha256 of the compact file."
+    },
+    "compact_source_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "design_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
     "design": { "$ref": "#/$defs/designMetadata" },
     "emitter": { "enum": ["html_tailwind", "react_tailwind_tsx", "react_tsx"] },

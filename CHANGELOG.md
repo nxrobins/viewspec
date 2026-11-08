@@ -54,6 +54,33 @@ All notable changes to ViewSpec are documented in this file. The format follows
   off unless `--structured-output` or `--schema` asks for it. The weekly `agent-eval.yml` workflow
   reads the model id from the repository variable `VIEWSPEC_EVAL_MODEL` and uploads the report as
   an artifact. The SDK and its tests still make no model calls.
+- The compact authoring form of an `IntentBundle`: `"format": "compact"` plus the Python builder's
+  calls as JSON, at about a fifth of the canonical size. `viewspec check`, `compile`, and `prove`,
+  the Python `check()` and `prove()`, the MCP `check`, `compile`, and `patch` tools, and the
+  conformance corpus detect a compact file and normalize it into the canonical bundle. A `--patch`
+  applies to the compact file as written, so its pointers name the compact document. The lossless
+  fixes and the unchanged validator and compiler then run on the canonical bundle; a canonical file
+  is handled exactly as before. Normalization drives `ViewSpecBuilder`, so derived ids are the
+  builder's and a compact file and its canonical twin compile to the same `artifact_hash` and
+  `semantic_digest`. Compact-only problems fail closed with `COMPACT_*` codes at `$.`-rooted compact
+  paths. The schema is published as `agent-intent-compact.schema.json`, and
+  `docs/agent-integration.md` documents the form. AppBundle screens stay canonical bundles.
+- `viewspec init compact --out viewspec.compact.json` and the MCP `init` tool's `what="compact"`
+  write the starter in the compact form.
+- `--canonical-out PATH` on `viewspec check` and `viewspec compile` writes the canonical document of
+  an IntentBundle source after the lossless fixes, with the formatting `viewspec init` uses, whenever
+  there is one: a compact source has one once it normalizes, even when a later check fails. For a
+  compact source, `fixes` and the canonical issues carry paths into that document. `check --json`
+  reports the file as `canonical_out` and reports `source_format: "compact"` for a compact source.
+  `--fixed-out` on a compact source is a usage error that names `--canonical-out`.
+- `provenance_manifest.json` records `source_format: "compact"` and `compact_source_sha256` for a
+  compact source. `compact_source_sha256` and `raw_source_hash` hash the compact text after any
+  patch, and `source_hash` hashes exactly the bytes `--canonical-out` writes. `viewspec check`
+  validates both keys, and the manifest summary reports `source_format`. Canonical manifests are
+  unchanged.
+- Compact corpus cases for the starter dashboard and the `examples/*.py` builder bundles, with the
+  builder bundles' canonical twins, in `conformance/verification/corpus.json`; the goldens pin that
+  each pair shares its artifact hashes.
 
 ## [0.4.0] - 2026-11-01
 

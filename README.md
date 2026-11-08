@@ -34,7 +34,7 @@ viewspec mcp                                       # the five above, plus patch,
 
 | Command | Takes | Does |
 |---|---|---|
-| `viewspec init [intent\|app\|design]` | what to write | Writes a starter `viewspec.intent.json`, `viewspec.app.json`, or `DESIGN.md`. |
+| `viewspec init [intent\|app\|design\|compact]` | what to write | Writes a starter `viewspec.intent.json`, `viewspec.app.json`, `DESIGN.md`, or compact-form `viewspec.compact.json`. |
 | `viewspec compile INPUT --out DIR` | IntentBundle, AppBundle, or imported HTML | Writes the artifact and its manifest. The kind is detected from the file. |
 | `viewspec check PATH` | a source file, or a compiled directory | Contract checks for a source; provenance, tamper, and active-content checks for a directory. |
 | `viewspec prove [SOURCE]` | nothing, a source file, or a compiled directory | Compiles and verifies, adding browser layout, Pretext, and Freerange evidence on request. |
@@ -68,6 +68,15 @@ the file.
 
 An `IntentBundle` is capped at 256 KB. That is small enough for an agent to regenerate whole, which
 is the expected way to make a change.
+
+The same bundle can be written in the compact form: the Python builder's calls as JSON, at about a
+fifth of the size. Set `"format": "compact"` at the root and list each motif with its items.
+`viewspec check`, `compile`, and `prove` detect a compact file and normalize it into the canonical
+bundle. The lossless fixes, the unchanged validator, and the compiler then run on that bundle, and
+`--patch` applies to the compact file as written. `--canonical-out viewspec.intent.json` on `check`
+or `compile` writes the canonical bundle after the fixes. `viewspec init compact --out
+viewspec.compact.json` writes the starter dashboard in this form. See
+[Compact form](docs/agent-integration.md#compact-form).
 
 For React with Tailwind, the compiled artifact can also be verified in a real browser across the
 canonical 390, 768, and 1440 pixel viewports:
@@ -188,6 +197,8 @@ Give your agent the published contract, then let it generate JSON with structure
 - [`agent-system-prompt.txt`](https://viewspec.dev/agent-system-prompt.txt): the authoring rules.
 - [`agent-intent-bundle.schema.json`](https://viewspec.dev/agent-intent-bundle.schema.json) and
   [`agent-app-bundle.schema.json`](https://viewspec.dev/agent-app-bundle.schema.json): JSON Schemas.
+- [`agent-intent-compact.schema.json`](https://viewspec.dev/agent-intent-compact.schema.json): the
+  JSON Schema of the compact form.
 
 `viewspec check FILE --json` returns a `correction_prompt` that an agent can act on directly. The
 [agent integration guide](docs/agent-integration.md) has the full loop.

@@ -37,11 +37,13 @@ from viewspec.intent_tools import (
     IntentSourcePreparation,
     check_intent_source,
     fixed_intent_source_text,
+    init_compact_file,
     init_intent_file,
     intent_error_payload,
     load_intent_patch,
     patch_target_problem,
     prepare_intent_source,
+    reject_compact_fixed_out,
     wrap_intent_bundle_manifest,
 )
 from viewspec.local_tools import (
@@ -49,7 +51,6 @@ from viewspec.local_tools import (
     atomic_write,
     ensure_no_input_overwrite,
     init_design_file,
-    source_hash,
     tool_error_response,
     tool_response,
 )
@@ -187,15 +188,23 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"viewspec {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    init_parser = subparsers.add_parser("init", help="Write a starter IntentBundle, AppBundle, or DESIGN.md.")
+    init_parser = subparsers.add_parser(
+        "init", help="Write a starter IntentBundle, AppBundle, DESIGN.md, or compact-form IntentBundle."
+    )
     init_parser.add_argument(
         "what", nargs="?", default="intent", choices=tuple(INIT_DEFAULT_OUT), help="What to write (default: intent)."
     )
-    init_parser.add_argument("--out", help="Output path (default: viewspec.intent.json, viewspec.app.json, DESIGN.md).")
+    init_parser.add_argument(
+        "--out",
+        help="Output path (default: viewspec.intent.json, viewspec.app.json, DESIGN.md, viewspec.compact.json).",
+    )
     init_parser.add_argument(
         "--kind",
         choices=(*STARTER_INTENT_KINDS, *APP_BUNDLE_ALLOWED_KINDS),
-        help="Starter kind: a motif for intent (default: dashboard), an app kind for app (default: internal_tool).",
+        help=(
+            "Starter kind: a motif for intent and compact (default: dashboard), "
+            "an app kind for app (default: internal_tool)."
+        ),
     )
     init_parser.add_argument(
         "--resource-binding",
@@ -361,7 +370,15 @@ def _add_repair_loop_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--fixed-out",
         metavar="PATH",
-        help="IntentBundle: write the source after lossless fixes to PATH.",
+        help="IntentBundle: write the source after lossless fixes to PATH. For a compact source, use --canonical-out.",
+    )
+    parser.add_argument(
+        "--canonical-out",
+        metavar="PATH",
+        help=(
+            "IntentBundle: write the canonical document after lossless fixes (a compact source normalized) "
+            "to PATH, formatted as viewspec init writes it."
+        ),
     )
     parser.add_argument(
         "--patch",
@@ -381,7 +398,30 @@ def _init_command(args: argparse.Namespace) -> int:
         return _init_app(args, out)
     if args.what == "design":
         return _init_design(args, out)
+    if args.what == "compact":
+        return _init_compact(args, out)
     return _init_intent(args, out)
+
+
+def _init_compact(args: argparse.Namespace, out: str) -> int:
+    kind = args.kind or "dashboard"
+    path = init_compact_file(out, kind=kind, force=args.force)
+    if args.json:
+        _print_json(
+            tool_response(
+                True,
+                "Wrote starter compact-form IntentBundle.",
+                paths={"compact": str(path)},
+                next_actions=[
+                    "Replace sample labels and values with real user intent.",
+                    f"Run viewspec check {path} --json --canonical-out viewspec.intent.json.",
+                ],
+                metadata=_cli_metadata(kind=kind),
+            )
+        )
+    else:
+        print(str(path))
+    return 0
 
 
 def _init_app(args: argparse.Namespace, out: str) -> int:
@@ -496,6 +536,7 @@ def _compile_command(args: argparse.Namespace) -> int:
         _reject_intent_only_options(args, what)
     data, source_name, input_path = _read_input(args.input, stdin_format=args.stdin_format)
     out_dir = Path(args.out)
+    canonical_out = _canonical_out_path(args.canonical_out, input_path)
 
     if input_format == "html":
         if target != "html-tailwind":
@@ -532,6 +573,15 @@ def _compile_command(args: argparse.Namespace) -> int:
             print(json.dumps(paths, indent=2, sort_keys=True))
         return 0
 
+    output_names = (
+        ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json")
+        if target in {"react-tsx", "react-tailwind-tsx"}
+        else ("index.html", "provenance_manifest.json", "diagnostics.json")
+    )
+    if canonical_out is not None and any(
+        canonical_out.resolve() == (out_dir / name).resolve() for name in output_names
+    ):
+        raise ValueError("--canonical-out must not name a compiled output file")
     patch = None
     if args.patch:
         try:
@@ -540,20 +590,20 @@ def _compile_command(args: argparse.Namespace) -> int:
             return _finish_intent_validation_failure(
                 args, intent_error_payload(exc.code, exc.message, exc.fix, compile_check=True, path=exc.path)
             )
+    if args.fixed_out:
+        reject_compact_fixed_out(data)
     prepared = prepare_intent_source(data, compile_check=True, fix=not args.no_fix, patch=patch)
+    if args.fixed_out:
+        reject_compact_fixed_out(prepared.text, prepared)
     validation = prepared.validation
-    extra_paths = _write_repair_loop_outputs(prepared, patched_out=args.patched_out, fixed_out=args.fixed_out)
+    extra_paths = _write_repair_loop_outputs(
+        prepared, patched_out=args.patched_out, fixed_out=args.fixed_out, canonical_out=canonical_out
+    )
     if not validation["ok"]:
         return _finish_intent_validation_failure(args, validation, paths=extra_paths)
     bundle = prepared.result.bundle
     if bundle is None:  # pragma: no cover - a valid result always carries its bundle
         raise ValueError("IntentBundle validation passed without a bundle.")
-    data = prepared.text
-    output_names = (
-        ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json")
-        if target in {"react-tsx", "react-tailwind-tsx"}
-        else ("index.html", "provenance_manifest.json", "diagnostics.json")
-    )
     ensure_no_input_overwrite(input_path, out_dir, output_names)
     design = _load_design(args.design, strict=args.strict_design)
     ast = compile_intent(bundle, design=design, strict_design=args.strict_design)
@@ -577,12 +627,14 @@ def _compile_command(args: argparse.Namespace) -> int:
     wrap_intent_bundle_manifest(
         Path(paths["manifest"]),
         source_name=source_name,
-        raw_source_hash=source_hash(data),
+        raw_source_hash=prepared.raw_source_hash,
         design=design,
         command_args=_compile_command_args(args, source_name, target),
         artifact_path=artifact_path,
         emitter=emitter,
         target=MCP_APP_TARGET if target == MCP_APP_TARGET else None,
+        source_format=prepared.source_format,
+        canonical_source_hash=prepared.manifest_source_hash,
     )
     if target == MCP_APP_TARGET:
         paths["mcp_app"] = str(write_mcp_app_metadata(out_dir, uri))
@@ -594,7 +646,9 @@ def _compile_command(args: argparse.Namespace) -> int:
                 "Compiled IntentBundle artifact.",
                 paths=paths,
                 next_actions=[f"Run viewspec check {out_dir} --json before using the artifact."],
-                metadata=_cli_metadata(input_format="json", target=target, emitter=emitter),
+                metadata=_cli_metadata(
+                    input_format="json", target=target, emitter=emitter, source_format=prepared.source_format
+                ),
                 data={"fixes": validation["fixes"]},
             )
         )
@@ -607,8 +661,8 @@ def _compile_command(args: argparse.Namespace) -> int:
 
 
 def _reject_intent_only_options(args: argparse.Namespace, what: str) -> None:
-    """--fixed-out and --patched-out write IntentBundle sources; refuse them for anything else."""
-    for option in ("--fixed-out", "--patched-out"):
+    """--fixed-out, --patched-out, and --canonical-out write IntentBundle sources; refuse them for anything else."""
+    for option in ("--fixed-out", "--patched-out", "--canonical-out"):
         if getattr(args, option[2:].replace("-", "_")):
             raise ValueError(f"{option} applies to an IntentBundle source file, not {what}")
 
@@ -624,9 +678,13 @@ def _patch_target_forbidden_payload(message: str, *, compile_check: bool = True)
 
 
 def _write_repair_loop_outputs(
-    prepared: IntentSourcePreparation, *, patched_out: str | None, fixed_out: str | None
+    prepared: IntentSourcePreparation,
+    *,
+    patched_out: str | None,
+    fixed_out: str | None,
+    canonical_out: Path | None = None,
 ) -> dict[str, str]:
-    """Write --patched-out and --fixed-out when their documents exist; return the written paths."""
+    """Write --patched-out, --fixed-out, and --canonical-out when their documents exist; return the written paths."""
     written: dict[str, str] = {}
     if patched_out and prepared.patched:
         atomic_write(Path(patched_out), prepared.text)
@@ -635,13 +693,17 @@ def _write_repair_loop_outputs(
     if fixed_out and fixed_text is not None:
         atomic_write(Path(fixed_out), fixed_text)
         written["fixed_out"] = fixed_out
+    canonical_text = prepared.canonical_text
+    if canonical_out is not None and canonical_text is not None:
+        atomic_write(canonical_out, canonical_text)
+        written["canonical_out"] = str(canonical_out)
     return written
 
 
 def _repair_loop_lines(validation: dict[str, Any], written: dict[str, str] | None = None) -> list[str]:
     """Human-mode lines for the fixes a report carries and the repair-loop files that were written."""
     lines = [f"fix: {fix['code']} at {fix['path']}: {fix['message']}" for fix in validation.get("fixes") or []]
-    for key in ("patched_out", "fixed_out"):
+    for key in ("patched_out", "fixed_out", "canonical_out"):
         value = (written or {}).get(key, validation.get(key))
         if value:
             lines.append(f"{key}: {value}")
@@ -724,6 +786,9 @@ def _check_command(args: argparse.Namespace) -> int:
     compile_check = not args.no_compile_check
     if args.patched_out and not args.patch:
         raise ValueError("--patched-out requires --patch")
+    canonical_out = _canonical_out_path(args.canonical_out, path)
+    if canonical_out is not None and (path.is_dir() or source_kind(path) == "app_bundle"):
+        raise ValueError("--canonical-out applies to an IntentBundle source file")
     if args.patch:
         problem = patch_target_problem(path)
         if problem is not None:
@@ -743,11 +808,18 @@ def _check_command(args: argparse.Namespace) -> int:
                     patch=patch,
                     patched_out=args.patched_out,
                     fixed_out=args.fixed_out,
+                    canonical_out=canonical_out,
                 )
-    elif args.fixed_out:
-        if path.is_dir() or source_kind(path) == "app_bundle":
+    elif args.fixed_out or canonical_out is not None:
+        if args.fixed_out and (path.is_dir() or source_kind(path) == "app_bundle"):
             raise ValueError("--fixed-out applies to an IntentBundle source file")
-        result = check_intent_source(path, compile_check=compile_check, fix=not args.no_fix, fixed_out=args.fixed_out)
+        result = check_intent_source(
+            path,
+            compile_check=compile_check,
+            fix=not args.no_fix,
+            fixed_out=args.fixed_out,
+            canonical_out=canonical_out,
+        )
     else:
         result = check(path, compile_check=compile_check, fix=not args.no_fix)
     if args.json:
@@ -1049,6 +1121,18 @@ def _load_design(path: str | None, *, strict: bool) -> DesignSystemContext | Non
     if not path:
         return None
     return load_design_system(path=path, strict=strict)
+
+
+def _canonical_out_path(raw: str | None, source: Path | None) -> Path | None:
+    """The ``--canonical-out`` file, or None; it is never the input file or a directory."""
+    if not raw:
+        return None
+    out = Path(raw)
+    if out.is_dir():
+        raise ValueError(f"--canonical-out must be a file path, not a directory: {raw}")
+    if source is not None and source.exists() and out.resolve() == source.resolve():
+        raise ValueError("--canonical-out must not be the input file")
+    return out
 
 
 def _read_input(path_arg: str, *, stdin_format: str | None) -> tuple[str, str | None, Path | None]:

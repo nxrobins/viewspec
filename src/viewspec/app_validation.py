@@ -452,8 +452,9 @@ def _validate_screens(
             )
             continue
         # Embedded screens are validated as written: the IntentBundle repair loop's lossless fixes
-        # apply to a standalone source, where check and compile report them under fixes.
-        validation = validate_intent_text(intent_text, compile_check=compile_check, fix=False)
+        # apply to a standalone source, where check and compile report them under fixes. The compact
+        # authoring form is a source-file format too, so a screen is always a canonical bundle.
+        validation = validate_intent_text(intent_text, compile_check=compile_check, fix=False, compact=False)
         if not validation["ok"]:
             first_issue = validation["issues"][0] if validation["issues"] else {}
             nested_code = (

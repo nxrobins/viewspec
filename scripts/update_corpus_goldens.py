@@ -37,8 +37,9 @@ from viewspec import __version__
 from viewspec.app_bundle import compile_app
 from viewspec.app_react import REACT_APP_TARGET
 from viewspec.app_shell import APP_SHELL_TARGET
+from viewspec.compact_form import COMPACT_FORMAT
 from viewspec.conformance import ConformanceCase, load_conformance_corpus
-from viewspec.intent_tools import INTENT_COMPILE_TARGETS, compile_intent_bundle_file_tool
+from viewspec.intent_tools import INTENT_COMPILE_TARGETS, compile_intent_bundle_file_tool, prepare_intent_source
 from viewspec.local_tools_hash import bytes_hash, source_hash
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -139,12 +140,23 @@ def build_goldens(work_dir: Path, *, root: Path = ROOT) -> dict[str, Any]:
     corpus = load_conformance_corpus(str(root / CORPUS_MANIFEST))
     cases: dict[str, Any] = {}
     for case in corpus.cases:
-        case_source_hash = source_hash(intent_source_text(case))
+        text = intent_source_text(case)
+        case_source_hash = source_hash(text)
+        # A compact source compiles through its canonical document after the lossless fixes, so the
+        # manifest records that document's hash as source_hash and the compact file's hash as
+        # compact_source_sha256. The document does not depend on the compile check, so skip it here.
+        staged = prepare_intent_source(text, compile_check=False)
+        compact = staged.compact
         targets: dict[str, Any] = {}
         for target in INTENT_TARGETS:
             manifest, pins = compile_intent_case(case, target, work_dir=work_dir)
-            if manifest["source_hash"] != case_source_hash:
+            if manifest["source_hash"] != staged.manifest_source_hash:
                 raise RuntimeError(f"{case.id} ({target}): manifest source_hash does not match the staged source")
+            if compact and (
+                manifest.get("source_format") != COMPACT_FORMAT
+                or manifest.get("compact_source_sha256") != case_source_hash
+            ):
+                raise RuntimeError(f"{case.id} ({target}): manifest does not record the compact source")
             targets[target] = pins
         cases[case.id] = {
             "kind": case.kind,
@@ -153,6 +165,10 @@ def build_goldens(work_dir: Path, *, root: Path = ROOT) -> dict[str, Any]:
             "source_hash": case_source_hash,
             "targets": targets,
         }
+        if compact:
+            # Pins the normalization itself: a derived-id change rotates this hash, visibly.
+            cases[case.id]["source_format"] = COMPACT_FORMAT
+            cases[case.id]["canonical_source_hash"] = staged.manifest_source_hash
     app_bundles: dict[str, Any] = {}
     for bundle_id, relative in sorted(APP_BUNDLE_SOURCES.items()):
         source = root / relative

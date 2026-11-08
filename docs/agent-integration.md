@@ -358,6 +358,140 @@ AppBundle proof does not prove runtime browser navigation, dynamic routes, live 
 }
 ```
 
+## Compact form
+
+The canonical bundle above spells out every node, binding, group, and member. The compact form is
+the same bundle written as the Python builder's calls, in JSON. The starter dashboard is 2,604
+bytes of compact JSON as a canonical bundle and 415 bytes in the compact form.
+
+```json
+{
+  "schema_version": 1,
+  "format": "compact",
+  "id": "sales_dashboard",
+  "title": "Sales dashboard",
+  "aesthetic": "aesthetic.calm_ops",
+  "motifs": [
+    {"id": "kpis", "kind": "dashboard", "group": "cards",
+     "cards": [{"id": "revenue", "label": "Revenue", "value": "$2.4M"}]},
+    {"id": "items", "kind": "table", "rows": [{"label": "Design System Audit", "value": "$4,200"}]},
+    {"id": "contact", "kind": "form", "fields": [{"id": "message", "label": "Message", "value": ""}]},
+    {"id": "intro", "kind": "hero", "eyebrow": "Ops", "title": "Incident console"}
+  ],
+  "inputs": [{"id": "query", "label": "Search"}],
+  "styles": [{"target": "motif:kpis", "token": "density.compact"}],
+  "actions": [
+    {"id": "send", "kind": "submit", "label": "Send", "target": "motif:contact", "payload": ["message"]},
+    {"id": "search", "kind": "search", "label": "Search", "collection": "items", "payload": ["query"]}
+  ]
+}
+```
+
+`"format": "compact"` marks the form. A canonical bundle never carries `format`, so detection is
+exact. `viewspec check`, `viewspec compile`, and `viewspec prove` normalize a compact file into the
+canonical bundle, then run the unchanged canonical validator and compiler on it. The Python
+`check()` and `prove()` do the same for a path. A canonical file is validated and compiled exactly
+as before, byte for byte.
+
+Normalization drives `ViewSpecBuilder`, so the result is the bundle the same builder calls export:
+`normalize(compact) == {"schema_version": 1, **builder.build_bundle().to_json()}`. Derived ids are
+the builder's: an item without `id` becomes `<motif>_row_<n>`, `_card_`, `_field_`, `_item_`, or
+`_branch_`, counting every item of the motif, and its bindings are `<node>_label`, `<node>_value`,
+and `<node>_<attribute>`. Normalization is deterministic: one compact document gives one canonical
+document.
+
+Root keys:
+
+| Key | Meaning |
+|---|---|
+| `schema_version` | Optional; `1`. |
+| `format` | `"compact"`. Required. |
+| `id` | The view id. Required. The substrate id is `<id>_substrate` and the root node id is `<id>`. |
+| `title` | The root node's `title` attribute. |
+| `aesthetic` | One `aesthetic.*` profile token. It becomes the last style, `aesthetic_profile` on `view:<id>`. |
+| `root` | `{"min_children", "max_children"}` for the root region. |
+| `regions` | Regions below root: `{id, parent="root", role=id, layout="stack", min_children=1, max_children=null}`. Without this key the bundle has `root` and `main`; with it, `root` plus exactly the listed regions. |
+| `motifs` | Motifs in order. Each has `id`, `kind`, optional `region` (default `main`) and `group`, and one item key. |
+| `inputs` | Text inputs: `{id, label, value="", region="main", group}`. |
+| `styles` | `{id?, target, token}`. A missing id becomes `style_<n>`. |
+| `actions` | `{id, kind, label, region="main", target or collection, payload}`. |
+
+Item keys by motif kind:
+
+| Kind | Key | Item |
+|---|---|---|
+| `table` | `rows` | `{id?, label, value?, values?}` |
+| `dashboard` | `cards` | `{id?, label, value, present_as?}` |
+| `detail` | `fields` | `{id?, label, value?, values?}` |
+| `form` | `fields` | `{id?, label, value=""}` |
+| `list` | `items` | `{id?, label, value?, description?, values?}` |
+| `comparison` | `items` | `{id?, label, value}` |
+| `outline` | `items` | `{id?, label}` |
+| `hero` | none | `title`, `description`, and `eyebrow` on the motif |
+| `empty_state`, `loading_state`, `error_state` | none | `title` and `description` on the motif |
+
+`values` is an object of extra attributes; each becomes a value binding `<node>_<attribute>`. It may
+not carry `label`, `value`, or `description`. Labels and values are any JSON value except `null`.
+
+An action takes `target`, an explicit `region:id`, `binding:id`, `motif:id`, or `view:id`, or
+`collection`, the id of a table or list motif. `payload` lists form field or input ids; each binds
+to that field's `<id>_value` binding. A payload entry may also name a binding id directly.
+`bulk_action` needs a hand-declared selection binding and is not available in the compact form.
+
+Motifs, inputs, styles, the aesthetic profile, and actions normalize in that order, so the
+canonical `styles[i]` is the compact `styles[i]`.
+
+The compact form rejects what the builder cannot express or would lose: an unknown key
+(`COMPACT_UNKNOWN_FIELD`), a missing or invalid field (`COMPACT_MISSING_FIELD`,
+`COMPACT_FIELD_INVALID`), a reused id (`COMPACT_DUPLICATE_ID`), an unknown motif kind
+(`COMPACT_MOTIF_KIND_UNKNOWN`), a motif without its items (`COMPACT_MOTIF_ITEMS_MISSING`), an
+undeclared region (`COMPACT_REGION_UNKNOWN`), an action kind outside the compact form
+(`COMPACT_ACTION_KIND_UNSUPPORTED`), an action target or collection that is not declared
+(`COMPACT_ACTION_TARGET_UNKNOWN`), a payload entry that names nothing
+(`COMPACT_ACTION_PAYLOAD_UNKNOWN`), and a document over 256 KB (`COMPACT_TOO_LARGE`). Issues use
+the shared shape, with `$.`-rooted paths into the compact document. Everything the canonical
+contract checks, such as style targets, motif completeness, collection action rules, and the caps,
+is reported by the canonical validator against the normalized bundle, with canonical
+`$.view_spec` paths; `--canonical-out` writes the document those paths refer to. The 256 KB cap
+applies to the compact file, to the patched compact text, and to the normalized bundle.
+
+```bash
+viewspec init compact --out viewspec.compact.json
+viewspec check viewspec.compact.json --json --canonical-out viewspec.intent.json
+viewspec compile viewspec.compact.json --out dist/
+```
+
+The compact form composes with the [repair loop](#error-repair-loop) in a fixed order. `check` and
+`compile` read the file and apply `--patch` to it as written. Patch pointers therefore name the
+compact document, such as `/motifs/0/cards/1/value`. Then the compact document is checked and
+normalized; its own problems stop there and keep compact paths. The lossless fixes and the canonical
+validator run next, on the canonical document. Their `fixes` and `issues` carry canonical paths,
+such as `$.view_spec.bindings[7].present_as`, into the document that `--canonical-out` writes.
+`check --json` reports `source_format: "compact"`, so an agent knows which document a path names. A
+`present_as` alias on a card, such as `metric`, reaches the canonical binding and is fixed there like
+any other alias.
+
+`--canonical-out PATH` on `check` and `compile` writes the canonical document after the lossless
+fixes, with the formatting `viewspec init` uses. It writes whenever there is one: a compact source
+has one as soon as it normalizes, even when the canonical check then fails. It never writes over the
+input file or a compiled output file. For a canonical source it writes the fixed document with sorted
+keys. `check --json` reports the written file as `canonical_out`, and `compile --json` reports it
+under `paths`. `--patched-out` writes the patched compact text. `--fixed-out` keeps the key order of
+a canonical source, so on a compact source it is a usage error that names `--canonical-out`. The MCP
+`patch` tool takes a compact file as well. The payload for a canonical source is unchanged.
+
+A compact compile records `source_format: "compact"` and `compact_source_sha256` in
+`provenance_manifest.json`. `compact_source_sha256` and `raw_source_hash` hash the compact text
+after any patch. `source_hash` hashes exactly the bytes `--canonical-out` writes, after the fixes. A
+canonical compile writes neither key and hashes the source as written, or the patched text. Compact
+and canonical twins produce the same `artifact_hash` and `semantic_digest`.
+
+The JSON Schema is published as
+[`agent-intent-compact.schema.json`](https://viewspec.dev/agent-intent-compact.schema.json). The
+Python entry points are `viewspec.compact_form.detect_compact()` and
+`viewspec.compact_form.normalize()`; the MCP `init` tool takes `what="compact"`. AppBundle screens
+take canonical IntentBundles.
+
 ## Error Repair Loop
 
 `viewspec check` and `viewspec compile` first apply lossless fixes to an IntentBundle, then validate

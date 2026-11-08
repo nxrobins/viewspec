@@ -245,6 +245,46 @@
         }
       }
     },
+    "data-dense-dashboard-compact": {
+      "canonical_source_hash": "5426b589c9bbe1538dfa8288e4477441b6049a1e2a0bd38da81d09036d5bb7c9",
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/data-dense-dashboard.compact.json",
+      "source_format": "compact",
+      "source_hash": "83a53762e4d3e37b0ae04cdc6ddffe3bd8da585d6d245ae12519b22ab393901a",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "80e497884b0e3eac47126612ab01f3e2cf484e128610f61562f9a3d417250f27",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "80e497884b0e3eac47126612ab01f3e2cf484e128610f61562f9a3d417250f27",
+            "provenance_manifest.json": "e1014774b04a34492892f8704bc4235b7f5ebb4da7fe9a880086097bd4ad612b"
+          },
+          "semantic_digest": "4231ad86844a2780468914af751eb46a5e95a4398feec2b150b39f89aeeb1b72"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "4bd08083f1a946c3e2ce7c69a8d6d9c8fdd0b1d48c3dc6d4f79dbbd1c77c2e0f",
+          "files": {
+            "ViewSpecView.tsx": "4bd08083f1a946c3e2ce7c69a8d6d9c8fdd0b1d48c3dc6d4f79dbbd1c77c2e0f",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "c3f3da8fc1a290291a1747d99178a1367a4946fc54b86d0617fa83b48f7ddb64"
+          },
+          "semantic_digest": "4231ad86844a2780468914af751eb46a5e95a4398feec2b150b39f89aeeb1b72"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "964a77c840d5f53304bd0f6b83818b7750beeceb7dd8cd8da11812cad54febd1",
+          "files": {
+            "ViewSpecView.tsx": "964a77c840d5f53304bd0f6b83818b7750beeceb7dd8cd8da11812cad54febd1",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "5e02da35165782fdce77e2677d25b0635351230be2c18ad6f25b8e1539f1a10e"
+          },
+          "semantic_digest": "4231ad86844a2780468914af751eb46a5e95a4398feec2b150b39f89aeeb1b72"
+        }
+      }
+    },
     "dense-operational-console": {
       "kind": "intent",
       "screen_id": null,
@@ -318,6 +358,162 @@
             "provenance_manifest.json": "a6bfb3e2251cb766492bbbabf29695d040df5f5624210ae6fdaee1b1fe1b8be8"
           },
           "semantic_digest": "9b931eab8463cd880c6eefd3aabf9171e501e3afb7528a06cef55af78b6afa4d"
+        }
+      }
+    },
+    "invoice-table": {
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/invoice-table.intent.json",
+      "source_hash": "74dfe4ae76994712d1b209851272ea0810f653e17eee7d136f639d610c1b9b3a",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "fd0bd8f57f96091c9cb2c059209bc34e61dea7110509930dd84adf84b35cfc49",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "fd0bd8f57f96091c9cb2c059209bc34e61dea7110509930dd84adf84b35cfc49",
+            "provenance_manifest.json": "31202b83b25644f3c46715622854ce71e64b673749ae4f1bb1877b2f05e1194a"
+          },
+          "semantic_digest": "a1d1dab81e191ef640a42311b297e27da77899f4b6afd7bbd2cf11a849773482"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "89e96e088737c222cca61bea758e4a84024604662a76831116117c9453b72305",
+          "files": {
+            "ViewSpecView.tsx": "89e96e088737c222cca61bea758e4a84024604662a76831116117c9453b72305",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "b12f56ee8d26505dd2e80c1b64e0cc7e22af95f6cb4adb82929dc979a97cc6ab"
+          },
+          "semantic_digest": "a1d1dab81e191ef640a42311b297e27da77899f4b6afd7bbd2cf11a849773482"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "e0408f991c40c1f43c1bd5c05cd8c6141d3f585b756f0b9951597f8c95d16aec",
+          "files": {
+            "ViewSpecView.tsx": "e0408f991c40c1f43c1bd5c05cd8c6141d3f585b756f0b9951597f8c95d16aec",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "cc0b75db0548e4144ab032030d894a09956b250fea98d309c4ebab60f156e7ed"
+          },
+          "semantic_digest": "a1d1dab81e191ef640a42311b297e27da77899f4b6afd7bbd2cf11a849773482"
+        }
+      }
+    },
+    "invoice-table-compact": {
+      "canonical_source_hash": "1fc582bb58ab72060a9334ceb1e976ec52ce66cb9d4417bd3875702c2396790f",
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/invoice-table.compact.json",
+      "source_format": "compact",
+      "source_hash": "aef5b7ac7d3ba6babd0c9c2585a0aebddf53039dfbd347837201b63ddac2cda6",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "fd0bd8f57f96091c9cb2c059209bc34e61dea7110509930dd84adf84b35cfc49",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "fd0bd8f57f96091c9cb2c059209bc34e61dea7110509930dd84adf84b35cfc49",
+            "provenance_manifest.json": "a48ec9a8756aca22c8c3e109be240e11c6b9cd8dc762ebecd4bcf61802b58f1d"
+          },
+          "semantic_digest": "a1d1dab81e191ef640a42311b297e27da77899f4b6afd7bbd2cf11a849773482"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "89e96e088737c222cca61bea758e4a84024604662a76831116117c9453b72305",
+          "files": {
+            "ViewSpecView.tsx": "89e96e088737c222cca61bea758e4a84024604662a76831116117c9453b72305",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "4681fae237bc1ca13b391011dc1b9f6646b28a23e9fe2d952c08e10e6e528cc4"
+          },
+          "semantic_digest": "a1d1dab81e191ef640a42311b297e27da77899f4b6afd7bbd2cf11a849773482"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "e0408f991c40c1f43c1bd5c05cd8c6141d3f585b756f0b9951597f8c95d16aec",
+          "files": {
+            "ViewSpecView.tsx": "e0408f991c40c1f43c1bd5c05cd8c6141d3f585b756f0b9951597f8c95d16aec",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "facbebb06244034efaf1310def5184d7c164939c248c04bec705cd71b67e725e"
+          },
+          "semantic_digest": "a1d1dab81e191ef640a42311b297e27da77899f4b6afd7bbd2cf11a849773482"
+        }
+      }
+    },
+    "kpi-dashboard": {
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/kpi-dashboard.intent.json",
+      "source_hash": "44fab24656303ca600b1a6f6aafaf254e1d060c734c4b63f8f5b072d376d29d4",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "1f306a9f96c4de98c987ba422c7f9f3ebe6f0b88c2819b0d32e3a4a7003a29a7",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "1f306a9f96c4de98c987ba422c7f9f3ebe6f0b88c2819b0d32e3a4a7003a29a7",
+            "provenance_manifest.json": "fd15d5e3c2902c3a72910b590d1719766b7badee130080393c2502dd5f8ce13a"
+          },
+          "semantic_digest": "f3dbf80d2aec827cae606eda94a7a138a9230d1b6b7448e03cd266c2e21499b2"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "9501e98fe1b94e2a10c58bf529868acd29d220baa4f6cb3ec6ea760cab206413",
+          "files": {
+            "ViewSpecView.tsx": "9501e98fe1b94e2a10c58bf529868acd29d220baa4f6cb3ec6ea760cab206413",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "ba39967a6107ef9bf5c2a8778701545c376d1ce651d43e362eac4c2ec4003e09"
+          },
+          "semantic_digest": "f3dbf80d2aec827cae606eda94a7a138a9230d1b6b7448e03cd266c2e21499b2"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "fd489e561add6dd0a18f4d4ad328d7962e476bce65d238363d19e8937769b743",
+          "files": {
+            "ViewSpecView.tsx": "fd489e561add6dd0a18f4d4ad328d7962e476bce65d238363d19e8937769b743",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "55983b8f8a899fd669082db77673218c52af6ea29076ae2f690294117f946444"
+          },
+          "semantic_digest": "f3dbf80d2aec827cae606eda94a7a138a9230d1b6b7448e03cd266c2e21499b2"
+        }
+      }
+    },
+    "kpi-dashboard-compact": {
+      "canonical_source_hash": "e04b02753a3b95a77bd49d2ecb11c6682f6c2b31135083204bfe937fde2692d2",
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/kpi-dashboard.compact.json",
+      "source_format": "compact",
+      "source_hash": "56ddb7cad67449ad2839a30c23054cf396f0cd62d3a16db2896759760e88c88a",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "1f306a9f96c4de98c987ba422c7f9f3ebe6f0b88c2819b0d32e3a4a7003a29a7",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "1f306a9f96c4de98c987ba422c7f9f3ebe6f0b88c2819b0d32e3a4a7003a29a7",
+            "provenance_manifest.json": "6693482f345a617f0606775994040f0370d43b178b3e166c1501d59c67c62c57"
+          },
+          "semantic_digest": "f3dbf80d2aec827cae606eda94a7a138a9230d1b6b7448e03cd266c2e21499b2"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "9501e98fe1b94e2a10c58bf529868acd29d220baa4f6cb3ec6ea760cab206413",
+          "files": {
+            "ViewSpecView.tsx": "9501e98fe1b94e2a10c58bf529868acd29d220baa4f6cb3ec6ea760cab206413",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "a2741a568a27a80a5f99bf93ab522e5fcc1043ef0a6d463cc42667817b55048c"
+          },
+          "semantic_digest": "f3dbf80d2aec827cae606eda94a7a138a9230d1b6b7448e03cd266c2e21499b2"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "fd489e561add6dd0a18f4d4ad328d7962e476bce65d238363d19e8937769b743",
+          "files": {
+            "ViewSpecView.tsx": "fd489e561add6dd0a18f4d4ad328d7962e476bce65d238363d19e8937769b743",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "80ed86ce05f86e02a081edd0f8d66c91b539470ac5f1954743af69f92152664b"
+          },
+          "semantic_digest": "f3dbf80d2aec827cae606eda94a7a138a9230d1b6b7448e03cd266c2e21499b2"
         }
       }
     },
@@ -432,6 +628,84 @@
             "provenance_manifest.json": "e363a9764681140ca09ecae2b9e5ce6689514bb4d90844bd2700b47697207a5e"
           },
           "semantic_digest": "38b1e8977a5e3909266652aa0bb3df027902826a10054218bbf0769ea9fdd0ae"
+        }
+      }
+    },
+    "pricing-comparison": {
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/pricing-comparison.intent.json",
+      "source_hash": "e07b2fe776d0dc676419546e055e7083ac44d14169054f47c5f5aa0e83042f68",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "03941bba81c05b4fe5492809733f10e22ae7042771dd24b34e65ca460854b675",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "03941bba81c05b4fe5492809733f10e22ae7042771dd24b34e65ca460854b675",
+            "provenance_manifest.json": "8feb2bf8a333a24f150b9e2afaaaca6c250aed15af5ea9297ea253d4f0036d7c"
+          },
+          "semantic_digest": "a8c8205c09bc57e184d2f5dca60ba820a4f0f49f0eb0194549278c5e247f3f18"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "5fb05b2532984a0042d32e8e07d14cb11b8c8b92f0ee095d70fa70fb29e7cecf",
+          "files": {
+            "ViewSpecView.tsx": "5fb05b2532984a0042d32e8e07d14cb11b8c8b92f0ee095d70fa70fb29e7cecf",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "37b04bff96cd172d58f95091cb15d71ef528a3ea321b4f4d6fcfc83fa8269f48"
+          },
+          "semantic_digest": "a8c8205c09bc57e184d2f5dca60ba820a4f0f49f0eb0194549278c5e247f3f18"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "8113de859d7031b11493af52ebb754e3eefd35c26a8ea9a420199b7501000273",
+          "files": {
+            "ViewSpecView.tsx": "8113de859d7031b11493af52ebb754e3eefd35c26a8ea9a420199b7501000273",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "73e05114f4f03255db099e03e92a267b1fc841090fb8181869706a7077f6e3fc"
+          },
+          "semantic_digest": "a8c8205c09bc57e184d2f5dca60ba820a4f0f49f0eb0194549278c5e247f3f18"
+        }
+      }
+    },
+    "pricing-comparison-compact": {
+      "canonical_source_hash": "1f6928a0c23f92f86cc92473bb656921353cd549a60114ce7360318ce78db483",
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/pricing-comparison.compact.json",
+      "source_format": "compact",
+      "source_hash": "534e4d396dc4e4516ec245a91faf196200bcfb7c570a303ec380ca4c45fab132",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "03941bba81c05b4fe5492809733f10e22ae7042771dd24b34e65ca460854b675",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "03941bba81c05b4fe5492809733f10e22ae7042771dd24b34e65ca460854b675",
+            "provenance_manifest.json": "2c4b47f630687cf73ca8e0d60809dc3e01012e244cdd6b2b45686ec8f791f97e"
+          },
+          "semantic_digest": "a8c8205c09bc57e184d2f5dca60ba820a4f0f49f0eb0194549278c5e247f3f18"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "5fb05b2532984a0042d32e8e07d14cb11b8c8b92f0ee095d70fa70fb29e7cecf",
+          "files": {
+            "ViewSpecView.tsx": "5fb05b2532984a0042d32e8e07d14cb11b8c8b92f0ee095d70fa70fb29e7cecf",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "1e1477e18a0ba8de63f7e886352378700e7b6a0b3c82116a6e770d79c1a23ab8"
+          },
+          "semantic_digest": "a8c8205c09bc57e184d2f5dca60ba820a4f0f49f0eb0194549278c5e247f3f18"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "8113de859d7031b11493af52ebb754e3eefd35c26a8ea9a420199b7501000273",
+          "files": {
+            "ViewSpecView.tsx": "8113de859d7031b11493af52ebb754e3eefd35c26a8ea9a420199b7501000273",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "0e6207309211ad0e4d65bc551439cc72f8596e2f5a2993ad0b3f67d29c29862e"
+          },
+          "semantic_digest": "a8c8205c09bc57e184d2f5dca60ba820a4f0f49f0eb0194549278c5e247f3f18"
         }
       }
     },

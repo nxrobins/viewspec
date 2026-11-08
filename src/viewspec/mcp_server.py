@@ -14,7 +14,12 @@ from typing import Any, Literal
 from viewspec import api
 from viewspec._version import __version__
 from viewspec.app_bundle import APP_SHELL_TARGET, compile_app, init_app_file
-from viewspec.intent_tools import check_intent_source, compile_intent_bundle_file_tool, init_intent_file
+from viewspec.intent_tools import (
+    check_intent_source,
+    compile_intent_bundle_file_tool,
+    init_compact_file,
+    init_intent_file,
+)
 from viewspec.local_tools import (
     exception_response,
     init_design_file,
@@ -99,23 +104,26 @@ class ViewSpecTools:
     @_reported("IO_ERROR", "Choose a writable path under the working directory, or pass force=True.")
     def init(
         self,
-        what: Literal["intent", "app", "design"] = "intent",
+        what: Literal["intent", "app", "design", "compact"] = "intent",
         out: str | None = None,
         kind: str | None = None,
         template: Literal["contract", "react-app"] = "contract",
         force: bool = False,
     ) -> dict[str, Any]:
-        """Write a starter viewspec.intent.json, viewspec.app.json, or DESIGN.md.
+        """Write a starter viewspec.intent.json, viewspec.app.json, DESIGN.md, or viewspec.compact.json.
 
-        Replace the sample content with the user's intent. kind picks a starter motif for intent
-        (default dashboard) or an app kind for app (default internal_tool). template="react-app"
-        writes the runnable AppBundle golden path.
+        Replace the sample content with the user's intent. kind picks a starter motif for intent and
+        compact (default dashboard) or an app kind for app (default internal_tool). template="react-app"
+        writes the runnable AppBundle golden path. compact writes the same starter as intent in the
+        compact authoring form.
         """
         path = self._path(out or api.INIT_DEFAULT_OUT[what])
         if what == "app":
             written = init_app_file(path, kind=kind or "internal_tool", force=force, template=template)
         elif what == "design":
             written = init_design_file(path, force=force)
+        elif what == "compact":
+            written = init_compact_file(path, kind=kind or "dashboard", force=force)
         else:
             written = init_intent_file(path, kind=kind or "dashboard", force=force)
         return tool_response(
@@ -195,7 +203,8 @@ class ViewSpecTools:
         report: ok, issues, fixes, and a correction_prompt on failure. A patch that cannot be applied
         is one PATCH_* issue. operations holds at most 256 add, remove, replace, move, copy, or test
         operations, and the patched source must stay under 256 KB. A patch applies to an IntentBundle
-        source file only, never to an AppBundle or to compiled output.
+        source file only, never to an AppBundle or to compiled output. For a compact-form source the
+        pointers name the compact document; fixes and canonical issues name its canonical document.
         """
         return check_intent_source(
             self._path(source),
