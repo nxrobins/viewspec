@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture shop</title></head>
+<body>
+<header>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/deals"><span>Deals</span></a>
+    <a href="/cart" aria-label="Cart"><svg width="16" height="16"><circle cx="8" cy="8" r="6"/></svg></a>
+  </nav>
+  <form action="/search">
+    <label for="q">Search products</label>
+    <input id="q" name="q" type="search" placeholder="Search products">
+    <select name="sort" aria-label="Sort by"><option>Price</option><option>Rating</option></select>
+    <button type="submit">Search</button>
+  </form>
+</header>
+<main>
+  <h1>Desk lamps</h1>
+  <ul class="results">
+    <li><h2>Arc lamp</h2><p>$49.00</p><button>Add to cart</button></li>
+    <li><h2>Clamp lamp</h2><p>$29.00</p><button>Add to cart</button></li>
+    <li><h2>Globe lamp</h2><p>$65.00</p><button>Add to cart</button></li>
+    <li><h2>Reading lamp</h2><p>$38.00</p><button>Add to cart</button></li>
+  </ul>
+  <label><input type="checkbox" name="instock"> In stock only</label>
+  <div role="button" tabindex="0">Load more</div>
+</main>
+<footer><a href="/help">Help</a></footer>
+</body>
+</html>

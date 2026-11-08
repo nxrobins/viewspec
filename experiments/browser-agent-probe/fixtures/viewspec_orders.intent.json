@@ -1,0 +1,186 @@
+{
+  "substrate": {
+    "id": "orders_substrate",
+    "root_id": "orders",
+    "nodes": {
+      "orders_row_2": {
+        "id": "orders_row_2",
+        "kind": "table_row",
+        "attrs": {
+          "value": "$75.50",
+          "label": "Order 1002"
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "orders_row_3": {
+        "id": "orders_row_3",
+        "kind": "table_row",
+        "attrs": {
+          "value": "$310.00",
+          "label": "Order 1003"
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "note": {
+        "id": "note",
+        "kind": "field",
+        "attrs": {
+          "value": "",
+          "label": "Note"
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "orders_row_1": {
+        "id": "orders_row_1",
+        "kind": "table_row",
+        "attrs": {
+          "value": "$120.00",
+          "label": "Order 1001"
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "orders": {
+        "id": "orders",
+        "kind": "app",
+        "attrs": {},
+        "slots": {},
+        "edges": {}
+      }
+    }
+  },
+  "view_spec": {
+    "id": "orders",
+    "substrate_id": "orders_substrate",
+    "complexity_tier": 1,
+    "root_region": "root",
+    "regions": [
+      {
+        "id": "root",
+        "role": "root",
+        "layout": "stack",
+        "min_children": 1,
+        "max_children": null,
+        "parent_region": ""
+      },
+      {
+        "id": "main",
+        "parent_region": "root",
+        "role": "main",
+        "layout": "stack",
+        "min_children": 1,
+        "max_children": null
+      }
+    ],
+    "bindings": [
+      {
+        "id": "orders_row_1_label",
+        "address": "node:orders_row_1#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "orders_row_1_value",
+        "address": "node:orders_row_1#attr:value",
+        "target_region": "main",
+        "present_as": "value",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "orders_row_2_label",
+        "address": "node:orders_row_2#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "orders_row_2_value",
+        "address": "node:orders_row_2#attr:value",
+        "target_region": "main",
+        "present_as": "value",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "orders_row_3_label",
+        "address": "node:orders_row_3#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "orders_row_3_value",
+        "address": "node:orders_row_3#attr:value",
+        "target_region": "main",
+        "present_as": "value",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "note_label",
+        "address": "node:note#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "note_value",
+        "address": "node:note#attr:value",
+        "target_region": "main",
+        "present_as": "input",
+        "cardinality": "exactly_once"
+      }
+    ],
+    "groups": [
+      {
+        "id": "rows",
+        "kind": "ordered",
+        "members": [
+          "orders_row_1_label",
+          "orders_row_1_value",
+          "orders_row_2_label",
+          "orders_row_2_value",
+          "orders_row_3_label",
+          "orders_row_3_value"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "motifs": [
+      {
+        "id": "orders",
+        "kind": "table",
+        "region": "main",
+        "members": [
+          "orders_row_1_label",
+          "orders_row_1_value",
+          "orders_row_2_label",
+          "orders_row_2_value",
+          "orders_row_3_label",
+          "orders_row_3_value"
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "refund",
+        "kind": "submit",
+        "label": "Refund order",
+        "target_region": "main",
+        "target_ref": "",
+        "payload_bindings": []
+      },
+      {
+        "id": "export",
+        "kind": "navigate",
+        "label": "Export CSV",
+        "target_region": "main",
+        "target_ref": "",
+        "payload_bindings": []
+      }
+    ],
+    "styles": []
+  }
+}
