@@ -15,11 +15,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import TracebackType
 from typing import Any
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from viewspec.api import source_kind
 from viewspec.app_bundle import compile_app
 from viewspec.intent_tools import compile_intent_bundle_file_tool
+from viewspec.studio_inspector import (
+    INSPECTOR_SCRIPT,
+    STUDIO_INSPECTOR_PATH,
+    build_inspector_map,
+    empty_inspector_map,
+    find_inspector_entry,
+)
 
 STUDIO_DEFAULT_PORT = 4388
 STUDIO_SOURCE_NAMES = ("viewspec.app.json", "viewspec.intent.json")
@@ -44,6 +51,8 @@ LIVE_RELOAD_SCRIPT = f"""<script>
 }})();
 </script>"""
 EMPTY_PAGE = "<!doctype html><title>ViewSpec Studio</title><body></body>"
+# Injected into the page served at "/", never into the files on disk: live reload, then the inspector.
+STUDIO_SCRIPTS = LIVE_RELOAD_SCRIPT + INSPECTOR_SCRIPT
 
 
 class StudioError(ValueError):
@@ -93,6 +102,7 @@ class Studio:
         self.generation = 0
         self.errors: list[str] = []
         self.build_dir: Path | None = None
+        self.inspector: dict[str, Any] = empty_inspector_map()
         self._state = Path(tempfile.mkdtemp(prefix="viewspec-studio-"))
         self._stop = threading.Event()
         self._serving = False
@@ -157,10 +167,12 @@ class Studio:
         output = self._state / f"build-{self.generation + 1}"
         errors = _compile_preview(self.source, output, self.design)
         previous = output if errors else self.build_dir
+        self.generation += 1
         if not errors:
             self.build_dir = output
+            # Describes exactly this build; a failed rebuild keeps the map with the build it keeps.
+            self.inspector = build_inspector_map(self.source, output, generation=self.generation)
         self.errors = errors
-        self.generation += 1
         if previous is not None:
             shutil.rmtree(previous, ignore_errors=True)
 
@@ -229,9 +241,9 @@ def _resolve_inside(root: Path, request_path: str) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
-def _with_live_reload(html: str) -> str:
+def _with_studio_scripts(html: str) -> str:
     head, marker, tail = html.rpartition("</body>")
-    return f"{head}{LIVE_RELOAD_SCRIPT}{marker}{tail}" if marker else f"{html}{LIVE_RELOAD_SCRIPT}"
+    return f"{head}{STUDIO_SCRIPTS}{marker}{tail}" if marker else f"{html}{STUDIO_SCRIPTS}"
 
 
 def _handler_for(studio: Studio) -> type[BaseHTTPRequestHandler]:
@@ -248,6 +260,9 @@ def _handler_for(studio: Studio) -> type[BaseHTTPRequestHandler]:
                 status = {"generation": studio.generation, "errors": studio.errors}
                 self._send(HTTPStatus.OK, json.dumps(status).encode("utf-8"), "application/json")
                 return
+            if route == STUDIO_INSPECTOR_PATH:
+                self._send_inspector(urlsplit(self.path).query)
+                return
             try:
                 self._send_artifact(route, studio.build_dir)
             except OSError:
@@ -257,10 +272,21 @@ def _handler_for(studio: Studio) -> type[BaseHTTPRequestHandler]:
         def log_message(self, format: str, *args: Any) -> None:
             pass
 
+        def _send_inspector(self, query: str) -> None:
+            """The whole map, or with ``?id=`` one entry; an unknown id is not found, like an unknown file."""
+            params = parse_qs(query, keep_blank_values=True)
+            payload: dict[str, Any] | None = studio.inspector
+            if "id" in params:
+                payload = find_inspector_entry(payload, params["id"][0], screen=params.get("screen", [None])[0])
+            if payload is None:
+                self._send(HTTPStatus.NOT_FOUND, b"Not found.", "text/plain; charset=utf-8")
+                return
+            self._send(HTTPStatus.OK, json.dumps(payload).encode("utf-8"), "application/json")
+
         def _send_artifact(self, route: str, build_dir: Path | None) -> None:
             if route == "/":
                 html = (build_dir / "index.html").read_text(encoding="utf-8") if build_dir else EMPTY_PAGE
-                self._send(HTTPStatus.OK, _with_live_reload(html).encode("utf-8"), "text/html; charset=utf-8")
+                self._send(HTTPStatus.OK, _with_studio_scripts(html).encode("utf-8"), "text/html; charset=utf-8")
                 return
             target = _resolve_inside(build_dir, self.path) if build_dir else None
             if target is None:
@@ -282,7 +308,9 @@ def _handler_for(studio: Studio) -> type[BaseHTTPRequestHandler]:
 
 
 __all__ = [
+    "INSPECTOR_SCRIPT",
     "STUDIO_DEFAULT_PORT",
+    "STUDIO_INSPECTOR_PATH",
     "STUDIO_SOURCE_NAMES",
     "Studio",
     "StudioError",
