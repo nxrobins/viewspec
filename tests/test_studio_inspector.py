@@ -53,6 +53,18 @@ def test_the_map_describes_the_build_it_was_made_from(tmp_path):
     assert entry["content_refs"] == ["node:priority#attr:value"]
 
 
+def test_a_canonical_source_maps_into_the_file_as_written(tmp_path):
+    source, out = _compiled_starter(tmp_path)
+    payload = build_inspector_map(source, out, generation=1)
+    assert payload["source_format"] == "canonical"
+    assert empty_inspector_map()["source_format"] is None
+
+
+def test_the_overlay_names_the_canonical_bundle_for_a_compact_source():
+    assert "paths name the canonical bundle: viewspec check --canonical-out" in INSPECTOR_SCRIPT
+    assert 'map.source_format === "compact"' in INSPECTOR_SCRIPT
+
+
 def test_a_source_that_cannot_be_read_gives_an_empty_map_with_a_registered_code(tmp_path):
     source, out = _compiled_starter(tmp_path)
     source.write_text("{", encoding="utf-8")
@@ -93,6 +105,7 @@ def test_the_empty_map_has_the_same_shape():
         "schema_version": 1,
         "generation": 0,
         "source_kind": None,
+        "source_format": None,
         "screens": [],
         "errors": [],
     }

@@ -172,6 +172,40 @@ def test_patch_leaves_a_lossy_problem_for_the_agent_but_applies_the_lossless_fix
     assert [issue["code"] for issue in report["issues"]] == ["UNKNOWN_PRESENT_AS"]
 
 
+def test_check_and_patch_write_the_canonical_bundle_of_a_compact_source(tools, tmp_path) -> None:
+    tools.init(what="compact")
+    tools.init()
+    compact = tmp_path / "viewspec.compact.json"
+    before = compact.read_bytes()
+
+    checked = tools.check("viewspec.compact.json", canonical_out="canonical.json")
+    patched = tools.patch(
+        "viewspec.compact.json",
+        [{"op": "replace", "path": "/title", "value": "Patched Dashboard"}],
+        canonical_out="patched-canonical.json",
+    )
+
+    assert checked["ok"] is True and checked["source_format"] == "compact"
+    assert checked["canonical_out"] == str(tmp_path / "canonical.json")
+    # The canonical bundle of the compact starter is the canonical starter, byte for byte.
+    assert (tmp_path / "canonical.json").read_bytes() == (tmp_path / "viewspec.intent.json").read_bytes()
+    assert patched["ok"] is True
+    canonical = json.loads((tmp_path / "patched-canonical.json").read_text(encoding="utf-8"))
+    assert canonical["substrate"]["nodes"]["starter_dashboard"]["attrs"]["title"] == "Patched Dashboard"
+    assert compact.read_bytes() == before
+
+
+def test_canonical_out_refuses_app_bundles_the_input_file_and_paths_outside_the_workspace(tools, tmp_path) -> None:
+    tools.init()
+    tools.init(what="app")
+
+    _assert_failed_with(tools.check("viewspec.app.json", canonical_out="out.json"), "CHECK_FAILED")
+    _assert_failed_with(tools.check("viewspec.intent.json", canonical_out="viewspec.intent.json"), "CHECK_FAILED")
+    _assert_failed_with(tools.check("viewspec.intent.json", canonical_out="../outside.json"), "PATH_OUTSIDE_CWD")
+    assert not (tmp_path / "out.json").exists()
+    assert not (tmp_path.parent / "outside.json").exists()
+
+
 def test_patch_refuses_compiled_output_and_app_bundles(tools, tmp_path) -> None:
     tools.init()
     tools.init(what="app")

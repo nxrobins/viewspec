@@ -29,7 +29,7 @@ from viewspec.studio_inspector import (
 )
 
 STUDIO_DEFAULT_PORT = 4388
-STUDIO_SOURCE_NAMES = ("viewspec.app.json", "viewspec.intent.json")
+STUDIO_SOURCE_NAMES = ("viewspec.app.json", "viewspec.intent.json", "viewspec.compact.json")
 STUDIO_STATUS_PATH = "/__viewspec/status"
 STUDIO_WATCH_SECONDS = 0.25
 
@@ -74,13 +74,14 @@ def resolve_studio_source(source: str | Path | None, *, cwd: str | Path | None =
     if not candidates:
         raise StudioError(
             "STUDIO_SOURCE_NOT_FOUND",
-            "ViewSpec Studio could not find viewspec.app.json or viewspec.intent.json.",
+            "ViewSpec Studio could not find viewspec.app.json, viewspec.intent.json, or viewspec.compact.json.",
             "Run viewspec init, or name a source: viewspec studio SOURCE.",
         )
     if len(candidates) > 1:
+        found = " and ".join(candidate.name for candidate in candidates)
         raise StudioError(
             "STUDIO_SOURCE_AMBIGUOUS",
-            "ViewSpec Studio found both viewspec.app.json and viewspec.intent.json.",
+            f"ViewSpec Studio found {found}.",
             "Name the one to preview: viewspec studio SOURCE.",
         )
     return candidates[0]

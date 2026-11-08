@@ -179,14 +179,22 @@ class ViewSpecTools:
         )
 
     @_reported("CHECK_FAILED", "Fix the reported path and retry.")
-    def check(self, path: str, compile_check: bool = True, fix: bool = True) -> dict[str, Any]:
+    def check(
+        self, path: str, compile_check: bool = True, fix: bool = True, canonical_out: str | None = None
+    ) -> dict[str, Any]:
         """Run the fast local checks on a source file or a compiled artifact directory.
 
         A source file gets contract checks, and a failure includes a correction_prompt to act on.
         An IntentBundle gets the lossless fixes first, reported under fixes; fix=False reports the
         same problems as issues. A directory gets provenance, tamper, and active-content checks.
+        canonical_out writes the canonical bundle of an IntentBundle source after the fixes. For a
+        compact-form source, that is the document its fixes and canonical issues name.
         """
-        return api.check(self._path(path), compile_check=compile_check, fix=fix)
+        target = self._path(path)
+        if canonical_out is None:
+            return api.check(target, compile_check=compile_check, fix=fix)
+        out = self._canonical_out(target, canonical_out)
+        return check_intent_source(target, compile_check=compile_check, fix=fix, canonical_out=out)
 
     @_reported("CHECK_FAILED", "Fix the reported path or patch and retry.")
     def patch(
@@ -196,6 +204,7 @@ class ViewSpecTools:
         out: str | None = None,
         compile_check: bool = True,
         fix: bool = True,
+        canonical_out: str | None = None,
     ) -> dict[str, Any]:
         """Apply an RFC 6902 JSON Patch to an IntentBundle file in memory, then check the result.
 
@@ -204,15 +213,29 @@ class ViewSpecTools:
         is one PATCH_* issue. operations holds at most 256 add, remove, replace, move, copy, or test
         operations, and the patched source must stay under 256 KB. A patch applies to an IntentBundle
         source file only, never to an AppBundle or to compiled output. For a compact-form source the
-        pointers name the compact document; fixes and canonical issues name its canonical document.
+        pointers name the compact document; fixes and canonical issues name its canonical document,
+        which canonical_out writes.
         """
+        target = self._path(source)
         return check_intent_source(
-            self._path(source),
+            target,
             compile_check=compile_check,
             fix=fix,
             patch=operations,
             patched_out=self._path(out) if out is not None else None,
+            canonical_out=self._canonical_out(target, canonical_out) if canonical_out is not None else None,
         )
+
+    def _canonical_out(self, source: Path, canonical_out: str) -> Path:
+        """The canonical_out file inside the workspace: an IntentBundle source only, never the input."""
+        if source.is_dir() or api.source_kind(source) == "app_bundle":
+            raise ValueError("canonical_out applies to an IntentBundle source file")
+        out = self._path(canonical_out)
+        if out.is_dir():
+            raise ValueError(f"canonical_out must be a file path, not a directory: {canonical_out}")
+        if source.exists() and out.resolve() == source.resolve():
+            raise ValueError("canonical_out must not be the input file")
+        return out
 
     @_reported("PROVE_INVALID_REQUEST", "Fix the reported option and retry.")
     def prove(

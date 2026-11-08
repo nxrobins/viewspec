@@ -3,6 +3,10 @@
 The map is computed from ``provenance_manifest.json`` plus the source bundle after each successful
 Studio build and served at ``/__viewspec/inspector.json``. The overlay is a script Studio injects
 into the page it serves at ``/``. Neither touches the compiled files on disk.
+
+A canonical source maps to paths in the file as written. A compact source has no canonical file on
+disk, so it maps to paths in the canonical bundle that ``viewspec check --canonical-out`` writes,
+the same document its fixes and canonical issues name; the map says so with ``source_format``.
 """
 
 from __future__ import annotations
@@ -13,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 from viewspec.api import source_kind
+from viewspec.compact_form import COMPACT_FORMAT
+from viewspec.intent_tools import CANONICAL_FORMAT, prepare_intent_source
 from viewspec.types import parse_canonical_address
 
 STUDIO_INSPECTOR_PATH = "/__viewspec/inspector.json"
@@ -34,12 +40,22 @@ def build_inspector_map(source: Path, build_dir: Path, *, generation: int) -> di
     either gives an empty map with one ``STUDIO_INSPECTOR_UNAVAILABLE`` error, and the build stays.
     """
     kind: str | None = None
+    source_format: str | None = None
     try:
         kind = source_kind(source)
-        document = json.loads(source.read_text(encoding="utf-8"))
+        text = source.read_text(encoding="utf-8")
+        source_format = CANONICAL_FORMAT
         if kind == "app_bundle":
-            screens = _app_screens(document, build_dir)
+            screens = _app_screens(json.loads(text), build_dir)
         else:
+            document = json.loads(text)
+            preparation = prepare_intent_source(text, compile_check=False)
+            if preparation.source_format == COMPACT_FORMAT:
+                # The compiler built the normalized, fixed canonical bundle; map into exactly that one.
+                source_format = COMPACT_FORMAT
+                document = preparation.result.document
+                if document is None:
+                    raise ValueError("the compact source did not normalize")
             screens = [_screen_map(None, "$", document, build_dir / "provenance_manifest.json")]
     except Exception as exc:
         error = {
@@ -47,8 +63,8 @@ def build_inspector_map(source: Path, build_dir: Path, *, generation: int) -> di
             "message": f"ViewSpec Studio could not map this build back to its source: {type(exc).__name__}: {exc}",
             "fix": "Fix the source so it compiles, or save it again to rebuild. The preview itself is unaffected.",
         }
-        return _payload(kind, generation, [], [error])
-    return _payload(kind, generation, screens, [])
+        return _payload(kind, generation, [], [error], source_format=source_format)
+    return _payload(kind, generation, screens, [], source_format=source_format)
 
 
 def find_inspector_entry(payload: dict[str, Any], ident: str, *, screen: str | None = None) -> dict[str, Any] | None:
@@ -64,12 +80,18 @@ def find_inspector_entry(payload: dict[str, Any], ident: str, *, screen: str | N
 
 
 def _payload(
-    kind: str | None, generation: int, screens: list[dict[str, Any]], errors: list[dict[str, str]]
+    kind: str | None,
+    generation: int,
+    screens: list[dict[str, Any]],
+    errors: list[dict[str, str]],
+    *,
+    source_format: str | None = None,
 ) -> dict[str, Any]:
     return {
         "schema_version": INSPECTOR_SCHEMA_VERSION,
         "generation": generation,
         "source_kind": kind,
+        "source_format": source_format,
         "screens": screens,
         "errors": errors,
     }
@@ -326,7 +348,9 @@ _INSPECTOR_TEMPLATE = r"""<script>
     return line("data-ir-id", e.ir_id) + line("data-binding-id", e.binding_id) + line("data-action-id", e.action_id)
       + line("primitive", e.primitive) + line("screen", found.screen.id) + line("motif", motif)
       + line("region", e.region_id) + line("present_as", e.present_as) + line("action", e.action_kind)
-      + line("source", e.source_path) + line("value", values) + `\n${hint}`;
+      + line("source", e.source_path) + line("value", values)
+      + (map.source_format === "compact" ? "paths name the canonical bundle: viewspec check --canonical-out\n" : "")
+      + `\n${hint}`;
   };
 
   const place = () => {

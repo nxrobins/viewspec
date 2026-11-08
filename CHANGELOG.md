@@ -15,6 +15,11 @@ All notable changes to ViewSpec are documented in this file. The format follows
   Shift+click copies the value path, and Alt+I turns the inspector off and on.
   `GET /__viewspec/inspector.json` returns the map for the current build, and `?id=` returns one
   entry. The compiled files on disk do not change, and Studio still answers only on loopback.
+- `viewspec studio` finds `viewspec.compact.json` as well as `viewspec.intent.json` and
+  `viewspec.app.json`. For a compact source, the inspector maps each node to its path in the
+  canonical bundle that `viewspec check --canonical-out` writes, reports `source_format` in
+  `/__viewspec/inspector.json`, and says which document the paths name. The MCP `check` and
+  `patch` tools take `canonical_out`, which writes that canonical bundle.
 - `viewspec check` and `viewspec compile` apply lossless fixes to an IntentBundle before validation
   and report each one under a new `fixes` key, as `{code, path, message, lossy: false}`, in JSON and
   human output. The fixes add a missing `schema_version: 1`, add a missing empty `slots` or `edges`

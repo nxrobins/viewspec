@@ -55,8 +55,8 @@ Patch to it; `viewspec check` validates the result either way.
 viewspec studio
 ```
 
-Studio finds the one `viewspec.app.json` or `viewspec.intent.json` in the current directory, or takes
-a path, then serves a preview on `http://127.0.0.1:4388/`. Editing the source or `--design DESIGN.md`
+Studio finds the one `viewspec.app.json`, `viewspec.intent.json`, or `viewspec.compact.json` in the
+current directory, or takes a path, then serves a preview on `http://127.0.0.1:4388/`. Editing the source or `--design DESIGN.md`
 rebuilds the preview and reloads the page. A broken edit leaves the last good build on screen with
 the error shown over it. Stop it with Ctrl-C.
 

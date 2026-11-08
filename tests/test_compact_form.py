@@ -1344,4 +1344,12 @@ def test_studio_previews_a_compact_source(tmp_path):
     assert (out_dir / "index.html").is_file()
     inspector = build_inspector_map(compact_path, out_dir, generation=1)
     assert inspector["errors"] == []
-    assert inspector["screens"][0]["bindings"]
+    assert inspector["source_format"] == "compact"
+    bindings = inspector["screens"][0]["bindings"]
+    assert bindings
+    # Every path names the canonical bundle that --canonical-out writes, the document the compiler built.
+    canonical = json.loads(prepare_intent_source(compact_path.read_text(encoding="utf-8")).canonical_text)
+    for binding_id, entry in bindings.items():
+        index = int(re.fullmatch(r"\$\.view_spec\.bindings\[(\d+)\]", entry["source_path"]).group(1))
+        assert canonical["view_spec"]["bindings"][index]["id"] == binding_id
+        assert entry["content_paths"] and all(entry["content_paths"])

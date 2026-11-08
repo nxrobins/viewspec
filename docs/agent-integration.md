@@ -54,8 +54,8 @@ The server exposes six tools:
 |---|---|
 | `init` | Writes a starter `viewspec.intent.json`, `viewspec.app.json`, or `DESIGN.md`. |
 | `compile` | Compiles an IntentBundle or AppBundle file. The kind is detected from the file. An IntentBundle gets the lossless fixes, reported under `fixes`. |
-| `check` | Checks a source file or a compiled directory. An IntentBundle gets the lossless fixes, reported under `fixes`; a failed source includes `correction_prompt`. |
-| `patch` | Applies an RFC 6902 JSON Patch (`operations`) to an IntentBundle file in memory and returns the `check` report. The file is unchanged; `out` writes the patched source. |
+| `check` | Checks a source file or a compiled directory. An IntentBundle gets the lossless fixes, reported under `fixes`; a failed source includes `correction_prompt`. `canonical_out` writes the canonical bundle of an IntentBundle source, which for a compact source is the document its fixes and canonical issues name. |
+| `patch` | Applies an RFC 6902 JSON Patch (`operations`) to an IntentBundle file in memory and returns the `check` report. The file is unchanged; `out` writes the patched source, and `canonical_out` writes its canonical bundle. |
 | `prove` | Compiles and verifies a source, or browser-verifies a compiled directory. |
 | `studio` | Starts a background preview and returns its URL; `stop=True` ends it. One runs at a time. |
 

@@ -212,6 +212,18 @@ def test_source_discovery(tmp_path):
     with pytest.raises(StudioError) as ambiguous:
         resolve_studio_source(None, cwd=tmp_path)
     assert ambiguous.value.code == "STUDIO_SOURCE_AMBIGUOUS"
+    assert "viewspec.app.json and viewspec.intent.json" in ambiguous.value.message
+
+
+def test_source_discovery_finds_a_compact_source(tmp_path):
+    (tmp_path / "viewspec.compact.json").write_text("{}", encoding="utf-8")
+    assert resolve_studio_source(None, cwd=tmp_path).name == "viewspec.compact.json"
+
+    (tmp_path / "viewspec.intent.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(StudioError) as ambiguous:
+        resolve_studio_source(None, cwd=tmp_path)
+    assert ambiguous.value.code == "STUDIO_SOURCE_AMBIGUOUS"
+    assert "viewspec.intent.json and viewspec.compact.json" in ambiguous.value.message
 
 
 def test_cli_reports_a_missing_source_with_exit_two(tmp_path, monkeypatch, capsys):
@@ -434,7 +446,14 @@ def test_a_source_that_starts_broken_serves_an_empty_inspector_map(tmp_path):
         threading.Thread(target=studio.serve, daemon=True).start()
         payload = _inspector(studio)
         assert _get(f"{_inspector_url(studio)}?id=anything") == (404, "Not found.")
-    assert payload == {"schema_version": 1, "generation": 0, "source_kind": None, "screens": [], "errors": []}
+    assert payload == {
+        "schema_version": 1,
+        "generation": 0,
+        "source_kind": None,
+        "source_format": None,
+        "screens": [],
+        "errors": [],
+    }
 
 
 @pytest.mark.parametrize("kind", ["intent_bundle", "app_bundle"])
