@@ -334,6 +334,10 @@ Use `--target react-tailwind-tsx` when the host React app already has Tailwind a
 viewspec compile viewspec.intent.json --target react-tailwind-tsx --out react-tailwind-output/
 ```
 
+Both React targets accept `--registry REGISTRY.json` to render every primitive through host-owned
+components instead of plain HTML elements. `viewspec init registry` writes the default registry and
+module; [React Host Component Registry](react-registry.md) has the primitive contract.
+
 The ViewSpec repo CI includes one bounded host proof for this target: it regenerates a representative fixture, runs `viewspec check`, mounts the exact checked `ViewSpecView.tsx` in a Vite/Tailwind host, builds it, and smoke-tests rendered DOM, computed Tailwind styles including grid column/span counts, profiled aesthetic marker/layout assertions, and action payloads in Chromium. The checked manifest summary also carries compact aesthetic style-delta counts when a profile is present. That proof is not run for every user artifact; `viewspec check` verifies source artifact integrity and provenance for the output you compiled.
 
 Run the same bounded proof for a specific artifact with:
@@ -343,7 +347,7 @@ viewspec prove react-tailwind-output/ --install --json
 viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json
 ```
 
-`--install` opts into `npm ci --ignore-scripts` inside the isolated reference host. Without it, the command stays no-install and fails fast when host dependencies are absent. JSON proof reports include `assertion_requirements` for expected `dom_count`, `style_assertion_count`, and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, and `grid_span_assertion_count` before comparing observed browser assertions.
+`--install` opts into `npm ci --ignore-scripts` inside the isolated reference host. Without it, the command stays no-install and fails fast when host dependencies are absent. JSON proof reports include `assertion_requirements` for expected `dom_count`, `style_assertion_count`, and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, `grid_span_assertion_count`, and `registry_primitive_assertion_count` before comparing observed browser assertions.
 
 `viewspec check` also verifies React TSX source artifacts: manifest shape, exact `ViewSpecView.tsx` hash, generated-source markers, diagnostics shape, and absence of active network/runtime escape surfaces. This is source artifact verification, not a rendered DOM proof inside a host React app.
 

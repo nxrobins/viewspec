@@ -32,6 +32,12 @@ from viewspec.compact_form import (
 from viewspec.compiler import compile
 from viewspec.design_md import DesignSystemContext, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.emitters.react_registry import (
+    REACT_REGISTRY_TARGETS,
+    ReactComponentRegistry,
+    ReactRegistryError,
+    load_react_component_registry,
+)
 from viewspec.emitters.react_tailwind_tsx import (
     TAILWIND_RECIPE_REGISTRY_VERSION,
     ReactTailwindTsxEmitter,
@@ -716,6 +722,7 @@ def compile_intent_bundle_file_tool(
     patch_path: str | Path | None = None,
     patched_out: str | Path | None = None,
     fixed_out: str | Path | None = None,
+    registry: str | Path | ReactComponentRegistry | None = None,
 ) -> dict[str, Any]:
     """Compile an IntentBundle file into ``out_dir`` and check the artifact; a tool envelope report.
 
@@ -723,6 +730,12 @@ def compile_intent_bundle_file_tool(
     are reported under ``fixes``. ``patch_path`` names an RFC 6902 patch file applied to the source
     in memory first. ``patched_out`` and ``fixed_out`` write those documents and are reported under
     ``paths``.
+
+    ``registry`` is a host component registry (a ``REGISTRY.json`` path or a loaded
+    :class:`ReactComponentRegistry`) for the ``react-tsx`` and ``react-tailwind-tsx`` targets; see
+    :mod:`viewspec.emitters.react_registry`. It is checked before the source is read, so a bad
+    registry fails before any file is written. Emission through it runs on the canonical bundle that
+    the source pipeline produced, after any patch, compact normalization, and lossless fixes.
     """
     root: Path | None = None
     try:
@@ -742,6 +755,9 @@ def compile_intent_bundle_file_tool(
                     "target": target,
                 },
             )
+        component_registry = _load_component_registry(
+            registry, target=target, cwd=root, allow_outside_cwd=allow_outside_cwd
+        )
         source = resolve_local_path(input_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
         output = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
         if target in {"react-tsx", "react-tailwind-tsx"}:
@@ -844,11 +860,11 @@ def compile_intent_bundle_file_tool(
                     },
                 )
         if target == "react-tsx":
-            paths = ReactTsxEmitter().emit(ast, output)
+            paths = ReactTsxEmitter(component_registry=component_registry).emit(ast, output)
             artifact_path = Path(paths["tsx"])
             emitter = "react_tsx"
         elif target == "react-tailwind-tsx":
-            paths = ReactTailwindTsxEmitter().emit(ast, output)
+            paths = ReactTailwindTsxEmitter(component_registry=component_registry).emit(ast, output)
             artifact_path = Path(paths["tsx"])
             emitter = "react_tailwind_tsx"
         elif target == MCP_APP_TARGET:
@@ -872,12 +888,16 @@ def compile_intent_bundle_file_tool(
                 strict_design=strict_design,
                 target=target,
                 patch_name=Path(patch_path).name if patch_path is not None else None,
+                registry_name=None
+                if registry is None or isinstance(registry, ReactComponentRegistry)
+                else Path(registry).name,
             ),
             artifact_path=artifact_path,
             emitter=emitter,
             target=MCP_APP_TARGET if target == MCP_APP_TARGET else None,
             source_format=prepared.source_format,
             canonical_source_hash=prepared.manifest_source_hash,
+            registry=component_registry,
         )
         paths.update(extra_paths)
         manifest_summary = summarize_intent_manifest(Path(paths["manifest"]))
@@ -890,6 +910,8 @@ def compile_intent_bundle_file_tool(
             "emitter": emitter,
             "manifest_summary": manifest_summary,
         }
+        if component_registry is not None:
+            metadata["registry"] = component_registry.to_summary()
         checked = check_artifact_dir(output)
         if not checked["ok"]:
             return tool_error_response(
@@ -921,6 +943,10 @@ def compile_intent_bundle_file_tool(
             metadata={**metadata, "artifact_check": "passed"},
             data={"fixes": validation["fixes"]},
         )
+    except ReactRegistryError as exc:
+        return tool_error_response(
+            exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd)
+        )
     except Exception as exc:
         return exception_response(
             exc,
@@ -928,6 +954,27 @@ def compile_intent_bundle_file_tool(
             "Fix the IntentBundle, DESIGN.md, or path issue and retry.",
             metadata=path_policy_metadata(root, allow_outside_cwd),
         )
+
+
+def _load_component_registry(
+    registry: str | Path | ReactComponentRegistry | None,
+    *,
+    target: str,
+    cwd: Path,
+    allow_outside_cwd: bool,
+) -> ReactComponentRegistry | None:
+    if registry is None:
+        return None
+    if target not in REACT_REGISTRY_TARGETS:
+        raise ReactRegistryError(
+            "REGISTRY_TARGET_UNSUPPORTED",
+            f"A component registry applies to target react-tsx or react-tailwind-tsx, not {target}.",
+            "Drop the registry, or compile with --target react-tsx or --target react-tailwind-tsx.",
+        )
+    if isinstance(registry, ReactComponentRegistry):
+        return registry
+    path = resolve_local_path(registry, cwd=cwd, allow_outside_cwd=allow_outside_cwd, must_exist=True)
+    return load_react_component_registry(path)
 
 
 def wrap_intent_bundle_manifest(
@@ -942,6 +989,7 @@ def wrap_intent_bundle_manifest(
     target: str | None = None,
     source_format: str = CANONICAL_FORMAT,
     canonical_source_hash: str | None = None,
+    registry: ReactComponentRegistry | None = None,
 ) -> None:
     """Wrap the emitter manifest in the IntentBundle provenance envelope.
 
@@ -950,6 +998,10 @@ def wrap_intent_bundle_manifest(
     ``source_hash``, the sha256 of its canonical document after the lossless fixes (exactly the bytes
     ``--canonical-out`` writes), plus ``source_format`` and ``compact_source_sha256``. A canonical
     manifest carries neither new key, so its bytes do not change.
+
+    ``registry`` adds the ``registry`` section (``sha256``, ``module``, ``primitive_count``,
+    ``primitives``) for a React artifact rendered through a host component registry; without it the
+    manifest carries no such key.
     """
     from viewspec.local_tools import atomic_write
 
@@ -990,6 +1042,8 @@ def wrap_intent_bundle_manifest(
         wrapped["target"] = target
     if emitter == "react_tailwind_tsx":
         wrapped["tailwind_recipe_inventory"] = _tailwind_recipe_inventory(existing)
+    if registry is not None:
+        wrapped["registry"] = registry.to_manifest()
     if design is not None:
         wrapped["design"] = design.to_meta()
     wrapped["semantic_digest"] = build_intent_semantic_digest(
@@ -1046,9 +1100,11 @@ def _compile_command_args(
     strict_design: bool,
     target: str = "html-tailwind",
     patch_name: str | None = None,
+    registry_name: str | None = None,
 ) -> list[str]:
-    # --patch changes the compiled source, so it is recorded; --no-fix only changes validation and
-    # never the compiled bytes, so it is not, and AppBundle screen manifests stay byte-identical.
+    # --patch changes the compiled source and --registry changes the emitted bytes, so both are
+    # recorded; --no-fix only changes validation and never the compiled bytes, so it is not, and
+    # AppBundle screen manifests stay byte-identical. The CLI records them in the same order.
     command = ["viewspec", "compile", source_name]
     if design_path is not None:
         command.extend(["--design", Path(design_path).name])
@@ -1058,6 +1114,8 @@ def _compile_command_args(
         command.extend(["--target", target])
     if patch_name is not None:
         command.extend(["--patch", patch_name])
+    if registry_name is not None:
+        command.extend(["--registry", registry_name])
     command.extend(["--out", "<out>"])
     return command
 

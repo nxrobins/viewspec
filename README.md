@@ -34,7 +34,7 @@ viewspec mcp                                       # the five above, plus patch,
 
 | Command | Takes | Does |
 |---|---|---|
-| `viewspec init [intent\|app\|design\|compact]` | what to write | Writes a starter `viewspec.intent.json`, `viewspec.app.json`, `DESIGN.md`, or compact-form `viewspec.compact.json`. |
+| `viewspec init [intent\|app\|design\|compact\|registry]` | what to write | Writes a starter `viewspec.intent.json`, `viewspec.app.json`, `DESIGN.md`, compact-form `viewspec.compact.json`, or the default React component registry with its module. |
 | `viewspec compile INPUT --out DIR` | IntentBundle, AppBundle, or imported HTML | Writes the artifact and its manifest. The kind is detected from the file. |
 | `viewspec check PATH` | a source file, or a compiled directory | Contract checks for a source; provenance, tamper, and active-content checks for a directory. |
 | `viewspec prove [SOURCE]` | nothing, a source file, or a compiled directory | Compiles and verifies, adding browser layout, Pretext, and Freerange evidence on request. |
@@ -272,6 +272,15 @@ IntentBundle JSON -> ViewSpec compiler -> HTML / React / CompositionIR
 Existing HTML can be imported as a [fallback path](docs/local-html-wedge.md): `viewspec compile
 page.html --out dist/` sanitizes it and applies `DESIGN.md`. New UI should start from an
 `IntentBundle`.
+
+The React targets can render through host-owned components. `viewspec compile --target
+react-tailwind-tsx --registry REGISTRY.json` maps each of the fifteen primitive kinds to a named
+export of one host module; `ViewSpecView.tsx` imports those exports and passes each component the
+same props and `data-*` provenance attributes it writes today, plus `as`, the element the default
+rendering uses. The compiler owns structure, semantics, and provenance; the host owns the components;
+the agent still writes only the IntentBundle, canonical or compact. `viewspec init registry` writes the default
+registry and a module that reproduces today's elements, so a host can replace one component at a time.
+Without `--registry` the output is unchanged. See [React Host Component Registry](docs/react-registry.md).
 
 ## Requirements
 

@@ -28,6 +28,13 @@ from viewspec.compiler import compile as compile_intent
 from viewspec.compiler_errors import LocalToolContractError
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.emitters.react_registry import (
+    REACT_REGISTRY_TARGETS,
+    ReactComponentRegistry,
+    ReactRegistryError,
+    load_react_component_registry,
+    write_default_react_registry,
+)
 from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.intent_tools import (
@@ -189,14 +196,21 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser(
-        "init", help="Write a starter IntentBundle, AppBundle, DESIGN.md, or compact-form IntentBundle."
+        "init",
+        help=(
+            "Write a starter IntentBundle, AppBundle, DESIGN.md, compact-form IntentBundle, "
+            "or React component registry."
+        ),
     )
     init_parser.add_argument(
         "what", nargs="?", default="intent", choices=tuple(INIT_DEFAULT_OUT), help="What to write (default: intent)."
     )
     init_parser.add_argument(
         "--out",
-        help="Output path (default: viewspec.intent.json, viewspec.app.json, DESIGN.md, viewspec.compact.json).",
+        help=(
+            "Output path (default: viewspec.intent.json, viewspec.app.json, DESIGN.md, viewspec.compact.json, "
+            "or viewspec-registry.json with viewspec-registry.tsx beside it)."
+        ),
     )
     init_parser.add_argument(
         "--kind",
@@ -235,6 +249,14 @@ def _build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--design", help="Optional DESIGN.md file to apply locally.")
     compile_parser.add_argument(
         "--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors."
+    )
+    compile_parser.add_argument(
+        "--registry",
+        metavar="REGISTRY.json",
+        help=(
+            "react-tsx and react-tailwind-tsx: render each primitive through the host components this "
+            "registry names (see docs/react-registry.md)."
+        ),
     )
     compile_parser.add_argument(
         "--force",
@@ -400,6 +422,8 @@ def _init_command(args: argparse.Namespace) -> int:
         return _init_design(args, out)
     if args.what == "compact":
         return _init_compact(args, out)
+    if args.what == "registry":
+        return _init_registry(args, out)
     return _init_intent(args, out)
 
 
@@ -421,6 +445,27 @@ def _init_compact(args: argparse.Namespace, out: str) -> int:
         )
     else:
         print(str(path))
+    return 0
+
+
+def _init_registry(args: argparse.Namespace, out: str) -> int:
+    registry_path, module_path = write_default_react_registry(out, force=args.force)
+    if args.json:
+        _print_json(
+            tool_response(
+                True,
+                "Wrote the default React component registry and module.",
+                paths={"registry": str(registry_path), "registry_module": str(module_path)},
+                next_actions=[
+                    f"Compile with --target react-tailwind-tsx --registry {registry_path}.",
+                    f"Keep {module_path.name} beside ViewSpecView.tsx and replace one export at a time.",
+                ],
+                metadata=_cli_metadata(),
+            )
+        )
+    else:
+        print(str(registry_path))
+        print(str(module_path))
     return 0
 
 
@@ -516,6 +561,7 @@ def _compile_command(args: argparse.Namespace) -> int:
                 ),
             )
         _reject_intent_only_options(args, "an AppBundle source")
+        _load_component_registry(args.registry, target=args.target or APP_SHELL_TARGET)
         return _compile_app(args)
     target = args.target or "html-tailwind"
     if target not in (*INTENT_COMPILE_TARGETS, MCP_APP_TARGET):
@@ -534,6 +580,8 @@ def _compile_command(args: argparse.Namespace) -> int:
                 ),
             )
         _reject_intent_only_options(args, what)
+    # The registry is checked before any input is read or any repair-loop file is written.
+    registry = _load_component_registry(args.registry, target=target)
     data, source_name, input_path = _read_input(args.input, stdin_format=args.stdin_format)
     out_dir = Path(args.out)
     canonical_out = _canonical_out_path(args.canonical_out, input_path)
@@ -608,11 +656,11 @@ def _compile_command(args: argparse.Namespace) -> int:
     design = _load_design(args.design, strict=args.strict_design)
     ast = compile_intent(bundle, design=design, strict_design=args.strict_design)
     if target == "react-tsx":
-        paths = ReactTsxEmitter().emit(ast, out_dir)
+        paths = ReactTsxEmitter(component_registry=registry).emit(ast, out_dir)
         artifact_path = Path(paths["tsx"])
         emitter = "react_tsx"
     elif target == "react-tailwind-tsx":
-        paths = ReactTailwindTsxEmitter().emit(ast, out_dir)
+        paths = ReactTailwindTsxEmitter(component_registry=registry).emit(ast, out_dir)
         artifact_path = Path(paths["tsx"])
         emitter = "react_tailwind_tsx"
     elif target == MCP_APP_TARGET:
@@ -635,20 +683,29 @@ def _compile_command(args: argparse.Namespace) -> int:
         target=MCP_APP_TARGET if target == MCP_APP_TARGET else None,
         source_format=prepared.source_format,
         canonical_source_hash=prepared.manifest_source_hash,
+        registry=registry,
     )
     if target == MCP_APP_TARGET:
         paths["mcp_app"] = str(write_mcp_app_metadata(out_dir, uri))
     paths.update(extra_paths)
     if args.json:
+        next_actions = [f"Run viewspec check {out_dir} --json before using the artifact."]
+        metadata = _cli_metadata(
+            input_format="json", target=target, emitter=emitter, source_format=prepared.source_format
+        )
+        if registry is not None:
+            metadata["registry"] = registry.to_summary()
+            next_actions.append(
+                f"Keep the registry module {registry.module} beside ViewSpecView.tsx; "
+                "viewspec init registry writes the default one."
+            )
         _print_json(
             tool_response(
                 True,
                 "Compiled IntentBundle artifact.",
                 paths=paths,
-                next_actions=[f"Run viewspec check {out_dir} --json before using the artifact."],
-                metadata=_cli_metadata(
-                    input_format="json", target=target, emitter=emitter, source_format=prepared.source_format
-                ),
+                next_actions=next_actions,
+                metadata=metadata,
                 data={"fixes": validation["fixes"]},
             )
         )
@@ -658,6 +715,19 @@ def _compile_command(args: argparse.Namespace) -> int:
             print(line, file=sys.stderr)
         print(json.dumps(paths, indent=2, sort_keys=True))
     return 0
+
+
+def _load_component_registry(path: str | None, *, target: str) -> ReactComponentRegistry | None:
+    """Load ``--registry`` for a React target; any other target fails closed."""
+    if path is None:
+        return None
+    if target not in REACT_REGISTRY_TARGETS:
+        raise ReactRegistryError(
+            "REGISTRY_TARGET_UNSUPPORTED",
+            f"--registry applies to --target react-tsx or react-tailwind-tsx, not {target}",
+            "Drop --registry, or compile with --target react-tsx or --target react-tailwind-tsx.",
+        )
+    return load_react_component_registry(path)
 
 
 def _reject_intent_only_options(args: argparse.Namespace, what: str) -> None:
@@ -868,6 +938,14 @@ def _check_manifest_summary_lines(summary: object) -> list[str]:
     aesthetic_profile = summary.get("aesthetic_profile")
     if isinstance(aesthetic_profile, str) and aesthetic_profile:
         lines.append(f"aesthetic_profile: {aesthetic_profile}")
+    registry = summary.get("registry")
+    if isinstance(registry, dict) and registry:
+        lines.append(
+            "registry: "
+            f"module={_cli_summary_value(registry.get('module'))} "
+            f"primitives={_cli_summary_value(registry.get('primitive_count'))} "
+            f"sha256={_cli_summary_value(registry.get('sha256'))}"
+        )
     style = summary.get("aesthetic_style")
     if isinstance(style, dict) and style:
         if style.get("available") is False:
@@ -1175,10 +1253,12 @@ def _compile_command_args(args: argparse.Namespace, source_name: str | None, tar
         command.append("--strict-design")
     if target != "html-tailwind":
         command.extend(["--target", target])
-    # --patch changes the compiled source, so it is recorded; --no-fix never changes the compiled
-    # bytes, so it is not.
+    # --patch changes the compiled source and --registry the emitted bytes, so both are recorded, in
+    # the order the compile tool records them; --no-fix never changes the compiled bytes, so it is not.
     if getattr(args, "patch", None):
         command.extend(["--patch", Path(args.patch).name])
+    if getattr(args, "registry", None):
+        command.extend(["--registry", Path(args.registry).name])
     command.extend(["--out", "<out>"])
     if args.stdin_format:
         command.extend(["--stdin-format", args.stdin_format])

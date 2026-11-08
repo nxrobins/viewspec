@@ -53,6 +53,7 @@ type DomSnapshot = {
 const fixtureRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(readFileSync(join(fixtureRoot, "src/generated/provenance_manifest.json"), "utf8")) as {
   nodes: Record<string, ManifestNode>;
+  registry?: { module: string; primitive_count: number; primitives: Record<string, string>; sha256: string };
 };
 
 function fail(code: string, message: string): never {
@@ -468,11 +469,21 @@ test("generated React Tailwind artifact builds and behaves in the bounded host",
 
   let domCount = 0;
   let visibleTextCount = 0;
+  // A registry build renders every node through a host component, which must spread the data-*
+  // provenance props onto its root element: data-ir-primitive proves the spread for each node.
+  let registryPrimitiveAssertionCount = 0;
   for (const [domId, node] of Object.entries(manifest.nodes)) {
     const locator = page.locator(cssId(domId));
     await expect(locator, `HOST_VERIFY_DOM_NODE_MISSING: missing ${domId}`).toHaveCount(1);
     await expect(locator, `HOST_VERIFY_DOM_NODE_MISSING: ${domId} data-ir-id`).toHaveAttribute("data-ir-id", node.ir_id);
     domCount += 1;
+    if (manifest.registry) {
+      await expect(locator, `HOST_VERIFY_DOM_NODE_MISSING: ${domId} data-ir-primitive`).toHaveAttribute(
+        "data-ir-primitive",
+        node.primitive,
+      );
+      registryPrimitiveAssertionCount += 1;
+    }
     const text = expectedText(node);
     if (text && node.primitive !== "input") {
       await expect(locator, `HOST_VERIFY_DOM_NODE_MISSING: ${domId} text`).toContainText(text);
@@ -595,6 +606,7 @@ test("generated React Tailwind artifact builds and behaves in the bounded host",
     grid_column_assertion_count: gridColumnAssertionCount,
     grid_span_assertion_count: gridSpanAssertionCount,
     payload_binding_count: payloadBindingCount,
+    registry_primitive_assertion_count: registryPrimitiveAssertionCount,
     style_assertion_count: styleAssertions.length,
   }, testInfo, verification.diagnostics, verification.evidence);
 });

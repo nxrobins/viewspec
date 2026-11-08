@@ -27,6 +27,8 @@ are reference material for when a command, contract, or proof points you there.
 
 - [Emitter Matrix](emitter-matrix.md): Capability matrix across HTML/Tailwind, React TSX, and React
   Tailwind TSX.
+- [React Host Component Registry](react-registry.md): `--registry` for the React targets, the
+  primitive contract, the manifest section, and the `REGISTRY_*` codes.
 - [Known Limits: HTML/Tailwind](known-limits-html-tailwind.md)
 - [Known Limits: React TSX](known-limits-react-tsx.md)
 - [Known Limits: React Tailwind TSX](known-limits-react-tailwind-tsx.md)

@@ -42,6 +42,7 @@ INIT_DEFAULT_OUT = {
     "app": "viewspec.app.json",
     "design": "DESIGN.md",
     "compact": "viewspec.compact.json",
+    "registry": "viewspec-registry.json",
 }
 VERIFY_DEFAULT_OUT = ".viewspec-verification"
 

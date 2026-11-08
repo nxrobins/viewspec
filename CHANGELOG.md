@@ -86,6 +86,35 @@ All notable changes to ViewSpec are documented in this file. The format follows
 - Compact corpus cases for the starter dashboard and the `examples/*.py` builder bundles, with the
   builder bundles' canonical twins, in `conformance/verification/corpus.json`; the goldens pin that
   each pair shares its artifact hashes.
+- `viewspec compile --registry REGISTRY.json` for `--target react-tsx` and `--target
+  react-tailwind-tsx` renders every primitive through host-owned React components. The registry maps
+  each of the fifteen primitive kinds to a named export of one relative module; `ViewSpecView.tsx`
+  imports those exports and passes each component the props and `data-*` provenance attributes it
+  writes today plus `as`, the element the default rendering uses. The agent still writes only the
+  IntentBundle, canonical or compact. The flag composes with `--patch`, the lossless fixes, and a
+  compact source: the source pipeline runs first, and the registry renders the canonical bundle.
+  Without the flag the output is byte-identical to before. The flag on any
+  other target fails with `REGISTRY_TARGET_UNSUPPORTED`; a bad registry file fails before anything is
+  written with `REGISTRY_INVALID`, `REGISTRY_PRIMITIVE_MISSING`, `REGISTRY_PRIMITIVE_UNKNOWN`,
+  `REGISTRY_EXPORT_INVALID`, or `REGISTRY_MODULE_INVALID`. See [docs/react-registry.md](docs/react-registry.md).
+- The provenance manifest of a registry build records `registry: {sha256, module, primitive_count,
+  primitives}` and `--registry` in `command_args`; `viewspec check` verifies the section against the
+  emitted source and fails with `REGISTRY_MANIFEST_MISMATCH` on drift. `viewspec check` prints a
+  `registry:` line in its manifest summary, and the JSON `manifest_summary` gains a `registry` object.
+- `viewspec init registry` writes the default registry JSON and the default module,
+  `viewspec-registry.tsx`, which reproduces today's elements so a host can replace one component at a
+  time. `examples/react_registry/` holds a shadcn-style reference module that uses class names only: it
+  keeps the compiled layout classes and the `vs-*` hooks, and replaces the visual classes.
+- `viewspec prove DIR --install` on a `react-tailwind-tsx` registry build mounts the host module from
+  beside `ViewSpecView.tsx` in the reference host and asserts `data-ir-primitive` on every node. Its host
+  report, `evidence/host-report.json`, records `registry_primitive_assertion_count` and a `registry`
+  section. A missing, deeper, or unsafe module fails with `REGISTRY_MODULE_INVALID`. CI runs the React
+  Tailwind host proof a second time through a fixture registry.
+- `viewspec.emitters.react_registry`: `REACT_PRIMITIVE_KINDS`, `REACT_PRIMITIVE_CONTRACT`,
+  `ReactComponentRegistry`, `DEFAULT_REACT_COMPONENT_REGISTRY`, `load_react_component_registry`, and
+  `write_default_react_registry`; `ReactTsxEmitter`, `ReactTailwindTsxEmitter`, both
+  `emit_compiler_result` functions, `compile_intent_bundle_file_tool`, and
+  `wrap_intent_bundle_manifest` take the registry as a keyword.
 
 ## [0.4.0] - 2026-11-01
 

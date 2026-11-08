@@ -18,6 +18,7 @@ from viewspec.emitters.html_tailwind import (
     _validate_ir_contract,
     _validate_style_values,
 )
+from viewspec.emitters.react_registry import ReactComponentRegistry
 from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES, ASTBundle, CompilerResult, IRNode
 
 _LOGGER = logging.getLogger(__name__)
@@ -355,16 +356,22 @@ def _action_expression(node: IRNode, *, source: str = "viewspec-react-tsx") -> s
     )
 
 
-def _attrs_for_node(node: IRNode, style_values: dict[str, str]) -> list[str]:
+def _attrs_for_node(
+    node: IRNode, style_values: dict[str, str], *, component_registry: ReactComponentRegistry | None = None
+) -> list[str]:
     dom_id = f"dom-{node.id}"
     classes = " ".join(_node_classes(node))
-    attrs = [
-        _jsx_attr("id", dom_id),
-        _jsx_attr("data-ir-id", node.id),
-        _jsx_attr("data-content-refs", _json_string_attr(list(node.provenance.content_refs))),
-        _jsx_attr("data-intent-refs", _json_string_attr(list(node.provenance.intent_refs))),
-        _jsx_attr("data-style-tokens", _json_string_attr(list(node.style_tokens))),
-    ]
+    attrs = [_jsx_attr("id", dom_id), _jsx_attr("data-ir-id", node.id)]
+    if component_registry is not None:
+        # A host component spreads this with the other data-* props; the check reads it back.
+        attrs.append(_jsx_attr("data-ir-primitive", node.primitive))
+    attrs.extend(
+        [
+            _jsx_attr("data-content-refs", _json_string_attr(list(node.provenance.content_refs))),
+            _jsx_attr("data-intent-refs", _json_string_attr(list(node.provenance.intent_refs))),
+            _jsx_attr("data-style-tokens", _json_string_attr(list(node.style_tokens))),
+        ]
+    )
     if node.primitive == "root":
         attrs.append(f'className={{[{_tsx_string(classes)}, className].filter(Boolean).join(" ")}}')
         if node.props.get("semantic_context") == "embedded_screen":
@@ -443,27 +450,41 @@ def _attrs_for_node(node: IRNode, style_values: dict[str, str]) -> list[str]:
     return attrs
 
 
-def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str, str], indent: int = 4) -> list[str]:
+def _render_node(
+    node: IRNode,
+    manifest: dict[str, Any],
+    style_values: dict[str, str],
+    indent: int = 4,
+    *,
+    component_registry: ReactComponentRegistry | None = None,
+) -> list[str]:
     dom_id = f"dom-{node.id}"
     manifest[dom_id] = _manifest_entry(node)
     pad = " " * indent
     child_pad = " " * (indent + 2)
     tag = _tag_for_node(node)
-    attrs = " ".join(_attrs_for_node(node, style_values))
+    attr_list = _attrs_for_node(node, style_values, component_registry=component_registry)
+    if component_registry is None:
+        element = tag
+    else:
+        # The host component renders the element ``as`` names; the compiled view writes no HTML.
+        element = component_registry.export_for(node.primitive)
+        attr_list = [f'as="{tag}"', *attr_list]
+    attrs = " ".join(attr_list)
     if node.primitive in {"input", "rule"}:
-        return [f"{pad}<{tag} {attrs} />"]
+        return [f"{pad}<{element} {attrs} />"]
     if node.primitive in {"text", "label", "value", "badge", "button", "image_slot", "svg", "error_boundary"}:
-        return [f"{pad}<{tag} {attrs}>{_text_expression(node)}</{tag}>"]
-    lines = [f"{pad}<{tag} {attrs}>"]
-    if tag == "table":
+        return [f"{pad}<{element} {attrs}>{_text_expression(node)}</{element}>"]
+    lines = [f"{pad}<{element} {attrs}>"]
+    if tag == "table" and component_registry is None:
         lines.append(f"{child_pad}<tbody>")
         for child in node.children:
             lines.extend(_render_node(child, manifest, style_values, indent + 4))
         lines.append(f"{child_pad}</tbody>")
     else:
         for child in node.children:
-            lines.extend(_render_node(child, manifest, style_values, indent + 2))
-    lines.append(f"{pad}</{tag}>")
+            lines.extend(_render_node(child, manifest, style_values, indent + 2, component_registry=component_registry))
+    lines.append(f"{pad}</{element}>")
     return lines
 
 
@@ -497,16 +518,30 @@ def _compiled_payload_values(root: IRNode) -> dict[str, object]:
     return values
 
 
-def _emit_source(result: CompilerResult, style_values: dict[str, str], title: str) -> tuple[str, dict[str, Any]]:
+def _registry_import_lines(root: IRNode, component_registry: ReactComponentRegistry | None) -> list[str]:
+    """The registry import for the kinds the tree uses; empty without a registry."""
+    if component_registry is None:
+        return []
+    return [component_registry.import_line(node.primitive for node in _walk(root))]
+
+
+def _emit_source(
+    result: CompilerResult,
+    style_values: dict[str, str],
+    title: str,
+    *,
+    component_registry: ReactComponentRegistry | None = None,
+) -> tuple[str, dict[str, Any]]:
     root = result.root.root
     manifest: dict[str, Any] = {}
-    rendered = _render_node(root, manifest, style_values)
+    rendered = _render_node(root, manifest, style_values, component_registry=component_registry)
     input_values = _safe_json_literal(_initial_input_values(root))
     compiled_values = _safe_json_literal(_compiled_payload_values(root))
     lines = [
         '"use client";',
         "",
         'import * as React from "react";',
+        *_registry_import_lines(root, component_registry),
         "",
         "export type ViewSpecActionIntent = {",
         "  schemaVersion: 1;",
@@ -592,8 +627,13 @@ def emit_compiler_result(
     *,
     output_dir: str | Path = "viewspec_react_output",
     title: str = "ViewSpec Artifact",
+    component_registry: ReactComponentRegistry | None = None,
 ) -> dict[str, str]:
-    """Emit a CompilerResult as a deterministic React TSX component."""
+    """Emit a CompilerResult as a deterministic React TSX component.
+
+    ``component_registry`` renders every primitive through the host components it names; see
+    :mod:`viewspec.emitters.react_registry`. Without one the output is the plain HTML-element view.
+    """
     output_path = Path(output_dir)
     _validate_ir_contract(result.root.root, set())
     _validate_style_values(style_values)
@@ -601,7 +641,7 @@ def emit_compiler_result(
     if unsupported:
         raise ValueError(f"Unsupported IR primitive(s) for React TSX emitter: {', '.join(sorted(unsupported))}.")
     output_path.mkdir(parents=True, exist_ok=True)
-    tsx, manifest = _emit_source(result, style_values, title)
+    tsx, manifest = _emit_source(result, style_values, title, component_registry=component_registry)
     tsx_path = output_path / "ViewSpecView.tsx"
     manifest_path = output_path / "provenance_manifest.json"
     diagnostics_path = output_path / "diagnostics.json"
@@ -622,11 +662,32 @@ def emit_compiler_result(
 
 
 class ReactTsxEmitter(EmitterPlugin):
-    """Deterministic React TSX emitter plugin."""
+    """Deterministic React TSX emitter plugin.
+
+    ``component_registry`` renders every primitive through host components (``--registry``); the
+    default, ``None``, writes plain HTML elements.
+    """
+
+    # The default for an instance that never ran __init__ (a subclass that skips super().__init__(),
+    # object.__new__, or an instance unpickled from a release whose emitter held no state).
+    _component_registry: ReactComponentRegistry | None = None
+
+    def __init__(self, *, component_registry: ReactComponentRegistry | None = None) -> None:
+        self._component_registry = component_registry
+
+    @property
+    def component_registry(self) -> ReactComponentRegistry | None:
+        return self._component_registry
 
     def emit(self, ast_bundle: ASTBundle, output_dir: str | Path) -> dict[str, str]:
         style_values = dict(ast_bundle.style_values or DEFAULT_STYLE_TOKEN_VALUES)
-        return emit_compiler_result(ast_bundle.result, style_values, output_dir=output_dir, title=ast_bundle.title)
+        return emit_compiler_result(
+            ast_bundle.result,
+            style_values,
+            output_dir=output_dir,
+            title=ast_bundle.title,
+            component_registry=self._component_registry,
+        )
 
 
 PLUGIN_CLASS = ReactTsxEmitter

@@ -34,6 +34,8 @@ RELEASE_FILES = {
     "html_verify_template/package-lock.json",
     "html_verify_template/host.ts",
     "html_verify_template/verify.mjs",
+    # The default React component module `viewspec init registry` writes.
+    "emitters/react_registry/viewspec-registry.default.tsx",
 }
 # The package ships py.typed, so the generated protobuf module must travel with its stub.
 SCHEMA_RELEASE_FILES = {

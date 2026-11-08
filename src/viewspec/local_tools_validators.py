@@ -18,6 +18,7 @@ from viewspec.aesthetics import (
 )
 from viewspec.compiler_errors import LocalToolContractError
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, MCP_APP_BRIDGE_SCRIPT
+from viewspec.emitters.react_registry import expected_react_registry_import, validate_react_registry_artifact
 from viewspec.emitters.react_tailwind_tsx import (
     DEFAULT_TAILWIND_RECIPE_REGISTRY,
     TAILWIND_MAX_ACTIONS,
@@ -205,11 +206,16 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
                 errors.extend(_validate_react_tailwind_tsx_artifact(tsx, manifest, react_path))
             else:
                 errors.extend(_validate_no_tailwind_scope_leak(manifest))
+            errors.extend(validate_react_registry_artifact(tsx, manifest))
         else:
             errors.append("missing ViewSpecView.tsx")
     elif html_path.exists() and html_path.stat().st_size > MAX_HTML_INPUT_BYTES:
         errors.append(f"index.html is larger than the {MAX_HTML_INPUT_BYTES} byte check limit")
     elif html_path.exists():
+        if "registry" in manifest:
+            errors.append(
+                "REGISTRY_MANIFEST_MISMATCH: manifest declares a React component registry for an HTML artifact"
+            )
         html = html_path.read_text(encoding="utf-8")
         artifact_hash = file_hash(html_path)
         if manifest.get("artifact_hash") and manifest.get("artifact_hash") != artifact_hash:
@@ -289,6 +295,10 @@ _CHECK_ISSUE_FIXES = {
     ),
     "MCP_APP_BRIDGE_MISMATCH": "Re-run viewspec compile with --target mcp-app from the source.",
     "MCP_APP_TOO_LARGE": "Show fewer rows or split the view into smaller apps, then recompile.",
+    "REGISTRY_MANIFEST_MISMATCH": (
+        "Re-run viewspec compile with the same --registry file; do not edit the manifest registry section "
+        "or ViewSpecView.tsx by hand."
+    ),
     "CHECK_SCAN_LIMIT_EXCEEDED": (
         "Reduce index.html to the compiler-emitted style and script blocks, or re-run viewspec compile from the source."
     ),
@@ -469,7 +479,11 @@ def _validate_react_tailwind_tsx_artifact(tsx: str, manifest: dict[str, Any], ar
     nodes = manifest.get("nodes")
     if not isinstance(nodes, dict):
         return errors
-    errors.extend(_validate_react_tailwind_static_source(tsx, artifact_path))
+    errors.extend(
+        _validate_react_tailwind_static_source(
+            tsx, artifact_path, registry_import=expected_react_registry_import(tsx, manifest)
+        )
+    )
     errors.extend(_validate_react_tailwind_manifest(tsx, nodes, manifest))
     errors.extend(_validate_react_tailwind_class_inventory(tsx, nodes))
     errors.extend(_validate_react_tailwind_semantic_markers(tsx, nodes))
@@ -477,7 +491,9 @@ def _validate_react_tailwind_tsx_artifact(tsx: str, manifest: dict[str, Any], ar
     return errors
 
 
-def _validate_react_tailwind_static_source(tsx: str, artifact_path: Path) -> list[str]:
+def _validate_react_tailwind_static_source(
+    tsx: str, artifact_path: Path, *, registry_import: str | None = None
+) -> list[str]:
     errors: list[str] = []
     code = _strip_tsx_literals_and_comments(tsx)
     if re.search(r"\bclassName\s*=\s*{", code):
@@ -487,7 +503,10 @@ def _validate_react_tailwind_static_source(tsx: str, artifact_path: Path) -> lis
     if "`" in code or re.search(r"\.join\s*\(|\bclsx\s*\(|\bclassnames\s*\(", code):
         errors.append("TAILWIND_DYNAMIC_CLASS: ViewSpecView.tsx contains runtime class construction")
     imports = re.findall(r"^import\s+.+;$", tsx, flags=re.MULTILINE)
-    if imports != ['import * as React from "react";']:
+    # The one import a registry build adds is the manifest-declared component registry; the
+    # registry validator checks that line's content.
+    allowed_imports = ['import * as React from "react";'] + ([registry_import] if registry_import else [])
+    if imports != allowed_imports:
         errors.append("TAILWIND_TSX_INVALID: ViewSpecView.tsx imports only React and approved local types")
     if artifact_path.stat().st_size > TAILWIND_MAX_ARTIFACT_BYTES:
         errors.append("TAILWIND_LIMIT_EXCEEDED_ARTIFACT_BYTES: ViewSpecView.tsx exceeds 256 KiB")
@@ -1134,7 +1153,7 @@ def _semantic_tsx_source_nodes(tsx: str, *, primitive_by_dom_id: dict[str, str])
             raise LocalToolContractError(
                 "TAILWIND_TSX_SHAPE_UNSUPPORTED", "ViewSpecView.tsx contains an unsupported JSX tag"
             )
-        tag = tag_match.group(1).lower()
+        jsx_tag = tag_match.group(1)
         attrs = _semantic_tsx_attrs(line)
         dom_id = attrs.get("id")
         ir_id = attrs.get("data-ir-id")
@@ -1146,16 +1165,29 @@ def _semantic_tsx_source_nodes(tsx: str, *, primitive_by_dom_id: dict[str, str])
             "dom_id": dom_id,
             "ir_id": ir_id,
             "primitive": primitive_by_dom_id.get(dom_id, ""),
-            "tag": tag,
-            "visible_text": _normalize_visible_text(_semantic_tsx_inner_text(line, tag)),
+            "tag": _semantic_tsx_tag(jsx_tag, attrs),
+            "visible_text": _normalize_visible_text(_semantic_tsx_inner_text(line, jsx_tag)),
             "binding_id": attrs.get("data-binding-id"),
             "action": _semantic_tsx_action(attrs),
             "accessibility_label": attrs.get("aria-label"),
         }
         nodes.append(node)
-        if not line.endswith("/>") and f"</{tag}>" not in line:
+        if not line.endswith("/>") and f"</{jsx_tag}>" not in line:
             stack.append(dom_id)
     return nodes
+
+
+def _semantic_tsx_tag(jsx_tag: str, attrs: dict[str, str]) -> str:
+    """The HTML element a JSX line stands for: the tag itself, or ``as`` on a registry component.
+
+    A registry build renders ``<Surface as="section" ...>``; the semantic projection records the
+    element the host component renders, so registry and default builds share one digest.
+    """
+    if jsx_tag[:1].isupper():
+        as_tag = attrs.get("as", "")
+        if as_tag:
+            return as_tag.lower()
+    return jsx_tag.lower()
 
 
 def _tsx_semantic_parent_map(tsx: str) -> dict[str, str | None]:
@@ -1179,8 +1211,8 @@ def _tsx_semantic_parent_map(tsx: str) -> dict[str, str | None]:
         if dom_id:
             parent_by_dom_id[dom_id] = stack[-1] if stack else None
             tag_match = re.match(r"<([A-Za-z][A-Za-z0-9]*)\b", line)
-            tag = tag_match.group(1).lower() if tag_match is not None else ""
-            if not line.endswith("/>") and tag and f"</{tag}>" not in line:
+            jsx_tag = tag_match.group(1) if tag_match is not None else ""
+            if not line.endswith("/>") and jsx_tag and f"</{jsx_tag}>" not in line:
                 stack.append(dom_id)
     return parent_by_dom_id
 
