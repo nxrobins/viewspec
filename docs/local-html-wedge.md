@@ -91,4 +91,3 @@ The input must be the rendered DOM, not the server HTML, for pages that build th
 script. `outerHTML` shows the values a page loaded with, not what the user typed, so copy the live
 state into attributes first. `experiments/browser-agent-probe/render_pages.js` shows one way to do
 this. It also flattens open shadow roots and same-origin iframes into the snapshot.
-
