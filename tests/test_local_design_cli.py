@@ -783,9 +783,9 @@ def test_cli_accepts_explicit_stdin_formats(tmp_path, monkeypatch):
     )
 
 
-def test_claude_code_integration_mentions_only_local_commands():
+def test_viewspec_skill_mentions_only_local_commands():
     root = Path(__file__).resolve().parents[1]
-    text = root.joinpath("integrations/claude-code/SKILL.md").read_text(encoding="utf-8")
+    text = root.joinpath("skills/viewspec/SKILL.md").read_text(encoding="utf-8")
 
     assert "viewspec init" in text
     assert "viewspec compile" in text

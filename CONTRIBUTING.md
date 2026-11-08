@@ -360,7 +360,7 @@ have already shipped except to fix factual errors.
   spaces and a Playwright guard for browser-observable behaviour, following the patterns already in
   `tests/`.
 - Documentation you touch must stay true. Several tests pin wording in `README.md`,
-  `docs/getting-started.md`, `docs/agent-integration.md`, and `integrations/claude-code/SKILL.md`;
-  run the suite after editing them.
+  `docs/getting-started.md`, `docs/agent-integration.md`, and `skills/viewspec/SKILL.md`, and every
+  complete example in `docs/concepts/` must pass `viewspec check`; run the suite after editing them.
 - Do not add network calls, telemetry, or automatic installs to the local SDK. The no-network
   posture described in `SECURITY.md` is part of the product.

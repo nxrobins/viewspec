@@ -194,16 +194,43 @@ limits, and
 
 ## Agents
 
+An agent writes the compact form by default: `viewspec.compact.json`, an IntentBundle written as the
+Python builder's calls. For the starter dashboard it is about a sixth the size of the canonical
+bundle. The agent writes the canonical form only for what the compact form cannot express: a
+`bulk_action`, or a screen inside an AppBundle.
+
+Then it runs the repair loop until `ok` is true. `viewspec check FILE --json` applies lossless fixes
+and lists them under `fixes`. It never fixes a lossy problem. For each issue that remains, the agent
+regenerates the file from `correction_prompt` or applies an RFC 6902 JSON Patch with
+`--patch OPS.json`. On a compact file, patch pointers name the compact document, and
+`--canonical-out PATH` writes the canonical bundle that the fixes and canonical issues name.
+
+```bash
+viewspec init compact --out viewspec.compact.json
+viewspec check viewspec.compact.json --json
+viewspec compile viewspec.compact.json --out dist/
+```
+
 Give your agent the published contract, then let it generate JSON with structured output:
 
 - [`agent-system-prompt.txt`](https://viewspec.dev/agent-system-prompt.txt): the authoring rules.
-- [`agent-intent-bundle.schema.json`](https://viewspec.dev/agent-intent-bundle.schema.json) and
-  [`agent-app-bundle.schema.json`](https://viewspec.dev/agent-app-bundle.schema.json): JSON Schemas.
 - [`agent-intent-compact.schema.json`](https://viewspec.dev/agent-intent-compact.schema.json): the
   JSON Schema of the compact form.
+- [`agent-intent-bundle.schema.json`](https://viewspec.dev/agent-intent-bundle.schema.json) and
+  [`agent-app-bundle.schema.json`](https://viewspec.dev/agent-app-bundle.schema.json): the JSON
+  Schemas of the canonical IntentBundle and the AppBundle.
+- [`skills/viewspec/SKILL.md`](skills/viewspec/SKILL.md): the same rules as an agent skill. Install
+  it with `npx skills add nxrobins/viewspec --skill viewspec`.
 
-`viewspec check FILE --json` returns a `correction_prompt` that an agent can act on directly. The
-[agent integration guide](docs/agent-integration.md) has the full loop.
+The [agent integration guide](docs/agent-integration.md) has the full loop. One short page explains
+each idea behind the JSON: [substrate](docs/concepts/substrate.md),
+[binding](docs/concepts/binding.md), [motif](docs/concepts/motif.md),
+[region](docs/concepts/region.md), [compact form](docs/concepts/compact-form.md), and
+[proof](docs/concepts/proof.md). [ViewSpec next to json-render, A2UI, and MCP Apps](docs/comparison.md)
+compares where each runs and what each checks.
+
+A React component registry is host input. The agent never writes a registry or the components it
+names. See [React Host Component Registry](docs/react-registry.md).
 
 [Contributing](CONTRIBUTING.md#opt-in-end-to-end-suites) shows how to run the repository's
 model-in-the-loop eval, which measures how often a model's first and corrected answers pass

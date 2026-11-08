@@ -136,6 +136,25 @@ All notable changes to ViewSpec are documented in this file. The format follows
   an integer above 2^53 in its state data with `APP_STATE_INTEGER_OUT_OF_SAFE_RANGE`.
 - `agent-app-bundle.schema.json` describes `schema_version` 5, and
   `viewspec.app_agent_schema.APPBUNDLE_V5_PROMPT_SECTION` holds the agent guidance for it.
+- `skills/viewspec/SKILL.md`, an agent skill with `name` and `description` front matter, which
+  `npx skills add nxrobins/viewspec --skill viewspec` installs. It teaches the compact form first,
+  the lossless fixes and the `--patch` repair loop, Studio's inspector, the rule that a React
+  component registry is host input that the agent never writes, and AppBundle V5.
+- `docs/concepts/` has one short page each for the substrate, bindings, motifs, regions, the compact
+  form, and proof. Each page has one complete example, and a test checks every example with
+  `viewspec check`.
+- `docs/comparison.md` sets ViewSpec next to json-render, A2UI, and MCP Apps: where each runs, who
+  writes the spec, what comes out, what each checks, and what each does not do.
+
+### Changed
+
+- `integrations/claude-code/SKILL.md` is now a short pointer to `skills/viewspec/SKILL.md`.
+- The README's Agents section, `docs/README.md`, `demos/llms.txt`, and `demos/llms-full.txt` lead
+  with the compact form and the repair loop, and list the concept pages, the comparison, and the
+  skill. The two `llms` files also cover `viewspec init compact` and `viewspec init registry`, the
+  six MCP tools, `--patch`, `--canonical-out`, `--registry`, the Studio inspector, the `mcp-app`
+  target, and AppBundle V5.
+- The AppBundle headings in `docs/getting-started.md` and `docs/agent-integration.md` say V1 to V5.
 
 ### Fixed
 

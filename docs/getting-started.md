@@ -199,10 +199,10 @@ or immutable-input drift fails closed with `APP_PRETEXT_*`. No eligible compiler
 
 This is bounded native text-wrapping evidence for the recorded Chromium environment. It is not a
 cross-browser, Retina/device-pixel-ratio, canvas-rendering, pixel-perfect, accessibility, or
-arbitrary-host claim. See [AppBundle V1/V2/V3/V4](app-bundle-v0.md) for the exact support profile
+arbitrary-host claim. See [AppBundle V1 to V5](app-bundle-v0.md) for the exact support profile
 and evidence fields.
 
-## AppBundle V1/V2/V3/V4
+## AppBundle V1 to V5
 
 Use `viewspec.app.json` for a multi-screen internal tool:
 
@@ -215,8 +215,9 @@ viewspec prove viewspec.app.json --out .viewspec-app-proof --with-shell --json
 
 Resource binding is `unbound_v0` by default and `fixture_readonly_v0` with
 `viewspec init app --resource-binding fixture-readonly-v0`. The default target is Static Shell V0, a
-local proof artifact with bounded browser navigation, not a deployable app. See the
-[AppBundle contract](app-bundle-v0.md).
+local proof artifact with bounded browser navigation, not a deployable app. V3 adds bounded
+interactive state, and V4 adds visibility and state text. V5 adds composed visibility conditions,
+multi-value state text, and closed formatters. See the [AppBundle contract](app-bundle-v0.md).
 
 ## Machine-readable output
 

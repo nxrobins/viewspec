@@ -15,7 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 # The sdist carries the library tests, the conformance corpus and the schema source (audit
-# R-8). It does not carry scripts/, demos/, docs/, examples/, integrations/, .github/ or
+# R-8). It does not carry scripts/, demos/, docs/, examples/, integrations/, skills/, .github/ or
 # requirements-ci.txt, which some tests import or read, so the full suite still needs a git checkout. The caps
 # leave headroom for the shipped tests without admitting build output or dependency trees.
 ROOT = Path(__file__).resolve().parents[1]
