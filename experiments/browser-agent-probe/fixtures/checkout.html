@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture checkout</title>
+<style>
+  .chip { cursor: pointer; }
+</style>
+</head>
+<body>
+<header><a href="/"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Lamp Co home" width="40" height="20"></a></header>
+<main>
+  <h1>Checkout</h1>
+
+  <!-- A web component: its controls live in an open shadow root, and a slot shows light DOM. -->
+  <h2>Arc lamp</h2>
+  <qty-stepper><span slot="note">Max 5 per order</span></qty-stepper>
+
+  <form id="checkout" aria-label="Checkout" action="/orders" method="post">
+    <input type="hidden" name="csrf" value="csrf-token-123456">
+    <label>Email <input type="email" name="email" required autocomplete="email"></label>
+
+    <div role="radiogroup" aria-labelledby="ship-label">
+      <span id="ship-label">Shipping speed</span>
+      <label><input type="radio" name="ship" value="standard" checked> Standard (free)</label>
+      <label><input type="radio" name="ship" value="express"> Express ($9)</label>
+    </div>
+
+    <!-- A custom ARIA combobox whose list is closed. -->
+    <span id="country-label">Country</span>
+    <input role="combobox" name="country" aria-labelledby="country-label" aria-expanded="false"
+           aria-controls="country-list">
+    <ul role="listbox" id="country-list" hidden>
+      <li role="option">France</li><li role="option">Japan</li>
+    </ul>
+
+    <label>Create a password <input type="password" name="new_password" autocomplete="new-password"></label>
+
+    <details>
+      <summary>Have a promo code?</summary>
+      <label>Promo code <input name="promo"></label>
+    </details>
+
+    <button type="submit">Place order</button>
+  </form>
+
+  <label><input type="checkbox" name="terms" form="checkout" required> I accept the terms</label>
+
+  <!-- A same-origin payment frame, as payment providers embed them. -->
+  <iframe title="Card details" srcdoc='<label>Card number <input autocomplete="cc-number" name="card"></label>
+    <label>CVC <input name="cvc"></label>' width="400" height="80"></iframe>
+
+  <span class="chip">Save cart for later</span>
+</main>
+
+<dialog id="confirm"><p>Leave checkout?</p><button>Leave</button><button>Stay</button></dialog>
+
+<script>
+  class QtyStepper extends HTMLElement {
+    constructor() {
+      super();
+      this.attachShadow({ mode: "open" }).innerHTML = `
+        <button aria-label="Decrease quantity">-</button>
+        <input aria-label="Quantity" inputmode="numeric" value="1" size="2">
+        <button aria-label="Increase quantity">+</button>
+        <small><slot name="note"></slot></small>`;
+    }
+  }
+  customElements.define("qty-stepper", QtyStepper);
+
+  // State a user would have typed. It lives in properties, not in the markup.
+  document.querySelector("qty-stepper").shadowRoot.querySelector("input").value = "2";
+  document.querySelector("[name=email]").value = "ana@example.com";
+  document.querySelector("[name=new_password]").value = "TOPSECRET-pw-4242";
+  const frame = document.querySelector("iframe");
+  frame.addEventListener("load", () => {
+    frame.contentDocument.querySelector("[name=card]").value = "4242424242424242";
+    frame.contentDocument.querySelector("[name=cvc]").value = "9876";
+  });
+</script>
+</body>
+</html>

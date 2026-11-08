@@ -7,6 +7,16 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `lift_html(..., profile="agent")` lifts a rendered page for an agent that reads and operates it.
+  It keeps form controls, labels, ARIA roles, tab stops, and ViewSpec `data-action-*` attributes;
+  returns `controls` and `forms` with accessible names and live state; and describes each form as
+  a typed tool through `HtmlLiftResult.form_tool_schemas()`. It never keeps hidden input values or
+  secret field values (`HTML_HIDDEN_INPUT_DROPPED`, `HTML_VALUE_REDACTED`). The default `"compile"`
+  profile and `compile_html()` output do not change. See
+  [docs/local-html-wedge.md](docs/local-html-wedge.md#agent-lift-profile).
+
 ## [0.4.0] - 2026-11-01
 
 ViewSpec is now a local, open-source compiler with no hosted service and a much smaller surface.

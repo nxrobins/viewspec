@@ -14,12 +14,16 @@
       <table><tbody>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}</tbody></table>
       <div class="toolbar">
         <div class="btn" tabindex="0">Export</div>
+        <span class="chip" style="cursor: pointer">Last 30 days</span>
         <button>Refresh</button>
         <input type="text" aria-label="Filter metrics">
       </div>
+      <p style="display: none"><button>Debug panel</button></p>
       <p>Updated <span id="clock">${new Date().toISOString()}</span></p>
     </main>`;
   document.querySelector(".btn").addEventListener("click", () => alert("export"));
+  // State the user would have typed: it lives in properties, not in the markup.
+  document.querySelector("[aria-label='Filter metrics']").value = "churn";
 </script>
 </body>
 </html>
