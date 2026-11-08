@@ -53,6 +53,11 @@ from test_app_visibility import _visibility_app_bundle  # noqa: E402
 
 _INTENT_SCHEMA = Draft202012Validator(AGENT_INTENT_BUNDLE_SCHEMA)
 _APP_SCHEMA = Draft202012Validator(AGENT_APP_BUNDLE_SCHEMA)
+_V5_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "app_bundle_v5_incident_console.json"
+
+
+def _v5_bundle() -> dict[str, Any]:
+    return json.loads(_V5_FIXTURE.read_text(encoding="utf-8"))
 
 
 def _intent(kind: str = "dashboard") -> dict[str, Any]:
@@ -65,6 +70,7 @@ def _valid_app_bundles() -> list[tuple[str, dict[str, Any]]]:
         ("v2", starter_app_bundle("internal_tool", resource_binding="fixture_readonly_v0")),
         ("v3", _stateful_app_bundle()),
         ("v4", _visibility_app_bundle()),
+        ("v5", _v5_bundle()),
     ]
 
 
@@ -192,6 +198,8 @@ def _app_corpus() -> list[tuple[str, dict[str, Any]]]:
     v2 = starter_app_bundle("internal_tool", resource_binding="fixture_readonly_v0")
     v3 = _stateful_app_bundle()
     v4 = _visibility_app_bundle()
+    v5 = _v5_bundle()
+    leaf = {"state": "acked", "is": "truthy"}
 
     def empty_record_ids(b):
         for screen in b["screens"]:
@@ -285,6 +293,46 @@ def _app_corpus() -> list[tuple[str, dict[str, Any]]]:
             for i in range(65)
         ]
 
+    # --- V5 bounded expressions ---
+    def v4_composed_when(b):
+        b["visibility"][0]["when"] = {"not": {"state": "selected_incident", "is": "truthy"}}
+
+    def v4_values_form(b):
+        b["state_text"] = copy.deepcopy(v5["state_text"][:1])
+
+    def v5_depth_4(b):
+        b["visibility"][0]["when"] = {"not": {"all": [{"any": [leaf, leaf]}, leaf]}}
+
+    def v5_one_item_all(b):
+        b["visibility"][0]["when"] = {"all": [leaf]}
+
+    def v5_nine_item_any(b):
+        b["visibility"][0]["when"] = {"any": [leaf] * 9}
+
+    def v5_unknown_format(b):
+        b["state_text"][1]["values"]["used"]["format"] = {"format": "scientific"}
+
+    def v5_digits_seven(b):
+        b["state_text"][1]["values"]["used"]["format"] = {"format": "percent", "digits": 7}
+
+    def v5_unknown_currency(b):
+        b["state_text"][0]["values"]["spend"]["format"] = {"format": "currency", "currency": "BTC"}
+
+    def v5_source_extra_key(b):
+        b["state_text"][0]["values"]["spend"]["path"] = "a.b"
+
+    def v5_measure_sum(b):
+        b["state_text"][0]["values"]["open"]["measure"] = "sum"
+
+    def v5_template_stray_brace(b):
+        b["state_text"][0]["template"] = "{open} open of {total}, {spend} spent }"
+
+    def v5_values_bad_name(b):
+        b["state_text"][0]["values"]["Bad"] = b["state_text"][0]["values"].pop("open")
+
+    def v5_nine_values(b):
+        b["state_text"][0]["values"].update({f"extra_{index}": {"state": "spend"} for index in range(6)})
+
     return [
         ("empty_record_ids", _mutated(v2, empty_record_ids)),
         ("empty_routes", _mutated(v2, empty_routes)),
@@ -310,6 +358,19 @@ def _app_corpus() -> list[tuple[str, dict[str, Any]]]:
         ("v4_nested_extra_key_rule", _mutated(v4, v4_nested_extra_key_rule)),
         ("v4_expect_visibility_non_bool", _mutated(v4, v4_expect_visibility_non_bool)),
         ("v4_visibility_over_cap", _mutated(v4, v4_over_cap)),
+        ("v4_composed_when", _mutated(v4, v4_composed_when)),
+        ("v4_values_form", _mutated(v4, v4_values_form)),
+        ("v5_depth_4", _mutated(v5, v5_depth_4)),
+        ("v5_one_item_all", _mutated(v5, v5_one_item_all)),
+        ("v5_nine_item_any", _mutated(v5, v5_nine_item_any)),
+        ("v5_unknown_format", _mutated(v5, v5_unknown_format)),
+        ("v5_digits_seven", _mutated(v5, v5_digits_seven)),
+        ("v5_unknown_currency", _mutated(v5, v5_unknown_currency)),
+        ("v5_source_extra_key", _mutated(v5, v5_source_extra_key)),
+        ("v5_measure_sum", _mutated(v5, v5_measure_sum)),
+        ("v5_template_stray_brace", _mutated(v5, v5_template_stray_brace)),
+        ("v5_values_bad_name", _mutated(v5, v5_values_bad_name)),
+        ("v5_nine_values", _mutated(v5, v5_nine_values)),
     ]
 
 

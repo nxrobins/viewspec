@@ -18,8 +18,9 @@ Why the pins are portable:
   ``command_args`` in the manifests do not depend on the checkout path; outputs are hashed by
   content only, so the work directory does not matter either.
 * The writers emit LF on every platform and no artifact embeds a path, a clock, the machine or
-  the Python version. Only the Node reducer conformance could differ per machine, and the pinned
-  AppBundle declares no state, so it never runs.
+  the Python version. The demo AppBundle declares no state. The schema_version 5 fixture declares
+  state, so compiling it runs the generated reducer under Node; its conformance report records
+  no Node version, path, or timing, so the pinned bytes match on every machine that has Node.
 * ``provenance_manifest.json`` and ``viewspec_app_manifest.json`` embed the SDK version, so the
   file hashes of those two manifests (never ``artifact_hash`` or ``semantic_digest``) rotate on a
   version bump: regenerate the goldens in the release commit.
@@ -49,9 +50,11 @@ REGENERATE_COMMAND = "python scripts/update_corpus_goldens.py"
 SCHEMA_VERSION = 1
 INTENT_TARGETS: tuple[str, ...] = tuple(INTENT_COMPILE_TARGETS)
 APP_TARGETS: tuple[str, ...] = (APP_SHELL_TARGET, REACT_APP_TARGET)
-# Top-level demo examples that are AppBundles. Their embedded screens are already corpus cases
-# (app-queue, app-detail); this compiles the whole bundle with every local app target.
+# Whole AppBundles compiled with every local app target. The demo example's embedded screens are
+# already corpus cases (app-queue, app-detail). The schema_version 5 fixture pins composed
+# visibility, multi-value state text, and the formatter kernel in both app targets.
 APP_BUNDLE_SOURCES: dict[str, str] = {
+    "agent-app-bounded-expressions.incident-console": "tests/fixtures/app_bundle_v5_incident_console.json",
     "agent-app-example.internal-tool": "demos/agent-app-example.internal-tool.json",
 }
 
@@ -131,8 +134,22 @@ def compile_app_bundle(bundle_id: str, source: Path, target: str, *, work_dir: P
     }
 
 
-def build_goldens(work_dir: Path, *, root: Path = ROOT) -> dict[str, Any]:
-    """Compile every corpus case and AppBundle under ``work_dir`` and return the golden document."""
+def app_bundle_declares_state(relative: str, *, root: Path = ROOT) -> bool:
+    """True when compiling the AppBundle runs generated-reducer conformance, which needs Node."""
+    payload = json.loads((root / relative).read_text(encoding="utf-8"))
+    return isinstance(payload, dict) and "interactive_state" in payload
+
+
+def build_goldens(
+    work_dir: Path,
+    *,
+    root: Path = ROOT,
+    app_bundle_ids: set[str] | None = None,
+) -> dict[str, Any]:
+    """Compile every corpus case and AppBundle under ``work_dir`` and return the golden document.
+
+    ``app_bundle_ids`` limits the AppBundles compiled; the default compiles all of them.
+    """
     # Resolve once so every derived path shares one spelling. On Windows a temporary directory
     # can be handed out in 8.3 short form (RUNNER~1) while the compiler returns the long form,
     # which makes relative_to() fail although both name the same directory.
@@ -171,6 +188,8 @@ def build_goldens(work_dir: Path, *, root: Path = ROOT) -> dict[str, Any]:
             cases[case.id]["canonical_source_hash"] = staged.manifest_source_hash
     app_bundles: dict[str, Any] = {}
     for bundle_id, relative in sorted(APP_BUNDLE_SOURCES.items()):
+        if app_bundle_ids is not None and bundle_id not in app_bundle_ids:
+            continue
         source = root / relative
         app_bundles[bundle_id] = {
             "source": relative,

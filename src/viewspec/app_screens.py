@@ -10,6 +10,7 @@ from viewspec.app_errors import normalize_proof_errors
 from viewspec.app_paths import _assert_under_proof_root
 from viewspec.app_resource_repeat import resource_binding_address
 from viewspec.app_state_text import check_screen_state_text_bake, screen_state_text_overlays
+from viewspec.app_versions import app_has_state_text, app_has_visibility
 from viewspec.app_visibility import check_screen_visibility_bake, screen_visibility_overlays
 from viewspec.local_tools import atomic_write, check_artifact_dir, file_hash
 from viewspec.manifest_summary import summarize_intent_manifest
@@ -17,7 +18,7 @@ from viewspec.state_ir import validate_state_ir
 
 
 def visibility_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
-    if payload.get("schema_version") != 4:
+    if not app_has_visibility(payload):
         return {}
     state_ir, issues = validate_state_ir(payload)
     if state_ir is None or issues:
@@ -27,7 +28,7 @@ def visibility_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict
 
 
 def state_text_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
-    if payload.get("schema_version") != 4 or "state_text" not in payload:
+    if not app_has_state_text(payload):
         return {}
     state_ir, issues = validate_state_ir(payload)
     if state_ir is None or issues:

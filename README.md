@@ -132,7 +132,9 @@ viewspec prove viewspec.app.json --target react-tailwind-app --install --freeran
 Resources are `unbound_v0` by default, or `fixture_readonly_v0` with
 `viewspec init app --resource-binding fixture-readonly-v0`. AppBundle V3 adds bounded interactive
 state with a generated, replay-proved TypeScript reducer; V4 adds conditional visibility and scalar
-state text. See the [AppBundle contract](docs/app-bundle-v0.md).
+state text. V5 composes visibility conditions with `all`, `any`, and `not` and fills text with
+several values through closed formatters that use no locale or time zone. See the
+[AppBundle contract](docs/app-bundle-v0.md).
 
 Generated React apps can opt into two exact-versioned proof integrations by
 [chenglou](https://github.com/chenglou): [Freerange](https://github.com/chenglou/freerange) analyzes

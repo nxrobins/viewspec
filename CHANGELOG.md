@@ -115,6 +115,32 @@ All notable changes to ViewSpec are documented in this file. The format follows
   `write_default_react_registry`; `ReactTsxEmitter`, `ReactTailwindTsxEmitter`, both
   `emit_compiler_result` functions, `compile_intent_bundle_file_tool`, and
   `wrap_intent_bundle_manifest` take the registry as a keyword.
+- AppBundle `schema_version` 5 adds bounded expressions on top of V4 and accepts every V4 bundle
+  unchanged. A visibility `when` may combine conditions with `all`, `any`, and `not`, with 2 to 8
+  conditions per list, nesting depth 3, and at most 8 leaves per rule. A `state_text` rule may fill
+  up to 8 named placeholders from scalar state or selector counts, as in `"{open} open of {total}"`.
+  Python replay, Node reducer conformance, the static shell, React, and the generated Playwright
+  proof all evaluate the same rules. V3 and V4 reducers, shells, and React apps stay byte-identical,
+  and every starter keeps its schema version.
+- V5 state text takes closed formatters: `integer`, `decimal` and `percent` with 0 to 6 digits,
+  `currency` for USD, EUR, GBP, JPY, CHF, and INR, and `date_iso`. They round half away from zero
+  in decimal digit space, never call Intl, a locale, or a time zone, and render any input they do
+  not accept as plain V4 text. `conformance/formatters/vectors.json` holds 161 cases that the
+  Python reference and the generated TypeScript both pass.
+- A V1 to V4 bundle that uses a V5 construct fails with `APP_V5_FEATURE_REQUIRES_SCHEMA_VERSION_5`,
+  whose fix is to set `schema_version` to 5. V5 rules fail closed with
+  `APP_VISIBILITY_CONDITION_ARITY_INVALID`, `APP_VISIBILITY_CONDITION_TOO_DEEP`,
+  `APP_VISIBILITY_CONDITION_TOO_MANY_LEAVES`, `APP_STATE_TEXT_VALUES_INVALID`,
+  `APP_STATE_TEXT_VALUES_MISMATCH`, `APP_STATE_TEXT_SELECTOR_MISSING`,
+  `APP_STATE_TEXT_SELECTOR_SOURCE_UNSUPPORTED`, and `APP_STATE_TEXT_FORMAT_INVALID`. V5 also rejects
+  an integer above 2^53 in its state data with `APP_STATE_INTEGER_OUT_OF_SAFE_RANGE`.
+- `agent-app-bundle.schema.json` describes `schema_version` 5, and
+  `viewspec.app_agent_schema.APPBUNDLE_V5_PROMPT_SECTION` holds the agent guidance for it.
+
+### Fixed
+
+- `viewspec check` reports `APP_SCHEMA_VERSION_REQUIRED` for an AppBundle whose `schema_version`
+  is an array or an object. It used to raise `TypeError`.
 
 ## [0.4.0] - 2026-11-01
 

@@ -13,7 +13,6 @@ from viewspec.app_resource_repeat import resource_repeat_summary
 from viewspec.app_validation import (
     APP_BUNDLE_MAX_ROUTES,
     APP_BUNDLE_MAX_SCREENS,
-    APP_BUNDLE_VISIBILITY_SCHEMA_VERSION,
     URL_SCHEME_RE,
     _app_schema_version,
     _app_summary,
@@ -21,6 +20,7 @@ from viewspec.app_validation import (
     _resource_binding_report_fields,
     _state_ir_limits,
 )
+from viewspec.app_versions import app_has_visibility
 from viewspec.local_tools import source_hash
 from viewspec.local_tools_constants import MAX_SCANNED_TAG_BLOCKS
 from viewspec.local_tools_validators import TagBlockScan, css_has_unsafe_reference, find_tag_blocks, iter_tag_regions
@@ -116,8 +116,8 @@ def _build_static_app_shell(
     state_json = ""
     state_scripts: tuple[str, ...] = ()
     state_runtime: dict[str, Any] | None = None
-    if payload.get("schema_version") == APP_BUNDLE_VISIBILITY_SCHEMA_VERSION:
-        # V4 bounded state runtime: the generated reducer (IIFE) + ONE delegated click listener
+    if app_has_visibility(payload):
+        # V4+ bounded state runtime: the generated reducer (IIFE) + ONE delegated click listener
         # dispatches declared mutations, toggles visibility, and applies exact scalar text projections.
         state_json = _safe_json_for_script({"triggers": _shell_state_trigger_table(payload)})
         reducer_script = generate_browser_reducer_script(payload)
@@ -127,7 +127,7 @@ def _build_static_app_shell(
             raise AppBundleProofFailure(
                 "APP_SHELL_SIZE_LIMIT_EXCEEDED",
                 f"Static shell state runtime is {state_js_bytes} bytes; limit is {APP_SHELL_MAX_STATE_JS_BYTES}.",
-                "Reduce AppBundle V4 state, mutation, selector, or visibility declarations.",
+                "Reduce AppBundle V4/V5 state, mutation, selector, visibility, or state text declarations.",
             )
         state_scripts = (reducer_script, runtime_script)
         state_runtime = {
@@ -729,7 +729,7 @@ def _static_shell_manifest(
             "route_json_bytes": route_json_bytes,
             "aggregate_screen_html_bytes": aggregate_screen_html_bytes,
         },
-        # v4-only block: v3 shell manifests stay byte-stable.
+        # v4+ block: v3 shell manifests stay byte-stable.
         **({"state_runtime": state_runtime} if state_runtime is not None else {}),
     }
 

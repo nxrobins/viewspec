@@ -1,0 +1,1278 @@
+{
+  "app": {
+    "id": "incident_console",
+    "kind": "internal_tool",
+    "root_route": "/",
+    "title": "Incident Console V5"
+  },
+  "interactive_state": "interactive_state_v0",
+  "mutations": [
+    {
+      "id": "triage_incident_state",
+      "ops": [
+        {
+          "item_id": {
+            "from_payload": "inc_1043_id"
+          },
+          "op": "patch",
+          "state": "incidents_state",
+          "value": {
+            "status": "investigating"
+          }
+        },
+        {
+          "op": "set",
+          "state": "selected_incident",
+          "value": {
+            "from_payload": "inc_1043_id"
+          }
+        }
+      ],
+      "trigger": {
+        "action_id": "triage_incident",
+        "screen_id": "queue"
+      }
+    },
+    {
+      "id": "acknowledge_state",
+      "ops": [
+        {
+          "op": "set",
+          "state": "acked",
+          "value": true
+        }
+      ],
+      "trigger": {
+        "action_id": "acknowledge_incidents",
+        "screen_id": "queue"
+      }
+    },
+    {
+      "id": "record_spend_state",
+      "ops": [
+        {
+          "amount": 100.25,
+          "op": "increment",
+          "state": "spend"
+        },
+        {
+          "amount": 0.0625,
+          "op": "increment",
+          "state": "budget_used"
+        }
+      ],
+      "trigger": {
+        "action_id": "record_spend",
+        "screen_id": "queue"
+      }
+    }
+  ],
+  "resource_binding": "fixture_readonly_v0",
+  "resources": [
+    {
+      "id": "incidents",
+      "kind": "fixture",
+      "records": [
+        {
+          "id": "inc_1042",
+          "severity": "high",
+          "status": "investigating"
+        },
+        {
+          "id": "inc_1043",
+          "severity": "medium",
+          "status": "queued"
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "id": "queue",
+      "label": "Queue",
+      "path": "/",
+      "screen_id": "queue"
+    },
+    {
+      "id": "detail",
+      "label": "Incident",
+      "path": "/incident",
+      "screen_id": "detail"
+    }
+  ],
+  "schema_version": 5,
+  "screens": [
+    {
+      "id": "queue",
+      "intent_bundle": {
+        "substrate": {
+          "id": "incident_queue_substrate",
+          "nodes": {
+            "inc_1042": {
+              "attrs": {
+                "id": "inc_1042",
+                "severity": "high",
+                "status": "investigating"
+              },
+              "edges": {},
+              "id": "inc_1042",
+              "kind": "table_row",
+              "slots": {}
+            },
+            "inc_1043": {
+              "attrs": {
+                "id": "inc_1043",
+                "severity": "medium",
+                "status": "queued"
+              },
+              "edges": {},
+              "id": "inc_1043",
+              "kind": "table_row",
+              "slots": {}
+            },
+            "incident_queue": {
+              "attrs": {
+                "title": "Incident Queue"
+              },
+              "edges": {},
+              "id": "incident_queue",
+              "kind": "app",
+              "slots": {}
+            },
+            "queue_summary": {
+              "attrs": {
+                "attention": "Needs attention",
+                "budget_text": "Budget used: 12.5%",
+                "escalate": "Escalate now",
+                "open_text": "1 open of 2, $1,234.50 spent",
+                "opened_text": "Opened 2023-11-14",
+                "spend_text": "Spend: 1,234.50",
+                "summary_label": "Queue summary"
+              },
+              "edges": {},
+              "id": "queue_summary",
+              "kind": "summary",
+              "slots": {}
+            }
+          },
+          "root_id": "incident_queue"
+        },
+        "view_spec": {
+          "actions": [
+            {
+              "id": "triage_incident",
+              "kind": "submit",
+              "label": "Triage",
+              "payload_bindings": [
+                "inc_1043_id"
+              ],
+              "target_ref": "",
+              "target_region": "main"
+            },
+            {
+              "id": "acknowledge_incidents",
+              "kind": "submit",
+              "label": "Acknowledge",
+              "payload_bindings": [],
+              "target_ref": "",
+              "target_region": "main"
+            },
+            {
+              "id": "record_spend",
+              "kind": "submit",
+              "label": "Record spend",
+              "payload_bindings": [],
+              "target_ref": "",
+              "target_region": "main"
+            }
+          ],
+          "bindings": [
+            {
+              "address": "node:inc_1042#attr:id",
+              "cardinality": "exactly_once",
+              "id": "inc_1042_id",
+              "present_as": "label",
+              "target_region": "main"
+            },
+            {
+              "address": "node:inc_1042#attr:severity",
+              "cardinality": "exactly_once",
+              "id": "inc_1042_severity",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:inc_1042#attr:status",
+              "cardinality": "exactly_once",
+              "id": "inc_1042_status",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:inc_1043#attr:id",
+              "cardinality": "exactly_once",
+              "id": "inc_1043_id",
+              "present_as": "label",
+              "target_region": "main"
+            },
+            {
+              "address": "node:inc_1043#attr:severity",
+              "cardinality": "exactly_once",
+              "id": "inc_1043_severity",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:inc_1043#attr:status",
+              "cardinality": "exactly_once",
+              "id": "inc_1043_status",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:queue_summary#attr:summary_label",
+              "cardinality": "exactly_once",
+              "id": "summary_label",
+              "present_as": "label",
+              "target_region": "main"
+            },
+            {
+              "address": "node:queue_summary#attr:open_text",
+              "cardinality": "exactly_once",
+              "id": "open_text",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:queue_summary#attr:budget_text",
+              "cardinality": "exactly_once",
+              "id": "budget_text",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:queue_summary#attr:spend_text",
+              "cardinality": "exactly_once",
+              "id": "spend_text",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:queue_summary#attr:opened_text",
+              "cardinality": "exactly_once",
+              "id": "opened_text",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:queue_summary#attr:escalate",
+              "cardinality": "exactly_once",
+              "id": "escalate",
+              "present_as": "badge",
+              "target_region": "main"
+            },
+            {
+              "address": "node:queue_summary#attr:attention",
+              "cardinality": "exactly_once",
+              "id": "attention",
+              "present_as": "badge",
+              "target_region": "main"
+            }
+          ],
+          "complexity_tier": 1,
+          "groups": [
+            {
+              "id": "incident_rows",
+              "kind": "ordered",
+              "members": [
+                "inc_1042_id",
+                "inc_1042_severity",
+                "inc_1042_status",
+                "inc_1043_id",
+                "inc_1043_severity",
+                "inc_1043_status"
+              ],
+              "target_region": "main"
+            },
+            {
+              "id": "summary_fields",
+              "kind": "ordered",
+              "members": [
+                "summary_label",
+                "open_text",
+                "budget_text",
+                "spend_text",
+                "opened_text",
+                "escalate",
+                "attention"
+              ],
+              "target_region": "main"
+            }
+          ],
+          "id": "incident_queue",
+          "motifs": [
+            {
+              "id": "incidents",
+              "kind": "table",
+              "members": [
+                "inc_1042_id",
+                "inc_1042_severity",
+                "inc_1042_status",
+                "inc_1043_id",
+                "inc_1043_severity",
+                "inc_1043_status"
+              ],
+              "region": "main"
+            },
+            {
+              "id": "summary",
+              "kind": "detail",
+              "members": [
+                "summary_label",
+                "open_text",
+                "budget_text",
+                "spend_text",
+                "opened_text",
+                "escalate",
+                "attention"
+              ],
+              "region": "main"
+            }
+          ],
+          "regions": [
+            {
+              "id": "root",
+              "layout": "stack",
+              "max_children": null,
+              "min_children": 1,
+              "parent_region": "",
+              "role": "root"
+            },
+            {
+              "id": "main",
+              "layout": "stack",
+              "max_children": null,
+              "min_children": 1,
+              "parent_region": "root",
+              "role": "main"
+            }
+          ],
+          "root_region": "root",
+          "styles": [],
+          "substrate_id": "incident_queue_substrate"
+        }
+      },
+      "presentation": {
+        "anchors": [
+          {
+            "anchor_ref": "region:main",
+            "id": "records_inside_content",
+            "relation": "inside",
+            "target_ref": "motif:incidents",
+            "viewports": [
+              "compact",
+              "medium",
+              "wide"
+            ]
+          }
+        ],
+        "profile": "neutral",
+        "rules": [
+          {
+            "base": {
+              "direction": "column",
+              "display": "flex",
+              "gap": "lg",
+              "max_width": "content_md",
+              "min_inline_size": "zero",
+              "padding": "xl",
+              "width": "full"
+            },
+            "id": "incident_content",
+            "target_ref": "region:main",
+            "variants": {
+              "compact": {
+                "gap": "md",
+                "padding": "lg"
+              }
+            }
+          },
+          {
+            "base": {
+              "background": "transparent",
+              "border": "none",
+              "display": "block",
+              "min_inline_size": "zero",
+              "padding": "none",
+              "radius": "none",
+              "width": "full"
+            },
+            "id": "incident_records",
+            "items": {
+              "base": {
+                "align": "start",
+                "background": "surface",
+                "border": "subtle",
+                "columns": [
+                  "fluid",
+                  "fluid",
+                  "fluid_wide"
+                ],
+                "display": "grid",
+                "gap": "sm",
+                "min_inline_size": "zero",
+                "padding": "md",
+                "radius": "sm"
+              },
+              "variants": {
+                "compact": {
+                  "columns": 1,
+                  "gap": "xs",
+                  "padding": "lg"
+                }
+              }
+            },
+            "target_ref": "motif:incidents"
+          },
+          {
+            "base": {
+              "background": "transparent",
+              "border": "none",
+              "font_family": "mono",
+              "font_size": "small",
+              "font_weight": "bold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_inc_1042_id",
+            "target_ref": "binding:inc_1042_id",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_inc_1042_severity",
+            "target_ref": "binding:inc_1042_severity",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_inc_1042_status",
+            "target_ref": "binding:inc_1042_status",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "background": "transparent",
+              "border": "none",
+              "font_family": "mono",
+              "font_size": "small",
+              "font_weight": "bold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_inc_1043_id",
+            "target_ref": "binding:inc_1043_id",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_inc_1043_severity",
+            "target_ref": "binding:inc_1043_severity",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_inc_1043_status",
+            "target_ref": "binding:inc_1043_status",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_summary_label",
+            "target_ref": "binding:summary_label",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_open_text",
+            "target_ref": "binding:open_text",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_budget_text",
+            "target_ref": "binding:budget_text",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_spend_text",
+            "target_ref": "binding:spend_text",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_opened_text",
+            "target_ref": "binding:opened_text",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_escalate",
+            "target_ref": "binding:escalate",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_attention",
+            "target_ref": "binding:attention",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          }
+        ]
+      },
+      "resource_views": [
+        {
+          "fields": [
+            "id",
+            "severity",
+            "status"
+          ],
+          "id": "queue_incidents",
+          "mode": "list",
+          "record_ids": [
+            "inc_1042",
+            "inc_1043"
+          ],
+          "resource_id": "incidents",
+          "target_motif_id": "incidents"
+        }
+      ],
+      "title": "Incident Queue"
+    },
+    {
+      "id": "detail",
+      "intent_bundle": {
+        "substrate": {
+          "id": "incident_detail_substrate",
+          "nodes": {
+            "inc_1042": {
+              "attrs": {
+                "id": "inc_1042",
+                "severity": "high",
+                "status": "investigating"
+              },
+              "edges": {},
+              "id": "inc_1042",
+              "kind": "detail_field",
+              "slots": {}
+            },
+            "incident_detail": {
+              "attrs": {
+                "title": "Incident Detail"
+              },
+              "edges": {},
+              "id": "incident_detail",
+              "kind": "app",
+              "slots": {}
+            }
+          },
+          "root_id": "incident_detail"
+        },
+        "view_spec": {
+          "actions": [],
+          "bindings": [
+            {
+              "address": "node:inc_1042#attr:id",
+              "cardinality": "exactly_once",
+              "id": "inc_1042_id",
+              "present_as": "label",
+              "target_region": "main"
+            },
+            {
+              "address": "node:inc_1042#attr:severity",
+              "cardinality": "exactly_once",
+              "id": "inc_1042_severity",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:inc_1042#attr:status",
+              "cardinality": "exactly_once",
+              "id": "inc_1042_status",
+              "present_as": "value",
+              "target_region": "main"
+            }
+          ],
+          "complexity_tier": 1,
+          "groups": [
+            {
+              "id": "incident_fields",
+              "kind": "ordered",
+              "members": [
+                "inc_1042_id",
+                "inc_1042_severity",
+                "inc_1042_status"
+              ],
+              "target_region": "main"
+            }
+          ],
+          "id": "incident_detail",
+          "motifs": [
+            {
+              "id": "incident",
+              "kind": "detail",
+              "members": [
+                "inc_1042_id",
+                "inc_1042_severity",
+                "inc_1042_status"
+              ],
+              "region": "main"
+            }
+          ],
+          "regions": [
+            {
+              "id": "root",
+              "layout": "stack",
+              "max_children": null,
+              "min_children": 1,
+              "parent_region": "",
+              "role": "root"
+            },
+            {
+              "id": "main",
+              "layout": "stack",
+              "max_children": null,
+              "min_children": 1,
+              "parent_region": "root",
+              "role": "main"
+            }
+          ],
+          "root_region": "root",
+          "styles": [],
+          "substrate_id": "incident_detail_substrate"
+        }
+      },
+      "presentation": {
+        "anchors": [
+          {
+            "anchor_ref": "region:main",
+            "id": "records_inside_content",
+            "relation": "inside",
+            "target_ref": "motif:incident",
+            "viewports": [
+              "compact",
+              "medium",
+              "wide"
+            ]
+          }
+        ],
+        "profile": "neutral",
+        "rules": [
+          {
+            "base": {
+              "direction": "column",
+              "display": "flex",
+              "gap": "lg",
+              "max_width": "content_md",
+              "min_inline_size": "zero",
+              "padding": "xl",
+              "width": "full"
+            },
+            "id": "incident_content",
+            "target_ref": "region:main",
+            "variants": {
+              "compact": {
+                "gap": "md",
+                "padding": "lg"
+              }
+            }
+          },
+          {
+            "base": {
+              "background": "transparent",
+              "border": "none",
+              "display": "block",
+              "min_inline_size": "zero",
+              "padding": "none",
+              "radius": "none",
+              "width": "full"
+            },
+            "id": "incident_records",
+            "items": {
+              "base": {
+                "align": "start",
+                "background": "surface",
+                "border": "subtle",
+                "columns": [
+                  "fluid",
+                  "fluid",
+                  "fluid_wide"
+                ],
+                "display": "grid",
+                "gap": "sm",
+                "min_inline_size": "zero",
+                "padding": "md",
+                "radius": "sm"
+              },
+              "variants": {
+                "compact": {
+                  "columns": 1,
+                  "gap": "xs",
+                  "padding": "lg"
+                }
+              }
+            },
+            "target_ref": "motif:incident"
+          },
+          {
+            "base": {
+              "background": "transparent",
+              "border": "none",
+              "font_family": "mono",
+              "font_size": "small",
+              "font_weight": "bold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_inc_1042_id",
+            "target_ref": "binding:inc_1042_id",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_inc_1042_severity",
+            "target_ref": "binding:inc_1042_severity",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          },
+          {
+            "base": {
+              "border": "none",
+              "font_family": "sans",
+              "font_size": "body",
+              "font_weight": "semibold",
+              "letter_spacing": "normal",
+              "line_height": "normal",
+              "min_inline_size": "zero",
+              "padding": "sm",
+              "text_wrap": "anywhere",
+              "width": "full"
+            },
+            "id": "readable_inc_1042_status",
+            "target_ref": "binding:inc_1042_status",
+            "variants": {
+              "compact": {
+                "padding": "none"
+              }
+            }
+          }
+        ]
+      },
+      "resource_views": [
+        {
+          "fields": [
+            "id",
+            "severity",
+            "status"
+          ],
+          "id": "detail_incident",
+          "mode": "list",
+          "record_ids": [
+            "inc_1042"
+          ],
+          "resource_id": "incidents",
+          "target_motif_id": "incident"
+        }
+      ],
+      "title": "Incident Detail"
+    }
+  ],
+  "selectors": [
+    {
+      "id": "active",
+      "ops": [
+        {
+          "field": "status",
+          "op": "filter_eq",
+          "value": "investigating"
+        }
+      ],
+      "source_state": "incidents_state"
+    },
+    {
+      "id": "all_incidents",
+      "ops": [],
+      "source_state": "incidents_state"
+    }
+  ],
+  "state": [
+    {
+      "id": "incidents_state",
+      "initial": {
+        "from_resource_view": {
+          "screen_id": "queue",
+          "view_id": "queue_incidents"
+        }
+      },
+      "kind": "collection",
+      "scope": "app"
+    },
+    {
+      "id": "selected_incident",
+      "initial": {
+        "value": null
+      },
+      "kind": "scalar",
+      "scope": "screen",
+      "screen_id": "queue"
+    },
+    {
+      "id": "acked",
+      "initial": {
+        "value": false
+      },
+      "kind": "scalar",
+      "scope": "app"
+    },
+    {
+      "id": "spend",
+      "initial": {
+        "value": 1234.5
+      },
+      "kind": "scalar",
+      "scope": "app"
+    },
+    {
+      "id": "budget_used",
+      "initial": {
+        "value": 0.125
+      },
+      "kind": "scalar",
+      "scope": "app"
+    },
+    {
+      "id": "opened_at",
+      "initial": {
+        "value": 1700000000000
+      },
+      "kind": "scalar",
+      "scope": "app"
+    }
+  ],
+  "state_replay_assertions": [
+    {
+      "events": [],
+      "expect_selectors": {
+        "active": [
+          {
+            "id": "inc_1042",
+            "severity": "high",
+            "status": "investigating"
+          }
+        ]
+      },
+      "expect_state": {
+        "acked": false,
+        "spend": 1234.5
+      },
+      "expect_text": {
+        "budget_summary": "Budget used: 12.5%",
+        "open_summary": "1 open of 2, $1,234.50 spent",
+        "opened_summary": "Opened 2023-11-14",
+        "spend_summary": "Spend: 1,234.50"
+      },
+      "expect_visibility": {
+        "attention": false,
+        "escalation": true
+      },
+      "id": "initial_view"
+    },
+    {
+      "events": [
+        {
+          "mutation_id": "triage_incident_state",
+          "payload_values": {
+            "inc_1043_id": "inc_1043"
+          }
+        },
+        {
+          "mutation_id": "acknowledge_state"
+        }
+      ],
+      "expect_selectors": {
+        "active": [
+          {
+            "id": "inc_1042",
+            "severity": "high",
+            "status": "investigating"
+          },
+          {
+            "id": "inc_1043",
+            "severity": "medium",
+            "status": "investigating"
+          }
+        ]
+      },
+      "expect_state": {
+        "acked": true,
+        "incidents_state": [
+          {
+            "id": "inc_1042",
+            "severity": "high",
+            "status": "investigating"
+          },
+          {
+            "id": "inc_1043",
+            "severity": "medium",
+            "status": "investigating"
+          }
+        ],
+        "selected_incident": "inc_1043"
+      },
+      "expect_text": {
+        "open_summary": "2 open of 2, $1,234.50 spent"
+      },
+      "expect_visibility": {
+        "attention": true,
+        "escalation": false
+      },
+      "id": "triage_then_acknowledge"
+    },
+    {
+      "events": [
+        {
+          "mutation_id": "record_spend_state"
+        }
+      ],
+      "expect_selectors": {},
+      "expect_state": {
+        "budget_used": 0.1875,
+        "spend": 1334.75
+      },
+      "expect_text": {
+        "budget_summary": "Budget used: 18.8%",
+        "open_summary": "1 open of 2, $1,334.75 spent",
+        "spend_summary": "Spend: 1,334.75"
+      },
+      "expect_visibility": {
+        "attention": false,
+        "escalation": true
+      },
+      "id": "record_spend"
+    }
+  ],
+  "state_text": [
+    {
+      "id": "open_summary",
+      "screen_id": "queue",
+      "target_ref": "binding:open_text",
+      "template": "{open} open of {total}, {spend} spent",
+      "values": {
+        "open": {
+          "measure": "count",
+          "selector": "active"
+        },
+        "spend": {
+          "format": {
+            "currency": "USD",
+            "format": "currency"
+          },
+          "state": "spend"
+        },
+        "total": {
+          "measure": "count",
+          "selector": "all_incidents"
+        }
+      }
+    },
+    {
+      "id": "budget_summary",
+      "screen_id": "queue",
+      "target_ref": "binding:budget_text",
+      "template": "Budget used: {used}",
+      "values": {
+        "used": {
+          "format": {
+            "digits": 1,
+            "format": "percent"
+          },
+          "state": "budget_used"
+        }
+      }
+    },
+    {
+      "format": {
+        "digits": 2,
+        "format": "decimal"
+      },
+      "id": "spend_summary",
+      "screen_id": "queue",
+      "state": "spend",
+      "target_ref": "binding:spend_text",
+      "template": "Spend: {value}"
+    },
+    {
+      "id": "opened_summary",
+      "screen_id": "queue",
+      "target_ref": "binding:opened_text",
+      "template": "Opened {opened}",
+      "values": {
+        "opened": {
+          "format": {
+            "format": "date_iso"
+          },
+          "state": "opened_at"
+        }
+      }
+    }
+  ],
+  "visibility": [
+    {
+      "id": "escalation",
+      "screen_id": "queue",
+      "target_ref": "binding:escalate",
+      "when": {
+        "all": [
+          {
+            "is": "non_empty",
+            "selector": "active"
+          },
+          {
+            "not": {
+              "is": "truthy",
+              "state": "acked"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "attention",
+      "screen_id": "queue",
+      "target_ref": "binding:attention",
+      "when": {
+        "any": [
+          {
+            "all": [
+              {
+                "is": "truthy",
+                "state": "acked"
+              },
+              {
+                "is": "non_empty",
+                "selector": "active"
+              }
+            ]
+          },
+          {
+            "equals": "inc_1043",
+            "state": "selected_incident"
+          }
+        ]
+      }
+    }
+  ]
+}

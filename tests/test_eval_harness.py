@@ -1113,7 +1113,7 @@ def test_structured_output_schema_strips_unsupported_keywords_and_keeps_the_shap
         == AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["motif"]["properties"]["kind"]
     )
     assert intent["$defs"]["binding"]["properties"]["address"] == {"type": "string"}
-    assert "anyOf" in app and len(app["anyOf"]) == 4
+    assert "anyOf" in app and len(app["anyOf"]) == len(AGENT_APP_BUNDLE_SCHEMA["oneOf"]) == 5
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["binding"]["properties"]["address"]["pattern"]  # the source is untouched
 
     # Property names that look like keywords survive; only schema keywords are filtered.

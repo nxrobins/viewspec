@@ -14,8 +14,9 @@ are reference material for when a command, contract, or proof points you there.
 
 ## Source contracts
 
-- [AppBundle V1/V2/V3/V4](app-bundle-v0.md): Multi-screen internal tools: fixtures, bounded state,
-  visibility, the Static Shell V0 proof target, and the runnable `react-tailwind-app` target.
+- [AppBundle V1/V2/V3/V4/V5](app-bundle-v0.md): Multi-screen internal tools: fixtures, bounded state,
+  visibility, bounded expressions, the Static Shell V0 proof target, and the runnable
+  `react-tailwind-app` target.
 - [Custom Motif Authoring](custom-motif-authoring.md): Trusted local motif plugins that lower into
   `CompositionIR`.
 - [Local HTML Wedge](local-html-wedge.md): Importing existing HTML as a fallback path.

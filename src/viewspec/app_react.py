@@ -39,6 +39,7 @@ from viewspec.app_validation import (
     route_assertions_for,
     validation_summary,
 )
+from viewspec.app_versions import app_has_state_text, app_has_visibility
 from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS
 from viewspec.local_tools import atomic_write, check_artifact_dir, file_hash
 from viewspec.presentation_plan import (
@@ -477,10 +478,10 @@ def _react_app_source(payload: dict[str, Any]) -> str:
     imports = [
         f'import Screen{index} from "./screens/{screen["id"]}/ViewSpecView";' for index, screen in enumerate(screens)
     ]
-    schema_version = _app_schema_version(payload) or 1
-    has_state_text = schema_version == 4 and "state_text" in payload
+    has_visibility = app_has_visibility(payload)
+    has_state_text = app_has_state_text(payload)
     state_imports = "initialState, reduceViewSpecState, selectViewSpecState"
-    if schema_version == 4:
+    if has_visibility:
         state_imports += ", evaluateViewSpecVisibility"
     if has_state_text:
         state_imports += ", evaluateViewSpecText"
@@ -499,7 +500,7 @@ def _react_app_source(payload: dict[str, Any]) -> str:
     ]
     visibility_eval = (
         "const evaluateRuntimeVisibility = evaluateViewSpecVisibility;"
-        if schema_version == 4
+        if has_visibility
         else "const evaluateRuntimeVisibility = (_state: ViewSpecState): Record<string, boolean> => ({});"
     )
     state_text_eval = (
