@@ -37,6 +37,9 @@ FIELD_ROLES = frozenset(
     {"checkbox", "combobox", "listbox", "radio", "searchbox", "slider", "spinbutton", "switch", "textbox"}
 )
 INPUT_ACTION_TYPES = frozenset({"button", "image", "reset", "submit"})
+# Regions where a page tells the user what happened: an error, a confirmation, a log line.
+MESSAGE_ROLES = frozenset({"alert", "alertdialog", "log", "status"})
+MESSAGE_LIVE = frozenset({"assertive", "polite"})
 DEFAULT_INPUT_ACTION_NAMES = {"submit": "Submit", "reset": "Reset", "image": "Submit"}
 CONTROL_CONTENT_TAGS = frozenset({"input", "option", "optgroup", "select", "textarea"})
 SENSITIVE_AUTOCOMPLETE = frozenset(
@@ -162,9 +165,26 @@ class HtmlForm:
 
 
 @dataclass(frozen=True)
+class HtmlMessage:
+    """Text in a region where the page reports what happened (``role="alert"``, ``aria-live``, ...).
+
+    ``kind`` is the region's role (``alert``, ``alertdialog``, ``log``, ``status``), or ``live`` for an
+    ``aria-live`` region without one of those roles.
+    """
+
+    node_id: str
+    kind: str
+    text: str
+
+    def to_json(self) -> dict[str, Any]:
+        return {"node_id": self.node_id, "kind": self.kind, "text": self.text}
+
+
+@dataclass(frozen=True)
 class ControlExtraction:
     controls: tuple[HtmlControl, ...]
     forms: tuple[HtmlForm, ...]
+    messages: tuple[HtmlMessage, ...]
     # (node_id, role, text, confidence) for each control, in document order.
     roles: tuple[tuple[str, str, str, float], ...]
     # Nodes that must not also get content roles: hidden nodes, and nodes inside controls.
@@ -425,9 +445,22 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
     roles: list[tuple[str, str, str, float]] = []
     excluded: set[str] = set(page.hidden)
     inside_control: set[str] = set()
+    messages: list[HtmlMessage] = []
+    inside_message: set[str] = set()
     for node in nodes:
         if node.id in page.hidden:
             continue
+        if node.parent_id is not None and node.parent_id in inside_message:
+            inside_message.add(node.id)
+            excluded.add(node.id)  # Its text is part of the message.
+        else:
+            kind = _message_kind(node)
+            if kind is not None:
+                inside_message.add(node.id)
+                excluded.add(node.id)
+                text = page.text(node, skip_controls=True)
+                if text:
+                    messages.append(HtmlMessage(node.id, kind, text))
         if node.parent_id is not None and node.parent_id in inside_control:
             # A control's content is part of that control: its name, its options, or its value.
             # Like the browser's tab order, a control nested in another control is not counted twice.
@@ -488,8 +521,21 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
             )
         )
     return ControlExtraction(
-        controls=tuple(controls), forms=tuple(forms), roles=tuple(roles), excluded_ids=frozenset(excluded)
+        controls=tuple(controls),
+        forms=tuple(forms),
+        messages=tuple(messages),
+        roles=tuple(roles),
+        excluded_ids=frozenset(excluded),
     )
+
+
+def _message_kind(node: LiftNode) -> str | None:
+    role = node.attrs.get("role", "").strip().lower().split(" ")[0]
+    if role in MESSAGE_ROLES:
+        return role
+    if node.attrs.get("aria-live", "").strip().lower() in MESSAGE_LIVE:
+        return "live"
+    return None
 
 
 def _slug(text: str) -> str:
@@ -696,6 +742,7 @@ __all__ = [
     "FormField",
     "HtmlControl",
     "HtmlForm",
+    "HtmlMessage",
     "HtmlOption",
     "control_aria_role",
     "extract_controls",

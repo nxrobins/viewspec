@@ -25,12 +25,12 @@ See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile
 |---|---|
 | `lift_inpage.js` | In-page library. Gives every element a ref (`e17`) that stays the same while the element is in the page. Snapshots the composed tree (open shadow roots, slots, same-origin iframes) with live form state, and never copies a secret value. Lists the visible controls (the ground truth). Proposes CSS candidates for an element. |
 | `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and by default **blocks writes**: a form post or any other non-GET request is recorded and answered with a stub page. With an origin allowlist, it also stops navigations to other origins. |
-| `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `blocked_writes()`, `blocked_navigations()`. |
+| `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `blocked_writes()`, `blocked_navigations()`. `changes(before, after)`: what changed between two observations. |
 | `page_view.py` | The compact text view, with a numbered handle for each control. |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
-| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 20 checks on the fixtures. |
-| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 23 checks. |
+| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 29 checks on the fixtures. |
+| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 30 checks. |
 
 ### Locators
 
@@ -69,25 +69,46 @@ an earlier document (the page has navigated since) is refused (`stale-view`): a 
 name on the new page is a different control. A hash change or a `pushState` route change keeps the
 document, so steps from a single-page app's earlier view still run.
 
+### Changes
+
+After an action, the agent needs to know what it did. `changes(before, after)` diffs two
+observations with the package's `diff_lifts` and returns short lines, with the handles of the new
+view:
+
+```text
+message status 'Arc lamp added to cart'
+changed [7] button 'Added': name 'Add to cart' -> 'Added'; disabled false -> true
+text + value '1'
+text - value '0'
+```
+
+Messages come first: they are where a page says "Email is required" or "Added to cart". Then come
+changed controls (field by field), controls that appeared (`added [11] text 'Promo code'` when a
+`<details>` opens) or went away, forms, and page text that appeared or went away. A secret field's
+value never appears: a card number fill shows `no change`. If the page loaded a new document, the
+result is `new_document: true` and one line naming the new page, because a diff would list the whole
+page.
+
 ## MCP tools
 
 `mcp_browser_server.py` serves three tools over stdio:
 
 | Tool | Arguments | Does |
 |---|---|---|
-| `observe` | `url` (optional) | Opens `url` if given, then reads the page. Returns `view` (one line per heading, value, table row, and control; each control has a handle such as `[7]`), `form_tools` (one typed tool per form), `observation_id`, `url`, and `title`. |
+| `observe` | `url` or `since` (both optional) | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, and control; each control has a handle such as `[7]`), `form_tools` (one typed tool per form), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. |
 | `act` | `handle`, `action` (`click`, `fill`, `check`, `uncheck`, `select`), `value`, `observation_id` | Does one thing to one control, then reads the page again. |
 | `call` | `tool`, `arguments`, `submit`, `observation_id` | Fills in a form with typed arguments and submits it, then reads the page again. |
 
 Every result uses the `viewspec mcp` result format: `ok`, `summary`, `errors` (each with `code`,
 `message`, and `fix`), and `next_actions`. `act` and `call` also return `steps` (with secret values
-as `[redacted]`), `navigated`, and the new view, so the agent needs no extra `observe`. When writes
+as `[redacted]`), `navigated`, the new view, and `changes` (see [Changes](#changes)), so the agent
+needs no extra `observe`. When writes
 are blocked, `blocked_writes` lists each stopped request with its form fields; secret fields are
 `[redacted]`. `blocked_navigations` lists each navigation the origin allowlist stopped.
 
 A request that the page cannot take is refused before the browser does anything, and the result
 says so. A refused form call names each problem: `{"argument": "ship", "problem": "invalid", ...}`.
-Other codes: `BROWSER_NO_PAGE`, `BROWSER_HANDLE_UNKNOWN`, `BROWSER_OBSERVATION_UNKNOWN` (the server
+Other codes: `BROWSER_NO_PAGE`, `BROWSER_INVALID_REQUEST`, `BROWSER_HANDLE_UNKNOWN`, `BROWSER_OBSERVATION_UNKNOWN` (the server
 keeps the last 8 observations), `BROWSER_OBSERVATION_STALE`, `BROWSER_TARGET_DRIFT`,
 `BROWSER_TARGET_STALE`, `BROWSER_PLAN_INTERRUPTED`, `BROWSER_ORIGIN_NOT_ALLOWED`, `BROWSER_TIMEOUT`,
 and `BROWSER_ERROR`.
@@ -144,9 +165,11 @@ A session then looks like this:
 observe(url="http://localhost:3000/checkout")
   view: ... [4] button 'Increase quantity' ... form 'Checkout' POST /orders tool=checkout ...
 act(handle=4, action="click")
-  steps: [click 'Increase quantity' by ref]  view: ... [3] text 'Quantity' = '3' ...
+  steps: [click 'Increase quantity' by ref]
+  changes: ["changed [3] text 'Quantity': value '2' -> '3'"]
 call(tool="checkout", arguments={"email": "bo@example.com", "ship": "express", "terms": true})
-  steps: 4  navigated: true  blocked_writes: [POST /orders {email, ship, terms, ...}]
+  steps: 4  navigated: true  changes: {new_document: true}
+  blocked_writes: [POST /orders {email, ship, terms, ...}]
 ```
 
 ## Run it
@@ -179,7 +202,7 @@ with BrowserSession() as session:  # block_writes=True by default
 | page | aria tok | view tok | interactive | compile cov | agent cov | same name | located | forms | fp stable | leaks |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
 | checkout | 208 | 142 | 14 | 1/14 | 14/14 | 14/14 | 15/15 | 1 | True | 0 |
-| shop | 248 | 150 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
+| shop | 255 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
 | spa | 135 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 0 | True | 0 |
 | viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
 
@@ -191,7 +214,7 @@ with BrowserSession() as session:  # block_writes=True by default
 - **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
   schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
-`demo_agent.py` (20 checks, all pass):
+`demo_agent.py` (29 checks, all pass):
 
 - **checkout:** a click inside the web component's shadow DOM changes the quantity from 2 to 3. Fills
   inside the payment iframe are verified, and the next snapshot does not contain the card number. A
@@ -201,13 +224,18 @@ with BrowserSession() as session:  # block_writes=True by default
 - **spa:** after the page replaces every element, steps from the old view still land (by CSS and by
   role). A simulated layout change is refused by the drift guard.
 - **viewspec_orders:** the agent clicks the ViewSpec action `#refund`, found as `#dom-action_refund`.
+- **changes:** after each checkout and shop action, the diff names exactly what changed: the
+  quantity 2 to 3, `no change` after the card fill, the promo field added when its `<details>`
+  opens, a new document after the submit, the status message and the renamed, disabled button
+  after "Add to cart", and the new product after "Load more".
 
-`demo_mcp.py` (23 checks, all pass) runs the same kind of tasks through the MCP server, as a host
+`demo_mcp.py` (30 checks, all pass) runs the same kind of tasks through the MCP server, as a host
 would, with `--allow-origin` set to the local fixture server and without `NODE_PATH`. It also checks
 that the tool schemas carry no internal node ids, that a blocked post shows the password field as
 `[redacted]` and no result contains the password or the card number, that acting from a view of a
 page that has navigated away is refused, that opening another origin is refused, and that a link to
-another origin leaves the agent on the page it was on.
+another origin leaves the agent on the page it was on. It checks `changes` in `act` and `call`
+results, and that `observe(since=...)` combines the changes of two actions.
 
 The fixtures are small and hand-made. Run the probe on real sites before you draw conclusions.
 
@@ -226,9 +254,12 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 - The origin allowlist checks top-level navigations. Requests for scripts, images, and data from
   other origins still load, as the page needs them.
 - The view is not cut to a size limit. A very large page gives a long view.
+- A diff matches controls by ref, then by unique name, then by place. A control that the page
+  re-rendered and also renamed and moved is reported as removed and added.
+- A message that the page shows again with the same text is not reported as new.
 
 ## Next steps
 
 1. Add the MCP server to an agent host, and try it on real sites.
-2. Diff two observations after an action, so the agent sees what changed.
-3. Let `observe` page through a long view.
+2. Let `observe` page through a long view.
+3. Let `act` wait for a change (a message, a new control) when a page updates after a delay.

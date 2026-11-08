@@ -51,8 +51,8 @@ def subtree_text(node: LiftNode, by_id: dict[str, LiftNode]) -> str:
 def page_view(lift: HtmlLiftResult) -> tuple[str, dict[int, HtmlControl]]:
     """Return the view text and the control behind each handle.
 
-    The view lists forms, headings, controls, values, table rows, and repeated groups in document
-    order. Handles count controls from 1 in document order, so the same page gives the same handles.
+    The view lists messages (alerts, status, live regions), forms, headings, controls, values, table
+    rows, and repeated groups in document order. Handles count controls from 1 in document order, so the same page gives the same handles.
     """
 
     group_of: dict[str, tuple[str, ...]] = {}
@@ -62,6 +62,7 @@ def page_view(lift: HtmlLiftResult) -> tuple[str, dict[int, HtmlControl]]:
                 group_of[member] = group
     controls = {control.node_id: control for control in lift.controls}
     forms = {form.node_id: form for form in lift.forms}
+    messages = {message.node_id: message for message in lift.messages}
     tool_names = {
         form.node_id: schema["name"] for form, schema in zip(lift.forms, lift.form_tool_schemas(), strict=True)
     }
@@ -77,6 +78,9 @@ def page_view(lift: HtmlLiftResult) -> tuple[str, dict[int, HtmlControl]]:
         group = group_of.get(node.id)
         if group and group[0] == node.id:
             lines.append(f"group {len(group)}x <{node.tag}>")
+        if node.id in messages:
+            message = messages[node.id]
+            lines.append(f"message {message.kind} {message.text[:TEXT_PREVIEW]!r}")
         if node.id in forms:
             form = forms[node.id]
             lines.append(

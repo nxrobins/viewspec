@@ -58,8 +58,8 @@ profile, so compiled artifacts, `source_hash`, and the sanitizer policy stay the
 from viewspec.raw_html import lift_html
 
 lift = lift_html(rendered_dom_html, profile="agent")
-lift.controls             # every visible link, button, field, and ARIA widget, with an accessible name
-lift.forms                # each form with its controls and its submit controls
+lift.controls  # every visible link, button, field, and ARIA widget, with an accessible name
+lift.forms  # each form with its controls and its submit controls
 lift.form_tool_schemas()  # each form as a tool: a JSON Schema for its fields plus the submit node ids
 ```
 
@@ -119,6 +119,37 @@ for step in steps:
 - A step of a secret field has `secret: true`, and `step.to_json()` shows its value as `[redacted]`.
 
 The planner is pure Python: it makes no network calls and drives no browser.
+
+### Messages and changes
+
+`lift.messages` holds the text of each visible region where the page reports what happened: a
+`role` of `alert`, `alertdialog`, `log`, or `status`, or an `aria-live` region (`kind` is `live`).
+This is where a page says "Email is required" or "Added to cart". Message text is not repeated as
+page content.
+
+`viewspec.raw_html_diff.diff_lifts(before, after)` says what changed between two agent lifts of the
+same page, for example before and after an action:
+
+```python
+from viewspec.raw_html_diff import diff_lifts
+
+diff = diff_lifts(before, after)
+print("\n".join(diff.lines()))
+```
+
+```text
+message status 'Arc lamp added to cart'
+changed button 'Added': name 'Add to cart' -> 'Added'; disabled false -> true
+text + value '1'
+text - value '0'
+```
+
+It reports new messages, controls whose state changed (field by field), controls that appeared or
+went away, forms that appeared or went away, and page text (headings, values, labels, prose) that
+appeared or went away. Controls are matched by `ref` (the same element), then by kind and name when
+that pair is unique on both sides, then by node id and kind. A secret field's value never appears in
+a diff. `lines(handle_of)` takes a function from an `after` node id to a view handle. Both lifts
+should come from the same document; after a navigation, read the new page instead.
 `experiments/browser-agent-probe/` has a Playwright session that runs these steps.
 
 ### Input

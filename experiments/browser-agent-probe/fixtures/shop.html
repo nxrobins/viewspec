@@ -7,6 +7,7 @@
     <a href="/">Home</a>
     <a href="/deals"><span>Deals</span></a>
     <a href="/cart" aria-label="Cart"><svg width="16" height="16"><circle cx="8" cy="8" r="6"/></svg></a>
+    <span id="cart-count">0</span>
   </nav>
   <form action="/search">
     <label for="q">Search products</label>
@@ -25,7 +26,31 @@
   </ul>
   <label><input type="checkbox" name="instock"> In stock only</label>
   <div role="button" tabindex="0">Load more</div>
+  <p role="status" id="cart-status"></p>
 </main>
 <footer><a href="/help">Help</a> <a href="https://brand.example/about">Brand site</a></footer>
+<script>
+  // "Add to cart" marks the item added, counts it, and says so in the status region.
+  // "Load more" adds one more product.
+  const list = document.querySelector(".results");
+  let count = 0;
+  function addable(button) {
+    button.addEventListener("click", () => {
+      const name = button.closest("li").querySelector("h2").textContent;
+      button.textContent = "Added";
+      button.disabled = true;
+      count += 1;
+      document.getElementById("cart-count").textContent = String(count);
+      document.getElementById("cart-status").textContent = `${name} added to cart`;
+    });
+  }
+  list.querySelectorAll("button").forEach(addable);
+  document.querySelector("[role=button]").addEventListener("click", () => {
+    const item = document.createElement("li");
+    item.innerHTML = "<h2>Desk organizer</h2><p>$22.00</p><button>Add to cart</button>";
+    list.appendChild(item);
+    addable(item.querySelector("button"));
+  });
+</script>
 </body>
 </html>

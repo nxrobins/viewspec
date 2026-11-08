@@ -31,6 +31,7 @@ from page_view import page_view
 from viewspec.raw_html import HtmlLiftResult, lift_html
 from viewspec.raw_html_actions import ActionStep, plan_control_action, plan_form_call
 from viewspec.raw_html_agent import HtmlControl, control_aria_role
+from viewspec.raw_html_diff import diff_lifts
 
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE / "bridge.js"
@@ -74,6 +75,19 @@ class StepResult:
             "navigated": self.navigated,
             "url": self.url,
         }
+
+
+def changes(before: Observation, after: Observation) -> dict[str, Any]:
+    """What changed from one observation to a later one, as short lines for an agent.
+
+    Handles in the lines are those of ``after``. After a navigation to a new document a diff means
+    nothing, so the result only says that the page is new.
+    """
+
+    if before.doc_id != after.doc_id:
+        return {"new_document": True, "empty": False, "lines": [f"new page {after.title!r} {after.url}"]}
+    diff = diff_lifts(before.lift, after.lift)
+    return {"new_document": False, "empty": diff.empty, "lines": diff.lines(after.handle_of)}
 
 
 class BrowserSession:

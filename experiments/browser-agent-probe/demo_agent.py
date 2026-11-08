@@ -8,6 +8,10 @@ It serves the fixtures on 127.0.0.1, then:
 2. spa: lets the page replace every element, then acts from the old view; the saved locators find
    the new elements. A simulated layout change shows the drift guard refusing a wrong target.
 3. viewspec_orders: clicks a ViewSpec action by its data-action-id.
+4. shop: checks what each action changed: a status message, a changed button, a new product.
+
+After each action in checkout and shop, the script also checks the diff between the reading before
+and the reading after (``agent_session.changes``).
 
 Every check is an assertion. The script prints a transcript and exits 1 on the first failure.
 Secret values are never printed.
@@ -25,7 +29,7 @@ import threading
 from pathlib import Path
 from urllib.parse import parse_qs
 
-from agent_session import BridgeError, BrowserSession, StepResult
+from agent_session import BridgeError, BrowserSession, StepResult, changes
 
 from viewspec.raw_html_actions import AgentActionError, plan_control_action
 
@@ -80,13 +84,28 @@ def checkout(session: BrowserSession, base: str) -> None:
     quantity = handle_named(session, "Quantity")
     check(view.handles[quantity].value == "2", "the page shows quantity 2")
     show(session.act(handle_named(session, "Increase quantity"), "click"))
-    check(session.observe().handles[quantity].value == "3", "a click inside the shadow DOM made it 3")
+    after = session.observe()
+    check(after.handles[quantity].value == "3", "a click inside the shadow DOM made it 3")
+    diff = changes(view, after)["lines"]
+    print("\n".join(f"  ~~  {line}" for line in diff))
+    check(diff == [f"changed [{quantity}] text 'Quantity': value '2' -> '3'"], "the diff shows that one change only")
 
     card = session.act(handle_named(session, "Card number"), "fill", CARD)
     cvc = session.act(handle_named(session, "CVC"), "fill", "9876")
     show(card + cvc)
     check(all(result.verified for result in card + cvc), "the card fields inside the iframe hold the typed values")
-    check(CARD not in session.observe().html, "the next snapshot does not contain the card number")
+    filled = session.observe()
+    check(CARD not in filled.html, "the next snapshot does not contain the card number")
+    check(changes(after, filled)["lines"] == ["no change"], "the diff does not show a change to a secret value")
+
+    show(session.act(handle_named(session, "Have a promo code?"), "click"))
+    opened = session.observe()
+    diff = changes(filled, opened)["lines"]
+    print("\n".join(f"  ~~  {line}" for line in diff))
+    check(
+        f"added [{handle_named(session, 'Promo code')}] text 'Promo code'" in diff,
+        "opening the <details> shows the promo field as added, with its new handle",
+    )
 
     try:
         session.call("checkout", {"ship": "overnight", "colour": "red"})
@@ -108,6 +127,7 @@ def checkout(session: BrowserSession, base: str) -> None:
         "new_password": PASSWORD,
         "terms": True,
     }
+    before_submit = session.observe()
     results = session.call("checkout", arguments)
     show(results)
     check(all(result.verified is not False for result in results), "every step that can be verified was")
@@ -125,7 +145,43 @@ def checkout(session: BrowserSession, base: str) -> None:
     check(body.get("terms") == "on", "the terms checkbox outside the <form> element was sent with it")
     check(body.get("new_password") == PASSWORD, "the password reached the form (and was never printed)")
     check(body.get("csrf") == "csrf-token-123456", "the browser sent the hidden CSRF field the agent never saw")
-    check(session.observe().lift.roles[0].text == "Write blocked", "the agent now sees the blocked-write page")
+    blocked = session.observe()
+    check(blocked.lift.roles[0].text == "Write blocked", "the agent now sees the blocked-write page")
+    check(changes(before_submit, blocked)["new_document"], "the diff says the page is a new document")
+
+
+def shop(session: BrowserSession, base: str) -> None:
+    print("\n== shop: what each action changed ==")
+    session.open(f"{base}/shop.html")
+    before = session.observe()
+    show(session.act(handle_named(session, "Add to cart"), "click"))
+    after = session.observe()
+    diff = changes(before, after)["lines"]
+    print("\n".join(f"  ~~  {line}" for line in diff))
+    check(diff[0] == "message status 'Arc lamp added to cart'", "the status message comes first")
+    added = handle_named(session, "Added")
+    check(
+        f"changed [{added}] button 'Added': name 'Add to cart' -> 'Added'; disabled false -> true" in diff,
+        "the clicked button is shown renamed and disabled, with its handle",
+    )
+    check("text + value '1'" in diff and "text - value '0'" in diff, "the cart count went from 0 to 1")
+
+    show(session.act(handle_named(session, "Load more"), "click"))
+    more = session.observe()
+    diff = changes(after, more)["lines"]
+    print("\n".join(f"  ~~  {line}" for line in diff))
+    old_refs = {control.ref for control in after.lift.controls}
+    [new_button] = [handle for handle, control in more.handles.items() if control.ref not in old_refs]
+    check(
+        diff
+        == [
+            f"added [{new_button}] button 'Add to cart'",
+            "text + heading 'Desk organizer'",
+            "text + value '$22.00'",
+        ],
+        "Load more shows one new product and its button, with the button's new handle",
+    )
+    check(changes(more, session.observe())["empty"], "reading the page again shows no change")
 
 
 def spa(session: BrowserSession, base: str) -> None:
@@ -177,6 +233,7 @@ def main() -> int:
             checkout(session, base)
             spa(session, base)
             viewspec_page(session, base)
+            shop(session, base)
     except AssertionError as error:
         print(f"\nFAILED: {error}")
         return 1

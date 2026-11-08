@@ -75,12 +75,17 @@ async def run(base: str) -> None:
 
         more = await tool(session, "act", handle=handle(first, "Increase quantity"), action="click")
         check("'Quantity' = '3'" in more["view"], "a click in the shadow DOM shows quantity 3 in the new view")
+        check(
+            more["changes"]["lines"] == ["changed [3] text 'Quantity': value '2' -> '3'"],
+            "and changes names that one change",
+        )
 
         card = await tool(session, "act", handle=handle(more, "Card number"), action="fill", value=CARD)
         check(
             card["ok"] and card["steps"][0]["step"]["value"] == "[redacted]", "the card number fill is logged redacted"
         )
         check(CARD not in json.dumps(card), "the card number appears nowhere in the result")
+        check(card["changes"]["lines"] == ["no change"], "changes never shows a secret value")
 
         wrong = await tool(session, "act", handle=handle(card, "Email"), action="check")
         check(
@@ -114,6 +119,7 @@ async def run(base: str) -> None:
         check(fields["email"] == "bo@example.com" and fields["terms"] == "on", "and the other fields in clear")
         check(PASSWORD not in json.dumps(done), "the password appears nowhere in the result")
         check("Write blocked" in done["view"], "the new view is the blocked-write page")
+        check(done["changes"]["new_document"], "changes says the form led to a new page")
 
         stale = await tool(session, "act", handle=1, action="click", observation_id=before)
         check(
@@ -132,6 +138,25 @@ async def run(base: str) -> None:
             "and the blocked navigation is reported",
         )
         check(click["url"].endswith("/shop.html"), "the agent is still on the shop page")
+
+        print("\n== changes ==")
+        start = click["observation_id"]
+        cart = await tool(session, "act", handle=handle(click, "Add to cart"), action="click")
+        print("\n".join(f"  ~~  {line}" for line in cart["changes"]["lines"]))
+        check(
+            cart["changes"]["lines"][0] == "message status 'Arc lamp added to cart'", "the status message comes first"
+        )
+        loaded = await tool(session, "act", handle=handle(cart, "Load more"), action="click")
+        check("text + heading 'Desk organizer'" in loaded["changes"]["lines"], "Load more shows the new product")
+        since = await tool(session, "observe", since=start)
+        print("\n".join(f"  ~~  {line}" for line in since["changes"]["lines"]))
+        check(
+            "message status 'Arc lamp added to cart'" in since["changes"]["lines"]
+            and "text + heading 'Desk organizer'" in since["changes"]["lines"],
+            "observe(since=...) shows both actions' changes together",
+        )
+        mixed = await tool(session, "observe", url=f"{base}/shop.html", since=start)
+        check(not mixed["ok"] and mixed["errors"][0]["code"] == "BROWSER_INVALID_REQUEST", "url with since is refused")
 
         print("\n== viewspec_orders ==")
         orders = await tool(session, "observe", url=f"{base}/viewspec_orders.html")

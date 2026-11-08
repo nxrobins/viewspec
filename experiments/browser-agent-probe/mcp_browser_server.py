@@ -37,7 +37,7 @@ from types import FrameType
 from typing import Any, Literal
 from urllib.parse import parse_qs, urlsplit
 
-from agent_session import BridgeError, BrowserSession, Observation, StepResult
+from agent_session import BridgeError, BrowserSession, Observation, StepResult, changes
 
 from viewspec.local_tools_response import tool_error_response, tool_response
 from viewspec.raw_html_actions import ActionStep, AgentActionError, plan_control_action, plan_form_call
@@ -51,8 +51,10 @@ INSTRUCTIONS = (
     "every control as [n]; act(handle=n, action=...) clicks, fills, checks, unchecks, or selects one. Each "
     "form is also a typed tool in form_tools; call(tool=..., arguments={...}) fills it in and submits it. "
     "Requests are checked against the page first: on ok=false, read errors and fix the request. act and "
-    "call return the new view; use its handles next. Writes may be blocked: a submitted form then shows "
-    "'Write blocked', and blocked_writes lists what would have been sent."
+    "call return the new view and changes, the lines that say what the action changed (messages first); "
+    "use the new handles next. observe(since=id) shows what changed since an earlier reading. Writes may "
+    "be blocked: a submitted form then shows 'Write blocked', and blocked_writes lists what would have "
+    "been sent."
 )
 
 
@@ -70,26 +72,38 @@ class BrowserTools:
         self._lock = threading.Lock()
 
     # ---- tools ------------------------------------------------------------------------------------
-    def observe(self, url: str | None = None) -> dict[str, Any]:
+    def observe(self, url: str | None = None, since: int | None = None) -> dict[str, Any]:
         """Read the current page, or open ``url`` first and read it.
 
-        Returns ``view``: the page as text, one line per heading, value, table row, or control. Each
-        control line starts with a handle such as [7], then its kind, name, and state (value, [x] for
-        checked, options, required, secret, disabled). ``form_tools`` describes each form as a tool for
-        ``call``. ``observation_id`` names this reading; its handles stay valid for ``act``.
+        Returns ``view``: the page as text, one line per message, heading, value, table row, or
+        control. Each control line starts with a handle such as [7], then its kind, name, and state
+        (value, [x] for checked, options, required, secret, disabled). ``form_tools`` describes each
+        form as a tool for ``call``. ``observation_id`` names this reading; its handles stay valid for
+        ``act``. With ``since`` (an earlier ``observation_id``, and no ``url``), ``changes`` lists what
+        changed on the page since that reading, for a page that updates by itself.
         """
 
         with self._lock:
             try:
                 if url is not None:
+                    if since is not None:
+                        return _error(
+                            "BROWSER_INVALID_REQUEST",
+                            "since compares readings of the current page; it cannot be used with url.",
+                            "Pass url to open a page, or since to see what changed on the current one.",
+                        )
                     refused = self._refuse_origin(url)
                     if refused is not None:
                         return refused
                     self._browser().open(url)
                     self._reported = {"writes": 0, "navigations": 0}
-                elif self._session is None:
+                    return self._observe_result("Observed the page.")
+                earlier = self._observation(since) if since is not None else None
+                if isinstance(earlier, dict):
+                    return earlier
+                if self._session is None:
                     return _error("BROWSER_NO_PAGE", "No page is open.", "Call observe with a url first.")
-                return self._observe_result("Observed the page.")
+                return self._observe_result("Observed the page.", since=earlier)
             except BridgeError as error:
                 return _error(_bridge_code(error), str(error), "Check the url, or observe again.")
 
@@ -194,7 +208,7 @@ class BrowserTools:
         except BridgeError as error:
             # Some steps may have run; show the agent the page as it is now, if it can be read.
             try:
-                current: dict[str, Any] | None = self._observe_data()
+                current: dict[str, Any] | None = self._observe_data(since=observation)
             except BridgeError:
                 current = None
             return tool_error_response(
@@ -204,15 +218,17 @@ class BrowserTools:
                 data=current,
             )
         summary = "Nothing to do: the control is already in that state." if not steps else _summary(results)
-        result = self._observe_result(summary)
+        result = self._observe_result(summary, since=observation)
         result["steps"] = [item.to_json() for item in results]
         result["navigated"] = any(item.navigated for item in results)
         return result
 
-    def _observe_result(self, summary: str) -> dict[str, Any]:
-        return tool_response(True, summary, data=self._observe_data())
+    def _observe_result(self, summary: str, *, since: Observation | None = None) -> dict[str, Any]:
+        return tool_response(True, summary, data=self._observe_data(since=since))
 
-    def _observe_data(self) -> dict[str, Any]:
+    def _observe_data(self, *, since: Observation | None = None) -> dict[str, Any]:
+        """Read the page, keep the reading, and describe it. ``since`` adds what changed from it."""
+
         session = self._browser()
         observation = session.observe()
         self._latest += 1
@@ -227,6 +243,8 @@ class BrowserTools:
             "view": observation.view,
             "form_tools": [_public_schema(schema) for schema in observation.lift.form_tool_schemas()],
         }
+        if since is not None:
+            data["changes"] = changes(since, observation)
         writes = session.blocked_writes()
         navigations = session.blocked_navigations()
         if len(writes) > self._reported["writes"]:

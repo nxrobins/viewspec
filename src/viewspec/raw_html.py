@@ -23,6 +23,7 @@ from viewspec.raw_html_agent import (
     AGENT_VIEWSPEC_DATA_ATTRS,
     HtmlControl,
     HtmlForm,
+    HtmlMessage,
     extract_controls,
     form_tool_names,
     form_tool_schema,
@@ -300,6 +301,7 @@ class HtmlLiftResult:
     profile: str = "compile"
     controls: tuple[HtmlControl, ...] = ()
     forms: tuple[HtmlForm, ...] = ()
+    messages: tuple[HtmlMessage, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -316,6 +318,7 @@ class HtmlLiftResult:
             payload["profile"] = self.profile
             payload["controls"] = [control.to_json() for control in self.controls]
             payload["forms"] = [form.to_json() for form in self.forms]
+            payload["messages"] = [message.to_json() for message in self.messages]
         return payload
 
     def form_tool_schemas(self) -> list[dict[str, Any]]:
@@ -484,9 +487,10 @@ def lift_html(
     source_hash = hashlib.sha256("\n".join(_source_token(node) for node in nodes).encode("utf-8")).hexdigest()
     controls: tuple[HtmlControl, ...] = ()
     forms: tuple[HtmlForm, ...] = ()
+    messages: tuple[HtmlMessage, ...] = ()
     if profile == "agent":
         extraction = extract_controls(nodes)
-        controls, forms = extraction.controls, extraction.forms
+        controls, forms, messages = extraction.controls, extraction.forms, extraction.messages
         content_roles = [
             role
             for role in _infer_roles([node for node in nodes if node.id not in extraction.excluded_ids])
@@ -512,6 +516,7 @@ def lift_html(
         profile=profile,
         controls=controls,
         forms=forms,
+        messages=messages,
     )
 
 

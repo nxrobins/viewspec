@@ -21,6 +21,10 @@ All notable changes to ViewSpec are documented in this file. The format follows
   plans browser steps from a single control action (`plan_control_action`) or a form tool call
   (`plan_form_call`), and refuses requests the page cannot take with `AGENT_ACTION_*` and
   `AGENT_FORM_*` codes. Form tool names are unique per page.
+- Agent lifts carry `messages`: the text of visible alert, status, log, and `aria-live` regions.
+  `viewspec.raw_html_diff.diff_lifts(before, after)` reports what changed between two agent lifts of
+  the same page: new messages, changed controls field by field, added and removed controls and
+  forms, and page text that appeared or went away. Secret values never appear in a diff.
 
 ## [0.4.0] - 2026-11-01
 
