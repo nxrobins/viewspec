@@ -16,6 +16,11 @@ All notable changes to ViewSpec are documented in this file. The format follows
   secret field values (`HTML_HIDDEN_INPUT_DROPPED`, `HTML_VALUE_REDACTED`). The default `"compile"`
   profile and `compile_html()` output do not change. See
   [docs/local-html-wedge.md](docs/local-html-wedge.md#agent-lift-profile).
+- Agent lift controls and forms carry the snapshot `ref` (`data-lift-ref`) that names their element
+  in the browser, and controls carry `tag`, `readonly`, and `secret`. `viewspec.raw_html_actions`
+  plans browser steps from a single control action (`plan_control_action`) or a form tool call
+  (`plan_form_call`), and refuses requests the page cannot take with `AGENT_ACTION_*` and
+  `AGENT_FORM_*` codes. Form tool names are unique per page.
 
 ## [0.4.0] - 2026-11-01
 

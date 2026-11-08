@@ -23,6 +23,9 @@ if TYPE_CHECKING:
 AGENT_HINT_ATTR_PREFIX = "data-lift-"
 HINT_HIDDEN = "data-lift-hidden"
 HINT_CLICKABLE = "data-lift-clickable"
+# A browser-side snapshot may also give each element a ``data-lift-ref``: a handle the browser can
+# turn back into that exact element, so an agent can act on what it read.
+HINT_REF = "data-lift-ref"
 # Provenance attributes that ViewSpec writes into compiled artifacts. On a ViewSpec page they name
 # each action exactly, so an agent does not have to guess.
 AGENT_VIEWSPEC_DATA_ATTRS = frozenset(
@@ -105,10 +108,16 @@ class HtmlControl:
     action_id: str | None
     options: tuple[HtmlOption, ...] = ()
     group: str | None = None
+    readonly: bool = False
+    secret: bool = False
+    ref: str | None = None
+    tag: str = ""
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "node_id": self.node_id,
+            "ref": self.ref,
+            "tag": self.tag,
             "kind": self.kind,
             "control": self.control,
             "name": self.name,
@@ -122,6 +131,8 @@ class HtmlControl:
             "href": self.href,
             "action_id": self.action_id,
             "group": self.group,
+            "readonly": self.readonly,
+            "secret": self.secret,
         }
         if self.options:
             payload["options"] = [option.to_json() for option in self.options]
@@ -136,10 +147,12 @@ class HtmlForm:
     method: str
     control_ids: tuple[str, ...]
     submit_ids: tuple[str, ...]
+    ref: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
             "node_id": self.node_id,
+            "ref": self.ref,
             "name": self.name,
             "action": self.action,
             "method": self.method,
@@ -450,6 +463,10 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 action_id=node.attrs.get("data-action-id") or None,
                 options=options,
                 group=_group_name(page, node) if kind == "field" else None,
+                readonly="readonly" in node.attrs or node.attrs.get("aria-readonly", "").lower() == "true",
+                secret=is_sensitive_control(node.tag, node.attrs),
+                ref=node.attrs.get(HINT_REF) or None,
+                tag=node.tag,
             )
         )
         roles.append((node.id, kind, name, confidence))
@@ -467,6 +484,7 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 method=(node.attrs.get("method") or "get").upper(),
                 control_ids=tuple(control.node_id for control in members),
                 submit_ids=tuple(control.node_id for control in members if control.submits),
+                ref=node.attrs.get(HINT_REF) or None,
             )
         )
     return ControlExtraction(
@@ -478,77 +496,153 @@ def _slug(text: str) -> str:
     return SLUG_RE.sub("_", text.lower()).strip("_")
 
 
-def _number(value: str | None) -> float | int | None:
-    if value is None:
-        return None
-    try:
-        number = float(value)
-    except ValueError:
-        return None
-    return int(number) if number.is_integer() else number
+BOOLEAN_CONTROLS = frozenset({"checkbox", "switch"})
+NUMBER_CONTROLS = NUMBER_INPUT_TYPES | {"slider", "spinbutton"}
 
 
-def form_tool_schema(form: HtmlForm, controls: Mapping[str, HtmlControl]) -> dict[str, Any]:
-    """Describe one form as a callable tool: a JSON Schema for its inputs plus its submit controls.
+@dataclass(frozen=True)
+class FormField:
+    """One argument of a form tool, and the controls it fills.
 
-    Each property carries ``x-node-id`` (or ``x-node-ids`` for a radio group) so the caller can map
-    an argument back to the element to fill in. Disabled fields are left out.
+    ``kind`` is ``text``, ``number``, ``boolean``, ``choice`` (a radio group), ``select``, or
+    ``multi`` (a multiple select). A ``choice`` field maps each allowed value to one radio control.
     """
 
-    properties: dict[str, dict[str, Any]] = {}
-    required: list[str] = []
+    key: str
+    kind: str
+    controls: tuple[HtmlControl, ...]
+    choices: tuple[tuple[str, HtmlControl], ...] = ()
+
+    @property
+    def control(self) -> HtmlControl:
+        return self.controls[0]
+
+    @property
+    def required(self) -> bool:
+        return any(control.required for control in self.controls)
+
+
+def _field_kind(control: HtmlControl) -> str:
+    if control.control in BOOLEAN_CONTROLS:
+        return "boolean"
+    if control.control in NUMBER_CONTROLS:
+        return "number"
+    if control.control == "select":
+        return "select"
+    if control.control == "select-multiple":
+        return "multi"
+    return "text"
+
+
+def form_fields(form: HtmlForm, controls: Mapping[str, HtmlControl]) -> tuple[FormField, ...]:
+    """The arguments of a form tool, in document order. Disabled fields are left out.
+
+    Radios that share a ``name`` (or, for ARIA radios, a group label) become one ``choice`` field.
+    Other fields are keyed by ``name``, then by the slug of the accessible name, then by node id;
+    a key already in use gets a ``_2``, ``_3``, ... suffix.
+    """
+
+    fields: list[FormField] = []
+    by_key: dict[str, int] = {}
+    radio_keys: dict[str, str] = {}
     for control_id in form.control_ids:
         control = controls[control_id]
         if control.kind != "field" or control.disabled:
             continue
-        key = control.field_name or _slug(control.name) or control.node_id
-        if control.control == "radio" and control.field_name:
-            group = properties.setdefault(
-                key, {"description": control.group or key, "type": "string", "enum": [], "x-node-ids": {}}
-            )
-            option = control.value or control.name
-            group["enum"].append(option)
-            group["x-node-ids"][option] = control.node_id
-            if control.checked:
-                group["default"] = option
-            if control.required and key not in required:
-                required.append(key)
-            continue
-        base = key
-        suffix = 2
-        while key in properties:
-            key = f"{base}_{suffix}"
-            suffix += 1
-        prop: dict[str, Any] = {"description": control.name, "x-node-id": control.node_id}
-        if control.control in {"checkbox", "switch"}:
-            prop["type"] = "boolean"
-            if control.checked is not None:
-                prop["default"] = control.checked
-        elif control.control in NUMBER_INPUT_TYPES or control.control in {"slider", "spinbutton"}:
-            prop["type"] = "number"
-        elif control.control in {"select", "select-multiple"}:
-            values = [option.value for option in control.options if not option.disabled]
-            if control.control == "select-multiple":
-                prop["type"] = "array"
-                prop["items"] = {"type": "string", "enum": values}
-            else:
-                prop["type"] = "string"
-                prop["enum"] = values
+        if control.control == "radio":
+            group_id = control.field_name or _slug(control.group or "") or None
+            if group_id is not None:
+                option = (control.value if control.field_name else None) or control.name or control.node_id
+                if group_id in radio_keys:
+                    index = by_key[radio_keys[group_id]]
+                    field = fields[index]
+                    fields[index] = FormField(
+                        field.key, "choice", (*field.controls, control), (*field.choices, (option, control))
+                    )
+                    continue
+                key = _unique_key(group_id, by_key)
+                radio_keys[group_id] = key
+                by_key[key] = len(fields)
+                fields.append(FormField(key, "choice", (control,), ((option, control),)))
+                continue
+        key = _unique_key(control.field_name or _slug(control.name) or control.node_id, by_key)
+        by_key[key] = len(fields)
+        kind = "boolean" if control.control == "radio" else _field_kind(control)
+        fields.append(FormField(key, kind, (control,)))
+    return tuple(fields)
+
+
+def _unique_key(base: str, used: Mapping[str, int]) -> str:
+    key = base
+    suffix = 2
+    while key in used:
+        key = f"{base}_{suffix}"
+        suffix += 1
+    return key
+
+
+def _field_schema(field: FormField) -> dict[str, Any]:
+    control = field.control
+    if field.kind == "choice":
+        prop: dict[str, Any] = {
+            "description": control.group or field.key,
+            "type": "string",
+            "enum": [value for value, _ in field.choices],
+            "x-node-ids": {value: member.node_id for value, member in field.choices},
+        }
+        checked = [value for value, member in field.choices if member.checked]
+        if checked:
+            prop["default"] = checked[0]
+        return prop
+    prop = {"description": control.name or control.field_name or field.key, "x-node-id": control.node_id}
+    if field.kind == "boolean":
+        prop["type"] = "boolean"
+        if control.checked is not None:
+            prop["default"] = control.checked
+    elif field.kind == "number":
+        prop["type"] = "number"
+    elif field.kind in {"select", "multi"}:
+        values = [option.value for option in control.options if not option.disabled]
+        if field.kind == "multi":
+            prop["type"] = "array"
+            prop["items"] = {"type": "string", "enum": values}
         else:
             prop["type"] = "string"
-            if control.control in STRING_FORMATS:
-                prop["format"] = STRING_FORMATS[control.control]
-        if control.value not in {None, "", "[redacted]"} and control.control not in {"checkbox", "switch"}:
-            prop["default"] = control.value
-        if control.control == "password":
-            prop["writeOnly"] = True
-        if control.required:
-            required.append(key)
-        properties[key] = prop
+            prop["enum"] = values
+    else:
+        prop["type"] = "string"
+        if control.control in STRING_FORMATS:
+            prop["format"] = STRING_FORMATS[control.control]
+    if control.value not in {None, "", "[redacted]"} and field.kind != "boolean":
+        prop["default"] = control.value
+    if control.secret:
+        prop["writeOnly"] = True
+    if control.readonly:
+        prop["readOnly"] = True
+    return prop
+
+
+def form_tool_name(form: HtmlForm) -> str:
+    return _slug(form.name) or form.node_id
+
+
+def form_tool_schema(form: HtmlForm, controls: Mapping[str, HtmlControl], *, name: str | None = None) -> dict[str, Any]:
+    """Describe one form as a callable tool: a JSON Schema for its inputs plus its submit controls.
+
+    Each property carries ``x-node-id`` (or ``x-node-ids`` for a radio group) so the caller can map
+    an argument back to the element to fill in. Disabled fields are left out. A secret field is
+    ``writeOnly``: an agent may fill it, but the lift never shows its value.
+    """
+
+    fields = form_fields(form, controls)
     return {
-        "name": _slug(form.name) or form.node_id,
+        "name": name or form_tool_name(form),
         "description": f"Fill in and submit the form {form.name!r}.",
-        "input_schema": {"type": "object", "properties": properties, "required": required},
+        "input_schema": {
+            "type": "object",
+            "properties": {field.key: _field_schema(field) for field in fields},
+            "required": [field.key for field in fields if field.required],
+        },
         "x-form-node-id": form.node_id,
         "x-submit-node-ids": list(form.submit_ids),
         "x-method": form.method,
@@ -556,14 +650,58 @@ def form_tool_schema(form: HtmlForm, controls: Mapping[str, HtmlControl]) -> dic
     }
 
 
+def form_tool_names(forms: Sequence[HtmlForm]) -> tuple[str, ...]:
+    """A unique tool name for each form: two forms with the same name get ``_2``, ``_3``, ..."""
+
+    used: dict[str, int] = {}
+    names: list[str] = []
+    for form in forms:
+        name = _unique_key(form_tool_name(form), used)
+        used[name] = 0
+        names.append(name)
+    return tuple(names)
+
+
+def control_aria_role(control: HtmlControl) -> str | None:
+    """The ARIA role a browser gives the control, for a role-and-name locator. None if it has none."""
+
+    if control.control in ACTION_ROLES | FIELD_ROLES:
+        return control.control
+    return {
+        "link": "link",
+        "button": "button",
+        "submit": "button",
+        "reset": "button",
+        "image": "button",
+        "checkbox": "checkbox",
+        "radio": "radio",
+        "search": "searchbox",
+        "number": "spinbutton",
+        "range": "slider",
+        "select": "combobox",
+        "select-multiple": "listbox",
+        "textarea": "textbox",
+        "text": "textbox",
+        "email": "textbox",
+        "tel": "textbox",
+        "url": "textbox",
+        "password": "textbox",
+    }.get(control.control)
+
+
 __all__ = [
     "AGENT_HINT_ATTR_PREFIX",
     "AGENT_VIEWSPEC_DATA_ATTRS",
     "ControlExtraction",
+    "FormField",
     "HtmlControl",
     "HtmlForm",
     "HtmlOption",
+    "control_aria_role",
     "extract_controls",
+    "form_fields",
+    "form_tool_name",
+    "form_tool_names",
     "form_tool_schema",
     "is_sensitive_control",
 ]

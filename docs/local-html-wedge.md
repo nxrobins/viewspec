@@ -87,6 +87,42 @@ What it never keeps:
 - Script, style, event handlers, `formaction`, and unsafe URLs, as in the compile profile. A form
   `action` must be relative or `http(s)`.
 
+### Acting on the page
+
+Each control and form carries `ref`, the `data-lift-ref` attribute that a browser-side snapshot
+gave its element, so a browser driver can find that exact element again. Controls also carry
+`tag`, `readonly`, and `secret`, and `viewspec.raw_html_agent.control_aria_role(control)` gives the
+role for a role-and-name locator.
+
+`viewspec.raw_html_actions` plans actions before anything touches a browser:
+
+```python
+from viewspec.raw_html_actions import AgentActionError, plan_control_action, plan_form_call
+
+steps = plan_form_call(lift, "checkout", {"email": "bo@example.com", "ship": "express", "terms": True})
+steps = plan_control_action(lift.control(node_id), "fill", "Japan")
+for step in steps:
+    print(step.to_json())  # {"op": "fill", "node_id": ..., "ref": "e20", "name": "Email", "value": ...}
+```
+
+- `plan_control_action(control, op, value)` takes `click`, `fill`, `check`, `uncheck`, or `select`.
+  It refuses a disabled control (`AGENT_ACTION_DISABLED`), a read-only one (`AGENT_ACTION_READONLY`),
+  an action the control cannot take, such as filling a link (`AGENT_ACTION_UNSUPPORTED`), and a value
+  it cannot hold, such as an option that is not in the list (`AGENT_ACTION_VALUE_INVALID`). On an ARIA
+  checkbox or switch, `check` and `uncheck` become a `click` only when the state must change.
+- `plan_form_call(lift, tool_name, arguments)` checks a call of a tool from `form_tool_schemas()`. It
+  reports every problem at once in `AgentActionError.details` (`AGENT_FORM_ARGUMENTS_INVALID`):
+  unknown arguments, values outside the schema, and required fields that the call leaves out while
+  the page shows them empty. Its steps fill the arguments in document order, then click the first
+  enabled submit control, or submit the form when it has none. Tool names are unique per page
+  (`find`, `find_2`); an unknown name is `AGENT_FORM_UNKNOWN`.
+- A step of a secret field has `secret: true`, and `step.to_json()` shows its value as `[redacted]`.
+
+The planner is pure Python: it makes no network calls and drives no browser.
+`experiments/browser-agent-probe/` has a Playwright session that runs these steps.
+
+### Input
+
 The input must be the rendered DOM, not the server HTML, for pages that build their content with
 script. `outerHTML` shows the values a page loaded with, not what the user typed, so copy the live
 state into attributes first. `experiments/browser-agent-probe/render_pages.js` shows one way to do

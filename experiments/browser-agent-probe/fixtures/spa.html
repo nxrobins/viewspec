@@ -4,10 +4,13 @@
 <body>
 <div id="root"></div>
 <script>
-  // Everything the user sees is built by script, as in a client-rendered app.
+  // Everything the user sees is built by script, as in a client-rendered app. "Refresh" builds it
+  // again from scratch, so every element is replaced, as a framework re-render can do.
   const rows = [["Signups", "1,204"], ["Churn", "2.1%"], ["Revenue", "$48K"]];
   const root = document.getElementById("root");
-  root.innerHTML = `
+  let refreshes = 0;
+  function render() {
+    root.innerHTML = `
     <nav><a href="#overview">Overview</a><a href="#reports">Reports</a></nav>
     <main>
       <h1>Metrics</h1>
@@ -19,9 +22,15 @@
         <input type="text" aria-label="Filter metrics">
       </div>
       <p style="display: none"><button>Debug panel</button></p>
-      <p>Updated <span id="clock">${new Date().toISOString()}</span></p>
+      <p>Updated <span id="clock">${new Date().toISOString()} (refresh ${refreshes})</span></p>
     </main>`;
-  document.querySelector(".btn").addEventListener("click", () => alert("export"));
+    document.querySelector(".btn").addEventListener("click", () => alert("export"));
+    document.querySelector(".toolbar button").addEventListener("click", () => {
+      refreshes += 1;
+      render();
+    });
+  }
+  render();
   // State the user would have typed: it lives in properties, not in the markup.
   document.querySelector("[aria-label='Filter metrics']").value = "churn";
 </script>

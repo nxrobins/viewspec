@@ -1,0 +1,360 @@
+// In-page library for the ViewSpec agent lift. The bridge evaluates this file in the top frame of
+// each page; it installs window.__viewspecLift once and does nothing on a second evaluation.
+//
+// It keeps a registry of element refs ("e1", "e2", ...). An element keeps its ref for as long as it
+// stays in the page, across snapshots, so an agent can act on exactly the element it read. The
+// registry holds weak references and never keeps a removed element alive.
+(() => {
+  if (window.__viewspecLift) return;
+
+  const SEMANTIC = new Set(["A", "BUTTON", "INPUT", "SELECT", "TEXTAREA", "LABEL", "SUMMARY", "OPTION"]);
+  const SKIP = new Set(["SCRIPT", "STYLE", "TEMPLATE", "NOSCRIPT", "LINK", "META"]);
+  const NO_BOX = new Set(["OPTION", "OPTGROUP", "HEAD", "TITLE", "BR", "WBR"]);
+  const SECRET_AUTOCOMPLETE =
+    /(^|\s)(current-password|new-password|one-time-code|cc-number|cc-csc|cc-exp(-month|-year)?)(\s|$)/i;
+  const SECRET_NAME = /pass(word|wd|code)?|secret|token|otp|cvv|cvc|ssn|card.?num|cc.?num|security.?code/i;
+  const TEST_ID_ATTRS = ["data-testid", "data-test", "data-qa", "data-cy", "data-action-id"];
+
+  // ---- Refs -------------------------------------------------------------------------------------
+  const refByElement = new WeakMap();
+  const elementByRef = new Map();
+  let nextRef = 1;
+
+  function refOf(el) {
+    let ref = refByElement.get(el);
+    if (!ref) {
+      ref = `e${nextRef++}`;
+      refByElement.set(el, ref);
+      elementByRef.set(ref, new WeakRef(el));
+    }
+    return ref;
+  }
+
+  function get(ref) {
+    const el = elementByRef.get(ref)?.deref();
+    return el && el.isConnected ? el : null;
+  }
+
+  function prune() {
+    for (const [ref, weak] of elementByRef) {
+      const el = weak.deref();
+      if (!el || !el.isConnected) elementByRef.delete(ref);
+    }
+  }
+
+  // ---- Names and kinds (the ground truth list) --------------------------------------------------
+  const clean = (value) => (value || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const byId = (el, id) => {
+    const root = el.getRootNode();
+    return (root.getElementById ? root.getElementById(id) : null) || el.ownerDocument.getElementById(id);
+  };
+  function nameOf(el) {
+    if (el.getAttribute("aria-label")) return clean(el.getAttribute("aria-label"));
+    const labelledBy = el.getAttribute("aria-labelledby");
+    if (labelledBy) {
+      const text = labelledBy
+        .split(/\s+/)
+        .map((id) => byId(el, id)?.textContent || "")
+        .join(" ");
+      if (clean(text)) return clean(text);
+    }
+    if (el.labels && el.labels.length) {
+      // A label's text, without the text of the fields inside it (option text, for example).
+      const label = el.labels[0].cloneNode(true);
+      label.querySelectorAll("select,textarea,option").forEach((child) => child.remove());
+      if (clean(label.textContent)) return clean(label.textContent);
+    }
+    const tag = el.tagName;
+    if (tag === "INPUT" && /^(submit|reset|button|image)$/i.test(el.type)) {
+      return clean(el.value || el.getAttribute("alt") || (el.type === "reset" ? "Reset" : "Submit"));
+    }
+    if (tag !== "INPUT" && tag !== "SELECT" && tag !== "TEXTAREA" && clean(el.innerText)) return clean(el.innerText);
+    return clean(el.getAttribute("title") || el.getAttribute("placeholder") || el.querySelector?.("img")?.alt);
+  }
+  function kindOf(el) {
+    const role = el.getAttribute("role");
+    if (role) return role;
+    const tag = el.tagName.toLowerCase();
+    if (tag === "input") return `input:${(el.getAttribute("type") || "text").toLowerCase()}`;
+    if (tag === "a") return "link";
+    return tag;
+  }
+  const isSecret = (el) =>
+    (el.tagName === "INPUT" || el.tagName === "TEXTAREA") &&
+    ((el.getAttribute("type") || "").toLowerCase() === "password" ||
+      SECRET_AUTOCOMPLETE.test(el.getAttribute("autocomplete") || "") ||
+      SECRET_NAME.test(el.getAttribute("name") || "") ||
+      SECRET_NAME.test(el.id || ""));
+
+  // ---- The composed tree ------------------------------------------------------------------------
+  // What the user sees: open shadow roots in place of their hosts' light DOM, slots replaced by the
+  // nodes assigned to them, and the body of each same-origin iframe.
+  function composedChildren(node) {
+    if (node.nodeType === 1) {
+      if (node.shadowRoot) return [...node.shadowRoot.childNodes];
+      if (node.tagName === "SLOT") {
+        const assigned = node.assignedNodes({ flatten: true });
+        return assigned.length ? assigned : [...node.childNodes];
+      }
+      if (node.tagName === "IFRAME") {
+        try {
+          const body = node.contentDocument && node.contentDocument.body;
+          return body ? [body] : [];
+        } catch (error) {
+          return []; // A cross-origin frame cannot be read.
+        }
+      }
+    }
+    return [...node.childNodes];
+  }
+
+  // Serialize a copy of the composed tree. In the copy:
+  // - every element has data-lift-ref;
+  // - attributes carry the live form state (typed values, checked boxes, selected options);
+  // - the top of each subtree the user cannot see has data-lift-hidden;
+  // - an element with a pointer cursor but no semantic control has data-lift-clickable;
+  // - a custom element (a tag with a dash) becomes a <div data-lift-tag>, so its role and tab stop
+  //   survive the lift, which unwraps unknown tags;
+  // - an iframe becomes <div data-lift-frame> around the frame's body.
+  // A secret value is never copied. The live page is not changed.
+  function snapshot(selector, collectSecrets) {
+    prune();
+    const out = document.implementation.createHTMLDocument("");
+    const interactive = [];
+    const secrets = [];
+    let actionIds = 0;
+
+    const copy = (node, state) => {
+      if (node.nodeType === 3) return [out.createTextNode(node.data)];
+      if (node.nodeType !== 1 || SKIP.has(node.tagName)) return [];
+      const el = node;
+      const tag = el.tagName;
+      if (tag === "SLOT") return composedChildren(el).flatMap((child) => copy(child, state));
+
+      const style = el.ownerDocument.defaultView.getComputedStyle(el);
+      let result;
+      if (tag === "IFRAME") {
+        result = out.createElement("div");
+        result.setAttribute("data-lift-frame", el.getAttribute("title") || el.getAttribute("src") || "frame");
+      } else if (tag === "BODY" && el.ownerDocument !== document) {
+        result = out.createElement("div"); // the body of a frame
+      } else if (tag.includes("-")) {
+        result = out.createElement("div");
+        for (const attr of el.attributes) result.setAttribute(attr.name, attr.value);
+        result.setAttribute("data-lift-tag", tag.toLowerCase());
+      } else {
+        result = out.createElement(tag.toLowerCase());
+        for (const attr of el.attributes) result.setAttribute(attr.name, attr.value);
+      }
+      result.setAttribute("data-lift-ref", refOf(el));
+
+      // Live form state.
+      const secret = isSecret(el);
+      if (tag === "INPUT") {
+        const type = (el.getAttribute("type") || "text").toLowerCase();
+        if (type === "checkbox" || type === "radio") {
+          el.checked ? result.setAttribute("checked", "") : result.removeAttribute("checked");
+        } else if (secret) {
+          if (collectSecrets && el.value) secrets.push(el.value);
+          result.removeAttribute("value");
+        } else if (type !== "file") {
+          result.setAttribute("value", el.value);
+        }
+      } else if (tag === "OPTION") {
+        el.selected ? result.setAttribute("selected", "") : result.removeAttribute("selected");
+      }
+      if (el.hasAttribute("data-action-id")) actionIds += 1;
+
+      // Visibility and pointer hints.
+      let hidden = state.hidden;
+      let clickable = state.clickable;
+      if (!NO_BOX.has(tag) && !hidden) {
+        const invisible =
+          typeof el.checkVisibility === "function"
+            ? !el.checkVisibility({ visibilityProperty: true }) && style.display !== "contents"
+            : el.getClientRects().length === 0;
+        if (invisible && tag !== "HTML" && tag !== "BODY") {
+          hidden = true;
+          result.setAttribute("data-lift-hidden", "true");
+        }
+      }
+      if (!hidden && style.cursor === "pointer") {
+        const semantic = SEMANTIC.has(tag) || el.closest("a,button,label,summary,[role]") !== null;
+        if (!clickable && !semantic) result.setAttribute("data-lift-clickable", "true");
+        clickable = true;
+      }
+
+      // Ground truth: visible interactive elements, not counting one inside another.
+      let inside = state.inside;
+      if (!hidden && !inside && el.matches(selector)) {
+        const box = el.getBoundingClientRect();
+        if (box.width > 0 && box.height > 0) {
+          interactive.push({ ref: refOf(el), tag: tag.toLowerCase(), kind: kindOf(el), name: nameOf(el) });
+          inside = true;
+        }
+      }
+
+      if (tag === "TEXTAREA") {
+        if (secret) {
+          if (collectSecrets && el.value) secrets.push(el.value);
+        } else {
+          result.textContent = el.value;
+        }
+        return [result];
+      }
+      const next = { hidden, clickable, inside };
+      for (const child of composedChildren(el)) {
+        for (const copied of copy(child, next)) result.appendChild(copied);
+      }
+      return [result];
+    };
+
+    const [root] = copy(document.documentElement, { hidden: false, clickable: false, inside: false });
+    const payload = { html: "<!doctype html>" + root.outerHTML, interactive, actionIds };
+    if (collectSecrets) payload.secrets = secrets;
+    return payload;
+  }
+
+  // ---- Locator candidates -----------------------------------------------------------------------
+  const quote = (value) => '"' + String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+  // An id that looks generated (React ":r1:", "ember123", hashes) changes between page loads.
+  const stableId = (id) =>
+    Boolean(id) && id.length <= 64 && !/\d{3,}|:|^\d|[0-9a-f]{8,}/i.test(id) && !/^(ember|react|radix|mui)/i.test(id);
+
+  // Every open shadow root in a document, for queries that pierce shadow DOM as Playwright does.
+  function rootsOf(doc) {
+    const roots = [doc];
+    for (let i = 0; i < roots.length; i++) {
+      for (const el of roots[i].querySelectorAll("*")) if (el.shadowRoot) roots.push(el.shadowRoot);
+    }
+    return roots;
+  }
+
+  function matchesIn(roots, css) {
+    try {
+      return roots.flatMap((root) => [...root.querySelectorAll(css)]);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Structural path from the nearest ancestor with a stable unique id (or from <html>). Playwright's
+  // ">" crosses into open shadow roots, so the path continues from a host into its shadow tree.
+  function structuralPath(el, roots) {
+    const parts = [];
+    let current = el;
+    while (current && current.nodeType === 1) {
+      const tag = current.tagName.toLowerCase();
+      if (current !== el && stableId(current.id) && matchesIn(roots, "#" + CSS.escape(current.id))?.length === 1) {
+        parts.unshift("#" + CSS.escape(current.id));
+        break;
+      }
+      const parent = current.parentElement || current.getRootNode().host || null;
+      const siblings = current.parentNode ? [...current.parentNode.children].filter((s) => s.tagName === current.tagName) : [];
+      parts.unshift(siblings.length > 1 ? `${tag}:nth-of-type(${siblings.indexOf(current) + 1})` : tag);
+      if (tag === "html") break;
+      current = parent;
+    }
+    return parts.join(" > ");
+  }
+
+  // Text that tells one repeated item from its siblings: the item's first heading, or else its first
+  // line of text that is not the target's own name. Empty when there is none.
+  function anchorText(item, target) {
+    const heading = item.querySelector("h1,h2,h3,h4,h5,h6");
+    const own = clean(target.innerText || target.value || "");
+    const text = clean(heading ? heading.innerText : "") ||
+      (item.innerText || "").split("\n").map(clean).find((line) => line && line !== own) || "";
+    return text.length >= 2 && text.length <= 40 ? text : "";
+  }
+
+  // A selector anchored on content: the nearest ancestor that repeats among its siblings (a list
+  // item, a table row, a card) and the text that tells it apart, then the element inside it.
+  // ":has-text()" is Playwright CSS, so only Playwright can check these.
+  function anchoredCandidates(el, tag) {
+    const found = [];
+    let item = el.parentElement;
+    for (let depth = 0; item && depth < 6; depth++, item = item.parentElement) {
+      const parent = item.parentElement;
+      if (!parent) break;
+      const repeats = [...parent.children].filter((s) => s.tagName === item.tagName).length > 1;
+      if (!repeats) continue;
+      const text = anchorText(item, el);
+      if (text) found.push(`${item.tagName.toLowerCase()}:has-text(${quote(text)}) ${tag}`);
+      if (found.length) break;
+    }
+    return found;
+  }
+
+  // Candidates for an element, best first. ``kind`` is "attr" (a stable attribute), "anchored"
+  // (content-anchored), or "path" (structural; it breaks when the layout changes, so it is the last
+  // resort, after a role-and-name locator). ``unique`` is true or false when this page can tell, and
+  // null when only Playwright can say (a selector that crosses a shadow root, or Playwright CSS).
+  function candidates(el) {
+    const roots = rootsOf(el.ownerDocument);
+    const tag = el.tagName.toLowerCase();
+    const list = [];
+    const seen = new Set();
+    const add = (css, simple, kind = "attr") => {
+      if (!css || seen.has(css)) return;
+      seen.add(css);
+      if (kind === "anchored") {
+        list.push({ css, kind, unique: null });
+        return;
+      }
+      const found = matchesIn(roots, css);
+      if (found === null) return;
+      const exact = found.length === 1 && found[0] === el;
+      list.push({ css, kind, unique: exact ? true : simple || found.length > 1 ? false : null });
+    };
+    if (stableId(el.id)) add("#" + CSS.escape(el.id), true);
+    for (const attr of TEST_ID_ATTRS) if (el.getAttribute(attr)) add(`[${attr}=${quote(el.getAttribute(attr))}]`, true);
+    const name = el.getAttribute("name");
+    if (name) {
+      add(`${tag}[name=${quote(name)}]`, true);
+      if (el.getAttribute("value") !== null && /^(radio|checkbox)$/i.test(el.type || "")) {
+        add(`${tag}[name=${quote(name)}][value=${quote(el.getAttribute("value"))}]`, true);
+      }
+    }
+    for (const attr of ["aria-label", "title", "placeholder"]) {
+      if (el.getAttribute(attr)) add(`${tag}[${attr}=${quote(el.getAttribute(attr))}]`, true);
+    }
+    if (tag === "a" && el.getAttribute("href")) add(`a[href=${quote(el.getAttribute("href"))}]`, true);
+    if (name && el.form && stableId(el.form.id)) add(`#${CSS.escape(el.form.id)} ${tag}[name=${quote(name)}]`, false);
+    for (const css of anchoredCandidates(el, tag)) add(css, false, "anchored");
+    add(structuralPath(el, roots), false, "path");
+    return list;
+  }
+
+  // Where an element is: its frame chain (outermost first) and its CSS candidates.
+  function describe(ref) {
+    const el = get(ref);
+    if (!el) return { connected: false };
+    const frames = [];
+    let doc = el.ownerDocument;
+    while (doc.defaultView && doc.defaultView.frameElement) {
+      const frame = doc.defaultView.frameElement;
+      frames.unshift({ ref: refOf(frame), candidates: candidates(frame) });
+      doc = frame.ownerDocument;
+    }
+    return { connected: true, tag: el.tagName.toLowerCase(), frames, candidates: candidates(el) };
+  }
+
+  // ---- Checks after an action -------------------------------------------------------------------
+  // Each returns true or false and never returns the element's value, so a secret stays in the page.
+  function hasValue(el, value) {
+    if (el.tagName === "SELECT") return false;
+    return ("value" in el ? el.value : el.textContent) === value;
+  }
+  function hasSelected(el, values) {
+    if (el.tagName !== "SELECT") return false;
+    const selected = [...el.selectedOptions].map((option) => option.value).sort();
+    return JSON.stringify(selected) === JSON.stringify([...values].sort());
+  }
+  function isChecked(el) {
+    if ("checked" in el && el.tagName === "INPUT") return el.checked;
+    return el.getAttribute("aria-checked") === "true";
+  }
+
+  window.__viewspecLift = { snapshot, describe, refOf, get, nameOf, hasValue, hasSelected, isChecked };
+})();

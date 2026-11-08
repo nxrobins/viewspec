@@ -24,6 +24,7 @@ from viewspec.raw_html_agent import (
     HtmlControl,
     HtmlForm,
     extract_controls,
+    form_tool_names,
     form_tool_schema,
     is_sensitive_control,
 )
@@ -320,11 +321,23 @@ class HtmlLiftResult:
     def form_tool_schemas(self) -> list[dict[str, Any]]:
         """Describe each form as a tool an agent can call: typed inputs plus the submit controls.
 
-        Only the "agent" profile finds forms; for the "compile" profile this is empty.
+        Tool names are unique within the page. Only the "agent" profile finds forms; for the
+        "compile" profile this is empty.
         """
 
         controls = {control.node_id: control for control in self.controls}
-        return [form_tool_schema(form, controls) for form in self.forms]
+        return [
+            form_tool_schema(form, controls, name=name)
+            for form, name in zip(self.forms, form_tool_names(self.forms), strict=True)
+        ]
+
+    def control(self, node_id: str) -> HtmlControl:
+        """The control with this node id. Raises ``KeyError`` when there is none."""
+
+        for control in self.controls:
+            if control.node_id == node_id:
+                return control
+        raise KeyError(node_id)
 
 
 @dataclass(frozen=True)

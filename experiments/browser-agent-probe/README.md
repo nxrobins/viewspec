@@ -1,102 +1,117 @@
 # Browser agent probe
 
-An experiment. It asks one question: can the ViewSpec HTML lift give a browser agent a smaller and
-still complete model of a live page?
+An experiment. Can the ViewSpec agent lift give a browser agent a small, complete model of a live
+page, and can the agent act on what it reads?
 
-The probe is not part of the ViewSpec package and has no CI. The lift profile it uses,
-`lift_html(..., profile="agent")`, is part of the package and is tested in
-`tests/test_raw_html_agent_lift.py`. See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile).
+This folder is not part of the ViewSpec package and has no CI. The pieces it uses from the package
+are tested there:
+
+- `lift_html(..., profile="agent")` reads controls and forms (`tests/test_raw_html_agent_lift.py`).
+- `viewspec.raw_html_actions` plans actions and form tool calls (`tests/test_raw_html_agent_actions.py`).
+
+See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile).
+
+## The loop
+
+```text
+             observe                                act
+ browser ──────────────► snapshot ──► lift ──► view, tools ──► plan ──► steps ──► browser
+ (bridge.js)  composed tree   agent profile  handles [n]      checked   by ref, or by
+              + live state    controls, forms                 in Python verified locator
+              + data-lift-ref
+```
+
+| File | What it does |
+|---|---|
+| `lift_inpage.js` | In-page library. Gives every element a ref (`e17`) that stays the same while the element is in the page. Snapshots the composed tree (open shadow roots, slots, same-origin iframes) with live form state, and never copies a secret value. Lists the visible controls (the ground truth). Proposes CSS candidates for an element. |
+| `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and by default **blocks writes**: a form post or any other non-GET request is recorded and answered with a stub page. |
+| `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `blocked_writes()`. |
+| `page_view.py` | The compact text view, with a numbered handle for each control. |
+| `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
+| `demo_agent.py` | A scripted agent with 20 checks on the fixtures. |
+
+### Locators
+
+At each observation, the bridge finds a locator for every control and checks it with Playwright:
+it must match exactly one element, and that element must be the one the ref names. It tries, in
+order:
+
+1. a stable attribute: `#id` (not a generated-looking id), `data-testid` and its kin,
+   `data-action-id`, `name` (with `value` for a radio), `aria-label`, `title`, `placeholder`, `href`;
+2. a content anchor for repeated items: `li:has-text("Arc lamp") button`;
+3. role and name: `getByRole("button", { name: "Refresh", exact: true })`;
+4. exact text, for a clickable element with no role: `getByText("Export", { exact: true })`;
+5. a structural path, as the last resort.
+
+Each part runs inside its frame chain, for example
+`page.frameLocator("iframe[title=\"Card details\"]").locator("input[name=\"card\"]")`. Playwright CSS
+crosses open shadow roots, so a control in a web component needs no special path.
+
+### Acting
+
+`act` and `call` plan in Python first (`plan_control_action`, `plan_form_call`), so a bad request fails
+before the browser does anything. Then each step finds its element:
+
+- **by ref** while the element is still in the page: the exact element the agent read;
+- **by its saved locator** when the page has replaced the element (a re-render). The element that the
+  locator finds must have the same tag and the same accessible name. If it does not, the step is
+  refused (`drift: the locator now finds "Export", not "Refresh"`), so a changed page cannot redirect
+  a click.
+
+The bridge checks each fill, check, and select in the page and returns only true or false, so a
+secret value never comes back. If a step navigates the page before the plan is done, the session
+stops and says how many steps did not run.
 
 ## Run it
 
 You need the package (`pip install -e .`), Node, and Playwright for Node with Chromium.
 
 ```bash
-python experiments/browser-agent-probe/probe.py \
-  experiments/browser-agent-probe/fixtures/*.html \
-  https://example.com \
-  --out .probe-out
+python experiments/browser-agent-probe/demo_agent.py
+python experiments/browser-agent-probe/probe.py experiments/browser-agent-probe/fixtures/*.html https://example.com --out .probe-out
 ```
 
-A target is a local HTML file or an `http(s)` URL. For each target the probe:
+```python
+from agent_session import BrowserSession
 
-1. Renders the page in Chromium. `render_pages.js` walks the **composed tree**: open shadow roots
-   in place of their hosts, slots filled with their assigned nodes, and same-origin iframes inline.
-   It copies that tree with the **live form state** in attributes, marks subtrees the user cannot
-   see (`data-lift-hidden`) and elements that only look clickable (`data-lift-clickable`), and never
-   copies a secret value. The same walk lists each visible interactive element with its accessible
-   name; this list is the ground truth.
-2. Lifts the snapshot with the `"agent"` profile, and with the `"compile"` profile as a baseline.
-3. Builds a compact page view and a tool schema for each form.
-4. Checks that no live secret value (password, card number, CVC) appears in any output.
-
-With `--out`, it writes `page_view.txt`, `form_tools.json`, `aria_snapshot.yaml`, `lift.json`, and
-`report.json` for each page, and `summary.json` for all pages.
-
-## Columns
-
-| Column | Meaning |
-|---|---|
-| html / aria / view tok | Approximate tokens (characters / 4) of the snapshot, the Playwright ARIA snapshot, and the page view. |
-| interactive | Visible interactive elements in the ground truth. |
-| compile cov | How many of those have an `action` role in a `"compile"` profile lift. A match is by normalized name. |
-| agent cov | How many of those are among the `"agent"` profile controls. |
-| forms | Forms found. Each one has a tool schema in `form_tools.json`. |
-| fp stable | The topology fingerprint is the same after a reload. |
-| static=rendered | The fingerprint of the server HTML equals that of the rendered page. `False` means script built or changed the page. |
+with BrowserSession() as session:  # block_writes=True by default
+    session.open("https://example.com/checkout")
+    view = session.observe()
+    print(view.view)  # [5] email 'Email' required ...
+    print(view.lift.form_tool_schemas())  # one tool per form
+    session.act(4, "click")
+    session.call("checkout", {"email": "bo@example.com", "ship": "express", "terms": True})
+    print(session.blocked_writes())  # the form post, stopped
+```
 
 ## Results on the fixtures
 
-| page | html tok | aria tok | view tok | interactive | compile cov | agent cov | forms | fp stable | static=rendered |
-|---|---:|---:|---:|---:|---:|---:|---:|---|---|
-| shop | 289 | 232 | 133 | 13 | 7/13 | 13/13 | 1 | True | True |
-| spa | 211 | 132 | 64 | 5 | 3/5 | 5/5 | 0 | True | False |
-| viewspec_orders | 1539 | 98 | 43 | 3 | 2/3 | 3/3 | 0 | True | True |
-| checkout | 573 | 208 | 133 | 14 | 1/14 | 14/14 | 1 | True | False |
+`probe.py`:
 
-`checkout.html` is the hard case. It has a web component with its controls in a shadow root and a
-slot; a same-origin payment iframe with a card number and CVC; an ARIA radio group and combobox; a
-checkbox that joins the form through `form="checkout"`; a closed `<details>` and a closed `<dialog>`;
-a hidden CSRF input; and typed values, including a password. Its page view:
+| page | aria tok | view tok | interactive | compile cov | agent cov | same name | located | forms | fp stable | leaks |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
+| checkout | 208 | 142 | 14 | 1/14 | 14/14 | 14/14 | 15/15 | 1 | True | 0 |
+| shop | 232 | 136 | 13 | 7/13 | 13/13 | 13/13 | 13/13 | 1 | True | 0 |
+| spa | 135 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 0 | True | 0 |
+| viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
 
-```text
-[1] link 'Lamp Co home' -> /
-H1 Checkout
-H2 Arc lamp
-[2] button 'Decrease quantity'
-[3] text 'Quantity' = '2'
-[4] button 'Increase quantity'
-form 'Checkout' POST /orders
-[5] email 'Email' = 'ana@example.com' required
-[6] radio 'Standard (free)' [x]
-[7] radio 'Express ($9)' [ ]
-[8] combobox 'Country'
-[9] password 'Create a password'
-[10] disclosure 'Have a promo code?'
-[11] button 'Place order' (submits)
-[12] checkbox 'I accept the terms' [ ] required
-[13] text 'Card number'
-[14] text 'CVC'
-[15] clickable 'Save cart for later'
-```
+- **agent cov** matches by element (ref), not by name: 35 of 35 visible controls. **same name**: the
+  lift names all 35 as the browser does.
+- **located**: 37 of 37 controls have a verified locator (the agent lift also finds 2 pointer-only
+  clickables). Kinds: 26 stable attribute, 4 content anchor, 4 role and name, 4 exact text, 1 path.
+- **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
+  schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
-and its form becomes a tool with `email` (required), `ship` (`standard` | `express`, described as
-"Shipping speed"), `country`, `new_password` (write-only), and `terms` (boolean, required).
+`demo_agent.py` (20 checks, all pass):
 
-What the fixtures show:
-
-- **The agent profile finds every control.** 35 of 35 across the four pages; the compile profile
-  finds 13. It reaches controls in shadow DOM and in the iframe, reads typed values, and leaves out
-  the closed dialog, the promo field inside the closed `<details>`, and a `display: none` panel.
-- **No secret leaks from the lift.** The live password, card number, and CVC appear in none of the
-  snapshot, lift, page view, or form schemas, and the hidden CSRF value is dropped.
-- **The Playwright ARIA snapshot does leak.** It prints the typed password as
-  `textbox "Create a password": <value>`. It also does not enter the iframe, so it has no card fields.
-- **The page view is smaller than the ARIA snapshot** on these pages (133 against 208 tokens on
-  `checkout`) and says more: field state, required flags, form membership, submit buttons, and
-  ViewSpec action ids (`#refund`).
-- **The fingerprint ignores text.** A changing timestamp or typed value does not change it, so it can
-  tell an agent "this is the same kind of page as before".
+- **checkout:** a click inside the web component's shadow DOM changes the quantity from 2 to 3. Fills
+  inside the payment iframe are verified, and the next snapshot does not contain the card number. A
+  bad `checkout` call is refused with all three problems and does nothing in the browser. A good call
+  runs 6 verified steps, and the blocked post holds the agent's values, the terms checkbox that sits
+  outside the `<form>` element, the password (never printed), and the hidden CSRF field.
+- **spa:** after the page replaces every element, steps from the old view still land (by CSS and by
+  role). A simulated layout change is refused by the drift guard.
+- **viewspec_orders:** the agent clicks the ViewSpec action `#refund`, found as `#dom-action_refund`.
 
 The fixtures are small and hand-made. Run the probe on real sites before you draw conclusions.
 
@@ -105,14 +120,16 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 - Closed shadow roots and cross-origin iframes cannot be read from the page.
 - A canvas-drawn UI has no DOM to lift.
 - Names follow the main rules of accessible name computation, not all of them.
-- Node ids come from the tree path. A page that inserts nodes above a control changes that
-  control's id. Use the fingerprint and the name to find it again.
+- A ref lasts while its element is in the page. After a navigation, observe again.
+- The drift guard checks the tag and the name. Two items with the same name (two "Add to cart"
+  buttons) can still swap places after a re-render; content-anchored locators make this less likely,
+  not impossible.
+- A custom ARIA combobox is filled as text. Choosing from its popup list takes `click` steps.
+- `block_writes` stops HTTP requests that are not GET, HEAD, or OPTIONS. A page that changes data with
+  a GET request, or over a WebSocket, is not stopped.
 
 ## Next steps
 
-1. Run the probe on real sites, and measure task success (not only size) against the ARIA snapshot.
-2. Map each node id back to a selector, so an agent can act on what it reads.
-3. Diff two lifts after an action to show the agent what changed.
-
-`fixtures/viewspec_orders.html` is compiled from `fixtures/viewspec_orders.intent.json` with
-`viewspec compile`.
+1. Run the probe and the session on real sites.
+2. Diff two observations after an action, so the agent sees what changed.
+3. Expose `observe`, `act`, and `call` as MCP tools.

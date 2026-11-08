@@ -59,11 +59,16 @@
   class QtyStepper extends HTMLElement {
     constructor() {
       super();
-      this.attachShadow({ mode: "open" }).innerHTML = `
+      const root = this.attachShadow({ mode: "open" });
+      root.innerHTML = `
         <button aria-label="Decrease quantity">-</button>
         <input aria-label="Quantity" inputmode="numeric" value="1" size="2">
         <button aria-label="Increase quantity">+</button>
         <small><slot name="note"></slot></small>`;
+      const input = root.querySelector("input");
+      const step = (by) => () => { input.value = String(Math.max(1, Math.min(5, Number(input.value) + by))); };
+      root.querySelector("[aria-label='Decrease quantity']").addEventListener("click", step(-1));
+      root.querySelector("[aria-label='Increase quantity']").addEventListener("click", step(1));
     }
   }
   customElements.define("qty-stepper", QtyStepper);

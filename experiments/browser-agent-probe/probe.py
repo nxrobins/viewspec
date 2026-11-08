@@ -1,12 +1,13 @@
-"""Measure how well the ViewSpec HTML lift describes a live page for a browser agent.
+"""Measure how well the ViewSpec agent lift describes a live page, and whether an agent can act on it.
 
-For each target, the probe:
+For each target, the probe opens the page in a ``BrowserSession`` (bridge.js) and:
 
-1. Renders the page in Chromium (render_pages.js) and records the server HTML, the
-   rendered DOM, the Playwright ARIA snapshot, and the visible interactive elements.
-2. Runs ``viewspec.raw_html.lift_html`` on the server HTML and on the rendered DOM.
-3. Builds a compact text "page view" from the lift.
-4. Compares sizes (approximate tokens), action coverage, and fingerprint stability.
+1. Snapshots the composed tree (shadow roots, slots, same-origin iframes) with live form state, and
+   lists every visible interactive element by ref: the ground truth.
+2. Lifts the snapshot with the "agent" profile, and with the "compile" profile as a baseline.
+3. Verifies a locator for every control: frame chain + CSS, or role + name.
+4. Compares sizes (approximate tokens), coverage, names, locators, and fingerprint stability, and
+   checks that no live secret value reaches any output.
 
 This is an experiment. It is not part of the ViewSpec package or its guarantees.
 
@@ -19,20 +20,14 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from viewspec.raw_html import HtmlLiftResult, LiftNode, lift_html
-from viewspec.raw_html_agent import HtmlControl
+from agent_session import BridgeError, BrowserSession, Observation
 
-HERE = Path(__file__).resolve().parent
-RENDERER = HERE / "render_pages.js"
-VIEW_GROUP_MIN = 3
-TEXT_PREVIEW = 70
-OPTION_PREVIEW = 8
+from viewspec.raw_html import lift_html
 
 
 def approx_tokens(text: str) -> int:
@@ -51,95 +46,6 @@ def to_target(raw: str) -> str:
     if not path.exists():
         raise SystemExit(f"Target not found: {raw}")
     return path.as_uri()
-
-
-def render(targets: list[str]) -> list[dict[str, Any]]:
-    completed = subprocess.run(
-        ["node", str(RENDERER), *targets], capture_output=True, text=True, check=False, timeout=600
-    )
-    if completed.returncode != 0:
-        raise SystemExit(f"render_pages.js failed:\n{completed.stderr}")
-    return [json.loads(line) for line in completed.stdout.splitlines() if line.strip()]
-
-
-def control_line(handle: int, control: HtmlControl) -> str:
-    label = control.name or control.field_name or "(unnamed)"
-    line = f"[{handle}] {control.control} {label[:TEXT_PREVIEW]!r}"
-    if control.kind == "field":
-        if control.checked is not None:
-            line += " [x]" if control.checked else " [ ]"
-        elif control.value:
-            line += f" = {control.value[:TEXT_PREVIEW]!r}"
-        if control.options:
-            shown = "|".join(option.label for option in control.options[:OPTION_PREVIEW])
-            more = f"|+{len(control.options) - OPTION_PREVIEW}" if len(control.options) > OPTION_PREVIEW else ""
-            line += f" options: {shown}{more}"
-        if control.required:
-            line += " required"
-    if control.href:
-        line += f" -> {control.href}"
-    if control.submits:
-        line += " (submits)"
-    if control.action_id:
-        line += f" #{control.action_id}"
-    if control.disabled:
-        line += " disabled"
-    return line
-
-
-def subtree_text(node: LiftNode, by_id: dict[str, LiftNode]) -> str:
-    parts = [node.text, *(subtree_text(by_id[child_id], by_id) for child_id in node.child_ids)]
-    return " ".join(part for part in parts if part).strip()
-
-
-def page_view(lift: HtmlLiftResult) -> str:
-    """Return a compact agent-facing view of an agent-profile lift.
-
-    It lists forms, headings, controls (each with a short handle the agent can refer to), values,
-    and repeated groups, in document order.
-    """
-
-    group_of: dict[str, tuple[str, ...]] = {}
-    for group in lift.group_candidates:
-        if len(group) >= VIEW_GROUP_MIN:
-            for member in group:
-                group_of[member] = group
-    controls = {control.node_id: control for control in lift.controls}
-    forms = {form.node_id: form for form in lift.forms}
-    roles = {role.node_id: role for role in lift.roles}
-    by_id = {node.id: node for node in lift.nodes}
-    lines: list[str] = []
-    in_row: set[str] = set()
-    handle = 0
-    for node in lift.nodes:
-        if node.parent_id in in_row and node.id not in controls:
-            in_row.add(node.id)
-            continue
-        group = group_of.get(node.id)
-        if group and group[0] == node.id:
-            lines.append(f"group {len(group)}x <{node.tag}>")
-        if node.id in forms:
-            form = forms[node.id]
-            lines.append(f"form {form.name!r} {form.method} {form.action or ''}".rstrip())
-        if node.tag == "tr":
-            # One line per table row keeps each label next to its value. Controls in a row still
-            # get their own line below it.
-            cells = [subtree_text(by_id[child_id], by_id) for child_id in node.child_ids]
-            lines.append("row " + " | ".join(cell[:TEXT_PREVIEW] for cell in cells))
-            in_row.add(node.id)
-            continue
-        if node.id in controls:
-            handle += 1
-            lines.append(control_line(handle, controls[node.id]))
-            continue
-        role = roles.get(node.id)
-        if role is None:
-            continue
-        if role.role == "heading":
-            lines.append(f"{node.tag.upper()} {role.text[:TEXT_PREVIEW]}")
-        elif role.role == "value":
-            lines.append(f"value {role.text}")
-    return "\n".join(lines)
 
 
 def coverage(interactive: list[dict[str, str]], names: list[str]) -> dict[str, Any]:
@@ -169,68 +75,113 @@ def coverage(interactive: list[dict[str, str]], names: list[str]) -> dict[str, A
 def count_leaks(secrets: list[str], outputs: list[str]) -> dict[str, int]:
     """Count the outputs that contain a live secret value. The secrets are never written anywhere."""
 
-    names = ["snapshot_html", "lift_json", "page_view", "form_schemas", "aria_snapshot"]
+    names = ["snapshot_html", "lift_json", "page_view", "form_schemas", "locators", "aria_snapshot"]
     return {
         name: sum(1 for secret in secrets if len(secret) >= 4 and secret in output)
         for name, output in zip(names, outputs, strict=True)
     }
 
 
-def analyze(page: dict[str, Any], out_dir: Path | None, index: int) -> dict[str, Any]:
-    if not page["ok"]:
-        return {"target": page["target"], "ok": False, "error": page["error"]}
+def ref_coverage(interactive: list[dict[str, str]], observation: Observation) -> dict[str, Any]:
+    """Ground-truth elements that the agent lift found as controls (same element, by ref)."""
 
-    static_lift = lift_html(page["static_html"], profile="agent")
-    compile_lift = lift_html(page["rendered_html"])
-    rendered_lift = lift_html(page["rendered_html"], profile="agent")
-    reload_lift = lift_html(page["rendered_html_reload"], profile="agent")
-    view = page_view(rendered_lift)
-    schemas = rendered_lift.form_tool_schemas()
+    controls = {control.ref: control for control in observation.lift.controls if control.ref}
+    found = [item for item in interactive if item["ref"] in controls]
+    named = [item for item in found if normalize(item["name"]) == normalize(controls[item["ref"]].name)]
+    missed = [f"{item['kind']} {item['name']!r}" for item in interactive if item["ref"] not in controls]
+    renamed = [
+        f"{item['name']!r} -> {controls[item['ref']].name!r}"
+        for item in found
+        if normalize(item["name"]) != normalize(controls[item["ref"]].name)
+    ]
+    extra = [control.name for ref, control in controls.items() if ref not in {item["ref"] for item in interactive}]
+    return {
+        "found": len(found),
+        "total": len(interactive),
+        "same_name": len(named),
+        "missed_examples": missed[:15],
+        "renamed_examples": renamed[:15],
+        "extra_controls": extra[:15],
+    }
+
+
+def locator_stats(observation: Observation) -> dict[str, Any]:
+    """How each control can be found again: by kind of verified locator, or not at all."""
+
+    found = [observation.locators.get(control.node_id) or {} for control in observation.lift.controls]
+    kinds = Counter(locator.get("kind") or "none" for locator in found)
+    unlocated = [
+        f"{control.control} {control.name!r}: {locator.get('reason')}"
+        for control, locator in zip(observation.lift.controls, found, strict=True)
+        if not locator.get("strategy")
+    ]
+    return {
+        "located": sum(1 for locator in found if locator.get("strategy")),
+        "total": len(found),
+        "by_kind": dict(kinds.most_common()),
+        "unlocated_examples": unlocated[:10],
+    }
+
+
+def analyze(session: BrowserSession, target: str, out_dir: Path | None, index: int) -> dict[str, Any]:
+    try:
+        opened = session.open(target)
+        observation = session.observe(collect_secrets=True)
+        aria = session.aria_snapshot()
+        session.reload()
+        reload_lift = session.observe(locate=False).lift
+    except BridgeError as error:
+        return {"target": target, "ok": False, "error": str(error)}
+
+    lift = observation.lift
+    static_lift = lift_html(opened["static_html"], profile="agent")
+    compile_lift = lift_html(observation.html)
+    schemas = lift.form_tool_schemas()
     compile_actions = [role.text for role in compile_lift.roles if role.role == "action"]
-    agent_names = [control.name for control in rendered_lift.controls]
-    lift_json = json.dumps(rendered_lift.to_json(), separators=(",", ":"))
-    interactive = page["interactive"]
+    lift_json = json.dumps(lift.to_json(), separators=(",", ":"))
+    locators_json = json.dumps(observation.locators, separators=(",", ":"))
+    interactive = observation.interactive
 
     report = {
-        "target": page["target"],
+        "target": target,
         "ok": True,
         "approx_tokens": {
-            "rendered_html": approx_tokens(page["rendered_html"]),
-            "aria_snapshot": approx_tokens(page["aria_snapshot"]),
+            "snapshot_html": approx_tokens(observation.html),
+            "aria_snapshot": approx_tokens(aria),
             "lift_json": approx_tokens(lift_json),
-            "page_view": approx_tokens(view),
+            "page_view": approx_tokens(observation.view),
             "form_schemas": approx_tokens(json.dumps(schemas, separators=(",", ":"))),
         },
-        "nodes": {"static_lift": len(static_lift.nodes), "rendered_lift": len(rendered_lift.nodes)},
+        "nodes": {"static_lift": len(static_lift.nodes), "rendered_lift": len(lift.nodes)},
         "visible_interactive": len(interactive),
         "interactive_kinds": dict(Counter(item["kind"] for item in interactive).most_common()),
         "coverage_compile_profile": coverage(interactive, compile_actions),
-        "coverage_agent_profile": coverage(interactive, agent_names),
-        "controls": dict(Counter(control.control for control in rendered_lift.controls).most_common()),
-        "extra_controls": sorted(
-            {control.name for control in rendered_lift.controls} - {item["name"] for item in interactive}
-        ),
-        "forms": [form.name for form in rendered_lift.forms],
+        "coverage_agent_profile": ref_coverage(interactive, observation),
+        "locators": locator_stats(observation),
+        "controls": dict(Counter(control.control for control in lift.controls).most_common()),
+        "forms": [schema["name"] for schema in schemas],
         "fingerprint": {
-            "stable_across_reload": rendered_lift.topology_fingerprint.hex == reload_lift.topology_fingerprint.hex,
-            "static_equals_rendered": static_lift.topology_fingerprint.hex == rendered_lift.topology_fingerprint.hex,
+            "stable_across_reload": lift.topology_fingerprint.hex == reload_lift.topology_fingerprint.hex,
+            "static_equals_rendered": static_lift.topology_fingerprint.hex == lift.topology_fingerprint.hex,
         },
-        "secret_fields_checked": len(page["secrets"]),
+        "secret_fields_checked": len(observation.secrets),
         "secret_leaks": count_leaks(
-            page["secrets"], [page["rendered_html"], lift_json, view, json.dumps(schemas), page["aria_snapshot"]]
+            observation.secrets,
+            [observation.html, lift_json, observation.view, json.dumps(schemas), locators_json, aria],
         ),
-        "groups": len(rendered_lift.group_candidates),
-        "viewspec_action_ids": page["viewspec_action_ids"],
-        "lift_diagnostics": dict(Counter(item["code"] for item in rendered_lift.diagnostics)),
+        "groups": len(lift.group_candidates),
+        "viewspec_action_ids": observation.action_ids,
+        "lift_diagnostics": dict(Counter(item["code"] for item in lift.diagnostics)),
     }
 
     if out_dir is not None:
-        page_dir = out_dir / f"{index:02d}-{slug(page['target'])}"
+        page_dir = out_dir / f"{index:02d}-{slug(target)}"
         page_dir.mkdir(parents=True, exist_ok=True)
-        (page_dir / "page_view.txt").write_text(view + "\n", encoding="utf-8")
-        (page_dir / "aria_snapshot.yaml").write_text(page["aria_snapshot"] + "\n", encoding="utf-8")
-        (page_dir / "lift.json").write_text(json.dumps(rendered_lift.to_json(), indent=2), encoding="utf-8")
+        (page_dir / "page_view.txt").write_text(observation.view + "\n", encoding="utf-8")
+        (page_dir / "aria_snapshot.yaml").write_text(aria + "\n", encoding="utf-8")
+        (page_dir / "lift.json").write_text(json.dumps(lift.to_json(), indent=2), encoding="utf-8")
         (page_dir / "form_tools.json").write_text(json.dumps(schemas, indent=2), encoding="utf-8")
+        (page_dir / "locators.json").write_text(json.dumps(observation.locators, indent=2), encoding="utf-8")
         (page_dir / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
 
@@ -242,23 +193,25 @@ def slug(target: str) -> str:
 
 def summary_table(reports: list[dict[str, Any]]) -> str:
     header = (
-        "| page | html tok | aria tok | view tok | interactive | compile cov | agent cov | forms "
-        "| fp stable | static=rendered |\n|---|---:|---:|---:|---:|---:|---:|---:|---|---|"
+        "| page | aria tok | view tok | interactive | compile cov | agent cov | same name | located "
+        "| forms | fp stable | leaks |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|"
     )
     rows = [header]
     for report in reports:
         name = slug(report["target"])
         if not report["ok"]:
-            rows.append(f"| {name} | error: {report['error'][:60]} ||||||||")
+            rows.append(f"| {name} | error: {report['error'][:60]} |||||||||")
             continue
         tokens = report["approx_tokens"]
+        compiled = report["coverage_compile_profile"]
+        agent = report["coverage_agent_profile"]
+        located = report["locators"]
+        leaks = sum(count for key, count in report["secret_leaks"].items() if key != "aria_snapshot")
         rows.append(
-            f"| {name} | {tokens['rendered_html']} | {tokens['aria_snapshot']} | {tokens['page_view']} "
-            f"| {report['visible_interactive']} "
-            f"| {report['coverage_compile_profile']['found']}/{report['coverage_compile_profile']['total']} "
-            f"| {report['coverage_agent_profile']['found']}/{report['coverage_agent_profile']['total']} "
-            f"| {len(report['forms'])} "
-            f"| {report['fingerprint']['stable_across_reload']} | {report['fingerprint']['static_equals_rendered']} |"
+            f"| {name} | {tokens['aria_snapshot']} | {tokens['page_view']} | {report['visible_interactive']} "
+            f"| {compiled['found']}/{compiled['total']} | {agent['found']}/{agent['total']} "
+            f"| {agent['same_name']}/{agent['found']} | {located['located']}/{located['total']} "
+            f"| {len(report['forms'])} | {report['fingerprint']['stable_across_reload']} | {leaks} |"
         )
     return "\n".join(rows)
 
@@ -269,21 +222,28 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, help="write per-page views, snapshots, and reports here")
     args = parser.parse_args(argv)
 
-    pages = render([to_target(target) for target in args.targets])
     if args.out is not None:
         args.out.mkdir(parents=True, exist_ok=True)
-    reports = [analyze(page, args.out, index) for index, page in enumerate(pages, start=1)]
+    with BrowserSession() as session:
+        reports = [analyze(session, to_target(target), args.out, index) for index, target in enumerate(args.targets, 1)]
     if args.out is not None:
         (args.out / "summary.json").write_text(json.dumps(reports, indent=2), encoding="utf-8")
     print(summary_table(reports))
     for report in reports:
-        if report["ok"]:
-            name = slug(report["target"])
-            missed = report["coverage_agent_profile"]["missed_examples"]
-            if missed:
-                print(f"\n{name}: not found by the agent lift: " + "; ".join(missed[:6]))
-            if report["extra_controls"]:
-                print(f"\n{name}: found only by the agent lift: " + "; ".join(report["extra_controls"][:6]))
+        if not report["ok"]:
+            continue
+        name = slug(report["target"])
+        agent = report["coverage_agent_profile"]
+        for label, key in (("missed", "missed_examples"), ("named differently", "renamed_examples")):
+            if agent[key]:
+                print(f"\n{name}: {label}: " + "; ".join(agent[key][:6]))
+        if agent["extra_controls"]:
+            print(f"\n{name}: found only by the agent lift: " + "; ".join(agent["extra_controls"][:6]))
+        if report["locators"]["unlocated_examples"]:
+            print(f"\n{name}: no locator: " + "; ".join(report["locators"]["unlocated_examples"][:6]))
+        aria_leaks = report["secret_leaks"]["aria_snapshot"]
+        if aria_leaks:
+            print(f"\n{name}: the ARIA snapshot shows {aria_leaks} live secret value(s)")
     return 0
 
 
