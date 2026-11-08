@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import viewspec.studio_inspector as studio_inspector_module
 from viewspec.error_codes import ERROR_CODES
 from viewspec.intent_tools import compile_intent_bundle_file_tool, starter_intent_payload
 from viewspec.studio_inspector import (
@@ -70,6 +71,21 @@ def test_a_missing_manifest_gives_an_empty_map_not_an_exception(tmp_path):
     payload = build_inspector_map(source, out, generation=1)
     assert payload["screens"] == []
     assert payload["errors"][0]["code"] == "STUDIO_INSPECTOR_UNAVAILABLE"
+
+
+def test_an_unexpected_failure_anywhere_in_the_map_builder_becomes_the_coded_error(tmp_path, monkeypatch):
+    source, out = _compiled_starter(tmp_path)
+
+    def broken(path: object) -> str:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(studio_inspector_module, "source_kind", broken)
+    payload = build_inspector_map(source, out, generation=4)
+    assert payload["generation"] == 4
+    assert payload["source_kind"] is None
+    assert payload["screens"] == []
+    assert [error["code"] for error in payload["errors"]] == ["STUDIO_INSPECTOR_UNAVAILABLE"]
+    assert "RuntimeError: boom" in payload["errors"][0]["message"]
 
 
 def test_the_empty_map_has_the_same_shape():

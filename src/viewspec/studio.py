@@ -164,15 +164,21 @@ class Studio:
         """Compile the source; a failed build keeps the last good one on screen with its errors."""
         # Stamped before compiling, so the watcher sees an edit made during this build.
         self._built_stamp = self._stamp()
-        output = self._state / f"build-{self.generation + 1}"
+        next_generation = self.generation + 1
+        output = self._state / f"build-{next_generation}"
         errors = _compile_preview(self.source, output, self.design)
-        previous = output if errors else self.build_dir
-        self.generation += 1
-        if not errors:
+        if errors:
+            # A failed build keeps the last good build and the inspector map that describes it.
+            previous = output
+        else:
+            # Mapped before anything is published. A map failure is a coded note in the map, never a raise.
+            inspector = build_inspector_map(self.source, output, generation=next_generation)
+            previous = self.build_dir
             self.build_dir = output
-            # Describes exactly this build; a failed rebuild keeps the map with the build it keeps.
-            self.inspector = build_inspector_map(self.source, output, generation=self.generation)
+            self.inspector = inspector
         self.errors = errors
+        # Published last: the page reloads as soon as it sees a new generation, so the rest is already in place.
+        self.generation = next_generation
         if previous is not None:
             shutil.rmtree(previous, ignore_errors=True)
 

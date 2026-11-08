@@ -30,11 +30,12 @@ def empty_inspector_map(generation: int = 0) -> dict[str, Any]:
 def build_inspector_map(source: Path, build_dir: Path, *, generation: int) -> dict[str, Any]:
     """Map every ``data-ir-id``, ``data-binding-id``, and ``data-action-id`` in a build to its source.
 
-    Reads the build's provenance manifest(s) and the source bundle. A problem in either leaves the
-    preview alone: the map is then empty and carries one ``STUDIO_INSPECTOR_UNAVAILABLE`` error.
+    Reads the build's provenance manifest(s) and the source bundle. It does not raise: a problem in
+    either gives an empty map with one ``STUDIO_INSPECTOR_UNAVAILABLE`` error, and the build stays.
     """
-    kind = source_kind(source)
+    kind: str | None = None
     try:
+        kind = source_kind(source)
         document = json.loads(source.read_text(encoding="utf-8"))
         if kind == "app_bundle":
             screens = _app_screens(document, build_dir)

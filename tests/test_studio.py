@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 import viewspec.studio as studio_module
+import viewspec.studio_inspector as studio_inspector_module
 from viewspec.app_bundle import starter_app_bundle
 from viewspec.cli import main as cli_main
 from viewspec.intent_tools import starter_intent_payload
@@ -375,6 +376,55 @@ def test_a_rebuild_refreshes_the_inspector_map_and_a_broken_edit_keeps_it(runnin
     payload = _inspector(running)
     assert payload["generation"] == 2
     assert "revenue_value" in payload["screens"][0]["bindings"]
+
+
+def test_rebuild_bumps_the_generation_only_after_the_build_is_in_place(tmp_path):
+    source = _write_intent(tmp_path / "viewspec.intent.json", "First Title")
+    # (generation, build_dir, errors, inspector generation) at the moment each generation is assigned.
+    published: list[tuple[object, Path | None, list[str], object]] = []
+
+    class RecordingStudio(Studio):
+        def __setattr__(self, name: str, value: object) -> None:
+            if name == "generation" and value:
+                published.append((value, self.build_dir, list(self.errors), self.inspector["generation"]))
+            super().__setattr__(name, value)
+
+    # Not entered, so no watcher thread runs: each rebuild() below runs alone and in order.
+    studio = RecordingStudio(source, port=0)
+    try:
+        studio.rebuild()
+        first_build, first_map = studio.build_dir, studio.inspector
+        assert first_build is not None and first_build.is_dir()
+        assert (studio.generation, studio.errors, first_map["generation"]) == (1, [], 1)
+        # The live-reload page reloads on a new generation, so the build it reloads onto is already served.
+        assert published == [(1, first_build, [], 1)]
+
+        source.write_text("{", encoding="utf-8")
+        studio.rebuild()
+        assert studio.generation == 2
+        assert studio.errors
+        assert studio.build_dir == first_build and first_build.is_dir()
+        assert studio.inspector is first_map
+        assert published[1] == (2, first_build, studio.errors, 1)
+    finally:
+        studio.close()
+
+
+def test_a_map_that_cannot_be_built_keeps_the_build_and_reports_a_coded_error(tmp_path, monkeypatch):
+    def unreadable(*args: object) -> dict:
+        raise RuntimeError("manifest went away")
+
+    monkeypatch.setattr(studio_inspector_module, "_screen_map", unreadable)
+    source = _write_intent(tmp_path / "viewspec.intent.json", "Still Served")
+    with Studio(source, port=0) as studio:
+        threading.Thread(target=studio.serve, daemon=True).start()
+        assert studio.errors == []
+        assert studio.generation == 1
+        assert "Still Served" in _get(studio.url)[1]
+        payload = _inspector(studio)
+    assert payload["generation"] == 1
+    assert payload["screens"] == []
+    assert [error["code"] for error in payload["errors"]] == ["STUDIO_INSPECTOR_UNAVAILABLE"]
 
 
 def test_a_source_that_starts_broken_serves_an_empty_inspector_map(tmp_path):
