@@ -99,7 +99,7 @@ def test_validate_intent_rejects_non_intent_payloads(tmp_path, capsys, text, cod
     assert payload["repair_checklist"]
     assert any("Regenerate the full IntentBundle" in item for item in payload["repair_checklist"])
     assert "Output strict JSON only" in payload["correction_prompt"]
-    assert "Do not patch fragments" in payload["correction_prompt"]
+    assert "Return the whole document, not a fragment." in payload["correction_prompt"]
 
 
 @pytest.mark.parametrize(

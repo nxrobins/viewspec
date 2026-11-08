@@ -157,6 +157,20 @@ All notable changes to ViewSpec are documented in this file. The format follows
   six MCP tools, `--patch`, `--canonical-out`, `--registry`, the Studio inspector, the `mcp-app`
   target, and AppBundle V5.
 - The AppBundle headings in `docs/getting-started.md` and `docs/agent-integration.md` say V1 to V5.
+- `agent-system-prompt.txt` (`viewspec.agent.AGENT_SYSTEM_PROMPT`) is now generated from the contract
+  registries by `viewspec.agent_prompt.build_agent_system_prompt()`. It asks for the compact form by
+  default, as `viewspec.compact.json`, and for the canonical form, as `viewspec.intent.json`, only
+  for `bulk_action` and AppBundle screens. Its proof commands name the compact source, as the agent
+  skill does. It lists the common mistakes first. It shows one complete compact document between
+  `<example>` and `</example>` and one compact motif per kind, and each of them passes
+  `viewspec check` with no fixes. It carries the repair loop and the AppBundle `schema_version` 5
+  guidance. Its contract part and its AppBundle part each stay within 6,000 bytes. The compact
+  schema publishes the motif examples as `x-viewspec-examples`. `correction_prompt` now matches the
+  source: a compact source is asked for the full compact document (`repair_mode`
+  `regenerate_full_compact_document`) and told that `$.view_spec` paths name the document
+  `--canonical-out` writes. `retry_command` and `patch_command` name the file that was checked, and
+  the report adds `source_format`. Both forms ask for the whole document unless the host asks for an
+  RFC 6902 JSON Patch.
 
 ### Fixed
 

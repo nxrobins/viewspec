@@ -347,22 +347,37 @@ def init_compact_file(
 
 
 def validate_intent_text(
-    text: str, *, compile_check: bool = True, fix: bool = True, compact: bool = True
+    text: str,
+    *,
+    compile_check: bool = True,
+    fix: bool = True,
+    compact: bool = True,
+    source_path: str | None = None,
 ) -> dict[str, Any]:
     """Validate IntentBundle JSON text; ``fix`` applies the lossless fixes first and reports them.
 
     ``compact`` accepts the compact authoring form. ``compact=False`` validates the text as a
-    canonical bundle only, as AppBundle screens are validated.
+    canonical bundle only, as AppBundle screens are validated. ``source_path`` names the file the text
+    came from in the correction prompt's commands.
     """
-    return prepare_intent_source(text, compile_check=compile_check, fix=fix, compact=compact).validation
+    return prepare_intent_source(
+        text, compile_check=compile_check, fix=fix, compact=compact, source_path=source_path
+    ).validation
 
 
 def validate_intent_file(path: str | Path, *, compile_check: bool = True, fix: bool = True) -> dict[str, Any]:
     text = Path(path).read_text(encoding="utf-8")
-    return validate_intent_text(text, compile_check=compile_check, fix=fix)
+    return validate_intent_text(text, compile_check=compile_check, fix=fix, source_path=str(path))
 
 
-def intent_validation_payload(result: AgentValidationResult, *, compile_check: bool) -> dict[str, Any]:
+def intent_validation_payload(
+    result: AgentValidationResult,
+    *,
+    compile_check: bool,
+    source_format: str = CANONICAL_FORMAT,
+    source_path: str | None = None,
+) -> dict[str, Any]:
+    """The validation envelope. ``source_format`` and ``source_path`` shape the correction prompt."""
     if not compile_check:
         compile_status = "skipped"
     elif result.valid:
@@ -376,7 +391,9 @@ def intent_validation_payload(result: AgentValidationResult, *, compile_check: b
         "issues": [issue.to_json() for issue in result.issues],
         "fixes": [fix.to_json() for fix in result.fixes],
         "repair_checklist": [] if result.valid else agent_repair_checklist(result),
-        "correction_prompt": None if result.valid else agent_correction_prompt(result),
+        "correction_prompt": None
+        if result.valid
+        else agent_correction_prompt(result, source_format=source_format, source_path=source_path),
     }
 
 
@@ -430,6 +447,7 @@ def prepare_intent_source(
     fix: bool = True,
     patch: Sequence[Any] | None = None,
     compact: bool = True,
+    source_path: str | None = None,
 ) -> IntentSourcePreparation:
     """Patch, normalize, fix, and validate an IntentBundle source, in that order.
 
@@ -441,6 +459,7 @@ def prepare_intent_source(
     canonical document, as written or normalized, gets the lossless fixes and the canonical
     validator. For a compact source their paths point into ``canonical_text``, the document
     ``--canonical-out`` writes. ``compact=False`` reads every source as a canonical bundle.
+    ``source_path`` is the file the text came from; the correction prompt's commands name it.
     """
     patched = False
     if patch is not None:
@@ -454,21 +473,24 @@ def prepare_intent_source(
             except IntentPatchError as exc:
                 issue = AgentValidationIssue("error", exc.code, exc.path, exc.message, exc.fix)
                 result = AgentValidationResult(valid=False, bundle=None, issues=[issue])
-                return IntentSourcePreparation(
-                    text, result, intent_validation_payload(result, compile_check=compile_check), False
+                source_format = COMPACT_FORMAT if compact and detect_compact(document) else CANONICAL_FORMAT
+                validation = intent_validation_payload(
+                    result, compile_check=compile_check, source_format=source_format, source_path=source_path
                 )
+                return IntentSourcePreparation(text, result, validation, False)
             patched = True
     compact_result = _compact_source_result(text, compile_check=compile_check, fix=fix) if compact else None
     if compact_result is not None:
-        validation = intent_validation_payload(compact_result, compile_check=compile_check)
+        validation = intent_validation_payload(
+            compact_result, compile_check=compile_check, source_format=COMPACT_FORMAT, source_path=source_path
+        )
         # The paths in issues and fixes name either the compact source or its canonical document;
         # source_format tells an agent that both exist.
         validation["source_format"] = COMPACT_FORMAT
         return IntentSourcePreparation(text, compact_result, validation, patched, COMPACT_FORMAT)
     result = validate_agent_intent_bundle(text, require_reference_compiler_support=compile_check, fix=fix)
-    return IntentSourcePreparation(
-        text, result, intent_validation_payload(result, compile_check=compile_check), patched
-    )
+    validation = intent_validation_payload(result, compile_check=compile_check, source_path=source_path)
+    return IntentSourcePreparation(text, result, validation, patched)
 
 
 def _compact_source_result(text: str, *, compile_check: bool, fix: bool) -> AgentValidationResult | None:
@@ -606,6 +628,7 @@ def check_intent_source(
                 "Pass the IntentBundle .json file that the compiled output came from.",
                 compile_check=compile_check,
                 path="patch",
+                source_path=str(source),
             )
     try:
         text = source.read_text(encoding="utf-8")
@@ -615,6 +638,7 @@ def check_intent_source(
             f"Intent file not found: {source}",
             "Create viewspec.intent.json or pass the correct intent file path.",
             compile_check=compile_check,
+            source_path=str(source),
         )
     except OSError as exc:
         return intent_error_payload(
@@ -622,10 +646,11 @@ def check_intent_source(
             f"Could not read intent file {source}: {exc}",
             "Use a readable local IntentBundle JSON file.",
             compile_check=compile_check,
+            source_path=str(source),
         )
     if fixed_out is not None:
         reject_compact_fixed_out(text)
-    prepared = prepare_intent_source(text, compile_check=compile_check, fix=fix, patch=patch)
+    prepared = prepare_intent_source(text, compile_check=compile_check, fix=fix, patch=patch, source_path=str(source))
     if fixed_out is not None:
         reject_compact_fixed_out(prepared.text, prepared)
     payload = dict(prepared.validation)
@@ -650,11 +675,13 @@ def intent_error_payload(
     *,
     compile_check: bool,
     path: str = "$",
+    source_path: str | None = None,
 ) -> dict[str, Any]:
     issue = AgentValidationIssue("error", code, path, message, suggestion)
     return intent_validation_payload(
         AgentValidationResult(valid=False, bundle=None, issues=[issue]),
         compile_check=compile_check,
+        source_path=source_path,
     )
 
 
@@ -781,7 +808,7 @@ def compile_intent_bundle_file_tool(
             )
         if fixed_out is not None:
             reject_compact_fixed_out(text)
-        prepared = prepare_intent_source(text, compile_check=True, fix=fix, patch=patch)
+        prepared = prepare_intent_source(text, compile_check=True, fix=fix, patch=patch, source_path=str(input_path))
         if fixed_out is not None:
             reject_compact_fixed_out(prepared.text, prepared)
         validation = prepared.validation
@@ -789,7 +816,7 @@ def compile_intent_bundle_file_tool(
             return tool_error_response(
                 "COMPILE_FAILED",
                 "IntentBundle validation failed.",
-                "Regenerate viewspec.intent.json using correction_prompt, then retry compile.",
+                f"Regenerate {source.name} using correction_prompt, then retry compile.",
                 errors=[
                     {
                         "code": issue["code"],

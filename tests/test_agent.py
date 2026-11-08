@@ -133,16 +133,16 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Use stable ids and object keys matching this pattern only" in AGENT_SYSTEM_PROMPT
     assert "substrate.nodes as an object keyed by node ID, never an array" in AGENT_SYSTEM_PROMPT
     assert "Stay inside the v1 local contract caps" in AGENT_SYSTEM_PROMPT
-    assert (
-        "Use only these action kinds: select, submit, navigate, search, filter, sort, paginate, bulk_action."
-        in AGENT_SYSTEM_PROMPT
-    )
+    # The generated prompt states the closed value sets in one "Use only:" sentence (deliberate pin
+    # move from one "Use only ..." sentence per registry; the rules are unchanged).
+    assert "Use only: present_as text, label, value, badge, input, rich_text, image_slot, rule;" in AGENT_SYSTEM_PROMPT
+    assert "action kinds select, submit, navigate, search, filter, sort, paginate, bulk_action;" in AGENT_SYSTEM_PROMPT
     assert "input" in AGENT_SYSTEM_PROMPT
-    assert "Use only this v1 binding cardinality: exactly_once." in AGENT_SYSTEM_PROMPT
-    assert "Use only these v1 region layouts: stack, grid, cluster." in AGENT_SYSTEM_PROMPT
-    assert "Use only this v1 group kind: ordered." in AGENT_SYSTEM_PROMPT
+    assert "cardinality exactly_once;" in AGENT_SYSTEM_PROMPT
+    assert "region layouts stack, grid, cluster;" in AGENT_SYSTEM_PROMPT
+    assert "group kind ordered;" in AGENT_SYSTEM_PROMPT
     assert "Unknown fields are rejected instead of silently ignored" in AGENT_SYSTEM_PROMPT
-    assert "Use style tokens only from this v1 set:" in AGENT_SYSTEM_PROMPT
+    assert "style tokens emphasis.{low,medium,high}, density.{compact,regular,airy}," in AGENT_SYSTEM_PROMPT
     assert "Aesthetic profile tokens are deterministic art-direction handles, not CSS." in AGENT_SYSTEM_PROMPT
     for token in AESTHETIC_PROFILE_TOKENS:
         assert token in AGENT_SYSTEM_PROMPT
@@ -154,8 +154,11 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Region min_children must be >= 0" in AGENT_SYSTEM_PROMPT
     assert "Generated JSON is not a finished ViewSpec proof" in AGENT_SYSTEM_PROMPT
     assert "regenerate the bundle or apply a standard JSON Patch" in AGENT_SYSTEM_PROMPT
-    assert "viewspec prove viewspec.intent.json --out .viewspec-proof" in AGENT_SYSTEM_PROMPT
-    assert "viewspec check viewspec.intent.json --json" in AGENT_SYSTEM_PROMPT
+    # Deliberate pin move: compact-first, like skills/viewspec/SKILL.md, so the commands name the
+    # compact source and the authoring rule names viewspec.intent.json for the canonical form.
+    assert "viewspec prove viewspec.compact.json --out .viewspec-proof" in AGENT_SYSTEM_PROMPT
+    assert "viewspec check viewspec.compact.json --json" in AGENT_SYSTEM_PROMPT
+    assert "Write the canonical form only for bulk_action, as viewspec.intent.json" in AGENT_SYSTEM_PROMPT
     assert "viewspec check" in AGENT_SYSTEM_PROMPT
     assert ".viewspec-proof/PROOF.md" in AGENT_SYSTEM_PROMPT
     assert "proof_report.json" in AGENT_SYSTEM_PROMPT
@@ -1012,7 +1015,9 @@ def test_correction_prompt_is_actionable_issue_json():
     report = json.loads(prompt.splitlines()[-1])
 
     assert "Output strict JSON only" in prompt
-    assert "Do not patch fragments" in prompt
+    # Deliberate pin move: the full document is the default, and a JSON Patch only when the host asks.
+    assert "Return the whole document, not a fragment." in prompt
+    assert "Return an RFC 6902 JSON Patch instead only when the host asks for one." in prompt
     assert "NODES_MUST_BE_OBJECT" in prompt
     assert "suggestion" in prompt
     assert report["repair_mode"] == "regenerate_full_intent_bundle"

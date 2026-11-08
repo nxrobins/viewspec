@@ -264,8 +264,8 @@ def test_repair_loop_prompt_section_is_bounded_and_says_what_the_loop_does() -> 
     ):
         assert phrase in REPAIR_LOOP_PROMPT_SECTION
     assert "never fixes a lossy problem" in REPAIR_LOOP_PROMPT_SECTION
-    # The section is spliced in by a later node; this node leaves the system prompt alone.
-    assert REPAIR_LOOP_PROMPT_SECTION not in AGENT_SYSTEM_PROMPT
+    # The generated system prompt carries the section verbatim (deliberate pin move: it was absent).
+    assert REPAIR_LOOP_PROMPT_SECTION.strip() in AGENT_SYSTEM_PROMPT
     assert not TOKEN_RE.findall(REPAIR_LOOP_PROMPT_SECTION)
 
 

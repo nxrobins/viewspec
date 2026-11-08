@@ -132,6 +132,26 @@ SCALAR_FIELDS_BY_KIND: dict[str, tuple[str, ...]] = {
 RESERVED_VALUES_KEYS = ("label", "value", "description")
 # bulk_action needs a hand-declared ``_selection`` binding, which the compact form cannot write.
 COMPACT_ACTION_KINDS: tuple[str, ...] = tuple(kind for kind in SUPPORTED_AGENT_ACTION_KINDS if kind != "bulk_action")
+# One compact motif per kind, in SUPPORTED_AGENT_MOTIFS order. The agent system prompt prints each one
+# as a line of JSON, and COMPACT_FORM_SCHEMA publishes them as x-viewspec-examples. Each one, alone in
+# a compact document, passes viewspec check with no fixes; tests run that check on every entry.
+COMPACT_MOTIF_EXAMPLES: dict[str, dict[str, Any]] = {
+    "table": {"id": "orders", "kind": "table", "rows": [{"label": "#1042", "value": "$120"}]},
+    "dashboard": {"id": "kpis", "kind": "dashboard", "cards": [{"label": "Open", "value": 42}]},
+    "outline": {"id": "plan", "kind": "outline", "items": [{"label": "Scope"}]},
+    "comparison": {
+        "id": "plans",
+        "kind": "comparison",
+        "items": [{"label": "Free", "value": 0}, {"label": "Pro", "value": 9}],
+    },
+    "list": {"id": "tasks", "kind": "list", "items": [{"label": "Review"}]},
+    "form": {"id": "contact", "kind": "form", "fields": [{"label": "Email"}]},
+    "detail": {"id": "owner", "kind": "detail", "fields": [{"label": "Owner", "value": "Ada"}]},
+    "empty_state": {"id": "empty", "kind": "empty_state", "title": "No orders"},
+    "loading_state": {"id": "loading", "kind": "loading_state", "title": "Loading"},
+    "error_state": {"id": "failed", "kind": "error_state", "title": "Failed"},
+    "hero": {"id": "intro", "kind": "hero", "title": "Orders"},
+}
 
 _EXPLICIT_TARGET_RE = re.compile(SAFE_AGENT_EXPLICIT_TARGET_PATTERN)
 _STYLE_TARGET_RE = re.compile(SAFE_AGENT_STYLE_TARGET_PATTERN)
@@ -225,7 +245,10 @@ COMPACT_FORM_SCHEMA: dict[str, Any] = {
         "motifs": {
             "type": "array",
             "maxItems": MAX_AGENT_MOTIFS,
-            "items": {"oneOf": [{"$ref": f"#/$defs/motif_{kind}"} for kind in SUPPORTED_AGENT_MOTIFS]},
+            "items": {
+                "oneOf": [{"$ref": f"#/$defs/motif_{kind}"} for kind in SUPPORTED_AGENT_MOTIFS],
+                "x-viewspec-examples": [COMPACT_MOTIF_EXAMPLES[kind] for kind in SUPPORTED_AGENT_MOTIFS],
+            },
         },
         "inputs": {"type": "array", "maxItems": MAX_AGENT_NODES, "items": {"$ref": "#/$defs/input"}},
         "styles": {"type": "array", "maxItems": MAX_AGENT_STYLES, "items": {"$ref": "#/$defs/style"}},
@@ -1296,6 +1319,7 @@ __all__ = [
     "COMPACT_FORM_PROMPT_SECTION",
     "COMPACT_FORM_SCHEMA",
     "COMPACT_FORM_SCHEMA_ID",
+    "COMPACT_MOTIF_EXAMPLES",
     "DERIVED_ITEM_WORD_BY_KIND",
     "ITEM_KEY_BY_KIND",
     "MAX_COMPACT_BYTES",

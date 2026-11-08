@@ -630,17 +630,23 @@ def _compile_command(args: argparse.Namespace) -> int:
         canonical_out.resolve() == (out_dir / name).resolve() for name in output_names
     ):
         raise ValueError("--canonical-out must not name a compiled output file")
+    source_path = args.input if is_intent_source else None
     patch = None
     if args.patch:
         try:
             patch = load_intent_patch(args.patch)
         except IntentPatchError as exc:
             return _finish_intent_validation_failure(
-                args, intent_error_payload(exc.code, exc.message, exc.fix, compile_check=True, path=exc.path)
+                args,
+                intent_error_payload(
+                    exc.code, exc.message, exc.fix, compile_check=True, path=exc.path, source_path=source_path
+                ),
             )
     if args.fixed_out:
         reject_compact_fixed_out(data)
-    prepared = prepare_intent_source(data, compile_check=True, fix=not args.no_fix, patch=patch)
+    prepared = prepare_intent_source(
+        data, compile_check=True, fix=not args.no_fix, patch=patch, source_path=source_path
+    )
     if args.fixed_out:
         reject_compact_fixed_out(prepared.text, prepared)
     validation = prepared.validation
@@ -868,7 +874,7 @@ def _check_command(args: argparse.Namespace) -> int:
                 patch = load_intent_patch(args.patch)
             except IntentPatchError as exc:
                 result = intent_error_payload(
-                    exc.code, exc.message, exc.fix, compile_check=compile_check, path=exc.path
+                    exc.code, exc.message, exc.fix, compile_check=compile_check, path=exc.path, source_path=args.path
                 )
             else:
                 result = check_intent_source(

@@ -817,6 +817,99 @@
           {
             "$ref": "#/$defs/motif_hero"
           }
+        ],
+        "x-viewspec-examples": [
+          {
+            "id": "orders",
+            "kind": "table",
+            "rows": [
+              {
+                "label": "#1042",
+                "value": "$120"
+              }
+            ]
+          },
+          {
+            "cards": [
+              {
+                "label": "Open",
+                "value": 42
+              }
+            ],
+            "id": "kpis",
+            "kind": "dashboard"
+          },
+          {
+            "id": "plan",
+            "items": [
+              {
+                "label": "Scope"
+              }
+            ],
+            "kind": "outline"
+          },
+          {
+            "id": "plans",
+            "items": [
+              {
+                "label": "Free",
+                "value": 0
+              },
+              {
+                "label": "Pro",
+                "value": 9
+              }
+            ],
+            "kind": "comparison"
+          },
+          {
+            "id": "tasks",
+            "items": [
+              {
+                "label": "Review"
+              }
+            ],
+            "kind": "list"
+          },
+          {
+            "fields": [
+              {
+                "label": "Email"
+              }
+            ],
+            "id": "contact",
+            "kind": "form"
+          },
+          {
+            "fields": [
+              {
+                "label": "Owner",
+                "value": "Ada"
+              }
+            ],
+            "id": "owner",
+            "kind": "detail"
+          },
+          {
+            "id": "empty",
+            "kind": "empty_state",
+            "title": "No orders"
+          },
+          {
+            "id": "loading",
+            "kind": "loading_state",
+            "title": "Loading"
+          },
+          {
+            "id": "failed",
+            "kind": "error_state",
+            "title": "Failed"
+          },
+          {
+            "id": "intro",
+            "kind": "hero",
+            "title": "Orders"
+          }
         ]
       },
       "maxItems": 32,

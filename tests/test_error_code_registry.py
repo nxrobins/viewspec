@@ -21,6 +21,7 @@ SKIP_FILES = {"viewspec_pb2.py", "error_codes.py"}
 
 # UPPER_SNAKE string literals in src/viewspec that are not emitted codes.
 NON_CODE_LITERAL_TOKENS = {
+    "AGENT_SYSTEM_PROMPT",  # the module attribute viewspec.agent resolves on first access
     "APP_PROOF",  # the APP_PROOF.md summary filename
     "CHROMIUM_ARIAL_LAYOUT_FIT_TOLERANCE_PX",  # generated Pretext runtime constant
     "CLIPPING_OVERFLOW_VALUES",  # generated Pretext runtime constant

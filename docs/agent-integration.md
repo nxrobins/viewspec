@@ -1,21 +1,25 @@
 # ViewSpec Agent Integration
 
-Agents write semantic JSON; ViewSpec compiles it. An agent should emit `viewspec.intent.json` as
-IntentBundle JSON, or `viewspec.app.json` as AppBundle JSON for a multi-screen tool, and never write
-HTML, CSS, React, or CompositionIR as source. Everything runs locally, with no SDK network calls.
+Agents write semantic JSON; ViewSpec compiles it. An agent should emit an IntentBundle as
+`viewspec.compact.json` in the compact form, or as `viewspec.intent.json` in the canonical form when
+the compact form lacks a construct. For a multi-screen tool it emits `viewspec.app.json` as AppBundle
+JSON. It never writes HTML, CSS, React, or CompositionIR as source. Everything runs locally, with no
+SDK network calls.
 
 ## Canonical Agent Loop
 
 1. Load the published contract: `agent-system-prompt.txt` plus the JSON Schema for the bundle kind.
    They are published at `https://viewspec.dev/`, and `scripts/export_agent_contract.py` regenerates
-   them from `viewspec.agent` and `viewspec.app_bundle`.
+   them from the SDK. The [system prompt](#system-prompt) asks for the compact form by default.
 2. Generate strict JSON, ideally with schema-constrained structured output, and save it.
-3. Run `viewspec check viewspec.intent.json --json`.
-4. On failure, feed `correction_prompt` back and regenerate the full bundle.
-5. Run `viewspec compile viewspec.intent.json --out dist/`, then `viewspec check dist/ --json`.
-6. Run `viewspec prove viewspec.intent.json --out .viewspec-proof` before claiming the UI is valid.
+3. Run `viewspec check viewspec.compact.json --json`, or name `viewspec.intent.json` for a canonical source.
+4. On failure, feed `correction_prompt` back and regenerate the full document.
+5. Run `viewspec compile viewspec.compact.json --out dist/`, then `viewspec check dist/ --json`.
+6. Run `viewspec prove viewspec.compact.json --out .viewspec-proof` before claiming the UI is valid.
    Read `.viewspec-proof/PROOF.md` first; use `proof_report.json` for status and
    `support_bundle.json` for redacted failure triage.
+
+The commands below show the canonical file. Every one takes `viewspec.compact.json` the same way.
 
 ```bash
 viewspec init --out viewspec.intent.json
@@ -255,7 +259,7 @@ else:
 
 `validate_agent_intent_bundle()` accepts a JSON string or a dictionary. Dictionary payloads must still be JSON-serializable and fit the same 256KB serialized-size cap as raw JSON text. The validator checks the agent contract, parses successful payloads through `IntentBundle.from_json()`, and by default compiles with the local reference compiler so diagnostics are returned in an agent-readable shape.
 
-Every validation issue includes `severity`, `code`, `path`, `message`, and `suggestion`. Validation payloads also include a bounded `repair_checklist` of retry invariants derived from the issue codes. `agent_correction_prompt()` returns the same checklist inside a bounded repair report so agents regenerate the full IntentBundle instead of patching fragments; the raw validation result still exposes the full issue list for tooling.
+Every validation issue includes `severity`, `code`, `path`, `message`, and `suggestion`. Validation payloads also include a bounded `repair_checklist` of retry invariants derived from the issue codes. `agent_correction_prompt()` returns the same checklist inside a bounded repair report. The prompt asks the agent to return the whole document, not a fragment, and to return an RFC 6902 JSON Patch only when the host asks for one. The raw validation result still exposes the full issue list for tooling. See [the correction prompt](#the-correction-prompt) for its keys.
 
 The CLI exposes the same repair loop:
 
@@ -281,7 +285,7 @@ assert report["ok"], report["correction_prompt"]
 
 `viewspec init` is a scaffold only. Agents must replace sample labels, values, and structure with the user's actual UI intent before compiling. Run `viewspec init design --out DESIGN.md` only when the repo does not already have a design file; an existing `DESIGN.md` remains the theming source of truth.
 
-`viewspec compile` performs the same intent validation before writing output files. If compilation returns an intent validation payload, feed its `correction_prompt` back to the agent and regenerate the full IntentBundle instead of patching fragments.
+`viewspec compile` performs the same intent validation before writing output files. If compilation returns an intent validation payload, feed its `correction_prompt` back to the agent. The agent regenerates the full document unless the host asks for a JSON Patch.
 
 `viewspec check` treats the compiled artifact as a proof boundary. For IntentBundle artifacts, DOM `data-ir-id`, `data-binding-id`, and `data-action-id` values must agree with `provenance_manifest.json`; binding/action ids cannot be duplicated; binding nodes must retain source `content_refs`; and binding/action manifest entries must include the matching `viewspec:binding:*` or `viewspec:action:*` intent ref. Human check output prints the bounded manifest summary, including root aesthetic profile, compact style-delta counts, and checked aesthetic layout columns/spans when present; `viewspec check --json` returns the same summary for tools.
 
@@ -534,7 +538,7 @@ viewspec check viewspec.intent.json --json --fixed-out viewspec.intent.json
 
 When issues remain, the agent fixes them in one of two ways:
 
-1. Regenerate the full IntentBundle from `correction_prompt`. The prompt lists only the remaining
+1. Regenerate the full document from `correction_prompt`. The prompt lists only the remaining
    issues and names the fixes already applied under `applied_fixes`, so the agent does not redo them.
 2. Apply an RFC 6902 JSON Patch with `--patch OPS.json`. The patch is applied to the source in
    memory, then the result is validated and, for `compile`, compiled. `--patched-out PATH` writes the
@@ -559,7 +563,59 @@ viewspec compile viewspec.intent.json --patch ops.json --out dist/
 
 The MCP `patch` tool runs the same loop without a file: pass `operations` and an optional `out` path.
 Then validate again, and compile only after `ok` is true. `viewspec.agent.REPAIR_LOOP_PROMPT_SECTION`
-holds the prompt text that tells an agent these rules.
+holds the text that tells an agent these rules, and the system prompt carries it verbatim.
+
+### The correction prompt
+
+`correction_prompt` is a few sentences of instructions and one line of JSON, the bounded report. The
+instructions match the form of the source:
+
+- A canonical source gets "Regenerate the full ViewSpec IntentBundle JSON."
+- A compact source gets "Regenerate the full ViewSpec compact document". The prompt says that
+  issue paths under `$.view_spec` and `$.substrate` name the canonical document that
+  `viewspec check --canonical-out` writes, and that patch pointers name the compact document.
+
+Both forms ask for the whole document, not a fragment. They ask for an RFC 6902 JSON Patch only when
+the host asks for one. The report keeps `repair_mode` and `retry_command` and adds `source_format`.
+`repair_mode` is `regenerate_full_intent_bundle` or `regenerate_full_compact_document`.
+`retry_command` and `patch_command` name the file that was checked, such as
+`viewspec check orders.compact.json --json`. When the caller passes no file, as
+`validate_intent_text()` does, they name `viewspec.intent.json` or `viewspec.compact.json`.
+`agent_correction_prompt(result, source_format="compact", source_path="orders.compact.json")` builds
+the same prompt in Python.
+
+## System prompt
+
+`agent-system-prompt.txt` is `viewspec.agent.AGENT_SYSTEM_PROMPT`.
+`viewspec.agent_prompt.build_agent_system_prompt()` generates it from the contract registries, so it
+names only values the validator accepts. The same code always gives the same bytes. The sections come
+in this order:
+
+1. The role and the output rule: strict JSON only.
+2. Common mistakes, most frequent first. `viewspec.agent_prompt.COMMON_MISTAKES` pairs each rule with
+   the issue codes it prevents. Reorder it from the top issue codes of an
+   [agent eval](../CONTRIBUTING.md) report.
+3. The authoring format: the compact form by default, as `viewspec.compact.json`, and the canonical
+   form only for `bulk_action`, as `viewspec.intent.json`, and in AppBundle screens. These are the
+   file names the [agent skill](../skills/viewspec/SKILL.md) uses. A complete compact document sits
+   between `<example>` and `</example>`. Then comes
+   `viewspec.compact_form.COMPACT_FORM_PROMPT_SECTION` without its own closing example.
+4. One compact motif per kind, all 11 kinds, one line of JSON each. The compact schema publishes the
+   same motifs as `x-viewspec-examples` on its motif definition.
+5. The canonical contract: the id pattern, the root shape, attribute addresses, the value registries,
+   the aesthetic profiles, motif completeness, the collection action bounds, and the 256 KB cap. The
+   published JSON Schema carries the per-array caps.
+6. The repair loop, `REPAIR_LOOP_PROMPT_SECTION`.
+7. Proof and handoff: `viewspec check` and `viewspec prove` on `viewspec.compact.json`.
+8. The AppBundle sections, `viewspec.agent_prompt.APP_PROMPT_SECTIONS`: the contract through
+   `schema_version` 4, then `viewspec.app_agent_schema.APPBUNDLE_V5_PROMPT_SECTION`. The version 4
+   text states each limit that version 5 lifts as a fact of version 4, so every sentence holds for
+   both versions.
+9. Optional reference grounding.
+
+Tests pin two budgets. Everything before the AppBundle sections stays within 6,000 bytes, and the
+AppBundle sections stay within 6,000 bytes. Tests also run `viewspec check` on the worked example and
+on each motif example, alone in a compact document, and expect `ok` with no `fixes`.
 
 
 ## Optional Reference Grounding

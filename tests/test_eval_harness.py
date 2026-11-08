@@ -29,7 +29,7 @@ from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, starter_app_bundle, starter_react_app_bundle
 from viewspec.compiler import COLLECTION_ACTION_KINDS, SUPPORTED_MOTIF_KINDS
-from viewspec.intent_tools import starter_intent_payload
+from viewspec.intent_tools import starter_compact_payload, starter_intent_payload
 
 ROOT = Path(__file__).resolve().parents[1]
 PROMPTS = ROOT / "conformance" / "eval" / "prompts.json"
@@ -608,6 +608,30 @@ def test_expectations_cover_actions_aesthetics_and_app_versions():
         "table"
     ]
     assert harness.observe("app", {"schema_version": True, "screens": "no"})["app_schema_version"] is None
+
+
+def test_observe_reads_a_compact_answer_through_normalization():
+    # The prompt now asks for the compact form, so a compact answer must report what it declares.
+    compact = starter_compact_payload("dashboard")
+    observed = harness.observe("intent", compact)
+    assert observed["motif_kinds"] == ["dashboard"]
+    assert observed == harness.observe("intent", starter_intent_payload("dashboard"))
+
+    styled = {**compact, "aesthetic": "aesthetic.calm_ops"}
+    assert harness.observe("intent", styled)["aesthetic_profile"] == "aesthetic.calm_ops"
+
+    # One that does not normalize still reports its own motifs, actions, and aesthetic.
+    broken = {
+        "format": "compact",
+        "id": "x",
+        "aesthetic": "aesthetic.brutalist",
+        "motifs": [{"id": "t", "kind": "table"}, "junk"],
+        "actions": [{"id": "s", "kind": "search"}],
+    }
+    observed = harness.observe("intent", broken)
+    assert observed["motif_kinds"] == ["table"]
+    assert observed["action_kinds"] == ["search"]
+    assert observed["aesthetic_profile"] == "aesthetic.brutalist"
 
 
 def test_fix_codes_tolerate_a_missing_fixes_key():

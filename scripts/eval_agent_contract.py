@@ -39,6 +39,7 @@ from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, validate_app_text
 from viewspec.app_validation import APP_BUNDLE_SUPPORTED_SCHEMA_VERSIONS
+from viewspec.compact_form import detect_compact, normalize_with_issues
 from viewspec.compiler import SUPPORTED_ACTION_KINDS, SUPPORTED_MOTIF_KINDS
 from viewspec.intent_tools import validate_intent_text
 
@@ -572,7 +573,7 @@ def compact_bytes(parsed: Mapping[str, Any]) -> int:
 
 def _intent_bundles(kind: str, parsed: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     if kind == "intent":
-        return [parsed]
+        return [_canonical_view(parsed)]
     screens = parsed.get("screens")
     if not isinstance(screens, list):
         return []
@@ -581,6 +582,34 @@ def _intent_bundles(kind: str, parsed: Mapping[str, Any]) -> list[Mapping[str, A
         for screen in screens
         if isinstance(screen, dict) and isinstance(screen.get("intent_bundle"), dict)
     ]
+
+
+def _canonical_view(bundle: Mapping[str, Any]) -> Mapping[str, Any]:
+    """An intent answer as a canonical bundle, so compact and canonical answers are observed alike.
+
+    A compact answer goes through the same normalization the compiler uses. One that does not
+    normalize is read from its own motifs, actions, and aesthetic, so the report still says what it
+    declared.
+    """
+    if not detect_compact(bundle):
+        return bundle
+    canonical, _issues = normalize_with_issues(bundle)
+    if canonical is not None:
+        return canonical
+
+    def kinds(key: str) -> list[dict[str, str]]:
+        entries = bundle.get(key)
+        if not isinstance(entries, list):
+            return []
+        return [
+            {"kind": entry["kind"]}
+            for entry in entries
+            if isinstance(entry, dict) and isinstance(entry.get("kind"), str)
+        ]
+
+    aesthetic = bundle.get("aesthetic")
+    styles = [{"token": aesthetic}] if isinstance(aesthetic, str) else []
+    return {"view_spec": {"motifs": kinds("motifs"), "actions": kinds("actions"), "styles": styles}}
 
 
 def observe(kind: str, parsed: Mapping[str, Any]) -> dict[str, Any]:
