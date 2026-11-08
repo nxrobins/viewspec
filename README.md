@@ -29,7 +29,7 @@ viewspec compile viewspec.intent.json --out dist/  # write dist/index.html
 viewspec check dist/                               # fast static, provenance, and security checks
 viewspec prove viewspec.intent.json                # compile, verify, and write a proof bundle
 viewspec studio                                    # live-reloading local preview
-viewspec mcp                                       # the five above as MCP tools for an agent
+viewspec mcp                                       # the five above, plus patch, as MCP tools for an agent
 ```
 
 | Command | Takes | Does |
@@ -39,10 +39,15 @@ viewspec mcp                                       # the five above as MCP tools
 | `viewspec check PATH` | a source file, or a compiled directory | Contract checks for a source; provenance, tamper, and active-content checks for a directory. |
 | `viewspec prove [SOURCE]` | nothing, a source file, or a compiled directory | Compiles and verifies, adding browser layout, Pretext, and Freerange evidence on request. |
 | `viewspec studio [SOURCE]` | a source file | Serves a preview on 127.0.0.1 that rebuilds whenever the source or `DESIGN.md` changes. |
-| `viewspec mcp` | nothing | Serves the other five to a coding agent as MCP tools over stdio. Needs `viewspec[agents]`. |
+| `viewspec mcp` | nothing | Serves the other five, plus a `patch` tool, to a coding agent as six MCP tools over stdio. Needs `viewspec[agents]`. |
 
 Every command accepts `--json`. Exit codes are `0` for success, `2` for input or contract failures,
 and `1` for internal errors. Run `viewspec COMMAND --help` for the options.
+
+`check` and `compile` apply lossless fixes to an IntentBundle before validation and report them
+under `fixes`; `--no-fix` turns that off, `--fixed-out PATH` keeps the fixed source, and `--patch
+OPS.json` applies an RFC 6902 JSON Patch to the source in memory first. Lossy problems are never
+fixed. See [agent integration](docs/agent-integration.md#error-repair-loop).
 
 Run `viewspec init design --out DESIGN.md` once when the repository has no governed design file.
 
@@ -187,7 +192,7 @@ Give your agent the published contract, then let it generate JSON with structure
 `viewspec check FILE --json` returns a `correction_prompt` that an agent can act on directly. The
 [agent integration guide](docs/agent-integration.md) has the full loop.
 
-To give an MCP client the tools `init`, `compile`, `check`, `prove`, and `studio`:
+To give an MCP client the tools `init`, `compile`, `check`, `patch`, `prove`, and `studio`:
 
 ```bash
 python -m pip install "viewspec[agents]"

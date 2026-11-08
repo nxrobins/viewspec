@@ -1,4 +1,4 @@
-"""`viewspec mcp`: the CLI's five verbs as MCP tools for a coding agent, over stdio."""
+"""`viewspec mcp`: six tools for a coding agent, over stdio: the CLI's five verbs and `patch`."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from typing import Any, Literal
 from viewspec import api
 from viewspec._version import __version__
 from viewspec.app_bundle import APP_SHELL_TARGET, compile_app, init_app_file
-from viewspec.intent_tools import compile_intent_bundle_file_tool, init_intent_file
+from viewspec.intent_tools import check_intent_source, compile_intent_bundle_file_tool, init_intent_file
 from viewspec.local_tools import (
     exception_response,
     init_design_file,
@@ -32,7 +32,9 @@ _MCP_SERVER_MODULE = "mcp.server.fastmcp"
 _SERVER_INSTRUCTIONS = (
     "ViewSpec compiles semantic JSON into checked UI. Edit viewspec.intent.json or viewspec.app.json, never "
     "the generated output. The loop is init, edit the source, check, compile, then prove. Every result "
-    "carries ok; on failure, follow its errors, issues, or correction_prompt and retry."
+    "carries ok; on failure, follow its errors, issues, or correction_prompt and retry. check and compile "
+    "apply lossless fixes and report them under fixes; patch applies a JSON Patch to an IntentBundle source "
+    "and checks the result."
 )
 
 
@@ -169,13 +171,39 @@ class ViewSpecTools:
         )
 
     @_reported("CHECK_FAILED", "Fix the reported path and retry.")
-    def check(self, path: str, compile_check: bool = True) -> dict[str, Any]:
+    def check(self, path: str, compile_check: bool = True, fix: bool = True) -> dict[str, Any]:
         """Run the fast local checks on a source file or a compiled artifact directory.
 
         A source file gets contract checks, and a failure includes a correction_prompt to act on.
-        A directory gets provenance, tamper, and active-content checks.
+        An IntentBundle gets the lossless fixes first, reported under fixes; fix=False reports the
+        same problems as issues. A directory gets provenance, tamper, and active-content checks.
         """
-        return api.check(self._path(path), compile_check=compile_check)
+        return api.check(self._path(path), compile_check=compile_check, fix=fix)
+
+    @_reported("CHECK_FAILED", "Fix the reported path or patch and retry.")
+    def patch(
+        self,
+        source: str,
+        operations: list[dict[str, Any]],
+        out: str | None = None,
+        compile_check: bool = True,
+        fix: bool = True,
+    ) -> dict[str, Any]:
+        """Apply an RFC 6902 JSON Patch to an IntentBundle file in memory, then check the result.
+
+        The source file is not changed; out writes the patched source. The report is the check
+        report: ok, issues, fixes, and a correction_prompt on failure. A patch that cannot be applied
+        is one PATCH_* issue. operations holds at most 256 add, remove, replace, move, copy, or test
+        operations, and the patched source must stay under 256 KB. A patch applies to an IntentBundle
+        source file only, never to an AppBundle or to compiled output.
+        """
+        return check_intent_source(
+            self._path(source),
+            compile_check=compile_check,
+            fix=fix,
+            patch=operations,
+            patched_out=self._path(out) if out is not None else None,
+        )
 
     @_reported("PROVE_INVALID_REQUEST", "Fix the reported option and retry.")
     def prove(
@@ -281,7 +309,7 @@ def run_mcp_server(
 
     tools = ViewSpecTools(cwd, allow_outside_cwd=allow_outside_cwd)
     app = FastMCP("viewspec", instructions=_SERVER_INSTRUCTIONS, log_level=log_level or "INFO")
-    for tool in (tools.init, tools.compile, tools.check, tools.prove, tools.studio):
+    for tool in (tools.init, tools.compile, tools.check, tools.patch, tools.prove, tools.studio):
         app.add_tool(tool)
 
     def stop(signum: int, _frame: FrameType | None) -> None:

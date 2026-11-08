@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from collections.abc import Mapping
+from copy import deepcopy
+from dataclasses import dataclass, field
 from typing import Any
 
 from viewspec.aesthetics import (
@@ -62,6 +64,167 @@ VIEW_SPEC_ALLOWED_FIELDS = {
     "motifs",
     "styles",
     "actions",
+}
+# Fields with exactly one legal position one level away from the root: a root key legal only in
+# substrate or only in view_spec moves down, and schema_version found in either container moves up.
+# "id" is legal in both containers, so it is never moved.
+SUBSTRATE_ONLY_FIELDS = frozenset(SUBSTRATE_ALLOWED_FIELDS - VIEW_SPEC_ALLOWED_FIELDS - ROOT_ALLOWED_FIELDS)
+VIEW_SPEC_ONLY_FIELDS = frozenset(VIEW_SPEC_ALLOWED_FIELDS - SUBSTRATE_ALLOWED_FIELDS - ROOT_ALLOWED_FIELDS)
+ROOT_ONLY_FIELDS = frozenset({"schema_version"})
+# Closed table of present_as spellings whose canonical value has identical semantics. metric and
+# number are the compiler's own value-like set; every other alias names the same primitive by
+# another common word. An alias that would change what the compiler emits is not listed: it is lossy.
+PRESENT_AS_ALIASES: dict[str, str] = {
+    "chip": "badge",
+    "divider": "rule",
+    "image": "image_slot",
+    "metric": "value",
+    "number": "value",
+    "separator": "rule",
+    "tag": "badge",
+    "text_input": "input",
+    "textbox": "input",
+}
+FIX_EMPTY_RELATIONS_ADDED = "FIX_EMPTY_RELATIONS_ADDED"
+FIX_FIELD_RELOCATED = "FIX_FIELD_RELOCATED"
+FIX_PRESENT_AS_ALIAS = "FIX_PRESENT_AS_ALIAS"
+FIX_ROOT_PARENT_REGION_SET = "FIX_ROOT_PARENT_REGION_SET"
+FIX_SCHEMA_VERSION_ADDED = "FIX_SCHEMA_VERSION_ADDED"
+AGENT_FIX_CODES = (
+    FIX_EMPTY_RELATIONS_ADDED,
+    FIX_FIELD_RELOCATED,
+    FIX_PRESENT_AS_ALIAS,
+    FIX_ROOT_PARENT_REGION_SET,
+    FIX_SCHEMA_VERSION_ADDED,
+)
+LOSSLESS_FIXABLE_ISSUE = "lossless_fixable"
+LOSSY_ISSUE = "lossy"
+# Every code validate_agent_intent_bundle can report, and whether a lossless fix can resolve some
+# of its instances. lossless_fixable means apply_lossless_fixes removes the instances it can prove
+# harmless before validation; an instance that is still reported after fixing is lossy. Every other
+# code is lossy: resolving it would add, remove, or re-target a node, binding, member, style, or
+# action, or guess at a value, so ViewSpec never fixes it. classify_issue_code treats an unknown code
+# as lossy.
+ISSUE_CODE_CLASSIFICATION: dict[str, str] = {
+    "MISSING_FIELD": LOSSLESS_FIXABLE_ISSUE,
+    "UNKNOWN_FIELD": LOSSLESS_FIXABLE_ISSUE,
+    "UNKNOWN_PRESENT_AS": LOSSLESS_FIXABLE_ISSUE,
+    **dict.fromkeys(
+        (
+            # The agent contract validator.
+            "AESTHETIC_PROFILE_MULTIPLE",
+            "AESTHETIC_PROFILE_TARGET_INVALID",
+            "AESTHETIC_PROFILE_UNKNOWN",
+            "AMBIGUOUS_STYLE_TARGET",
+            "COLLECTION_ACTION_PAYLOAD_REQUIRED",
+            "COLLECTION_ACTION_TARGET_INVALID",
+            "COLLECTION_BULK_SELECTION_AMBIGUOUS",
+            "COLLECTION_BULK_SELECTION_REQUIRED",
+            "COLLECTION_STATE_CONFLICT",
+            "COMPILER_INPUT_ERROR",
+            "COMPOSITION_IR_INPUT",
+            "DETACHED_REGION",
+            "DUPLICATE_ACTION_ID",
+            "DUPLICATE_BINDING_ID",
+            "DUPLICATE_EXACTLY_ONCE_ADDRESS",
+            "DUPLICATE_GROUP_ID",
+            "DUPLICATE_MOTIF_ID",
+            "DUPLICATE_REGION_ID",
+            "DUPLICATE_STYLE_ID",
+            "EDGE_VALUES_SHAPE",
+            "EMPTY_MOTIF",
+            "INTEGER_OUT_OF_SAFE_RANGE",
+            "INTENT_BUNDLE_PARSE_ERROR",
+            "INTENT_TOO_LARGE",
+            "INVALID_ACTION",
+            "INVALID_ACTION_TARGET_REF",
+            "INVALID_ADDRESS",
+            "INVALID_BINDING",
+            "INVALID_COMPLEXITY_TIER",
+            "INVALID_GROUP",
+            "INVALID_ID",
+            "INVALID_JSON",
+            "INVALID_JSON_VALUE",
+            "INVALID_MOTIF",
+            "INVALID_NODE",
+            "INVALID_PAYLOAD",
+            "INVALID_REGION",
+            "INVALID_REGION_CHILD_BOUNDS",
+            "INVALID_STYLE",
+            "MISSING_GROUP_MEMBER",
+            "MISSING_MOTIF_MEMBER",
+            "MISSING_ROOT_REGION",
+            "MISSING_SUBSTRATE_ROOT",
+            "MOTIF_MISSING_INPUT",
+            "MOTIF_MISSING_LABEL",
+            "MOTIF_MISSING_TITLE",
+            "MOTIF_MISSING_VALUE",
+            "MOTIF_TOO_FEW_ITEMS",
+            "NODES_MUST_BE_OBJECT",
+            "NODE_KEY_MISMATCH",
+            "REGION_PARENT_CYCLE",
+            "ROOT_REGION_HAS_PARENT",
+            "SLOT_VALUES_SHAPE",
+            "STATE_MOTIF_TITLE_REQUIRED",
+            "STATE_MOTIF_TOO_MANY_DESCRIPTIONS",
+            "SUBSTRATE_ID_MISMATCH",
+            "TOO_MANY_ACTIONS",
+            "TOO_MANY_ACTION_PAYLOAD_BINDINGS",
+            "TOO_MANY_BINDINGS",
+            "TOO_MANY_COLLECTION_ACTIONS",
+            "TOO_MANY_GROUPS",
+            "TOO_MANY_GROUP_MEMBERS",
+            "TOO_MANY_MOTIFS",
+            "TOO_MANY_MOTIF_MEMBERS",
+            "TOO_MANY_NODES",
+            "TOO_MANY_NODE_ATTRS",
+            "TOO_MANY_NODE_EDGES",
+            "TOO_MANY_NODE_SLOTS",
+            "TOO_MANY_REGIONS",
+            "TOO_MANY_RELATION_VALUES",
+            "TOO_MANY_STATE_MOTIFS",
+            "TOO_MANY_STYLES",
+            "UNKNOWN_ACTION_PAYLOAD_BINDING",
+            "UNKNOWN_ACTION_TARGET",
+            "UNKNOWN_EDGE_TARGET",
+            "UNKNOWN_REGION",
+            "UNKNOWN_STYLE_TARGET",
+            "UNSUPPORTED_ACTION_KIND",
+            "UNSUPPORTED_CARDINALITY",
+            "UNSUPPORTED_GROUP_KIND",
+            "UNSUPPORTED_MOTIF",
+            "UNSUPPORTED_REGION_LAYOUT",
+            "UNSUPPORTED_SCHEMA_VERSION",
+            "UNSUPPORTED_STYLE_TOKEN",
+            # Reference compiler diagnostics that reach the agent through compile_check.
+            "AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT",
+            "AESTHETIC_PROFILE_NOOP",
+            "COLLECTION_ACTION_BAR_DUPLICATE",
+            "COLLECTION_ACTION_PAYLOAD_TOO_LARGE",
+            "COLLECTION_BULK_SELECTION_TOO_LARGE",
+            "DUPLICATE_ACTION_PLACEMENT",
+            "DUPLICATE_MOTIF_MEMBER",
+            "MISSING_ACTION_MOTIF_WRAPPER",
+            "PLANNER_ROLE_METADATA_ONLY",
+            "SEMANTIC_GRAPH_CYCLE",
+            "SEMANTIC_GRAPH_SHARED_NODE",
+            "SEMANTIC_GRAPH_TOO_DEEP",
+            "SEMANTIC_GRAPH_UNREACHED_MEMBER",
+            "SEMANTIC_MOTIF_MEMBERS_UNPLACED",
+            "UNKNOWN_STYLE_TOKEN",
+            "UNSAFE_ACTION_PLACEMENT",
+            # The check command's file and patch failures.
+            "INTENT_FILE_NOT_FOUND",
+            "INTENT_FILE_READ_ERROR",
+            "PATCH_APPLY_FAILED",
+            "PATCH_INVALID",
+            "PATCH_RESULT_TOO_LARGE",
+            "PATCH_TARGET_FORBIDDEN",
+            "PATCH_TEST_FAILED",
+            "PATCH_TOO_MANY_OPERATIONS",
+        ),
+        LOSSY_ISSUE,
+    ),
 }
 SUPPORTED_AGENT_STYLE_TOKENS = tuple(
     token
@@ -225,6 +388,11 @@ Optional reference grounding
 Do not call remote reference libraries by default. Use external or hosted reference sources only when the user explicitly asks for research or the repository instructions explicitly configure an approved source.
 
 If reference grounding is explicitly enabled, use it only to inform semantic intent: sections, hierarchy, typical fields, and motif choices. Do not copy pixel layouts, hardcoded copy, design tokens, screenshot URLs, image bytes, or external references into IntentBundle output. If the approved reference source is unavailable, proceed without it.
+"""
+
+# Prompt text for the repair loop. A later node splices it into the system prompt; it stays under
+# 800 bytes so that it fits beside the authoring rules.
+REPAIR_LOOP_PROMPT_SECTION = """Repair loop. viewspec check and viewspec compile apply lossless fixes before validation and list each one under fixes with lossy false. A lossless fix adds schema_version 1, adds an empty slots or edges map to a node, sets the root region parent_region to "", moves a field to its one legal position, or replaces a present_as alias with its canonical value. ViewSpec never fixes a lossy problem: it never adds, removes, or re-targets a node, binding, group member, motif member, style, or action. Fix the remaining issues by regenerating the full IntentBundle, or by passing a JSON Patch (RFC 6902) with viewspec check FILE --patch OPS.json. --patched-out and --fixed-out write the patched and the fixed source. --no-fix reports the fixable problems as issues instead.
 """
 
 AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
@@ -465,15 +633,37 @@ class AgentValidationIssue:
 
 
 @dataclass(frozen=True)
+class AgentFix:
+    """One lossless fix that apply_lossless_fixes made before validation.
+
+    ``lossy`` is always False: ViewSpec never applies a lossy fix. The field is part of the wire
+    shape so that an agent can filter on it without knowing the code table.
+    """
+
+    code: str
+    path: str
+    message: str
+    lossy: bool = False
+
+    def to_json(self) -> dict[str, Any]:
+        return {"code": self.code, "path": self.path, "message": self.message, "lossy": self.lossy}
+
+
+@dataclass(frozen=True)
 class AgentValidationResult:
     valid: bool
     bundle: IntentBundle | None
     issues: list[AgentValidationIssue]
+    # The lossless fixes applied before validation, in application order.
+    fixes: list[AgentFix] = field(default_factory=list)
+    # The document that was validated, after fixes; None when the payload was not a JSON object.
+    document: dict[str, Any] | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
             "valid": self.valid,
             "issues": [issue.to_json() for issue in self.issues],
+            "fixes": [fix.to_json() for fix in self.fixes],
             "repair_checklist": [] if self.valid else agent_repair_checklist(self),
         }
 
@@ -482,15 +672,24 @@ def validate_agent_intent_bundle(
     payload: str | dict[str, Any],
     *,
     require_reference_compiler_support: bool = True,
+    fix: bool = True,
 ) -> AgentValidationResult:
-    """Validate an agent-authored IntentBundle and optionally compile it locally."""
+    """Validate an agent-authored IntentBundle and optionally compile it locally.
+
+    With ``fix`` (the default) the lossless fixes of :func:`apply_lossless_fixes` run first and are
+    reported in ``result.fixes``; the validated document is ``result.document``. With ``fix=False``
+    the same problems surface as issues. Lossy problems are never fixed either way.
+    """
     data, issues = _coerce_payload(payload)
     if data is None:
         return AgentValidationResult(valid=False, bundle=None, issues=issues)
 
+    fixes: list[AgentFix] = []
+    if fix:
+        data, fixes = apply_lossless_fixes(data)
     issues.extend(_validate_intent_bundle_shape(data))
     if issues:
-        return AgentValidationResult(valid=False, bundle=None, issues=issues)
+        return AgentValidationResult(valid=False, bundle=None, issues=issues, fixes=fixes, document=data)
 
     try:
         bundle = IntentBundle.from_json(data)
@@ -504,7 +703,7 @@ def validate_agent_intent_bundle(
                 "Regenerate the full IntentBundle using the published JSON schema.",
             )
         )
-        return AgentValidationResult(valid=False, bundle=None, issues=issues)
+        return AgentValidationResult(valid=False, bundle=None, issues=issues, fixes=fixes, document=data)
 
     if require_reference_compiler_support:
         try:
@@ -541,28 +740,187 @@ def validate_agent_intent_bundle(
                     )
                 )
 
-    return AgentValidationResult(valid=not issues, bundle=bundle if not issues else None, issues=issues)
+    return AgentValidationResult(
+        valid=not issues,
+        bundle=bundle if not issues else None,
+        issues=issues,
+        fixes=fixes,
+        document=data,
+    )
 
 
 def agent_correction_prompt(result: AgentValidationResult) -> str:
-    """Return a compact correction prompt for an agent repair loop."""
+    """Return a compact correction prompt for an agent repair loop.
+
+    The report lists only the issues that remain after the lossless fixes, and names those fixes
+    under ``applied_fixes`` so that the agent does not redo them.
+    """
     shown_issues = [issue.to_json() for issue in result.issues[:MAX_AGENT_CORRECTION_PROMPT_ISSUES]]
+    shown_fixes = [{"code": fix.code, "path": fix.path} for fix in result.fixes[:MAX_AGENT_CORRECTION_PROMPT_ISSUES]]
     report = {
         "issue_count": len(result.issues),
         "shown_issue_count": len(shown_issues),
         "truncated": len(result.issues) > len(shown_issues),
         "issue_codes": sorted({issue.code for issue in result.issues}),
         "affected_paths": _bounded_issue_paths(result.issues),
+        "applied_fix_count": len(result.fixes),
+        "applied_fixes": shown_fixes,
         "repair_mode": "regenerate_full_intent_bundle",
         "retry_command": "viewspec check viewspec.intent.json --json",
+        "patch_command": "viewspec check viewspec.intent.json --patch OPS.json --json",
         "repair_checklist": agent_repair_checklist(result),
         "issues": shown_issues,
     }
+    applied = (
+        "Lossless fixes listed under applied_fixes are already applied; fix only the remaining issues. "
+        if result.fixes
+        else ""
+    )
     return (
         "Regenerate the full ViewSpec IntentBundle JSON. Output strict JSON only. "
-        "Do not patch fragments. Fix this bounded validation report:\n"
+        f"Do not patch fragments. {applied}Fix this bounded validation report:\n"
         f"{json.dumps(report, separators=(',', ':'), sort_keys=True)}"
     )
+
+
+def classify_issue_code(code: str) -> str:
+    """Return ``lossless_fixable`` or ``lossy`` for an issue code; an unknown code is lossy."""
+    return ISSUE_CODE_CLASSIFICATION.get(code, LOSSY_ISSUE)
+
+
+def apply_lossless_fixes(payload: Mapping[str, Any]) -> tuple[dict[str, Any], list[AgentFix]]:
+    """Return a deep copy of ``payload`` with every lossless fix applied, and the fixes in order.
+
+    A fix is lossless when it cannot change what the compiler emits for a document the compiler
+    accepts: it adds a value the contract already implies (``schema_version`` 1, an empty ``slots``
+    or ``edges`` map, ``""`` for the root region's parent), moves a field to the one position where
+    it is legal, or spells a ``present_as`` alias canonically. Nothing is added to, removed from, or
+    re-targeted in the semantic graph, the bindings, the members, the styles, or the actions.
+
+    The function is pure and idempotent: ``apply_lossless_fixes(fixed)`` returns ``fixed`` and no
+    fixes. The same input always yields the same output and the same fix list.
+    """
+    document: dict[str, Any] = deepcopy(dict(payload))
+    fixes: list[AgentFix] = []
+    _relocate_misplaced_fields(document, fixes)
+    _add_schema_version(document, fixes)
+    substrate = document.get("substrate")
+    if isinstance(substrate, dict):
+        _add_empty_relations(substrate, fixes)
+    view_spec = document.get("view_spec")
+    if isinstance(view_spec, dict):
+        _set_root_parent_region(view_spec, fixes)
+        _canonicalize_present_as(view_spec, fixes)
+    return document, fixes
+
+
+def _relocate_misplaced_fields(document: dict[str, Any], fixes: list[AgentFix]) -> None:
+    substrate = document.get("substrate")
+    view_spec = document.get("view_spec")
+    for key in [key for key in document if key not in ROOT_ALLOWED_FIELDS]:
+        if key in SUBSTRATE_ONLY_FIELDS and isinstance(substrate, dict) and key not in substrate:
+            substrate[key] = document.pop(key)
+            fixes.append(_relocation_fix(key, "$", "$.substrate"))
+        elif key in VIEW_SPEC_ONLY_FIELDS and isinstance(view_spec, dict) and key not in view_spec:
+            view_spec[key] = document.pop(key)
+            fixes.append(_relocation_fix(key, "$", "$.view_spec"))
+    for container_name, allowed in (("substrate", SUBSTRATE_ALLOWED_FIELDS), ("view_spec", VIEW_SPEC_ALLOWED_FIELDS)):
+        container = document.get(container_name)
+        if not isinstance(container, dict):
+            continue
+        for key in [key for key in container if key not in allowed]:
+            if key in ROOT_ONLY_FIELDS and key not in document:
+                document[key] = container.pop(key)
+                fixes.append(_relocation_fix(key, f"$.{container_name}", "$"))
+
+
+def _relocation_fix(key: str, source: str, destination: str) -> AgentFix:
+    return AgentFix(
+        FIX_FIELD_RELOCATED,
+        f"{destination}.{key}" if destination != "$" else f"$.{key}",
+        f"Moved {key} from {source} to {destination}, its only legal position.",
+    )
+
+
+def _add_schema_version(document: dict[str, Any], fixes: list[AgentFix]) -> None:
+    if "schema_version" in document:
+        return
+    if not (isinstance(document.get("substrate"), dict) and isinstance(document.get("view_spec"), dict)):
+        return
+    document["schema_version"] = INTENT_BUNDLE_SCHEMA_VERSION
+    fixes.append(
+        AgentFix(
+            FIX_SCHEMA_VERSION_ADDED,
+            "$.schema_version",
+            f"Added schema_version {INTENT_BUNDLE_SCHEMA_VERSION}; a document without it is schema version "
+            f"{INTENT_BUNDLE_SCHEMA_VERSION} already.",
+        )
+    )
+
+
+def _add_empty_relations(substrate: dict[str, Any], fixes: list[AgentFix]) -> None:
+    nodes = substrate.get("nodes")
+    if not isinstance(nodes, dict):
+        return
+    for node_key, node in nodes.items():
+        if not isinstance(node, dict):
+            continue
+        for relation in ("slots", "edges"):
+            if relation not in node:
+                node[relation] = {}
+                fixes.append(
+                    AgentFix(
+                        FIX_EMPTY_RELATIONS_ADDED,
+                        f"$.substrate.nodes.{node_key}.{relation}",
+                        f"Added an empty {relation} map to substrate node {node_key}; a node without {relation} "
+                        f"has none.",
+                    )
+                )
+
+
+def _set_root_parent_region(view_spec: dict[str, Any], fixes: list[AgentFix]) -> None:
+    root_region = view_spec.get("root_region")
+    regions = view_spec.get("regions")
+    if not isinstance(root_region, str) or not root_region or not isinstance(regions, list):
+        return
+    matches = [
+        index for index, region in enumerate(regions) if isinstance(region, dict) and region.get("id") == root_region
+    ]
+    if len(matches) != 1:
+        return
+    index = matches[0]
+    region = regions[index]
+    if region.get("parent_region") is not None:
+        return
+    was = "null" if "parent_region" in region else "missing"
+    region["parent_region"] = ""
+    fixes.append(
+        AgentFix(
+            FIX_ROOT_PARENT_REGION_SET,
+            f"$.view_spec.regions[{index}].parent_region",
+            f'Set root region {root_region} parent_region to "" (it was {was}); the root region has no parent.',
+        )
+    )
+
+
+def _canonicalize_present_as(view_spec: dict[str, Any], fixes: list[AgentFix]) -> None:
+    bindings = view_spec.get("bindings")
+    if not isinstance(bindings, list):
+        return
+    for index, binding in enumerate(bindings):
+        if not isinstance(binding, dict):
+            continue
+        present_as = binding.get("present_as")
+        if isinstance(present_as, str) and present_as in PRESENT_AS_ALIASES:
+            canonical = PRESENT_AS_ALIASES[present_as]
+            binding["present_as"] = canonical
+            fixes.append(
+                AgentFix(
+                    FIX_PRESENT_AS_ALIAS,
+                    f"$.view_spec.bindings[{index}].present_as",
+                    f"Replaced present_as alias {present_as} with its canonical value {canonical}.",
+                )
+            )
 
 
 def _bounded_issue_paths(issues: list[AgentValidationIssue]) -> list[str]:

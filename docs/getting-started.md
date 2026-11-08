@@ -241,6 +241,37 @@ with `"ok": false` and `errors: [{code, message, fix}]`. An invalid IntentBundle
 also carries `validation` and `correction_prompt`, and a DESIGN.md error lists its findings under
 `diagnostics`.
 
+For an IntentBundle, `check` and `compile` apply lossless fixes before validation and report them
+under `fixes`, in the report and in the compile envelope. Each fix is `{code, path, message, lossy}`
+with `lossy` always `false`: ViewSpec never fixes a lossy problem. A document that needs no fix
+reports `"fixes": []`; one that needed a fix lists it:
+
+```json
+{
+  "schema_version": 1,
+  "ok": true,
+  "compile_check": "passed",
+  "issues": [],
+  "fixes": [{"code": "FIX_EMPTY_RELATIONS_ADDED", "path": "$.substrate.nodes.revenue.slots", "message": "Added an empty slots map to substrate node revenue; a node without slots has none.", "lossy": false}],
+  "repair_checklist": [],
+  "correction_prompt": null
+}
+```
+
+`--no-fix` reports the same problems as issues. `--fixed-out PATH` writes the fixed source.
+`--patch OPS.json` applies an RFC 6902 JSON Patch to the source in memory before validation, and
+`--patched-out PATH` writes the patched source; `compile` then compiles the patched document. A
+patch may target only an IntentBundle source file. A patch that does not apply is reported as one
+issue with a `PATCH_*` code and exit `2`:
+
+```bash
+viewspec check viewspec.intent.json --patch ops.json --patched-out viewspec.intent.json --json
+viewspec compile viewspec.intent.json --patch ops.json --fixed-out viewspec.intent.json --out dist/ --json
+```
+
+Human mode prints each fix as a `fix: CODE at PATH: message` line: after the verdict for `check`,
+and on stderr for `compile`, whose stdout stays the paths mapping.
+
 Exit codes match human mode: `0` on success; `2` for invalid input, including a missing input file,
 invalid JSON, an invalid IntentBundle or DESIGN.md, and an existing output without `--force`; and
 `1` for an internal error. Some invalid paths exit `1` as well: a directory where a file is expected

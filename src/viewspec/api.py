@@ -26,7 +26,7 @@ from viewspec.app_shell import APP_SHELL_INDEX, APP_SHELL_MANIFEST
 from viewspec.compiler import compile as compile_intent
 from viewspec.design_md import DesignSystemContext
 from viewspec.html_verify import HTML_VERIFY_TARGETS, html_artifact_target, load_mcp_render
-from viewspec.intent_tools import intent_error_payload, validate_intent_file
+from viewspec.intent_tools import check_intent_source
 from viewspec.local_tools import MCP_APP_TARGET, check_artifact_dir, file_hash, resolve_cwd
 from viewspec.local_tools_response import ProveFailure
 from viewspec.local_verify import verify_local_artifact
@@ -111,13 +111,15 @@ def compile(
         )
 
 
-def check(path: str | Path, *, compile_check: bool = True) -> dict[str, Any]:
+def check(path: str | Path, *, compile_check: bool = True, fix: bool = True) -> dict[str, Any]:
     """Run the fast local checks on a source file or a compiled artifact directory.
 
     A directory gets the provenance and security checks. A compiled AppBundle gets them screen by
     screen, and its other files are compared with the hashes in its manifest. A JSON file gets the
     contract checks for its bundle kind. ``report["ok"]`` carries the verdict; read failures are
-    reported, not raised.
+    reported, not raised. For an IntentBundle, ``fix`` applies the lossless fixes before validation
+    and reports them under ``fixes``; ``fix=False`` reports the same problems as issues. An AppBundle
+    is never fixed.
     """
     target = Path(path)
     if target.is_dir():
@@ -126,7 +128,7 @@ def check(path: str | Path, *, compile_check: bool = True) -> dict[str, Any]:
         return _check_app_artifact(target)
     if source_kind(target) == "app_bundle":
         return _check_app(target, compile_check)
-    return _check_intent(target, compile_check)
+    return check_intent_source(target, compile_check=compile_check, fix=fix)
 
 
 def prove(
@@ -271,25 +273,6 @@ def _app_file_errors(root: Path) -> list[str]:
         ]
     except (OSError, ValueError, KeyError, TypeError) as exc:
         return [f"could not verify the compiled files: {exc!r}"]
-
-
-def _check_intent(path: Path, compile_check: bool) -> dict[str, Any]:
-    try:
-        return validate_intent_file(path, compile_check=compile_check)
-    except FileNotFoundError:
-        return intent_error_payload(
-            "INTENT_FILE_NOT_FOUND",
-            f"Intent file not found: {path}",
-            "Create viewspec.intent.json or pass the correct intent file path.",
-            compile_check=compile_check,
-        )
-    except OSError as exc:
-        return intent_error_payload(
-            "INTENT_FILE_READ_ERROR",
-            f"Could not read intent file {path}: {exc}",
-            "Use a readable local IntentBundle JSON file.",
-            compile_check=compile_check,
-        )
 
 
 def _check_app(path: Path, compile_check: bool) -> dict[str, Any]:

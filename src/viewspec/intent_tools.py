@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from viewspec._canonical import canonical_json_utf8
 from viewspec._version import __version__
 from viewspec.agent import (
+    MAX_AGENT_INTENT_BYTES,
     SUPPORTED_AGENT_MOTIFS,
     AgentValidationIssue,
     AgentValidationResult,
+    _strict_json_loads,
     agent_correction_prompt,
     agent_repair_checklist,
     validate_agent_intent_bundle,
@@ -25,9 +29,11 @@ from viewspec.emitters.react_tailwind_tsx import (
     tailwind_recipe_registry_digest,
 )
 from viewspec.emitters.react_tsx import ReactTsxEmitter
+from viewspec.json_patch import MAX_JSON_PATCH_OPERATIONS, JsonPatchError, apply_json_patch
 from viewspec.local_tools import (
     INTENT_BUNDLE_POLICY_VERSION,
     MCP_APP_TARGET,
+    LocalToolError,
     atomic_write,
     build_intent_semantic_digest,
     check_artifact_dir,
@@ -51,6 +57,25 @@ BUNDLE_POLICY_VERSION = INTENT_BUNDLE_POLICY_VERSION
 INTENT_RESULT_SCHEMA_VERSION = 1
 INTENT_COMPILE_TARGETS = ("html-tailwind", "react-tsx", "react-tailwind-tsx")
 STARTER_INTENT_KINDS = tuple(SUPPORTED_AGENT_MOTIFS)
+# A patch document is bounded like the source it edits: a larger patch cannot produce a source
+# within the cap without removing what it adds.
+MAX_INTENT_PATCH_BYTES = MAX_AGENT_INTENT_BYTES
+MAX_INTENT_PATCH_OPERATIONS = MAX_JSON_PATCH_OPERATIONS
+PATCH_REPAIR_SUGGESTION = (
+    "Fix the JSON Patch document, or regenerate the full IntentBundle; the source file is unchanged."
+)
+
+
+class IntentPatchError(LocalToolError):
+    """A JSON Patch that could not be read or applied to an IntentBundle source.
+
+    ``path`` locates the failure for the issue list: ``patch`` for the document as a whole and
+    ``patch[<index>]`` for one operation.
+    """
+
+    def __init__(self, code: str, message: str, fix: str = PATCH_REPAIR_SUGGESTION, *, path: str = "patch") -> None:
+        super().__init__(code, message, fix)
+        self.path = path
 
 
 def starter_intent_bundle(kind: str = "dashboard") -> IntentBundle:
@@ -158,14 +183,14 @@ def init_intent_file(
     return output
 
 
-def validate_intent_text(text: str, *, compile_check: bool = True) -> dict[str, Any]:
-    result = validate_agent_intent_bundle(text, require_reference_compiler_support=compile_check)
-    return intent_validation_payload(result, compile_check=compile_check)
+def validate_intent_text(text: str, *, compile_check: bool = True, fix: bool = True) -> dict[str, Any]:
+    """Validate IntentBundle JSON text; ``fix`` applies the lossless fixes first and reports them."""
+    return prepare_intent_source(text, compile_check=compile_check, fix=fix).validation
 
 
-def validate_intent_file(path: str | Path, *, compile_check: bool = True) -> dict[str, Any]:
+def validate_intent_file(path: str | Path, *, compile_check: bool = True, fix: bool = True) -> dict[str, Any]:
     text = Path(path).read_text(encoding="utf-8")
-    return validate_intent_text(text, compile_check=compile_check)
+    return validate_intent_text(text, compile_check=compile_check, fix=fix)
 
 
 def intent_validation_payload(result: AgentValidationResult, *, compile_check: bool) -> dict[str, Any]:
@@ -180,9 +205,183 @@ def intent_validation_payload(result: AgentValidationResult, *, compile_check: b
         "ok": result.valid,
         "compile_check": compile_status,
         "issues": [issue.to_json() for issue in result.issues],
+        "fixes": [fix.to_json() for fix in result.fixes],
         "repair_checklist": [] if result.valid else agent_repair_checklist(result),
         "correction_prompt": None if result.valid else agent_correction_prompt(result),
     }
+
+
+@dataclass(frozen=True)
+class IntentSourcePreparation:
+    """An IntentBundle source after the optional patch and the validation that followed.
+
+    ``text`` is the source that was validated: the patched text when ``patched`` is True, else the
+    input. ``result.document`` is that source after the lossless fixes, and ``result.bundle`` is the
+    bundle to compile when ``validation["ok"]``.
+    """
+
+    text: str
+    result: AgentValidationResult
+    validation: dict[str, Any]
+    patched: bool
+
+
+def prepare_intent_source(
+    text: str,
+    *,
+    compile_check: bool = True,
+    fix: bool = True,
+    patch: Sequence[Any] | None = None,
+) -> IntentSourcePreparation:
+    """Apply ``patch`` to the source in memory, then validate it with the lossless fixes.
+
+    A patch that cannot be applied is reported as one ``PATCH_*`` issue and the source is not
+    validated further. A source that is not JSON is validated as it stands, so the report names the
+    JSON problem rather than a patch failure.
+    """
+    patched = False
+    if patch is not None:
+        try:
+            document: Any = _strict_json_loads(text)
+        except (ValueError, RecursionError):
+            document = None
+        if document is not None:
+            try:
+                text = apply_intent_patch(document, patch)
+            except IntentPatchError as exc:
+                issue = AgentValidationIssue("error", exc.code, exc.path, exc.message, exc.fix)
+                result = AgentValidationResult(valid=False, bundle=None, issues=[issue])
+                return IntentSourcePreparation(
+                    text, result, intent_validation_payload(result, compile_check=compile_check), False
+                )
+            patched = True
+    result = validate_agent_intent_bundle(text, require_reference_compiler_support=compile_check, fix=fix)
+    return IntentSourcePreparation(
+        text, result, intent_validation_payload(result, compile_check=compile_check), patched
+    )
+
+
+def load_intent_patch(path: str | Path) -> list[Any]:
+    """Read an RFC 6902 patch document from a JSON file; the operations are checked when applied."""
+    source = Path(path)
+    try:
+        raw = source.read_bytes()
+    except FileNotFoundError as exc:
+        raise IntentPatchError("PATCH_INVALID", f"Patch file not found: {source}") from exc
+    except OSError as exc:
+        raise IntentPatchError("PATCH_INVALID", f"Could not read patch file {source}: {exc}") from exc
+    if len(raw) > MAX_INTENT_PATCH_BYTES:
+        raise IntentPatchError(
+            "PATCH_INVALID", f"Patch file is {len(raw)} bytes; the limit is {MAX_INTENT_PATCH_BYTES} bytes."
+        )
+    try:
+        operations = _strict_json_loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+        raise IntentPatchError("PATCH_INVALID", f"Patch file is not strict JSON: {exc}") from exc
+    if not isinstance(operations, list):
+        raise IntentPatchError("PATCH_INVALID", "A JSON Patch document must be an array of operation objects.")
+    return operations
+
+
+def apply_intent_patch(document: Any, operations: Sequence[Any]) -> str:
+    """Apply ``operations`` to a parsed IntentBundle source and return the patched source text.
+
+    The text is the form ``--patched-out`` writes: two-space indentation and the author's key
+    order, with new keys at the end of their object. It must fit the IntentBundle byte cap.
+    """
+    try:
+        patched = apply_json_patch(document, list(operations), max_operations=MAX_INTENT_PATCH_OPERATIONS)
+    except JsonPatchError as exc:
+        path = "patch" if exc.index is None else f"patch[{exc.index}]"
+        raise IntentPatchError(exc.code, exc.message, path=path) from exc
+    try:
+        text = json.dumps(patched, indent=2, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise IntentPatchError("PATCH_INVALID", f"The patched document is not JSON: {exc}") from exc
+    size = len(text.encode("utf-8"))
+    if size > MAX_AGENT_INTENT_BYTES:
+        raise IntentPatchError(
+            "PATCH_RESULT_TOO_LARGE",
+            f"The patched IntentBundle is {size} bytes; the v1 local limit is {MAX_AGENT_INTENT_BYTES} bytes.",
+            "Split the UI into smaller IntentBundles, or remove content in the same patch.",
+        )
+    return text
+
+
+def fixed_intent_source_text(result: AgentValidationResult) -> str | None:
+    """The validated document after lossless fixes, in the form ``--fixed-out`` writes."""
+    if result.document is None:
+        return None
+    return json.dumps(result.document, indent=2, allow_nan=False)
+
+
+def patch_target_problem(path: Path) -> str | None:
+    """Why ``path`` may not be patched, or None: a patch targets an IntentBundle source file only."""
+    if path.is_dir():
+        return f"{path} is a directory; a patch applies to an IntentBundle source file, never to compiled output."
+    if path.suffix.lower() != ".json":
+        return f"{path} is not a JSON source file; a patch applies to an IntentBundle source file."
+    from viewspec.api import source_kind
+
+    if source_kind(path) == "app_bundle":
+        return f"{path} is an AppBundle; a patch applies to an IntentBundle source file."
+    return None
+
+
+def check_intent_source(
+    path: str | Path,
+    *,
+    compile_check: bool = True,
+    fix: bool = True,
+    patch: Sequence[Any] | None = None,
+    patched_out: str | Path | None = None,
+    fixed_out: str | Path | None = None,
+) -> dict[str, Any]:
+    """The ``check`` report for an IntentBundle file, with the optional patch and output files.
+
+    Read failures are reported as issues, not raised. ``patch`` applies to the source in memory; the
+    file itself is never changed. ``patched_out`` receives the patched source once the patch applied,
+    and ``fixed_out`` receives the validated document after the lossless fixes whenever the source
+    parsed as a JSON object; the report names each written file under ``patched_out`` and
+    ``fixed_out``.
+    """
+    source = Path(path)
+    if patch is not None:
+        problem = patch_target_problem(source)
+        if problem is not None:
+            return intent_error_payload(
+                "PATCH_TARGET_FORBIDDEN",
+                problem,
+                "Pass the IntentBundle .json file that the compiled output came from.",
+                compile_check=compile_check,
+                path="patch",
+            )
+    try:
+        text = source.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return intent_error_payload(
+            "INTENT_FILE_NOT_FOUND",
+            f"Intent file not found: {source}",
+            "Create viewspec.intent.json or pass the correct intent file path.",
+            compile_check=compile_check,
+        )
+    except OSError as exc:
+        return intent_error_payload(
+            "INTENT_FILE_READ_ERROR",
+            f"Could not read intent file {source}: {exc}",
+            "Use a readable local IntentBundle JSON file.",
+            compile_check=compile_check,
+        )
+    prepared = prepare_intent_source(text, compile_check=compile_check, fix=fix, patch=patch)
+    payload = dict(prepared.validation)
+    if prepared.patched and patched_out is not None:
+        atomic_write(Path(patched_out), prepared.text)
+        payload["patched_out"] = str(patched_out)
+    fixed_text = fixed_intent_source_text(prepared.result)
+    if fixed_out is not None and fixed_text is not None:
+        atomic_write(Path(fixed_out), fixed_text)
+        payload["fixed_out"] = str(fixed_out)
+    return payload
 
 
 def intent_error_payload(
@@ -260,7 +459,18 @@ def compile_intent_bundle_file_tool(
     ir_props_overlay: dict[str, dict[str, Any]] | None = None,
     uri: str | None = None,
     action_tools: dict[str, str] | None = None,
+    fix: bool = True,
+    patch_path: str | Path | None = None,
+    patched_out: str | Path | None = None,
+    fixed_out: str | Path | None = None,
 ) -> dict[str, Any]:
+    """Compile an IntentBundle file into ``out_dir`` and check the artifact; a tool envelope report.
+
+    ``fix`` applies the lossless fixes before validation and compiles the fixed document; the fixes
+    are reported under ``fixes``. ``patch_path`` names an RFC 6902 patch file applied to the source
+    in memory first. ``patched_out`` and ``fixed_out`` write those documents and are reported under
+    ``paths``.
+    """
     root: Path | None = None
     try:
         root = resolve_cwd(cwd)
@@ -288,7 +498,20 @@ def compile_intent_bundle_file_tool(
         else:
             ensure_no_input_overwrite(source, output, ("index.html", "provenance_manifest.json", "diagnostics.json"))
         text = source.read_text(encoding="utf-8")
-        validation = validate_intent_text(text, compile_check=True)
+        patch: list[Any] | None = None
+        if patch_path is not None:
+            problem = patch_target_problem(source)
+            if problem is not None:
+                raise IntentPatchError(
+                    "PATCH_TARGET_FORBIDDEN",
+                    problem,
+                    "Pass the IntentBundle .json file that the compiled output came from.",
+                )
+            patch = load_intent_patch(
+                resolve_local_path(patch_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
+            )
+        prepared = prepare_intent_source(text, compile_check=True, fix=fix, patch=patch)
+        validation = prepared.validation
         if not validation["ok"]:
             return tool_error_response(
                 "COMPILE_FAILED",
@@ -302,7 +525,11 @@ def compile_intent_bundle_file_tool(
                     }
                     for issue in validation["issues"]
                 ],
-                data={"validation": validation, "correction_prompt": validation["correction_prompt"]},
+                data={
+                    "validation": validation,
+                    "correction_prompt": validation["correction_prompt"],
+                    "fixes": validation["fixes"],
+                },
                 metadata={
                     "cwd": str(root),
                     "allow_outside_cwd": allow_outside_cwd,
@@ -311,7 +538,20 @@ def compile_intent_bundle_file_tool(
                 },
             )
         design = _load_optional_design(design_path, cwd=root, allow_outside_cwd=allow_outside_cwd, strict=strict_design)
-        bundle = IntentBundle.from_json(json.loads(text))
+        bundle = prepared.result.bundle
+        if bundle is None:  # pragma: no cover - a valid result always carries its bundle
+            raise ValueError("IntentBundle validation passed without a bundle.")
+        text = prepared.text
+        extra_paths: dict[str, str] = {}
+        if prepared.patched and patched_out is not None:
+            written = resolve_local_path(patched_out, cwd=root, allow_outside_cwd=allow_outside_cwd)
+            atomic_write(written, prepared.text)
+            extra_paths["patched_out"] = str(written)
+        fixed_text = fixed_intent_source_text(prepared.result)
+        if fixed_out is not None and fixed_text is not None:
+            written = resolve_local_path(fixed_out, cwd=root, allow_outside_cwd=allow_outside_cwd)
+            atomic_write(written, fixed_text)
+            extra_paths["fixed_out"] = str(written)
         ast = compile(bundle, design=design, strict_design=strict_design)
         if ir_props_overlay:
             unresolved = _apply_ir_props_overlay(ast.result.root.root, ir_props_overlay)
@@ -371,12 +611,17 @@ def compile_intent_bundle_file_tool(
             raw_source_hash=source_hash(text),
             design=design,
             command_args=_compile_command_args(
-                source.name, design_path=design_path, strict_design=strict_design, target=target
+                source.name,
+                design_path=design_path,
+                strict_design=strict_design,
+                target=target,
+                patch_name=Path(patch_path).name if patch_path is not None else None,
             ),
             artifact_path=artifact_path,
             emitter=emitter,
             target=MCP_APP_TARGET if target == MCP_APP_TARGET else None,
         )
+        paths.update(extra_paths)
         manifest_summary = summarize_intent_manifest(Path(paths["manifest"]))
         metadata = {
             "cwd": str(root),
@@ -416,6 +661,7 @@ def compile_intent_bundle_file_tool(
                 else "Review dist/index.html and provenance_manifest.json."
             ],
             metadata={**metadata, "artifact_check": "passed"},
+            data={"fixes": validation["fixes"]},
         )
     except Exception as exc:
         return exception_response(
@@ -527,7 +773,10 @@ def _compile_command_args(
     design_path: str | Path | None,
     strict_design: bool,
     target: str = "html-tailwind",
+    patch_name: str | None = None,
 ) -> list[str]:
+    # --patch changes the compiled source, so it is recorded; --no-fix only changes validation and
+    # never the compiled bytes, so it is not, and AppBundle screen manifests stay byte-identical.
     command = ["viewspec", "compile", source_name]
     if design_path is not None:
         command.extend(["--design", Path(design_path).name])
@@ -535,6 +784,8 @@ def _compile_command_args(
         command.append("--strict-design")
     if target != "html-tailwind":
         command.extend(["--target", target])
+    if patch_name is not None:
+        command.extend(["--patch", patch_name])
     command.extend(["--out", "<out>"])
     return command
 
@@ -559,11 +810,21 @@ _stable_json = canonical_json_utf8
 __all__ = [
     "BUNDLE_POLICY_VERSION",
     "INTENT_RESULT_SCHEMA_VERSION",
+    "MAX_INTENT_PATCH_BYTES",
+    "MAX_INTENT_PATCH_OPERATIONS",
     "STARTER_INTENT_KINDS",
+    "IntentPatchError",
+    "IntentSourcePreparation",
+    "apply_intent_patch",
+    "check_intent_source",
     "compile_intent_bundle_file_tool",
+    "fixed_intent_source_text",
     "init_intent_file",
     "intent_error_payload",
     "intent_validation_payload",
+    "load_intent_patch",
+    "patch_target_problem",
+    "prepare_intent_source",
     "starter_intent_bundle",
     "summarize_intent_manifest",
     "validate_intent_file",

@@ -1,4 +1,4 @@
-"""`viewspec mcp`: five tools over stdio, confined to one workspace."""
+"""`viewspec mcp`: six tools over stdio, confined to one workspace."""
 
 from __future__ import annotations
 
@@ -28,7 +28,11 @@ from viewspec.error_codes import ERROR_CODES
 from viewspec.mcp_server import ViewSpecTools
 
 ROOT = Path(__file__).resolve().parents[1]
-TOOL_NAMES = {"init", "compile", "check", "prove", "studio"}
+TOOL_NAMES = {"init", "compile", "check", "patch", "prove", "studio"}
+RENAME_TITLE = [
+    {"op": "test", "path": "/substrate/nodes/starter_dashboard/attrs/title", "value": "Starter Dashboard"},
+    {"op": "replace", "path": "/substrate/nodes/starter_dashboard/attrs/title", "value": "Patched Dashboard"},
+]
 
 
 @pytest.fixture
@@ -98,6 +102,86 @@ def test_check_reports_a_correction_prompt_for_an_invalid_source(tools, tmp_path
 
     assert report["ok"] is False
     assert report["correction_prompt"]
+    assert report["fixes"] == []
+
+
+def test_check_applies_lossless_fixes_and_check_fix_false_reports_them_as_issues(tools, tmp_path) -> None:
+    tools.init()
+    source = tmp_path / "viewspec.intent.json"
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    del payload["substrate"]["nodes"]["starter_dashboard"]["edges"]
+    source.write_text(json.dumps(payload), encoding="utf-8")
+
+    fixed = tools.check("viewspec.intent.json")
+    unfixed = tools.check("viewspec.intent.json", fix=False)
+
+    assert fixed["ok"] is True
+    assert [fix["code"] for fix in fixed["fixes"]] == ["FIX_EMPTY_RELATIONS_ADDED"]
+    assert unfixed["ok"] is False
+    assert unfixed["fixes"] == []
+    assert [issue["code"] for issue in unfixed["issues"]] == ["MISSING_FIELD"]
+
+
+# patch ----------------------------------------------------------------------------------------
+
+
+def test_patch_checks_the_patched_source_in_memory_and_writes_it_on_request(tools, tmp_path) -> None:
+    tools.init()
+    source = tmp_path / "viewspec.intent.json"
+    before = source.read_bytes()
+
+    checked = tools.patch("viewspec.intent.json", RENAME_TITLE)
+    written = tools.patch("viewspec.intent.json", RENAME_TITLE, out="patched.intent.json")
+
+    assert checked["ok"] is True
+    assert checked["fixes"] == []
+    assert "patched_out" not in checked
+    assert source.read_bytes() == before
+    assert written["ok"] is True
+    assert written["patched_out"] == str(tmp_path / "patched.intent.json")
+    patched = json.loads((tmp_path / "patched.intent.json").read_text(encoding="utf-8"))
+    assert patched["substrate"]["nodes"]["starter_dashboard"]["attrs"]["title"] == "Patched Dashboard"
+    assert tools.check("patched.intent.json")["ok"] is True
+
+
+def test_patch_reports_a_failed_operation_as_an_issue_and_writes_nothing(tools, tmp_path) -> None:
+    tools.init()
+
+    report = tools.patch("viewspec.intent.json", [{"op": "remove", "path": "/view_spec/nope"}], out="patched.json")
+
+    assert report["ok"] is False
+    assert [(issue["code"], issue["path"]) for issue in report["issues"]] == [("PATCH_APPLY_FAILED", "patch[0]")]
+    assert "PATCH_APPLY_FAILED" in ERROR_CODES
+    assert report["correction_prompt"]
+    assert not (tmp_path / "patched.json").exists()
+
+
+def test_patch_leaves_a_lossy_problem_for_the_agent_but_applies_the_lossless_fixes(tools, tmp_path) -> None:
+    tools.init()
+    source = tmp_path / "viewspec.intent.json"
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    del payload["schema_version"]
+    source.write_text(json.dumps(payload), encoding="utf-8")
+
+    report = tools.patch(
+        "viewspec.intent.json", [{"op": "replace", "path": "/view_spec/bindings/0/present_as", "value": "chart"}]
+    )
+
+    assert report["ok"] is False
+    assert [fix["code"] for fix in report["fixes"]] == ["FIX_SCHEMA_VERSION_ADDED"]
+    assert [issue["code"] for issue in report["issues"]] == ["UNKNOWN_PRESENT_AS"]
+
+
+def test_patch_refuses_compiled_output_and_app_bundles(tools, tmp_path) -> None:
+    tools.init()
+    tools.init(what="app")
+    assert tools.compile("viewspec.intent.json", "dist")["ok"] is True
+
+    for target in ("dist", "viewspec.app.json", "dist/index.html"):
+        report = tools.patch(target, RENAME_TITLE)
+        assert report["ok"] is False, target
+        assert [issue["code"] for issue in report["issues"]] == ["PATCH_TARGET_FORBIDDEN"], target
+    assert (tmp_path / "dist" / "index.html").is_file()
 
 
 def test_compile_reports_an_unknown_target_instead_of_raising(tools) -> None:
@@ -245,6 +329,10 @@ def jailed(tmp_path) -> Iterator[ViewSpecTools]:
             lambda tools, escape: tools.compile("viewspec.intent.json", "d", design=f"{escape}/D.md"), id="design"
         ),
         pytest.param(lambda tools, escape: tools.check(f"{escape}/viewspec.intent.json"), id="check"),
+        pytest.param(lambda tools, escape: tools.patch(f"{escape}/viewspec.intent.json", []), id="patch_source"),
+        pytest.param(
+            lambda tools, escape: tools.patch("viewspec.intent.json", [], out=f"{escape}/patched.json"), id="patch_out"
+        ),
         pytest.param(lambda tools, escape: tools.prove(f"{escape}/viewspec.intent.json"), id="prove_source"),
         pytest.param(lambda tools, escape: tools.prove(out=escape), id="prove_out"),
         pytest.param(lambda tools, escape: tools.studio(f"{escape}/viewspec.intent.json"), id="studio"),
@@ -603,7 +691,7 @@ def workspace(tmp_path) -> Path:
 
 
 @pytest.mark.parametrize("extra_args", [(), ("--json",)], ids=["default", "json"])
-def test_real_server_lists_exactly_the_five_tools(workspace, extra_args) -> None:
+def test_real_server_lists_exactly_the_six_tools(workspace, extra_args) -> None:
     client = _StdioClient(workspace, *extra_args)
     try:
         initialized = client.initialize()
@@ -618,6 +706,8 @@ def test_real_server_lists_exactly_the_five_tools(workspace, extra_args) -> None
         assert "self" not in schemas["check"]["properties"]
         assert schemas["check"]["required"] == ["path"]
         assert schemas["compile"]["required"] == ["source", "out"]
+        assert schemas["patch"]["required"] == ["source", "operations"]
+        assert schemas["patch"]["properties"]["operations"]["type"] == "array"
 
         assert client.process.stdin is not None
         client.process.stdin.close()
@@ -636,12 +726,23 @@ def test_real_server_runs_the_tools_and_reports_the_sandbox(workspace, tmp_path)
         client.initialize()
 
         assert client.call("init")["ok"] is True
-        assert client.call("check", path="viewspec.intent.json")["ok"] is True
+        checked = client.call("check", path="viewspec.intent.json")
+        assert checked["ok"] is True
+        assert checked["fixes"] == []
+        patched = client.call("patch", source="viewspec.intent.json", operations=RENAME_TITLE, out="patched.json")
+        assert patched["ok"] is True
+        assert patched["patched_out"] == str(workspace / "patched.json")
+        assert "Patched Dashboard" in (workspace / "patched.json").read_text(encoding="utf-8")
+        failed = client.call("patch", source="viewspec.intent.json", operations=[{"op": "remove", "path": "/nope"}])
+        assert failed["ok"] is False
+        assert failed["issues"][0]["code"] == "PATCH_APPLY_FAILED"
         assert client.call("compile", source="viewspec.intent.json", out="dist")["ok"] is True
         assert client.call("check", path="dist")["ok"] is True
         assert client.call("prove", source="viewspec.intent.json")["ok"] is True
 
         escaped = client.call("check", path="../server-escape.json")
+        assert escaped["errors"][0]["code"] == "PATH_OUTSIDE_CWD"
+        escaped = client.call("patch", source="../server-escape.json", operations=[])
         assert escaped["errors"][0]["code"] == "PATH_OUTSIDE_CWD"
     finally:
         client.close()

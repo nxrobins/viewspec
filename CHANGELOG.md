@@ -15,6 +15,36 @@ All notable changes to ViewSpec are documented in this file. The format follows
   Shift+click copies the value path, and Alt+I turns the inspector off and on.
   `GET /__viewspec/inspector.json` returns the map for the current build, and `?id=` returns one
   entry. The compiled files on disk do not change, and Studio still answers only on loopback.
+- `viewspec check` and `viewspec compile` apply lossless fixes to an IntentBundle before validation
+  and report each one under a new `fixes` key, as `{code, path, message, lossy: false}`, in JSON and
+  human output. The fixes add a missing `schema_version: 1`, add a missing empty `slots` or `edges`
+  map to a substrate node, set a missing or null root-region `parent_region` to `""`, move a field
+  placed one level too high or too low to its one legal position, and spell a `present_as` alias
+  canonically (`image`, `divider`, `separator`, `metric`, `number`, `tag`, `chip`, `text_input`,
+  `textbox`). Their codes are `FIX_SCHEMA_VERSION_ADDED`, `FIX_EMPTY_RELATIONS_ADDED`,
+  `FIX_ROOT_PARENT_REGION_SET`, `FIX_FIELD_RELOCATED`, and `FIX_PRESENT_AS_ALIAS`. When the fixed
+  document is valid, `ok` is true and `compile` compiles the fixed document. The compiled artifact
+  is the same as for a document written correctly, and the manifest still records the hash of the
+  source as written. Lossy problems are never fixed:
+  `viewspec.agent.ISSUE_CODE_CLASSIFICATION` maps every issue code to `lossless_fixable` or `lossy`.
+  `--no-fix` reports the fixable problems as issues instead, and `--fixed-out PATH` writes the fixed
+  source. `viewspec.check()` and `validate_agent_intent_bundle()` take `fix=`. AppBundle screens are
+  validated and compiled as written.
+- `viewspec check FILE --patch OPS.json` and `viewspec compile FILE --patch OPS.json` apply an RFC
+  6902 JSON Patch (`add`, `remove`, `replace`, `move`, `copy`, `test` over RFC 6901 pointers) to an
+  IntentBundle source in memory, then validate and compile as usual; `--patched-out PATH` writes the
+  patched source, and `compile` records `--patch` in the manifest's `command_args` and hashes the
+  patched text. A patch holds at most 256 operations and the result must stay under 256 KB. Failures
+  are issues with the codes `PATCH_INVALID`, `PATCH_APPLY_FAILED`, `PATCH_TEST_FAILED`,
+  `PATCH_TOO_MANY_OPERATIONS`, `PATCH_RESULT_TOO_LARGE`, and `PATCH_TARGET_FORBIDDEN` (a patch may
+  target only an IntentBundle source file, never a compiled directory, imported HTML, or an
+  AppBundle). The pure implementation is `viewspec.json_patch`, with no new dependency.
+- The MCP server has a sixth tool, `patch(source, operations, out=None, compile_check=True,
+  fix=True)`, which applies the operations to an IntentBundle file in memory and returns the `check`
+  report; `out` writes the patched source. The `check` tool takes `fix=`.
+- `correction_prompt` lists only the remaining issues and names the applied fixes under
+  `applied_fixes`, with a `patch_command` beside `retry_command`. `viewspec.agent.REPAIR_LOOP_PROMPT_SECTION`
+  holds prompt text for the repair loop.
 
 ## [0.4.0] - 2026-11-01
 

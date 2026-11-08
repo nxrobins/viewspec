@@ -48,11 +48,14 @@ Any other MCP client takes the same command:
 { "mcpServers": { "viewspec": { "command": "viewspec", "args": ["mcp"] } } }
 ```
 
+The server exposes six tools:
+
 | Tool | Does |
 |---|---|
 | `init` | Writes a starter `viewspec.intent.json`, `viewspec.app.json`, or `DESIGN.md`. |
-| `compile` | Compiles an IntentBundle or AppBundle file. The kind is detected from the file. |
-| `check` | Checks a source file or a compiled directory. A failed source includes `correction_prompt`. |
+| `compile` | Compiles an IntentBundle or AppBundle file. The kind is detected from the file. An IntentBundle gets the lossless fixes, reported under `fixes`. |
+| `check` | Checks a source file or a compiled directory. An IntentBundle gets the lossless fixes, reported under `fixes`; a failed source includes `correction_prompt`. |
+| `patch` | Applies an RFC 6902 JSON Patch (`operations`) to an IntentBundle file in memory and returns the `check` report. The file is unchanged; `out` writes the patched source. |
 | `prove` | Compiles and verifies a source, or browser-verifies a compiled directory. |
 | `studio` | Starts a background preview and returns its URL; `stop=True` ends it. One runs at a time. |
 
@@ -357,14 +360,65 @@ AppBundle proof does not prove runtime browser navigation, dynamic routes, live 
 
 ## Error Repair Loop
 
-When validation fails:
+`viewspec check` and `viewspec compile` first apply lossless fixes to an IntentBundle, then validate
+it. A fix is lossless when it cannot change what the compiler emits: adding `schema_version: 1`,
+adding an empty `slots` or `edges` map to a node, setting the root region's `parent_region` to `""`,
+moving a field to its one legal position (for example `regions` placed at the root instead of in
+`view_spec`), or spelling a `present_as` alias canonically (`image` becomes `image_slot`). Every fix
+is reported under `fixes` as `{code, path, message, lossy: false}` with a `FIX_SCHEMA_VERSION_ADDED`,
+`FIX_EMPTY_RELATIONS_ADDED`, `FIX_ROOT_PARENT_REGION_SET`, `FIX_FIELD_RELOCATED`, or
+`FIX_PRESENT_AS_ALIAS` code. When the fixed document is valid, `ok` is true and `compile` compiles the
+fixed document. The source file is not changed; `--fixed-out PATH` writes the fixed source so the
+agent can keep it, and `--no-fix` reports the same problems as issues instead.
 
-1. Pass `agent_correction_prompt(result)` back to the agent.
-2. Require the agent to regenerate the full IntentBundle.
-3. Validate again.
-4. Compile only after `result.valid` is true.
+Everything else is lossy: ViewSpec never adds, removes, or re-targets a node, binding, group member,
+motif member, style, or action, and never guesses a value. `viewspec.agent.ISSUE_CODE_CLASSIFICATION`
+maps every issue code to `lossless_fixable` or `lossy`. A lossy problem stays an issue for the agent.
 
-The correction prompt intentionally contains compact structured issues. It should not ask the agent to patch fragments or emit prose.
+```bash
+viewspec check viewspec.intent.json --json --fixed-out viewspec.intent.json
+```
+
+```json
+{
+  "ok": true,
+  "compile_check": "passed",
+  "issues": [],
+  "fixes": [
+    {"code": "FIX_SCHEMA_VERSION_ADDED", "path": "$.schema_version", "message": "Added schema_version 1; a document without it is schema version 1 already.", "lossy": false}
+  ],
+  "fixed_out": "viewspec.intent.json"
+}
+```
+
+When issues remain, the agent fixes them in one of two ways:
+
+1. Regenerate the full IntentBundle from `correction_prompt`. The prompt lists only the remaining
+   issues and names the fixes already applied under `applied_fixes`, so the agent does not redo them.
+2. Apply an RFC 6902 JSON Patch with `--patch OPS.json`. The patch is applied to the source in
+   memory, then the result is validated and, for `compile`, compiled. `--patched-out PATH` writes the
+   patched source. A patch holds at most 256 `add`, `remove`, `replace`, `move`, `copy`, or `test`
+   operations, and the patched document must stay under 256 KB. It may target only an IntentBundle
+   source file, never a compiled directory, an imported HTML file, or an AppBundle
+   (`PATCH_TARGET_FORBIDDEN`). A patch that does not apply is reported as one issue whose `path`
+   names the operation (`patch[2]`) and whose code is `PATCH_INVALID`, `PATCH_APPLY_FAILED`,
+   `PATCH_TEST_FAILED`, `PATCH_TOO_MANY_OPERATIONS`, or `PATCH_RESULT_TOO_LARGE`; the source is
+   validated only when the whole patch applied.
+
+```bash
+cat > ops.json <<'EOF'
+[
+  {"op": "test", "path": "/view_spec/bindings/0/present_as", "value": "chart"},
+  {"op": "replace", "path": "/view_spec/bindings/0/present_as", "value": "label"}
+]
+EOF
+viewspec check viewspec.intent.json --patch ops.json --patched-out viewspec.intent.json --json
+viewspec compile viewspec.intent.json --patch ops.json --out dist/
+```
+
+The MCP `patch` tool runs the same loop without a file: pass `operations` and an optional `out` path.
+Then validate again, and compile only after `ok` is true. `viewspec.agent.REPAIR_LOOP_PROMPT_SECTION`
+holds the prompt text that tells an agent these rules.
 
 
 ## Optional Reference Grounding

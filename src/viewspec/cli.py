@@ -33,12 +33,20 @@ from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.intent_tools import (
     INTENT_COMPILE_TARGETS,
     STARTER_INTENT_KINDS,
+    IntentPatchError,
+    IntentSourcePreparation,
+    check_intent_source,
+    fixed_intent_source_text,
     init_intent_file,
-    validate_intent_text,
+    intent_error_payload,
+    load_intent_patch,
+    patch_target_problem,
+    prepare_intent_source,
     wrap_intent_bundle_manifest,
 )
 from viewspec.local_tools import (
     MCP_APP_TARGET,
+    atomic_write,
     ensure_no_input_overwrite,
     init_design_file,
     source_hash,
@@ -49,7 +57,6 @@ from viewspec.mcp_apps import default_mcp_app_uri, emit_mcp_app, write_mcp_app_m
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, run_mcp_server
 from viewspec.raw_html import HtmlInputError, compile_html, write_html_compile_result
 from viewspec.studio import STUDIO_DEFAULT_PORT, Studio, open_studio
-from viewspec.types import IntentBundle
 from viewspec.verification import VerificationPlan
 
 COMPILE_TARGETS = (*INTENT_COMPILE_TARGETS, MCP_APP_TARGET, APP_SHELL_TARGET, REACT_APP_TARGET)
@@ -235,6 +242,7 @@ def _build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--stdin-format", choices=("html", "json"), help="Required when input is '-'.")
     compile_parser.add_argument("--title", help="Optional HTML document title for raw HTML input.")
     compile_parser.add_argument("--lift-json", action="store_true", help="Also write lift.json for raw HTML input.")
+    _add_repair_loop_arguments(compile_parser)
     compile_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     compile_parser.set_defaults(func=_compile_command)
 
@@ -247,6 +255,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="For a source file, skip local compiler support validation.",
     )
+    _add_repair_loop_arguments(check_parser)
     check_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     check_parser.set_defaults(func=_check_command)
 
@@ -322,7 +331,8 @@ def _build_parser() -> argparse.ArgumentParser:
     studio_parser.set_defaults(func=_studio_command)
 
     mcp_parser = subparsers.add_parser(
-        "mcp", help="Serve init, compile, check, prove, and studio to an agent over stdio (needs viewspec[agents])."
+        "mcp",
+        help="Serve init, compile, check, patch, prove, and studio to an agent over stdio (needs viewspec[agents]).",
     )
     mcp_parser.add_argument("--cwd", default=".", help="Workspace root; tools cannot reach paths outside it.")
     mcp_parser.add_argument(
@@ -339,6 +349,30 @@ def _build_parser() -> argparse.ArgumentParser:
     mcp_parser.set_defaults(func=_mcp_command)
 
     return parser
+
+
+def _add_repair_loop_arguments(parser: argparse.ArgumentParser) -> None:
+    """The IntentBundle repair-loop options that check and compile share."""
+    parser.add_argument(
+        "--no-fix",
+        action="store_true",
+        help="IntentBundle: do not apply lossless fixes before validation; report them as issues instead.",
+    )
+    parser.add_argument(
+        "--fixed-out",
+        metavar="PATH",
+        help="IntentBundle: write the source after lossless fixes to PATH.",
+    )
+    parser.add_argument(
+        "--patch",
+        metavar="OPS.json",
+        help="IntentBundle: apply this RFC 6902 JSON Patch to the source in memory first; the file is unchanged.",
+    )
+    parser.add_argument(
+        "--patched-out",
+        metavar="PATH",
+        help="IntentBundle: with --patch, write the patched source to PATH.",
+    )
 
 
 def _init_command(args: argparse.Namespace) -> int:
@@ -432,13 +466,34 @@ def _init_intent(args: argparse.Namespace, out: str) -> int:
 
 def _compile_command(args: argparse.Namespace) -> int:
     input_format = _input_format(args.input, args.stdin_format)
-    if input_format == "json" and args.input != "-" and source_kind(args.input) == "app_bundle":
+    is_intent_source = input_format == "json" and args.input != "-"
+    if is_intent_source and source_kind(args.input) == "app_bundle":
+        if args.patch:
+            return _finish_intent_validation_failure(
+                args,
+                _patch_target_forbidden_payload(
+                    f"{args.input} is an AppBundle; a patch applies to an IntentBundle source file."
+                ),
+            )
+        _reject_intent_only_options(args, "an AppBundle source")
         return _compile_app(args)
     target = args.target or "html-tailwind"
     if target not in (*INTENT_COMPILE_TARGETS, MCP_APP_TARGET):
         raise ValueError(f"--target {target} requires an AppBundle source")
     if target != MCP_APP_TARGET and (args.uri or args.action_tool):
         raise ValueError(f"--uri and --action-tool apply to --target {MCP_APP_TARGET}")
+    if args.patched_out and not args.patch:
+        raise ValueError("--patched-out requires --patch")
+    if not is_intent_source:
+        what = "imported HTML" if input_format == "html" else "stdin"
+        if args.patch:
+            return _finish_intent_validation_failure(
+                args,
+                _patch_target_forbidden_payload(
+                    f"{args.input} is {what}, not a source file; a patch applies to an IntentBundle source file."
+                ),
+            )
+        _reject_intent_only_options(args, what)
     data, source_name, input_path = _read_input(args.input, stdin_format=args.stdin_format)
     out_dir = Path(args.out)
 
@@ -477,13 +532,23 @@ def _compile_command(args: argparse.Namespace) -> int:
             print(json.dumps(paths, indent=2, sort_keys=True))
         return 0
 
-    validation = validate_intent_text(data, compile_check=True)
+    patch = None
+    if args.patch:
+        try:
+            patch = load_intent_patch(args.patch)
+        except IntentPatchError as exc:
+            return _finish_intent_validation_failure(
+                args, intent_error_payload(exc.code, exc.message, exc.fix, compile_check=True, path=exc.path)
+            )
+    prepared = prepare_intent_source(data, compile_check=True, fix=not args.no_fix, patch=patch)
+    validation = prepared.validation
+    extra_paths = _write_repair_loop_outputs(prepared, patched_out=args.patched_out, fixed_out=args.fixed_out)
     if not validation["ok"]:
-        if args.json:
-            _print_json(_intent_validation_failure_response(validation))
-        else:
-            _print_intent_validation_failure(validation)
-        return 2
+        return _finish_intent_validation_failure(args, validation, paths=extra_paths)
+    bundle = prepared.result.bundle
+    if bundle is None:  # pragma: no cover - a valid result always carries its bundle
+        raise ValueError("IntentBundle validation passed without a bundle.")
+    data = prepared.text
     output_names = (
         ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json")
         if target in {"react-tsx", "react-tailwind-tsx"}
@@ -491,8 +556,6 @@ def _compile_command(args: argparse.Namespace) -> int:
     )
     ensure_no_input_overwrite(input_path, out_dir, output_names)
     design = _load_design(args.design, strict=args.strict_design)
-    payload = json.loads(data)
-    bundle = IntentBundle.from_json(payload)
     ast = compile_intent(bundle, design=design, strict_design=args.strict_design)
     if target == "react-tsx":
         paths = ReactTsxEmitter().emit(ast, out_dir)
@@ -523,6 +586,7 @@ def _compile_command(args: argparse.Namespace) -> int:
     )
     if target == MCP_APP_TARGET:
         paths["mcp_app"] = str(write_mcp_app_metadata(out_dir, uri))
+    paths.update(extra_paths)
     if args.json:
         _print_json(
             tool_response(
@@ -531,11 +595,69 @@ def _compile_command(args: argparse.Namespace) -> int:
                 paths=paths,
                 next_actions=[f"Run viewspec check {out_dir} --json before using the artifact."],
                 metadata=_cli_metadata(input_format="json", target=target, emitter=emitter),
+                data={"fixes": validation["fixes"]},
             )
         )
     else:
+        # stdout holds the paths mapping, so the fix notices go to stderr.
+        for line in _repair_loop_lines(validation, extra_paths):
+            print(line, file=sys.stderr)
         print(json.dumps(paths, indent=2, sort_keys=True))
     return 0
+
+
+def _reject_intent_only_options(args: argparse.Namespace, what: str) -> None:
+    """--fixed-out and --patched-out write IntentBundle sources; refuse them for anything else."""
+    for option in ("--fixed-out", "--patched-out"):
+        if getattr(args, option[2:].replace("-", "_")):
+            raise ValueError(f"{option} applies to an IntentBundle source file, not {what}")
+
+
+def _patch_target_forbidden_payload(message: str, *, compile_check: bool = True) -> dict[str, Any]:
+    return intent_error_payload(
+        "PATCH_TARGET_FORBIDDEN",
+        message,
+        "Pass the IntentBundle .json file that the compiled output came from.",
+        compile_check=compile_check,
+        path="patch",
+    )
+
+
+def _write_repair_loop_outputs(
+    prepared: IntentSourcePreparation, *, patched_out: str | None, fixed_out: str | None
+) -> dict[str, str]:
+    """Write --patched-out and --fixed-out when their documents exist; return the written paths."""
+    written: dict[str, str] = {}
+    if patched_out and prepared.patched:
+        atomic_write(Path(patched_out), prepared.text)
+        written["patched_out"] = patched_out
+    fixed_text = fixed_intent_source_text(prepared.result)
+    if fixed_out and fixed_text is not None:
+        atomic_write(Path(fixed_out), fixed_text)
+        written["fixed_out"] = fixed_out
+    return written
+
+
+def _repair_loop_lines(validation: dict[str, Any], written: dict[str, str] | None = None) -> list[str]:
+    """Human-mode lines for the fixes a report carries and the repair-loop files that were written."""
+    lines = [f"fix: {fix['code']} at {fix['path']}: {fix['message']}" for fix in validation.get("fixes") or []]
+    for key in ("patched_out", "fixed_out"):
+        value = (written or {}).get(key, validation.get(key))
+        if value:
+            lines.append(f"{key}: {value}")
+    return lines
+
+
+def _finish_intent_validation_failure(
+    args: argparse.Namespace, validation: dict[str, Any], *, paths: dict[str, str] | None = None
+) -> int:
+    if args.json:
+        _print_json(_intent_validation_failure_response(validation, paths=paths))
+    else:
+        _print_intent_validation_failure(validation)
+        for line in _repair_loop_lines(validation, paths):
+            print(line, file=sys.stderr)
+    return 2
 
 
 def _compile_app(args: argparse.Namespace) -> int:
@@ -571,12 +693,15 @@ def _print_intent_validation_failure(payload: dict[str, object]) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True), file=sys.stderr)
 
 
-def _intent_validation_failure_response(validation: dict[str, Any]) -> dict[str, Any]:
+def _intent_validation_failure_response(
+    validation: dict[str, Any], *, paths: dict[str, str] | None = None
+) -> dict[str, Any]:
     """The compile --json failure for an invalid IntentBundle."""
     return tool_error_response(
         "COMPILE_FAILED",
         "IntentBundle validation failed.",
         "Regenerate the IntentBundle using correction_prompt, then rerun viewspec compile.",
+        paths=paths,
         errors=[
             {
                 "code": issue["code"],
@@ -585,17 +710,49 @@ def _intent_validation_failure_response(validation: dict[str, Any]) -> dict[str,
             }
             for issue in validation["issues"]
         ],
-        data={"validation": validation, "correction_prompt": validation["correction_prompt"]},
+        data={
+            "validation": validation,
+            "correction_prompt": validation["correction_prompt"],
+            "fixes": validation.get("fixes", []),
+        },
         metadata=_cli_metadata(),
     )
 
 
 def _check_command(args: argparse.Namespace) -> int:
     path = Path(args.path)
-    result = check(path, compile_check=not args.no_compile_check)
+    compile_check = not args.no_compile_check
+    if args.patched_out and not args.patch:
+        raise ValueError("--patched-out requires --patch")
+    if args.patch:
+        problem = patch_target_problem(path)
+        if problem is not None:
+            result = _patch_target_forbidden_payload(problem, compile_check=compile_check)
+        else:
+            try:
+                patch = load_intent_patch(args.patch)
+            except IntentPatchError as exc:
+                result = intent_error_payload(
+                    exc.code, exc.message, exc.fix, compile_check=compile_check, path=exc.path
+                )
+            else:
+                result = check_intent_source(
+                    path,
+                    compile_check=compile_check,
+                    fix=not args.no_fix,
+                    patch=patch,
+                    patched_out=args.patched_out,
+                    fixed_out=args.fixed_out,
+                )
+    elif args.fixed_out:
+        if path.is_dir() or source_kind(path) == "app_bundle":
+            raise ValueError("--fixed-out applies to an IntentBundle source file")
+        result = check_intent_source(path, compile_check=compile_check, fix=not args.no_fix, fixed_out=args.fixed_out)
+    else:
+        result = check(path, compile_check=compile_check, fix=not args.no_fix)
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
-    elif path.is_dir():
+    elif path.is_dir() and "compile_check" not in result:
         print("ok" if result["ok"] else "failed")
         for error in result["errors"]:
             print(f"error: {error}")
@@ -609,8 +766,12 @@ def _check_command(args: argparse.Namespace) -> int:
             f" screens={summary['screen_count']} routes={summary['route_count']}" if "route_count" in summary else ""
         )
         print(f"ok: compile_check={result['compile_check']}{counts}")
+        for line in _repair_loop_lines(result):
+            print(line)
     else:
         print(f"failed: compile_check={result['compile_check']}")
+        for line in _repair_loop_lines(result):
+            print(line)
         for issue in result["issues"]:
             print(f"{issue['severity']}: {issue['code']} at {issue['path']}: {issue['message']}")
         if result.get("correction_prompt"):
@@ -930,6 +1091,10 @@ def _compile_command_args(args: argparse.Namespace, source_name: str | None, tar
         command.append("--strict-design")
     if target != "html-tailwind":
         command.extend(["--target", target])
+    # --patch changes the compiled source, so it is recorded; --no-fix never changes the compiled
+    # bytes, so it is not.
+    if getattr(args, "patch", None):
+        command.extend(["--patch", Path(args.patch).name])
     command.extend(["--out", "<out>"])
     if args.stdin_format:
         command.extend(["--stdin-format", args.stdin_format])

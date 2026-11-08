@@ -260,6 +260,8 @@ def _compile_screen(
         cwd=root,
         allow_outside_cwd=True,
         ir_props_overlay=ir_props_overlay,
+        # The screen was validated as written by app_validation; compile it the same way.
+        fix=False,
     )
 
 
