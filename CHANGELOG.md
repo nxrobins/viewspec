@@ -7,6 +7,15 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `viewspec studio` lays an inspector over the preview. Hovering an element shows its `data-ir-id`,
+  binding or action id, motif, region, and the JSON path of its source, such as
+  `$.view_spec.bindings[3]` or `$.substrate.nodes.revenue.attrs.value`; a click copies the path,
+  Shift+click copies the value path, and Alt+I turns the inspector off and on.
+  `GET /__viewspec/inspector.json` returns the map for the current build, and `?id=` returns one
+  entry. The compiled files on disk do not change, and Studio still answers only on loopback.
+
 ## [0.4.0] - 2026-11-01
 
 ViewSpec is now a local, open-source compiler with no hosted service and a much smaller surface.
