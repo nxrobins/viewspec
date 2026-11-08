@@ -192,6 +192,10 @@ Give your agent the published contract, then let it generate JSON with structure
 `viewspec check FILE --json` returns a `correction_prompt` that an agent can act on directly. The
 [agent integration guide](docs/agent-integration.md) has the full loop.
 
+[Contributing](CONTRIBUTING.md#opt-in-end-to-end-suites) shows how to run the repository's
+model-in-the-loop eval, which measures how often a model's first and corrected answers pass
+`viewspec check`.
+
 To give an MCP client the tools `init`, `compile`, `check`, `patch`, `prove`, and `studio`:
 
 ```bash

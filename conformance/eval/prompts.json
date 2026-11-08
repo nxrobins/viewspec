@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "description": "Prompt set for scripts/eval_agent_contract.py. Each entry is one realistic user request. kind is intent (one IntentBundle) or app (one AppBundle). expected_motifs, expected_action_kinds, expected_aesthetic_profile and expected_app_schema_version say what a correct answer declares; the report records whether the model met them.",
+  "prompts": [
+    {
+      "id": "table-orders",
+      "kind": "intent",
+      "prompt": "Show a table of our recent orders with order id, customer, total, and status columns.",
+      "expected_motifs": ["table"]
+    },
+    {
+      "id": "table-inventory-sort",
+      "kind": "intent",
+      "prompt": "Build an inventory table of SKUs with name, quantity on hand, and reorder point, with a sort control on quantity.",
+      "expected_motifs": ["table"],
+      "expected_action_kinds": ["sort"]
+    },
+    {
+      "id": "table-tickets-search-filter",
+      "kind": "intent",
+      "prompt": "I need a support ticket table with id, subject, priority, and assignee that I can search and filter by priority.",
+      "expected_motifs": ["table"],
+      "expected_action_kinds": ["search", "filter"]
+    },
+    {
+      "id": "table-audit-log-paginate",
+      "kind": "intent",
+      "prompt": "Render a paginated audit log table with timestamp, actor, action, and target.",
+      "expected_motifs": ["table"],
+      "expected_action_kinds": ["paginate"]
+    },
+    {
+      "id": "table-invoices-bulk-approve",
+      "kind": "intent",
+      "prompt": "A table of pending invoices with number, vendor, and amount where I can select several rows and approve them in bulk.",
+      "expected_motifs": ["table"],
+      "expected_action_kinds": ["bulk_action"]
+    },
+    {
+      "id": "dashboard-sales-kpis",
+      "kind": "intent",
+      "prompt": "Create a sales dashboard with four KPI cards: revenue, orders, average order value, and refund rate.",
+      "expected_motifs": ["dashboard"]
+    },
+    {
+      "id": "dashboard-oncall-calm-ops",
+      "kind": "intent",
+      "prompt": "An on-call operations dashboard showing uptime, open incidents, mean time to resolve, and remaining error budget, in a calm operations style.",
+      "expected_motifs": ["dashboard"],
+      "expected_aesthetic_profile": "aesthetic.calm_ops"
+    },
+    {
+      "id": "dashboard-executive-review",
+      "kind": "intent",
+      "prompt": "A quarterly executive review dashboard with ARR, net revenue retention, gross margin, and headcount, styled for an executive review.",
+      "expected_motifs": ["dashboard"],
+      "expected_aesthetic_profile": "aesthetic.executive_review"
+    },
+    {
+      "id": "dashboard-pipeline-data-dense",
+      "kind": "intent",
+      "prompt": "A dense metrics board for the data platform team: pipeline runs, failed jobs, rows processed, and freshness lag. Use the data-dense profile.",
+      "expected_motifs": ["dashboard"],
+      "expected_aesthetic_profile": "aesthetic.data_dense"
+    },
+    {
+      "id": "outline-employee-handbook",
+      "kind": "intent",
+      "prompt": "Present the employee handbook as an outline with three top-level sections and two or three subsections under each.",
+      "expected_motifs": ["outline"]
+    },
+    {
+      "id": "outline-course-syllabus",
+      "kind": "intent",
+      "prompt": "Lay out a twelve-week course syllabus as an outline of weekly topics with the readings listed under each week.",
+      "expected_motifs": ["outline"]
+    },
+    {
+      "id": "comparison-pricing-tiers",
+      "kind": "intent",
+      "prompt": "Compare our Starter, Team, and Enterprise plans on seats, storage, support level, and monthly price.",
+      "expected_motifs": ["comparison"]
+    },
+    {
+      "id": "comparison-two-laptops",
+      "kind": "intent",
+      "prompt": "A side-by-side comparison of two laptop models on weight, battery life, display size, and price.",
+      "expected_motifs": ["comparison"]
+    },
+    {
+      "id": "list-release-notes",
+      "kind": "intent",
+      "prompt": "A list of the last five releases, each showing the version, the release date, and a one-line summary.",
+      "expected_motifs": ["list"]
+    },
+    {
+      "id": "list-tasks-filter-done",
+      "kind": "intent",
+      "prompt": "My task list with a title, a due date, and a done badge per task, plus a filter control that hides completed tasks.",
+      "expected_motifs": ["list"],
+      "expected_action_kinds": ["filter"]
+    },
+    {
+      "id": "list-contacts-search",
+      "kind": "intent",
+      "prompt": "A searchable list of contacts showing each person's name, company, and email.",
+      "expected_motifs": ["list"],
+      "expected_action_kinds": ["search"]
+    },
+    {
+      "id": "form-signup",
+      "kind": "intent",
+      "prompt": "A sign-up form with full name, work email, and password fields and a create account button.",
+      "expected_motifs": ["form"]
+    },
+    {
+      "id": "form-feedback-warm-organic",
+      "kind": "intent",
+      "prompt": "A short customer feedback form with a rating field, a comments field, and a send button, in a warm organic style.",
+      "expected_motifs": ["form"],
+      "expected_aesthetic_profile": "aesthetic.warm_organic"
+    },
+    {
+      "id": "form-shipping-address",
+      "kind": "intent",
+      "prompt": "A shipping address form with street, city, postal code, and country fields and a continue button.",
+      "expected_motifs": ["form"]
+    },
+    {
+      "id": "detail-customer-record",
+      "kind": "intent",
+      "prompt": "A customer detail page showing name, plan, signup date, lifetime value, and account owner as label and value pairs.",
+      "expected_motifs": ["detail"]
+    },
+    {
+      "id": "detail-incident",
+      "kind": "intent",
+      "prompt": "Show one incident's details: id, severity, status, opened at, and the on-call engineer.",
+      "expected_motifs": ["detail"]
+    },
+    {
+      "id": "empty-state-no-projects",
+      "kind": "intent",
+      "prompt": "The empty state for the projects page: a headline saying there are no projects yet, a short explanation, and a create project button.",
+      "expected_motifs": ["empty_state"]
+    },
+    {
+      "id": "empty-state-no-search-results",
+      "kind": "intent",
+      "prompt": "An empty state for the search page when nothing matches the query, with a heading and a hint to try different words.",
+      "expected_motifs": ["empty_state"]
+    },
+    {
+      "id": "loading-state-monthly-report",
+      "kind": "intent",
+      "prompt": "A loading state shown while the monthly report is generated, with a title and one line explaining the wait.",
+      "expected_motifs": ["loading_state"]
+    },
+    {
+      "id": "error-state-payment-declined",
+      "kind": "intent",
+      "prompt": "An error state for a failed payment: a heading, a message saying the card was declined, and a retry button.",
+      "expected_motifs": ["error_state"]
+    },
+    {
+      "id": "hero-analytics-launch",
+      "kind": "intent",
+      "prompt": "A hero section announcing the launch of our analytics product with a headline, a subheading, and a get started button.",
+      "expected_motifs": ["hero"]
+    },
+    {
+      "id": "hero-billing-premium-saas",
+      "kind": "intent",
+      "prompt": "A premium SaaS landing hero for a billing platform: an eyebrow, a headline, supporting copy, and a request demo button.",
+      "expected_motifs": ["hero"],
+      "expected_aesthetic_profile": "aesthetic.premium_saas"
+    },
+    {
+      "id": "hero-magazine-brutalist",
+      "kind": "intent",
+      "prompt": "A brutalist hero for an independent magazine issue with the issue number, the title, and a read now button.",
+      "expected_motifs": ["hero"],
+      "expected_aesthetic_profile": "aesthetic.brutalist"
+    },
+    {
+      "id": "hero-hackathon-neon-cyber",
+      "kind": "intent",
+      "prompt": "A neon cyber styled hero for a hackathon: event name, date, tagline, and a register button.",
+      "expected_motifs": ["hero"],
+      "expected_aesthetic_profile": "aesthetic.neon_cyber"
+    },
+    {
+      "id": "hero-integrations-table",
+      "kind": "intent",
+      "prompt": "A product page with a hero at the top and, below it, a table of supported integrations with name, category, and status.",
+      "expected_motifs": ["hero", "table"]
+    },
+    {
+      "id": "dashboard-deployments-table",
+      "kind": "intent",
+      "prompt": "An operations page with three KPI cards above a table of the latest deployments showing service, version, status, and time.",
+      "expected_motifs": ["dashboard", "table"]
+    },
+    {
+      "id": "detail-order-line-items",
+      "kind": "intent",
+      "prompt": "An order detail view with the order's summary fields and a list of its line items with product, quantity, and price.",
+      "expected_motifs": ["detail", "list"]
+    },
+    {
+      "id": "hero-outline-editorial-product",
+      "kind": "intent",
+      "prompt": "An editorial product page: a hero with a headline and a subheading, followed by an outline of the product's chapters, in an editorial product style.",
+      "expected_motifs": ["hero", "outline"],
+      "expected_aesthetic_profile": "aesthetic.editorial_product"
+    },
+    {
+      "id": "app-support-console-unbound",
+      "kind": "app",
+      "prompt": "A two-screen internal support console: a ticket queue table and a ticket detail screen linked by static routes, with unbound fixture data.",
+      "expected_motifs": ["table", "detail"],
+      "expected_app_schema_version": 1
+    },
+    {
+      "id": "app-inventory-fixture-bound",
+      "kind": "app",
+      "prompt": "An inventory manager app with a stock list screen and an item detail screen, bound read-only to fixture records so the proof checks that the fixture values are visible.",
+      "expected_motifs": ["list", "detail"],
+      "expected_app_schema_version": 2
+    },
+    {
+      "id": "app-approvals-interactive-react",
+      "kind": "app",
+      "prompt": "An approvals app where the queue screen's approve action updates state and the detail screen shows a banner only after an approval. It should run as a React app with visibility rules.",
+      "expected_motifs": ["table", "detail"],
+      "expected_app_schema_version": 4
+    },
+    {
+      "id": "app-knowledge-base-unbound",
+      "kind": "app",
+      "prompt": "A knowledge base tool with a home screen listing articles and an article screen with a detail view, static routes only and no fixture binding.",
+      "expected_motifs": ["list", "detail"],
+      "expected_app_schema_version": 1
+    },
+    {
+      "id": "app-fleet-fixture-bound",
+      "kind": "app",
+      "prompt": "A vehicle fleet app with a fleet overview dashboard screen and a vehicle detail screen, bound read-only to fixture vehicle records.",
+      "expected_motifs": ["dashboard", "detail"],
+      "expected_app_schema_version": 2
+    },
+    {
+      "id": "app-onboarding-checklist-interactive",
+      "kind": "app",
+      "prompt": "An onboarding checklist app where completing a step increments a counter shown as text on the checklist screen, plus a summary screen. Use interactive state with visibility rules.",
+      "expected_motifs": ["list", "detail"],
+      "expected_app_schema_version": 4
+    }
+  ]
+}

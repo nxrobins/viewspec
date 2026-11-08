@@ -95,6 +95,28 @@ Set `VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR` to a fresh directory to retain the gener
 reports, and support bundles. The weekly `pretext-e2e.yml` workflow runs them with every toolchain
 version pinned (npm to its major.minor line).
 
+**Agent eval.** The model-in-the-loop agent eval is opt-in too. `scripts/eval_agent_contract.py`
+sends every prompt in `conformance/eval/prompts.json` to a model with the SDK's agent system
+prompt. It validates each answer with the SDK and feeds the correction prompt back once. It writes
+`eval_report.json` and `eval_report.md` under `.agent-eval-runs/`. It calls a model only when
+`VIEWSPEC_EVAL_MODEL` and `ANTHROPIC_API_KEY` are set; without them it exits 2. The test suite
+never calls a model.
+
+```bash
+VIEWSPEC_EVAL_MODEL=<model-id> ANTHROPIC_API_KEY=<key> python scripts/eval_agent_contract.py
+```
+
+`--dry-run` writes the plan and makes no model call. `--temperature T` sends a sampling temperature
+from 0 to 1; without it the request sends none. `--system-prompt PATH` measures another system
+prompt. To measure an older published prompt, save it with
+`git show <commit>:demos/agent-system-prompt.txt` and pass that file. Structured output is off by
+default. `--structured-output` sends a structured-output copy of the SDK schema for each prompt
+kind, and `--schema PATH` sends that file as given. The provider may reject `--structured-output`
+while the SDK schemas hold JSON maps. The weekly `agent-eval.yml` workflow runs the eval and
+uploads the output directory as an artifact. The scheduled workflow reads the repository variable
+`VIEWSPEC_EVAL_MODEL` and the secret `ANTHROPIC_API_KEY`. It is separate from the release gate and
+blocks nothing.
+
 ### Pinned CI dependencies
 
 CI resolves Python dependencies through the pinned `requirements-ci.txt` at the repository root,

@@ -45,6 +45,15 @@ All notable changes to ViewSpec are documented in this file. The format follows
 - `correction_prompt` lists only the remaining issues and names the applied fixes under
   `applied_fixes`, with a `patch_command` beside `retry_command`. `viewspec.agent.REPAIR_LOOP_PROMPT_SECTION`
   holds prompt text for the repair loop.
+- `scripts/eval_agent_contract.py` measures how often a model writes valid ViewSpec JSON. It sends
+  the 39 prompts in `conformance/eval/prompts.json` to a model with the SDK's agent system prompt.
+  It validates each answer with the SDK and retries once with the correction prompt.
+  `eval_report.json` and `eval_report.md` give first-pass and second-pass validity, median output
+  size, and the top issue codes. The script calls a model only when `VIEWSPEC_EVAL_MODEL` and
+  `ANTHROPIC_API_KEY` are set, and `--dry-run` writes the plan without one. Structured output is
+  off unless `--structured-output` or `--schema` asks for it. The weekly `agent-eval.yml` workflow
+  reads the model id from the repository variable `VIEWSPEC_EVAL_MODEL` and uploads the report as
+  an artifact. The SDK and its tests still make no model calls.
 
 ## [0.4.0] - 2026-11-01
 
