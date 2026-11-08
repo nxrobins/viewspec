@@ -64,6 +64,13 @@ Studio previews the static HTML targets. It listens on loopback only and refuses
 other host. `--port` picks another port, `--no-open` skips launching a browser, and `--json` prints
 one line with the URL once it is serving, which suits an agent starting it in the background.
 
+The preview carries an inspector: hover an element to see its `data-ir-id`, binding or action id,
+motif, region, and the JSON path of its source, such as `$.view_spec.bindings[3]` or
+`$.substrate.nodes.revenue.attrs.value`. Click copies that path, Shift+click copies the value path,
+and Alt+I turns the inspector off and on; while it is on, a click does not reach the artifact.
+`GET /__viewspec/inspector.json` returns the same map for the current build, with `?id=` for one
+entry, and the compiled files on disk never carry the inspector.
+
 ## Browser Proof
 
 `viewspec prove` adds a real browser run when you give it permission to install its pinned
