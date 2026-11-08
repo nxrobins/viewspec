@@ -51,6 +51,7 @@ class Observation:
     locators: dict[str, dict[str, Any]]
     interactive: list[dict[str, str]]
     action_ids: int
+    doc_id: str
     secrets: list[str] = field(default_factory=list, repr=False)
 
     def handle_of(self, node_id: str) -> int | None:
@@ -76,8 +77,9 @@ class StepResult:
 
 
 class BrowserSession:
-    def __init__(self, *, block_writes: bool = True) -> None:
+    def __init__(self, *, block_writes: bool = True, allowed_origins: tuple[str, ...] = ()) -> None:
         self.block_writes = block_writes
+        self.allowed_origins = tuple(allowed_origins)
         self.observation: Observation | None = None
         self._next_id = 0
         self._proc = subprocess.Popen(
@@ -97,8 +99,9 @@ class BrowserSession:
         self._proc.stdin.flush()
         line = self._proc.stdout.readline()
         if not line:
-            stderr = self._proc.stderr.read() if self._proc.stderr else ""
-            raise BridgeError(f"bridge.js stopped: {stderr.strip()[:500]}")
+            stderr = (self._proc.stderr.read() if self._proc.stderr else "").strip()
+            last = stderr.splitlines()[-1] if stderr else "no message"
+            raise BridgeError(f"bridge.js stopped: {last[:300]}")
         reply = json.loads(line)
         if reply.get("id") != self._next_id:
             raise BridgeError(f"bridge.js answered request {reply.get('id')}, not {self._next_id}")
@@ -123,7 +126,9 @@ class BrowserSession:
         """Load a page. Returns its status and server HTML; call ``observe()`` to read it."""
 
         self.observation = None
-        return self._call("open", url=url, block_writes=self.block_writes)
+        return self._call(
+            "open", url=url, block_writes=self.block_writes, allowed_origins=list(self.allowed_origins) or None
+        )
 
     def observe(self, *, locate: bool = True, collect_secrets: bool = False) -> Observation:
         """Snapshot, lift, and (by default) verify a locator for every control and form."""
@@ -156,6 +161,7 @@ class BrowserSession:
             locators=locators,
             interactive=snap["interactive"],
             action_ids=snap["actionIds"],
+            doc_id=snap["docId"],
             secrets=snap.get("secrets", []),
         )
         return self.observation
@@ -168,7 +174,14 @@ class BrowserSession:
         self.observation = None
 
     def blocked_writes(self) -> list[dict[str, Any]]:
+        """Requests that ``block_writes`` stopped since the page was opened."""
+
         return self._call("writes")["writes"]
+
+    def blocked_navigations(self) -> list[dict[str, Any]]:
+        """Top-level navigations that ``allowed_origins`` stopped since the page was opened."""
+
+        return self._call("writes")["navigations"]
 
     # ---- acting -----------------------------------------------------------------------------------
     def _current(self) -> Observation:
@@ -195,6 +208,12 @@ class BrowserSession:
         """
 
         observation = observation or self._current()
+        if self._call("document")["doc_id"] != observation.doc_id:
+            # Refs and locators describe a document that is gone. A control with the same name on the
+            # new page is a different control, so refuse rather than guess.
+            raise BridgeError(
+                "stale-view: the page has loaded a new document since this view; observe it and plan again"
+            )
         results: list[StepResult] = []
         for step in steps:
             locator = observation.locators.get(step.node_id)

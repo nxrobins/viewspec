@@ -15,6 +15,10 @@
   const SECRET_NAME = /pass(word|wd|code)?|secret|token|otp|cvv|cvc|ssn|card.?num|cc.?num|security.?code/i;
   const TEST_ID_ATTRS = ["data-testid", "data-test", "data-qa", "data-cy", "data-action-id"];
 
+  // A new document (a real navigation) installs a new library and gets a new id. A hash change or a
+  // pushState route change keeps the document, its id, and its refs.
+  const docId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
   // ---- Refs -------------------------------------------------------------------------------------
   const refByElement = new WeakMap();
   const elementByRef = new Map();
@@ -210,7 +214,7 @@
     };
 
     const [root] = copy(document.documentElement, { hidden: false, clickable: false, inside: false });
-    const payload = { html: "<!doctype html>" + root.outerHTML, interactive, actionIds };
+    const payload = { html: "<!doctype html>" + root.outerHTML, interactive, actionIds, docId };
     if (collectSecrets) payload.secrets = secrets;
     return payload;
   }
@@ -356,5 +360,5 @@
     return el.getAttribute("aria-checked") === "true";
   }
 
-  window.__viewspecLift = { snapshot, describe, refOf, get, nameOf, hasValue, hasSelected, isChecked };
+  window.__viewspecLift = { docId, snapshot, describe, refOf, get, nameOf, hasValue, hasSelected, isChecked };
 })();

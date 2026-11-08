@@ -4,7 +4,8 @@
 //   response: {"id": 1, "ok": true, "result": {...}}  or  {"id": 1, "ok": false, "error": "..."}
 //
 // Commands:
-//   open      {url, block_writes}          load a page; returns its status and server HTML
+//   open      {url, block_writes, allowed_origins}
+//                                          load a page; returns its status and server HTML
 //   snapshot  {collect_secrets}            the composed-tree snapshot (see lift_inpage.js)
 //   aria      {}                           Playwright's ARIA snapshot of the body
 //   reload    {}                           reload the page
@@ -12,17 +13,43 @@
 //                                          a verified locator for each ref (see below)
 //   act       {op, ref, locator, value, values}
 //                                          run one planned step (see below)
-//   writes    {}                           the writes that block_writes stopped
+//   writes    {}                           the writes and navigations that were stopped
+//   document  {}                           the id of the current document (see lift_inpage.js)
 //   close     {}
 //
 // With block_writes, every request that is not GET, HEAD, or OPTIONS (a form post, a fetch that
 // changes data, a beacon) is stopped, recorded, and answered with a small page that says so. An
 // agent can then fill in and submit a real form without changing anything outside the browser.
+//
+// With allowed_origins (for example ["https://shop.example"]), a top-level navigation to any other
+// origin is stopped and recorded, so a click cannot take the agent off the sites it may use.
 
 const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
-const { chromium } = require("playwright");
+const { execSync } = require("child_process");
+
+// MCP hosts often start servers with a small environment (no NODE_PATH), so look for Playwright
+// next to this file, then on NODE_PATH, then in npm's global folder.
+function loadPlaywright() {
+  try {
+    return require("playwright");
+  } catch (error) {
+    // Not installed locally or on NODE_PATH.
+  }
+  try {
+    const root = execSync("npm root -g", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return require(path.join(root, "playwright"));
+  } catch (error) {
+    process.stderr.write(
+      "Playwright for Node was not found. Run `npm install playwright` in " +
+        `${__dirname}, or set NODE_PATH to the folder that holds it.\n`,
+    );
+    process.exit(2);
+  }
+}
+
+const { chromium } = loadPlaywright();
 
 const LIBRARY = fs.readFileSync(path.join(__dirname, "lift_inpage.js"), "utf8");
 const INTERACTIVE_SELECTOR = [
@@ -52,31 +79,66 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 let browser = null;
 let page = null;
 let writes = [];
+let navigations = [];
 let mainNavigations = 0;
+
+const escapeHtml = (text) =>
+  String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+function originOf(url) {
+  try {
+    return new URL(url).origin;
+  } catch (error) {
+    return "null";
+  }
+}
 
 async function ensureLibrary() {
   await page.evaluate(LIBRARY);
 }
 
-async function open({ url, block_writes: blockWrites = true }) {
-  if (!browser) browser = await chromium.launch();
+async function launch() {
+  try {
+    return await chromium.launch();
+  } catch (error) {
+    throw new Error(
+      "Chromium did not start. Set PLAYWRIGHT_BROWSERS_PATH to the folder with Playwright's browsers, " +
+        "or run `npx playwright install chromium`. " +
+        String(error.message || error).split("\n")[0],
+    );
+  }
+}
+
+async function open({ url, block_writes: blockWrites = true, allowed_origins: allowedOrigins = null }) {
+  if (!browser) browser = await launch();
   if (page) await page.close();
   page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   writes = [];
+  navigations = [];
   page.on("framenavigated", (frame) => {
     if (frame === page.mainFrame()) mainNavigations += 1;
   });
-  if (blockWrites) {
+  const allowed = allowedOrigins && allowedOrigins.length ? new Set(allowedOrigins) : null;
+  if (blockWrites || allowed) {
     await page.route("**/*", async (route) => {
       const request = route.request();
-      if (SAFE_METHODS.has(request.method())) return route.continue();
+      const topLevel = request.isNavigationRequest() && request.frame() === page.mainFrame();
+      if (allowed && topLevel && !allowed.has(originOf(request.url()))) {
+        navigations.push({ url: request.url(), reason: "origin not allowed" });
+        // A 204 answer to a navigation leaves the page where it is. Aborting it instead would make
+        // Chromium show an error page, and the agent would lose the page it was on.
+        return route.fulfill({ status: 204, body: "" });
+      }
+      if (!blockWrites || SAFE_METHODS.has(request.method())) return route.continue();
       writes.push({
         method: request.method(),
         url: request.url(),
         resource_type: request.resourceType(),
         post_data: request.postData(),
       });
-      const body = `<!doctype html><title>Blocked</title><h1>Write blocked</h1><p>${request.method()} ${request.url()}</p>`;
+      const body =
+        "<!doctype html><title>Blocked</title><h1>Write blocked</h1>" +
+        `<p>${escapeHtml(request.method())} ${escapeHtml(request.url())}</p>`;
       return route.fulfill({ status: 200, contentType: "text/html", body });
     });
   }
@@ -287,7 +349,11 @@ const COMMANDS = {
     await settle();
     return { url: page.url() };
   },
-  writes: async () => ({ writes }),
+  writes: async () => ({ writes, navigations }),
+  document: async () => {
+    await ensureLibrary();
+    return { doc_id: await page.evaluate(() => window.__viewspecLift.docId), url: page.url() };
+  },
   close: async () => {
     if (browser) await browser.close();
     browser = null;
