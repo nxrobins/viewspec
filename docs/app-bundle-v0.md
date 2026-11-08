@@ -247,7 +247,10 @@ template is a literal string with exactly one `{value}` placeholder and no other
 text is derived and cross-checked during screen compilation; the generated reducer exports
 `evaluateViewSpecText(state)`; the static shell updates `textContent`; React consumes the same
 derived map. Replay assertions may add `expect_text` maps, and the generated Chromium test verifies
-each final string at its stable `data-state-text-id`. The V4 contract deliberately excludes HTML,
+each final string at its stable `data-state-text-id`. The value is inserted literally, so `$&`
+stays `$&`. A number renders as JavaScript `String()` renders it, in the bake, the replay, and the
+runtime alike: `1e-05` renders as `0.00001`, `1e21` as `1e+21`, and an integer beyond 2^53 as the
+double JavaScript holds. The V4 contract deliberately excludes HTML,
 expressions, paths, localization, formatters, and heuristic source discovery. V5 adds only named
 placeholders and the closed formatter set described in [AppBundle V5](#appbundle-v5).
 

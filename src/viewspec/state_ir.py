@@ -14,6 +14,7 @@ from typing import Any
 from viewspec._canonical import canonical_json_utf8
 from viewspec.app_format import (
     format_state_value,
+    render_state_scalar,
     state_text_format_problem,
     state_text_format_type_declarations,
     state_text_formatter_source,
@@ -880,20 +881,14 @@ def initial_state_text(app_payload: dict[str, Any], state_ir: StateIR) -> dict[s
 
 
 def _state_text_scalar(value: Any) -> str:
-    if value is None:
-        return ""
-    if value is True:
-        return "true"
-    if value is False:
-        return "false"
-    if isinstance(value, str):
-        return value
-    if type(value) is int:
-        return str(value)
-    if type(value) is float and math.isfinite(value):
-        return str(int(value)) if value.is_integer() else repr(value).replace("e+", "e")
-    # Mutation payloads remain total even if a caller violates the declared scalar shape.
-    return ""
+    """Render one V4 state value exactly as the generated ``stateTextScalar`` does.
+
+    The bake and the replay run in Python and the runtime runs the generated reducer, so both use
+    JavaScript ``String()`` semantics: ``1e-05`` renders as ``0.00001``, ``1e21`` as ``1e+21``, and an
+    integer beyond 2^53 as the double JavaScript holds. Values outside the declared scalar shape
+    render as an empty string, so mutation payloads stay total.
+    """
+    return render_state_scalar(value)
 
 
 def state_manifest(
@@ -1431,7 +1426,8 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
                 ),
                 f"  const result{ann('Record<string, string>')} = {{}};",
                 "  for (const rule of stateTextRules) {",
-                '    result[rule.id] = rule.template.replace("{value}", stateTextScalar(state[rule.state]));',
+                # A replacer function inserts the value literally; a replacement string would expand $&.
+                '    result[rule.id] = rule.template.replace("{value}", () => stateTextScalar(state[rule.state]));',
                 "  }",
                 "  return result;",
                 "}",

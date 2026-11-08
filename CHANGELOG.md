@@ -174,6 +174,12 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- AppBundle V4 state text renders the same string in the bake, the replay, and the runtime. The
+  generated reducer used to fill `{value}` with a replacement string, so a value holding `$&`,
+  `$'`, `` $` ``, or `$$` showed different text at runtime than in the compiled screen and the
+  replay. It now inserts the value literally. Python also renders numbers as JavaScript `String()`
+  does, so `1e-05` bakes as `0.00001`, `1e21` as `1e+21`, and an integer beyond 2^53 as the double
+  the runtime holds. V4 reducers change by that one line; every corpus golden is unchanged.
 - `viewspec check` reports `APP_SCHEMA_VERSION_REQUIRED` for an AppBundle whose `schema_version`
   is an array or an object. It used to raise `TypeError`.
 
