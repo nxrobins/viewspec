@@ -141,6 +141,13 @@ def test_lift_html_reports_roles_groups_and_stable_topology():
     assert first.topology_fingerprint.hex == second.topology_fingerprint.hex
 
 
+def test_compiled_html_keeps_text_in_page_order():
+    html = compile_html('<p>Hello <b>world</b> today</p><a href="/dw"><i>Doctor Who</i>, series 12</a>').html
+    text = re.sub(r"<[^>]+>", "", html.split('data-viewspec-root="true"', 1)[1])
+    assert "Hello world today" in text
+    assert "Doctor Who, series 12" in text
+
+
 def test_oversized_html_fails_before_parsing():
     with pytest.raises(HtmlInputError, match="exceeds"):
         compile_html("x" * (MAX_HTML_INPUT_BYTES + 1))

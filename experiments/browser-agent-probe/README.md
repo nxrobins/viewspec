@@ -29,8 +29,8 @@ See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile
 | `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
-| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 100 checks on the fixtures. |
-| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 98 checks. |
+| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 120 checks on the fixtures. |
+| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 100 checks. |
 
 ### Locators
 
@@ -53,7 +53,10 @@ open shadow root as Playwright CSS does, and counts `:has-text()` matches by tex
 only the rest (role and name, exact text, a path that crosses a shadow root), one by one. On the
 675-control catalog this takes a reading from 9.7 s to 0.9 s. A locator is used only when a ref has
 gone stale, and then Playwright must find exactly one element with the same tag and name, so a
-locator that Playwright reads differently fails safely. The probe asks Playwright to confirm every
+locator that Playwright reads differently fails safely. When the saved locator finds nothing (the
+page replaced the element with one of its own, as Wikipedia mounts a search box with no id), the one
+visible element with the same tag and the same name is taken: what the drift guard would accept from
+any locator. The probe asks Playwright to confirm every
 page-checked locator; on the fixtures it confirms 761 of 761.
 
 ### Acting
@@ -71,6 +74,14 @@ The bridge checks each fill, check, and select in the page and returns only true
 secret value never comes back. If a step navigates the page before the plan is done, the session
 stops and says how many steps did not run.
 
+A form call checks each argument the way the browser's constraint validation will when the form
+is sent (an email's format, `minlength`, `pattern`, `min`, `max`, `step`, a required field left
+empty), and refuses the call with the reason before the browser acts. A single `fill` is not
+checked, as a person can type anything into a field. When a click or submit then tries to send a
+form the browser refuses, the browser says why only in a tooltip that is not in the DOM; the
+bridge records the `invalid` events it fires and the step reports them: `invalid: [{"name":
+"Email", "message": "Please include an '@' in the email address."}]`, and the form was not sent.
+
 Each document gets a random id when the in-page library is installed. A step planned from a view of
 an earlier document (the page has navigated since) is refused (`stale-view`): a control with the same
 name on the new page is a different control. A hash change or a `pushState` route change keeps the
@@ -83,11 +94,29 @@ after a server answers. `act(handle, "select", "Japan")` on a custom combobox or
 `choose` step, and the bridge:
 
 1. clicks the option at once if the list already shows it;
-2. otherwise opens the list: it types the value into an editable combobox (most filter as you type),
-   or clicks a select-only one;
+2. otherwise opens the list: it clears an editable combobox and types the value key by key (most
+   lists filter as you type, some only on key presses), or clicks a select-only one;
 3. waits for the option, waking on DOM changes, up to 5 s;
 4. clicks the option whose name is the value (ignoring case), or else the one option whose name starts
    with it, and checks that the combobox now shows it. `chosen` names the option.
+
+A read-only combobox (`aria-readonly`, as react-select without search and Ant Design mark theirs) is
+not typed in: ARIA says it is "not editable, but otherwise operable", so the bridge clicks it to open
+its list. When the input itself is too small to hit (react-select draws a 1 px, transparent one), the
+click goes to the widget around it. Such widgets keep the input empty and show the choice in a box
+beside it; the lift reads that box as the combobox's value, and the step is verified against it.
+
+A choice that loads a new page (a search suggestion that runs the search at once, as on GOV.UK) is
+reported as chosen and navigated, not verified. The steps planned after it do not run: a form call
+stops there and names them (`BROWSER_PLAN_INTERRUPTED`), and the agent observes the new page.
+
+A plain text or search field may offer suggestions once typed into: Wikipedia's search box is a
+plain field until it has focus, then a combobox. `select` on such a field plans a `choose` too; the
+bridge types the value and picks the suggestion that shows, or refuses when no list opens. An option
+that shows a description under its title is named by the title, its first line, so "Alan Turing"
+is one option, not the three that start with it. When the page replaces the field while it is typed
+into (a typeahead that mounts over the search box), the bridge follows it to the new element by its
+saved locator or by its tag and name, and goes on.
 
 If two or more options match, or none shows, the step is refused with the names the list showed, the
 typed text is put back, and the list is closed with Escape:
@@ -110,8 +139,14 @@ In a form tool call, a combobox field is chosen the same way.
 
 If the calendar cannot reach the date, or the day is disabled, the step is refused and the calendar it
 opened is closed again. A numeric date that can be read two ways ("11/12/2026") is refused before the
-browser acts. When more than one calendar is open, the one the field names in `aria-controls`, or else
-the one nearest the field, is used.
+browser acts. The field's calendar is the one it names in `aria-controls`; else one that was not shown
+before the field was clicked (a popup appended to the end of the page, as flatpickr's is); else one
+drawn next to the field. A calendar that is always on the page somewhere else (an inline example) is
+not taken for it. Month arrows with no name, a bare span around an icon as flatpickr draws them, are
+found by their class ("next", "prev") or a data attribute. A field that nothing labels is named by the
+text written beside it (`Date: <input>`, `<input> Remember me`), when it is a short, label-like phrase,
+and an id or name such as `datepicker` marks it as a date field. A calendar that redraws itself when
+its year list changes (jQuery UI replaces its month list too) is read again between the two choices.
 
 **Date ranges.** The lift marks a field that holds a whole range (`date range`: its name says
 "dates" or "date range", or its placeholder shows two dates) and a pair of fields that hold the start
@@ -176,7 +211,10 @@ after a server call. `scroll(plan_scroll(direction, control), until=..., timeout
 
 - scrolls the page, or with a control, the area that scrolls for it (the nearest ancestor that can
   scroll, crossing shadow roots): to the `end`, about one screen `down` or `up`, or to the `top`;
-- waits after each scroll for what loads, waking on DOM changes (up to 2.5 s);
+- waits after each scroll for what loads: it wakes on DOM changes until the area holds more elements
+  than before, or 2.5 s pass. A loading indicator (a live region that says "Loading…", a progress
+  bar, an `aria-busy` subtree) is not content, so a page that shows one first and adds its items
+  later is waited for;
 - without `until`, scrolls once and says whether it `moved`, whether more `loaded`, and whether the area
   is `at_end`;
 - with `until` (a `ChangeCondition`), scrolls again and again until the page shows it, the list ends
@@ -264,7 +302,8 @@ in one slice, so nothing changes for it.
 
 Every result uses the `viewspec mcp` result format: `ok`, `summary`, `errors` (each with `code`,
 `message`, and `fix`), and `next_actions`. `act` and `call` also return `steps` (with secret values
-as `[redacted]`, and `chosen` for a choice from a list), `navigated`, the new view, and `changes` (see [Changes](#changes)), so the agent
+as `[redacted]`, `chosen` for a choice from a list, and `invalid` for a click the browser refused:
+the fields that failed their constraints and why), `navigated`, the new view, and `changes` (see [Changes](#changes)), so the agent
 needs no extra `observe`. With `wait_for`, the result also has `wait`: what it waited for, `met`,
 and `waited_ms`. A wait that is not met is not an error: the action is done, `ok` stays true, and the
 summary says the change did not show, so the agent does not repeat an action that may have worked.
@@ -383,21 +422,22 @@ with BrowserSession() as session:  # block_writes=True by default
 
 | page | aria tok | view tok | interactive | compile cov | agent cov | same name | located | confirmed | forms | fp stable | leaks |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
-| booking | 99 | 66 | 6 | 1/6 | 6/6 | 6/6 | 6/6 | 6/6 | 1 | True | 0 |
+| booking | 133 | 81 | 8 | 1/8 | 8/8 | 8/8 | 8/8 | 8/8 | 1 | True | 0 |
 | catalog | 13544 | 7819 | 675 | 649/675 | 675/675 | 675/675 | 675/675 | 675/675 | 2 | True | 0 |
-| checkout | 222 | 151 | 15 | 1/15 | 15/15 | 15/15 | 16/16 | 16/16 | 1 | True | 0 |
+| checkout | 245 | 170 | 17 | 1/17 | 17/17 | 17/17 | 18/18 | 18/18 | 1 | True | 0 |
 | downloads | 296 | 110 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 0 | True | 0 |
 | feed | 860 | 310 | 41 | 40/41 | 41/41 | 41/41 | 41/41 | 41/41 | 0 | True | 0 |
-| shop | 255 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
+| search | 51 | 34 | 2 | 1/2 | 2/2 | 2/2 | 2/2 | 2/2 | 1 | True | 0 |
+| shop | 254 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
 | spa | 138 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 6/6 | 0 | True | 0 |
 | stay | 141 | 120 | 9 | 3/9 | 9/9 | 9/9 | 9/9 | 9/9 | 3 | True | 0 |
 | upload | 57 | 49 | 4 | 2/4 | 4/4 | 4/4 | 4/4 | 4/4 | 1 | True | 0 |
 | viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
 
-- **agent cov** matches by element (ref), not by name: 777 of 777 visible controls. **same name**: the
-  lift names all 777 as the browser does.
+- **agent cov** matches by element (ref), not by name: 783 of 783 visible controls. **same name**: the
+  lift names all 783 as the browser does.
 - **located**: every control has a locator (the agent lift also finds 2 pointer-only clickables).
-  Kinds on the four small fixtures, for 39 controls and 2 forms: 28 stable attribute, 4 content
+  Kinds on the four small fixtures, for 41 controls and 2 forms: 30 stable attribute, 4 content
   anchor, 4 role and name, 4 exact text, and 1 structural path (a form with no name). On the catalog:
   375 stable attribute, 300 content anchor (`li:has-text("Arc desk lamp 001") button`), and 2 role and
   name.
@@ -408,20 +448,25 @@ with BrowserSession() as session:  # block_writes=True by default
 - **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
   schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
-`demo_agent.py` (100 checks, all pass):
+`demo_agent.py` (120 checks, all pass):
 
 - **checkout:** a click inside the web component's shadow DOM changes the quantity from 2 to 3. Fills
   inside the payment iframe are verified, and the next snapshot does not contain the card number. A
   bad `checkout` call is refused with all three problems and does nothing in the browser. A good call
   runs 6 verified steps, and the blocked post holds the agent's values, the terms checkbox that sits
-  outside the `<form>` element, the password (never printed), and the hidden CSRF field.
+  outside the `<form>` element, the password (never printed), and the hidden CSRF field. A call with
+  the email "bo" is refused before the browser acts ("'bo' is not an email address"); a fill of "bo"
+  and a click on Place order are blocked by the browser, and the step says so: Email, "Please include
+  an '@' in the email address".
 - **spa:** after the page replaces every element, steps from the old view still land (by CSS and by
   role). A simulated layout change is refused by the drift guard.
 - **viewspec_orders:** the agent clicks the ViewSpec action `#refund`, found as `#dom-action_refund`.
 - **changes:** after each checkout and shop action, the diff names exactly what changed: the
   quantity 2 to 3, `no change` after the card fill, the promo field added when its `<details>`
   opens, a new document after the submit, the status message and the renamed, disabled button
-  after "Add to cart", and the new product after "Load more".
+  after "Add to cart", and the new product after "Load more". A click on a search suggestion loads the
+  results page: the step is reported as chosen and navigated, not verified, and a form call stops
+  there and names the submit step that did not run.
 - **waiting:** without a wait, the delayed Export seems to do nothing. A wait for "Download CSV" is
   met in about 700 ms with 2 readings, and the diff shows the message and the new link. A wait that
   is not met ends at its timeout. On the checkout promo code, a wait for a message shows "Code not
@@ -429,7 +474,16 @@ with BrowserSession() as session:  # block_writes=True by default
   a new page after the submit is met at once.
 - **choosing:** on the country combobox, whose options come 300 ms after each keystroke, "Jap"
   chooses Japan and the diff shows the new value; "S" (Spain, Sweden, Switzerland) and "Atlantis" are
-  refused, and the field still holds Japan. On the click-to-open gift wrap combobox, "box" chooses Box.
+  refused, and the field still holds Japan. The pickup city combobox filters only on key presses, as the
+  W3C APG examples do; "Lis" chooses Lisbon. The colour combobox is built like react-select without
+  search: a read-only input a person cannot see, the choice shown in the box beside it, and an
+  announcement in a live region; its value reads "Pick a colour", a click on the box opens the list,
+  "Pur" chooses Purple, and the diff shows the announcement and the new value. On the click-to-open
+  gift wrap combobox, "box" chooses Box. The search fixture is built like Wikipedia's search: a plain
+  search field until it has focus, then a combobox the page mounts in its place (with no id) whose
+  suggestions show a title over a description. "Alan Turing" on the plain field types, follows the
+  field to its replacement, chooses the article with that title (not the Institute or the law), and
+  opens it; "Alan" is refused with the three titles, and the typed text is removed.
   A form call that chooses Kenya and Paper sends both.
 - **scrolling:** one scroll of the feed loads 20 more posts, and the diff names the new controls; a
   scroll until "Post 75" stops once it shows; a scroll for "Post 999" stops at the end of the feed
@@ -439,7 +493,12 @@ with BrowserSession() as session:  # block_writes=True by default
   "11/12/2026" are refused before the browser acts. The check-out calendar, opened by its button,
   picks 23 November, then moves three months ahead for 14 February; a past (disabled) day is refused
   and its calendar is closed again. The birth date calendar uses its month and year lists for
-  7 March 1990. A form call fills the native date and picks both calendar dates.
+  7 March 1990. A form call fills the native date and picks both calendar dates. The delivery date
+  picker is built like flatpickr, with bare-icon month arrows, a month list, and a year number input:
+  it moves a month ahead for 25 December, across the year for 14 February, and refuses a past day. The
+  field that nothing labels (`<p>Date: <input>`, as jQuery UI's demo has) is named "Date" by the text
+  before it, which makes it a date field; its calendar, built like jQuery UI's (Prev and Next links
+  named by their title, a month title with a non-breaking space), picks 3 March 2027.
 - **uploads:** a PDF set on the résumé input is verified, and the diff shows `value '' -> 'cv.pdf'`;
   an `.exe` file and two files for the one-file input are refused before the browser acts. "Add
   photos" opens the chooser of a hidden input, which takes two images, and the page says "2 photos
@@ -459,7 +518,7 @@ with BrowserSession() as session:  # block_writes=True by default
   which the page builds by script, is saved with the table's rows. A plain click on "Export orders"
   names the download and saves nothing. A link that downloads nothing is reported.
 
-`demo_mcp.py` (98 checks, all pass) runs the same kind of tasks through the MCP server, as a host
+`demo_mcp.py` (100 checks, all pass) runs the same kind of tasks through the MCP server, as a host
 would, with `--allow-origin` set to the local fixture server and without `NODE_PATH`. It also checks
 that the tool schemas carry no internal node ids, that a blocked post shows the password field as
 `[redacted]` and no result contains the password or the card number, that acting from a view of a
@@ -498,14 +557,19 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 
 - Closed shadow roots and cross-origin iframes cannot be read from the page.
 - A canvas-drawn UI has no DOM to lift.
-- Names follow the main rules of accessible name computation, not all of them.
+- Names follow the main rules of accessible name computation, not all of them. A field that nothing
+  labels is named by the short text written beside it, which the browser's accessibility tree does
+  not do; the in-page library names it the same way, so the drift guard still agrees.
 - A ref lasts while its element is in the page. After a navigation, observe again.
 - The drift guard checks the tag and the name. Two items with the same name (two "Add to cart"
   buttons) can still swap places after a re-render; content-anchored locators make this less likely,
   not impossible.
-- `choose` types with `fill`, which sends an `input` event. A combobox that reacts only to key
-  presses needs a click to open instead. Options must have `role="option"`; a list that renders only
+- `choose` types the value key by key, so a list that filters as you type reacts to each key and
+  may ask its server once per key. Options must have `role="option"`; a list that renders only
   the options in view (a virtual list) shows only those.
+- The value of an empty combobox input is the text of the smallest box around it, which may be its
+  placeholder ("Select..."). The search for that box stops at a form, a list item, a table cell,
+  or a section, so a combobox placed directly in one of those shows no value until it is typed in.
 - `block_writes` stops HTTP requests that are not GET, HEAD, or OPTIONS. A page that changes data with
   a GET request, or over a WebSocket, is not stopped.
 - The origin allowlist checks top-level navigations. Requests for scripts, images, and data from
@@ -514,10 +578,30 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 - A kept reading is a snapshot. Paging through it does not show changes made since; observe again.
 - A scroll uses `scrollTo`, which fires scroll events and moves what `IntersectionObserver` sees. A page
   that loads more only on wheel or touch events needs another way.
+- Text order follows the page's layout only in a browser snapshot, which marks elements whose layout
+  differs from their tag's default (`data-lift-display`). `lift_html` on static HTML joins text by tag
+  alone, so a span styled as a block runs into the text around it there.
+- A spinner with no ARIA role is an element like any other, so a page that shows one first and adds
+  its items later may report `loaded` before they arrive. A scroll that loads nothing takes the
+  whole wait.
+- `loaded` counts elements. A list that fills the elements it has with new text, or a virtual list that
+  recycles its elements, does not count as loaded, so a scroll `until` may stop at the end of the
+  viewport before the text shows.
+- A form call checks a field's `pattern` only when it is short and has no quantified group
+  (`(a+)+` can make Python's `re` run without bound); other patterns are left to the browser, which
+  reports its refusal in the step's `invalid` list.
 - A list that removes the items it scrolls past (a virtual list) changes the handles of the items
   after them; the diff shows the removed and added controls.
 - `choose_date` reads month names in English. A calendar that shows only day numbers needs a month
   title or month and year lists. A calendar that shows several months needs a title for each.
+- A field whose calendar is always on the page far from it (an inline picker elsewhere) is not matched
+  to that calendar; the step says that no calendar opened.
+- A range picker whose field says nothing about a range until one is chosen (flatpickr's
+  `mode: "range"`) is read as a single date field: `select` picks one day and leaves the calendar
+  waiting for the second.
+- After a click that opens a calendar or moves it a month, the bridge waits for the next DOM change;
+  a calendar that changed during the click itself makes it wait the whole 1.5 s. Each month moved
+  costs about that.
 - A pair of date fields is found only when the end field is the next date field after the start, in
   the same form. Other pairs are two fields, each with its own date.
 - `choose_date_range` on one field needs a calendar that stays open after the first day. On a pair with

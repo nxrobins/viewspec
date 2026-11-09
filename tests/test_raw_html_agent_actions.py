@@ -152,6 +152,83 @@ def test_form_call_reports_every_problem_at_once():
     assert error.to_json()["code"] == "AGENT_FORM_ARGUMENTS_INVALID"
 
 
+CONSTRAINED = """
+<form aria-label="Join">
+  <label>Email <input type="email" name="email" required></label>
+  <label>Site <input type="url" name="site"></label>
+  <label>Code <input name="code" pattern="[A-Z]{3}-\\d{2}" minlength="6" maxlength="6"></label>
+  <label>Seats <input type="number" name="seats" min="2" max="10" step="2"></label>
+  <label>Note <textarea name="note" maxlength="5"></textarea></label>
+  <button>Join</button>
+</form>
+"""
+
+
+def test_a_form_call_that_fits_the_fields_is_planned():
+    steps = plan_form_call(
+        _lift(CONSTRAINED),
+        "join",
+        {"email": "bo@example.com", "site": "https://example.com", "code": "ABC-12", "seats": 4, "note": "hi"},
+    )
+    assert [step.op for step in steps] == ["fill", "fill", "fill", "fill", "fill", "click"]
+
+
+@pytest.mark.parametrize(
+    ("arguments", "argument", "words"),
+    [
+        ({"email": "bo"}, "email", "is not an email address"),
+        ({"email": ""}, "email", "is required"),
+        ({"email": "bo@example.com", "site": "example.com"}, "site", "is not a URL"),
+        ({"email": "bo@example.com", "code": "abc-12"}, "code", "does not match the pattern"),
+        ({"email": "bo@example.com", "code": "AB-1"}, "code", "is shorter than 6 characters"),
+        ({"email": "bo@example.com", "seats": 1}, "seats", "is below the minimum, 2"),
+        ({"email": "bo@example.com", "seats": 12}, "seats", "is above the maximum, 10"),
+        ({"email": "bo@example.com", "seats": 5}, "seats", "is not 2 apart from 2"),
+        ({"email": "bo@example.com", "note": "too long"}, "note", "is longer than 5 characters"),
+    ],
+)
+def test_a_form_call_the_browser_would_refuse_is_refused_first(arguments, argument, words):
+    # The browser checks these at submit time and says so only in a tooltip the page never shows.
+    with pytest.raises(AgentActionError) as caught:
+        plan_form_call(_lift(CONSTRAINED), "join", arguments)
+    [problem] = [item for item in caught.value.details if item["argument"] == argument]
+    assert problem["problem"] == "invalid" and words in problem["message"]
+
+
+def test_constraint_messages_never_show_a_secret_value():
+    lift = _lift(
+        '<form aria-label="In"><input type="password" name="pw" minlength="8" pattern="\\d+"><button>Go</button></form>'
+    )
+    with pytest.raises(AgentActionError) as caught:
+        plan_form_call(lift, "in", {"pw": "hunter2"})
+    [problem] = caught.value.details
+    assert "hunter2" not in json.dumps(caught.value.to_json()) and problem["message"].startswith("the value is shorter")
+
+
+def test_a_pattern_that_could_backtrack_is_left_to_the_browser():
+    lift = _lift('<form aria-label="In"><input name="code" pattern="(a+)+$"><button>Go</button></form>')
+    steps = plan_form_call(
+        lift,
+        "in",
+        {
+            "code": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!"
+        },
+    )
+    assert [step.op for step in steps] == ["fill", "click"]  # Not refused, and not computed with re.
+
+
+def test_an_email_with_spaces_around_it_is_accepted_as_the_browser_does():
+    steps = plan_form_call(_lift(CONSTRAINED), "join", {"email": " bo@example.com "})
+    assert [step.op for step in steps] == ["fill", "click"]
+
+
+def test_a_fill_does_not_check_what_only_a_submit_checks():
+    # A person can type anything into an email field; only the submit is refused.
+    controls = {control.name: control for control in _lift(CONSTRAINED).controls}
+    [step] = plan_control_action(controls["Email"], "fill", "bo")
+    assert step.op == "fill" and step.value == "bo"
+
+
 def test_a_required_field_the_page_already_filled_may_be_left_out():
     lift = _lift(
         """
@@ -221,7 +298,7 @@ def test_aria_widgets_click_only_when_their_state_must_change():
         ("<button>B</button>", "check", None, "AGENT_ACTION_UNSUPPORTED"),
         ('<select aria-label="S"><option>a</option></select>', "select", "b", "AGENT_ACTION_VALUE_INVALID"),
         ('<select aria-label="S"><option>a</option></select>', "select", ["a", "a"], "AGENT_ACTION_VALUE_INVALID"),
-        ('<input aria-label="T">', "select", "a", "AGENT_ACTION_UNSUPPORTED"),
+        ('<input type="number" aria-label="T">', "select", "a", "AGENT_ACTION_UNSUPPORTED"),
         ('<input aria-label="T">', "hover", None, "AGENT_ACTION_UNSUPPORTED"),
         ('<input aria-label="T">', "submit", None, "AGENT_ACTION_UNSUPPORTED"),
     ],

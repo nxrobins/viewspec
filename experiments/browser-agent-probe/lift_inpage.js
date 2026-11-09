@@ -10,6 +10,12 @@
   const SEMANTIC = new Set(["A", "BUTTON", "INPUT", "SELECT", "TEXTAREA", "LABEL", "SUMMARY", "OPTION"]);
   const SKIP = new Set(["SCRIPT", "STYLE", "TEMPLATE", "NOSCRIPT", "LINK", "META"]);
   const NO_BOX = new Set(["OPTION", "OPTGROUP", "HEAD", "TITLE", "BR", "WBR"]);
+  // Tags that flow inside a line of text by default. The same list as the package's INLINE_TAGS; the
+  // snapshot marks an element whose layout differs from its tag's default (data-lift-display).
+  const INLINE = new Set([
+    "A", "ABBR", "B", "BUTTON", "CODE", "EM", "I", "IMG", "INPUT", "LABEL", "OUTPUT", "SELECT", "SMALL", "SPAN",
+    "STRONG", "SUB", "SUP", "TEXTAREA",
+  ]);
   const SECRET_AUTOCOMPLETE =
     /(^|\s)(current-password|new-password|one-time-code|cc-number|cc-csc|cc-exp(-month|-year)?)(\s|$)/i;
   const SECRET_NAME = /pass(word|wd|code)?|secret|token|otp|cvv|cvc|ssn|card.?num|cc.?num|security.?code/i;
@@ -73,7 +79,45 @@
       return clean(el.value || el.getAttribute("alt") || (el.type === "reset" ? "Reset" : "Submit"));
     }
     if (tag !== "INPUT" && tag !== "SELECT" && tag !== "TEXTAREA" && clean(el.innerText)) return clean(el.innerText);
-    return clean(el.getAttribute("title") || el.getAttribute("placeholder") || el.querySelector?.("img")?.alt);
+    const fallback = clean(el.getAttribute("title") || el.getAttribute("placeholder") || el.querySelector?.("img")?.alt);
+    if (fallback || (tag !== "INPUT" && tag !== "SELECT" && tag !== "TEXTAREA")) return fallback;
+    return labelBeside(el);
+  }
+  // The text written beside a field that nothing labels, as a person reads it: the text just before
+  // it in its block ("Date: <input>"), or just after a bare checkbox or radio ("<input> Remember me");
+  // when that is blank, the inline element next to it ("<span>Amount:</span>"). Only a short,
+  // label-like phrase counts, without its colon. The package's _text_beside does the same.
+  function labelBeside(el) {
+    const after = el.tagName === "INPUT" && /^(checkbox|radio)$/i.test(el.type);
+    let text = "";
+    for (let node = after ? el.nextSibling : el.previousSibling; node; node = after ? node.nextSibling : node.previousSibling) {
+      if (node.nodeType === 3) {
+        text = after ? text + node.data : node.data + text;
+        continue;
+      }
+      if (node.nodeType !== 1) continue;
+      if (!text.trim() && shown(node) && /^inline/.test(getComputedStyle(node).display) && !controlLike(node)) {
+        text = node.innerText || node.textContent || "";
+      }
+      break;
+    }
+    text = text.replace(/\s+/g, " ").trim().replace(/:$/, "").trim();
+    return text && text.length <= 40 && !/\.$/.test(text) ? text : "";
+  }
+  // What the package's _classify would call a control: a native control, a control role, something
+  // editable, a tab stop, or an element with a pointer cursor. The label beside a field is never one.
+  const CONTROL_ROLES = new Set([
+    "button", "link", "menuitem", "menuitemcheckbox", "menuitemradio", "tab", "treeitem",
+    "checkbox", "combobox", "listbox", "radio", "searchbox", "slider", "spinbutton", "switch", "textbox",
+  ]);
+  function controlLike(node) {
+    if (node.matches("input,select,textarea,button,summary,a[href]")) return true;
+    const editable = (node.getAttribute("contenteditable") || "missing").toLowerCase();
+    if (editable === "" || editable === "true" || editable === "plaintext-only") return true;
+    const role = (node.getAttribute("role") || "").trim().toLowerCase().split(" ")[0];
+    if (CONTROL_ROLES.has(role)) return true;
+    const tabindex = parseInt(node.getAttribute("tabindex") || "-1", 10);
+    return tabindex >= 0 || getComputedStyle(node).cursor === "pointer";
   }
   function kindOf(el) {
     const role = el.getAttribute("role");
@@ -190,6 +234,13 @@
         if (!clickable && !semantic) result.setAttribute("data-lift-clickable", "true");
         clickable = true;
       }
+      // Layout hint for text order: a span laid out as a block is a line of its own (Wikipedia's
+      // suggestions show a title over a description), and a div laid out inline runs into its line.
+      if (!hidden && tag !== "HTML" && tag !== "BODY" && !NO_BOX.has(tag)) {
+        const inlineNow = /^inline/.test(style.display);
+        if (INLINE.has(tag) && !inlineNow && style.display !== "contents") result.setAttribute("data-lift-display", "block");
+        else if (!INLINE.has(tag) && inlineNow) result.setAttribute("data-lift-display", "inline");
+      }
 
       // Ground truth: visible interactive elements, not counting one inside another.
       let inside = state.inside;
@@ -235,6 +286,18 @@
       for (const el of roots[i].querySelectorAll("*")) if (el.shadowRoot) roots.push(el.shadowRoot);
     }
     return roots;
+  }
+
+  // The one visible element with this tag and this accessible name, in the document and its open
+  // shadow roots, or null when there is none or more than one. The drift guard's own criterion,
+  // used to find a control again when the page replaced it and its saved locator finds nothing.
+  function byTagAndName(tag, name) {
+    const want = norm(name);
+    const hits = [];
+    for (const root of rootsOf(document)) {
+      for (const el of root.querySelectorAll(tag)) if (shown(el) && norm(nameOf(el)) === want) hits.push(el);
+    }
+    return hits.length === 1 ? hits[0] : null;
   }
 
   function matchesIn(roots, css) {
@@ -439,11 +502,35 @@
     }
     return el.ownerDocument.scrollingElement;
   }
+  // A loading indicator is not content: a live region that says "Loading…", a progress bar, or a
+  // subtree the page marks busy. A scroll that loads more waits for other elements.
+  const INDICATOR =
+    '[aria-busy="true"],[role~="progressbar"],[role~="status"],[role~="log"],[role~="alert"],[aria-live]:not([aria-live="off"])';
+  // The elements in an area, without its loading indicators and without scripts and styles.
+  function countItems(area) {
+    let excluded = 0;
+    for (const indicator of area.querySelectorAll(INDICATOR)) {
+      let node = indicator.parentElement;
+      let nested = false;
+      while (node && node !== area) {
+        if (node.matches(INDICATOR)) {
+          nested = true; // Already counted with the indicator around it.
+          break;
+        }
+        node = node.parentElement;
+      }
+      if (!nested) excluded += 1 + indicator.querySelectorAll("*").length;
+    }
+    let total = 0;
+    for (const el of area.querySelectorAll("*")) if (!SKIP.has(el.tagName)) total += 1;
+    return total - excluded;
+  }
   function scrollState(area) {
     return {
       top: Math.round(area.scrollTop),
       height: area.scrollHeight,
       client: area.clientHeight,
+      items: countItems(area),
       atEnd: area.scrollTop + area.clientHeight >= area.scrollHeight - 2,
       atStart: area.scrollTop <= 0,
     };
@@ -485,6 +572,19 @@
   }
   // The option named ``value`` in the list of the control ``ref``: the one with exactly that name
   // (ignoring case and runs of whitespace), or else the one whose name starts with it.
+  // An option's text as the page lays it out (innerText keeps its lines apart), and its label: the
+  // first line, when a description sits under the title (Wikipedia shows "Alan Turing" over
+  // "English computer scientist"). The package names options the same way.
+  function optionText(option) {
+    const text = option.getAttribute("aria-label") || option.innerText || option.textContent || "";
+    const lines = text.split("\n").map((line) => clean(line)).filter(Boolean);
+    // The label is the first line that holds a letter or a digit: an icon on a line of its own above
+    // the title is not the title. The package's first_line does the same.
+    const label = lines.find((line) => /[\p{L}\p{N}]/u.test(line)) || lines[0] || "";
+    return { name: clean(lines.join(" ")), label };
+  }
+  // The option named ``value``: by its whole text, then by its label, exactly (ignoring case and runs
+  // of whitespace), or else the one option whose label, then whose text, starts with it.
   function findOption(ref, value) {
     const el = get(ref);
     if (!el) return { state: "stale" };
@@ -492,13 +592,16 @@
     const options = list
       ? [...list.querySelectorAll("[role=option]")].filter((o) => shown(o) && o.getAttribute("aria-disabled") !== "true")
       : [];
-    const names = options.map((o) => clean(o.getAttribute("aria-label") || o.textContent));
+    const texts = options.map(optionText);
     const want = norm(value);
-    let hits = names.map((name, i) => [name, i]).filter(([name]) => norm(name) === want);
-    if (hits.length === 0) hits = names.map((name, i) => [name, i]).filter(([name]) => norm(name).startsWith(want));
-    if (hits.length === 1) return { state: "found", ref: refOf(options[hits[0][1]]), label: hits[0][0] };
-    if (hits.length > 1) return { state: "ambiguous", names: hits.map(([name]) => name) };
-    return { state: "missing", names, open: Boolean(list && shown(list)) };
+    const matching = (test) => texts.map((text, i) => [text, i]).filter(([text]) => test(text));
+    let hits = matching((text) => norm(text.name) === want);
+    if (hits.length === 0) hits = matching((text) => norm(text.label) === want);
+    if (hits.length === 0) hits = matching((text) => norm(text.label).startsWith(want));
+    if (hits.length === 0) hits = matching((text) => norm(text.name).startsWith(want));
+    if (hits.length === 1) return { state: "found", ref: refOf(options[hits[0][1]]), label: hits[0][0].label };
+    if (hits.length > 1) return { state: "ambiguous", names: hits.map(([text]) => text.label) };
+    return { state: "missing", names: texts.map((text) => text.label), open: Boolean(list && shown(list)) };
   }
   // After a choice: does the control show the option, or mark it selected?
   function showsChoice(ref, optionRef, label) {
@@ -507,10 +610,38 @@
     const want = norm(label);
     if (option && option.getAttribute("aria-selected") === "true") return true;
     if (!el) return false;
-    if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") return norm(el.value) === want;
+    if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+      if (norm(el.value) === want) return true;
+      // react-select and Ant Design keep the input empty and show the choice in the box beside it.
+      return !el.value && norm(shownBeside(el)) === want;
+    }
     const copy = el.cloneNode(true);
     copy.querySelectorAll("[role=listbox],[role=option]").forEach((item) => item.remove());
     return norm(copy.textContent) === want;
+  }
+  // The text a widget shows beside an empty input: the text of the nearest ancestor that has any,
+  // without the input, hidden nodes, lists and options, live regions, labels, buttons, and other
+  // fields. The search stops at a form, a list item, a table cell, or a section, which hold more than
+  // one widget. The same rule as the package's `_shown_beside`.
+  const BESIDE_SKIP =
+    'label,button,input,select,textarea,[role~="listbox"],[role~="option"],[role~="status"],[role~="log"],[role~="alert"],[aria-live]:not([aria-live="off"])';
+  const WIDGET_BOUNDARY = new Set([
+    "ARTICLE", "ASIDE", "BODY", "DIALOG", "FIELDSET", "FOOTER", "FORM", "HEADER", "HTML", "LI", "MAIN", "NAV",
+    "SECTION", "TABLE", "TD", "TH", "TR",
+  ]);
+  function textBeside(node, el) {
+    if (node.nodeType === 3) return node.nodeValue;
+    if (node.nodeType !== 1 || node === el || SKIP.has(node.tagName) || node.matches(BESIDE_SKIP) || !shown(node)) return "";
+    let text = "";
+    for (const child of node.childNodes) text += textBeside(child, el);
+    return text;
+  }
+  function shownBeside(el) {
+    for (let node = el.parentElement; node && !WIDGET_BOUNDARY.has(node.tagName); node = node.parentElement) {
+      const text = textBeside(node, el).replace(/\s+/g, " ").trim();
+      if (text) return text;
+    }
+    return "";
   }
 
   // ---- Date pickers -----------------------------------------------------------------------------
@@ -535,7 +666,7 @@
   }
   // A month and year in a calendar's title ("November 2026"): {y, m} or null.
   function monthTitle(text) {
-    const match = (text || "").match(/([A-Za-z]+)\.?,? (\d{4})/);
+    const match = (text || "").match(/([A-Za-z]+)\.?,?\s+(\d{4})/); // \s also matches the &nbsp; jQuery UI puts here.
     return match && monthOf(match[1]) ? { y: +match[2], m: monthOf(match[1]) } : null;
   }
   const dayLabel = (el) => el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("data-date") ||
@@ -569,29 +700,46 @@
     }
     return Infinity;
   }
-  // The open calendar of a field: a visible dialog, grid, or calendar-like block with a month of day
-  // cells. The one the field names in aria-controls wins; then the one nearest the field in the tree
-  // (another field's calendar may still be open); then the one with the most day cells.
-  function calendarFor(el) {
-    const named = (el.getAttribute("aria-controls") || "").split(/\s+/).filter(Boolean).map((id) => byId(el, id));
-    let best = null;
-    let bestScore = null;
-    const selector = "[role=dialog], [role=grid], [role=application], table, [class*=calendar i], [class*=picker i]";
+  const CALENDAR_SELECTOR = "[role=dialog], [role=grid], [role=application], table, [class*=calendar i], [class*=picker i]";
+  // The visible calendar-like blocks with a month of day cells, anywhere in the field's document,
+  // each with its count of day cells (read once; readCalendar and calendarFor both use it).
+  function shownCalendars(el) {
+    const found = [];
     for (const root of rootsOf(el.ownerDocument)) {
-      for (const candidate of root.querySelectorAll(selector)) {
+      for (const candidate of root.querySelectorAll(CALENDAR_SELECTOR)) {
         if (!shown(candidate)) continue;
         const count = dayCells(candidate).length;
-        if (count < 28) continue;
-        // Lower is better, field by field: named by the field, nearer in the tree, more day cells.
-        const score = [
-          named.some((n) => n && (n === candidate || n.contains(candidate))) ? 0 : 1,
-          treeDistance(el, candidate),
-          -count,
-        ];
-        if (!bestScore || lowerScore(score, bestScore)) {
-          best = candidate;
-          bestScore = score;
-        }
+        if (count >= 28) found.push({ el: candidate, count });
+      }
+    }
+    return found;
+  }
+  // The gap in pixels between two boxes: 0 when they touch or overlap.
+  function boxGap(a, b) {
+    return Math.max(0, b.left - a.right, a.left - b.right, b.top - a.bottom, a.top - b.bottom);
+  }
+  // The open calendar of a field, among the visible calendars (see shownCalendars): one that is the
+  // field's. That is the one the field names in aria-controls; else one that was not shown before
+  // the field was clicked (``seen`` lists the calendars shown then; a popup appended to the end of
+  // the page is found this way); else one drawn next to the field (within 48 px) or around it. A
+  // calendar always on the page somewhere else (an inline example) is not taken for the field's.
+  // Among those, the named one wins, then a new one, then the nearest in the tree, then the one with
+  // the most day cells.
+  function calendarFor(el, seen, calendars) {
+    const named = (el.getAttribute("aria-controls") || "").split(/\s+/).filter(Boolean).map((id) => byId(el, id));
+    const fieldBox = el.getBoundingClientRect();
+    let best = null;
+    let bestScore = null;
+    for (const { el: candidate, count } of calendars || shownCalendars(el)) {
+      const isNamed = named.some((n) => n && (n === candidate || n.contains(candidate)));
+      const isNew = Array.isArray(seen) && !seen.includes(refOf(candidate));
+      const near =
+        candidate.contains(el) || el.contains(candidate) || boxGap(fieldBox, candidate.getBoundingClientRect()) <= 48;
+      if (!isNamed && !isNew && !near) continue;
+      const score = [isNamed ? 0 : 1, isNew ? 0 : 1, treeDistance(el, candidate), -count];
+      if (!bestScore || lowerScore(score, bestScore)) {
+        best = candidate;
+        bestScore = score;
       }
     }
     // Move up to the dialog around a grid, where the month title and buttons are.
@@ -627,12 +775,16 @@
     }
     return months.map(({ month }, i) => ({ month, cells: cellsIn(roots[i]) }));
   }
-  // Read the open calendar of the field ``ref`` for the date ``iso`` (YYYY-MM-DD).
-  function readCalendar(ref, iso) {
+  // Read the open calendar of the field ``ref`` for the date ``iso`` (YYYY-MM-DD). ``seen`` lists
+  // the calendars (refs) that were shown before the field was clicked, or null on the first read;
+  // ``visible`` in the result lists the ones shown now, for the next read.
+  function readCalendar(ref, iso, seen) {
     const el = get(ref);
     if (!el) return { state: "stale" };
-    const cal = calendarFor(el);
-    if (!cal) return { state: "closed" };
+    const calendars = shownCalendars(el);
+    const visible = calendars.map((item) => refOf(item.el));
+    const cal = calendarFor(el, seen, calendars);
+    if (!cal) return { state: "closed", visible };
     const [ty, tm, td] = iso.split("-").map(Number);
     const cells = dayCells(cal).map((cell) => {
       const date = fullDate(dayLabel(cell));
@@ -672,11 +824,25 @@
       target = run.find((c, k) => c.day === td && (start < 0 || k === td - 1)) || null;
     }
     const nameOfButton = (b) => `${b.getAttribute("aria-label") || ""} ${b.getAttribute("title") || ""} ${b.textContent || ""}`;
-    const buttons = [...cal.querySelectorAll("button, [role=button], a")].filter((b) => shown(b) && !cells.some((c) => c.cell === b));
-    const next = buttons.find((b) => /next|›|»|→|forward/i.test(nameOfButton(b)) || nameOfButton(b).trim() === ">");
-    const prev = buttons.find((b) => /prev|‹|«|←|back/i.test(nameOfButton(b)) || nameOfButton(b).trim() === "<");
+    const isCell = (b) => cells.some((c) => c.cell === b);
+    const buttons = [...cal.querySelectorAll("button, [role=button], a")].filter((b) => shown(b) && !isCell(b));
+    // Arrows with no name: a bare span around an icon (flatpickr), told apart only by a class or a
+    // data attribute ("flatpickr-next-month", data-action="prev"). Only an element that holds no day
+    // cell and no control counts, so a header around the arrow is not taken for it.
+    const icons = [...cal.querySelectorAll("span, div, i, th")].filter(
+      (b) =>
+        shown(b) && !isCell(b) && !cells.some((c) => b.contains(c.cell)) && !b.querySelector("button, [role=button], a, select, input"),
+    );
+    const classWords = (b) => `${typeof b.className === "string" ? b.className : ""} ${Object.values(b.dataset || {}).join(" ")}`;
+    const nextIcon = (b) => /(^|[^a-z])(next|forward)([^a-z]|$)/i.test(classWords(b));
+    const prevIcon = (b) => /(^|[^a-z])(prev|previous|back)([^a-z]|$)/i.test(classWords(b));
+    const next =
+      buttons.find((b) => /next|›|»|→|forward/i.test(nameOfButton(b)) || nameOfButton(b).trim() === ">") || icons.find(nextIcon);
+    const prev =
+      buttons.find((b) => /prev|‹|«|←|back/i.test(nameOfButton(b)) || nameOfButton(b).trim() === "<") || icons.find(prevIcon);
     return {
       state: "open",
+      visible,
       shown: shownMonth,
       last: lastMonth,
       target: target ? { ref: refOf(target.cell), disabled: target.disabled } : null,
@@ -754,14 +920,37 @@
     return el.getAttribute("aria-checked") === "true";
   }
 
+  // ---- Submits the browser refuses --------------------------------------------------------------
+  // When a form is sent, the browser fires `invalid` on each field that fails its constraints (a
+  // required field left empty, an email with no "@") and shows the reason only in a tooltip that is
+  // not in the DOM. Record them, so a step can say which fields the browser refused, and why.
+  const invalidEvents = [];
+  function onInvalid(event) {
+    const el = event.target;
+    if (!el || el.nodeType !== 1) return;
+    invalidEvents.push({
+      ref: refOf(el),
+      name: nameOf(el) || el.getAttribute("name") || "",
+      message: el.validationMessage || "",
+    });
+  }
+  for (const root of rootsDeep(document)) root.addEventListener("invalid", onInvalid, true);
+  // The fields the browser refused since the last call, each once, in the order it refused them.
+  function takeInvalid() {
+    const seen = new Set();
+    return invalidEvents.splice(0).filter((item) => !seen.has(item.ref) && seen.add(item.ref));
+  }
+
   window.__viewspecLift = {
     docId,
+    takeInvalid,
     snapshot,
     describe,
     locateAll,
     refOf,
     get,
     nameOf,
+    byTagAndName,
     nextChange,
     findOption,
     showsChoice,

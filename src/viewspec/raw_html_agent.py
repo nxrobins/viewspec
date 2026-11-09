@@ -10,7 +10,7 @@ It works only on the sanitized, lifted nodes. It makes no network calls and runs
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
@@ -23,6 +23,9 @@ if TYPE_CHECKING:
 AGENT_HINT_ATTR_PREFIX = "data-lift-"
 HINT_HIDDEN = "data-lift-hidden"
 HINT_CLICKABLE = "data-lift-clickable"
+# ``data-lift-display`` says how the page lays an element out when that differs from its tag's
+# default: "block" on a span shown as a line of its own, "inline" on a div that runs into its line.
+HINT_DISPLAY = "data-lift-display"
 # A browser-side snapshot may also give each element a ``data-lift-ref``: a handle the browser can
 # turn back into that exact element, so an agent can act on what it read.
 HINT_REF = "data-lift-ref"
@@ -42,11 +45,81 @@ INPUT_ACTION_TYPES = frozenset({"button", "image", "reset", "submit"})
 NAME_FROM_AUTHOR = frozenset({"combobox", "listbox", "searchbox", "slider", "spinbutton", "textbox"})
 # Controls that hold a list of ARIA options to choose from.
 ARIA_CHOICE = frozenset({"combobox", "listbox"})
+# Elements that hold more than one widget: the text beside an empty combobox input is not looked
+# for past them.
+WIDGET_BOUNDARY_TAGS = frozenset(
+    {
+        "article",
+        "aside",
+        "body",
+        "dialog",
+        "document",
+        "fieldset",
+        "footer",
+        "form",
+        "header",
+        "li",
+        "main",
+        "nav",
+        "section",
+        "table",
+        "td",
+        "th",
+        "tr",
+    }
+)
+# What never counts as the text a widget shows beside its input: labels, buttons, and other fields.
+BESIDE_SKIP_TAGS = frozenset({"button", "input", "label", "select", "textarea"})
+# Controls the lift guesses from a tab stop or a click listener, with no role that says what they are.
+GUESSED_CONTROLS = frozenset({"clickable", "focusable"})
+# ARIA controls that own what they hold, so nothing inside them is a control of its own.
+OWNS_CONTENT_ROLES = frozenset(
+    {
+        "button",
+        "checkbox",
+        "combobox",
+        "listbox",
+        "menuitemcheckbox",
+        "menuitemradio",
+        "radio",
+        "searchbox",
+        "slider",
+        "spinbutton",
+        "switch",
+        "tab",
+        "textbox",
+    }
+)
 # Regions where a page tells the user what happened: an error, a confirmation, a log line.
 MESSAGE_ROLES = frozenset({"alert", "alertdialog", "log", "status"})
 MESSAGE_LIVE = frozenset({"assertive", "polite"})
 DEFAULT_INPUT_ACTION_NAMES = {"submit": "Submit", "reset": "Reset", "image": "Submit"}
 CONTROL_CONTENT_TAGS = frozenset({"input", "option", "optgroup", "select", "textarea"})
+# Elements that flow inside a line of text. The browser shows their text right next to the text
+# around them, so "<i>Doctor Who</i>, series 12" reads "Doctor Who, series 12". Every other element
+# starts its own line, box, or cell, which reads as a space between words.
+INLINE_TAGS = frozenset(
+    {
+        "a",
+        "abbr",
+        "b",
+        "button",
+        "code",
+        "em",
+        "i",
+        "img",
+        "input",
+        "label",
+        "output",
+        "select",
+        "small",
+        "span",
+        "strong",
+        "sub",
+        "sup",
+        "textarea",
+    }
+)
 SENSITIVE_AUTOCOMPLETE = frozenset(
     {
         "cc-csc",
@@ -82,7 +155,8 @@ DATE_INPUT_TYPES = {
 # A text field that holds a date, by its name, id, or label ("Check-in", "date_of_birth"), or by a
 # placeholder that shows a date's shape ("DD/MM/YYYY"). Such a field often opens a calendar.
 DATE_HINT_RE = re.compile(
-    r"(?<![a-z])(?:dates?|dob|birth\w*|check.?in|check.?out|arrival|departure|deadline|due)(?![a-z])", re.IGNORECASE
+    r"(?<![a-z])(?:dates?|date.?picker|dob|birth\w*|check.?in|check.?out|arrival|departure|deadline|due)(?![a-z])",
+    re.IGNORECASE,
 )
 DATE_PLACEHOLDER_RE = re.compile(r"(?<![a-z])(?:dd|mm|yy|yyyy)\s*[/.\-]\s*(?:dd|mm|yy|yyyy)(?![a-z])", re.IGNORECASE)
 # A text field that holds a whole date range: its name says so ("Travel dates", "date_range"), or its
@@ -178,6 +252,12 @@ class HtmlControl:
     date_range: str | None = None  # "start" or "end" of a pair of date fields, or "range" for one field.
     range_with: str | None = None  # The node id of the other field of a pair.
     download: str | None = None  # A link's download attribute: the file name it suggests, or "".
+    # What the browser checks before it sends the form: a text field's pattern and length limits, and
+    # a number field's step. ``minimum`` and ``maximum`` hold min and max.
+    pattern: str | None = None
+    min_length: int | None = None
+    max_length: int | None = None
+    step: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -209,6 +289,10 @@ class HtmlControl:
             "date_range": self.date_range,
             "range_with": self.range_with,
             "download": self.download,
+            "pattern": self.pattern,
+            "min_length": self.min_length,
+            "max_length": self.max_length,
+            "step": self.step,
         }
         if self.options:
             payload["options"] = [option.to_json() for option in self.options]
@@ -313,18 +397,32 @@ class _Page:
             current = self.by_id.get(current.parent_id) if current.parent_id else None
 
     def text(self, node: LiftNode, *, skip_controls: bool = False) -> str:
-        """Visible text of a subtree. ``skip_controls`` leaves out what fields contain (option text)."""
+        """Visible text of a subtree, in page order. ``skip_controls`` leaves out what fields contain
+        (option text)."""
 
+        return " ".join(self._raw_text(node, skip_controls).split())
+
+    def _raw_text(self, node: LiftNode, skip_controls: bool) -> str:
         key = (node.id, skip_controls)
         if key not in self._text:
-            parts = [node.text]
+            children: list[tuple[bool, str | None]] = []
             for child_id in node.child_ids:
                 child = self.by_id[child_id]
-                if child.id in self.hidden or (skip_controls and child.tag in CONTROL_CONTENT_TAGS):
-                    continue
-                parts.append(self.text(child, skip_controls=skip_controls))
-            self._text[key] = " ".join(part for part in parts if part).strip()
+                skipped = child.id in self.hidden or (skip_controls and child.tag in CONTROL_CONTENT_TAGS)
+                children.append((is_inline(child), None if skipped else self._raw_text(child, skip_controls)))
+            self._text[key] = join_text(node, children)
         return self._text[key]
+
+    def first_line(self, node: LiftNode) -> str:
+        """The first line of a subtree's text that holds a letter or a digit: an option's title, when
+        a description sits under it, and not the icon that may sit above it. Else its first line."""
+
+        lines = [" ".join(line.split()) for line in self._raw_text(node, False).split("\n")]
+        lines = [line for line in lines if line]
+        for line in lines:
+            if WORD_RE.search(line):
+                return line
+        return lines[0] if lines else ""
 
     def image_alt(self, node: LiftNode) -> str:
         for child_id in node.child_ids:
@@ -427,6 +525,40 @@ def _classify(node: LiftNode) -> tuple[str, str, float] | None:
     return result
 
 
+def _owns_content(node: LiftNode, kind: str, control: str) -> bool:
+    """Whether everything inside this control is part of it, so nothing inside is a control of its own.
+
+    ``node`` is a native or ARIA control (``_classify`` found it); ``kind`` is "action" or "field" and
+    ``control`` is what ``_classify`` called it: "link", "button", "text", "combobox", "treeitem", ...
+    A control that owns its content is named from it, and a link or button inside it is not counted.
+    A control that does not own it is still named from it, and the controls inside it are counted too.
+    Guessed controls ("clickable", "focusable") never own their content and are not passed here.
+    """
+
+    if node.tag in {"a", "button", "summary", "input", "select", "textarea"}:
+        return True  # Native controls render what they hold as part of themselves.
+    # ARIA roles whose children are presentational, and the choice widgets, whose options and
+    # inner text field (the ARIA 1.1 combobox) are the control. A tree item or a menu item often
+    # wraps the link the user follows, so it does not own its content.
+    return control in OWNS_CONTENT_ROLES
+
+
+def _guessed_wrappers(page: _Page, controls: Sequence[HtmlControl]) -> set[str]:
+    """Guessed controls that hold real controls: drop them, the controls inside are what to act on.
+
+    A page that listens for clicks on a ``div`` around an input and its button (event delegation)
+    makes the ``div`` look clickable, but a click there does not do what the input or the button does.
+    """
+
+    guessed = {control.node_id for control in controls if control.control in GUESSED_CONTROLS}
+    wrappers: set[str] = set()
+    for control in controls:
+        for ancestor in page.ancestors(page.by_id[control.node_id]):
+            if ancestor.id in guessed:
+                wrappers.add(ancestor.id)
+    return wrappers
+
+
 def _tab_stop(attrs: Mapping[str, str]) -> bool:
     try:
         return int(attrs.get("tabindex", "-1")) >= 0
@@ -466,7 +598,44 @@ def _accessible_name(page: _Page, node: LiftNode, kind: str, control: str) -> st
         alt = page.image_alt(node)
         if alt:
             return alt
-    return attrs.get("title") or attrs.get("placeholder") or ""
+    fallback = attrs.get("title") or attrs.get("placeholder") or ""
+    if not fallback and kind == "field" and node.tag in {"input", "select", "textarea"}:
+        fallback = _text_beside(page, node)
+    return fallback
+
+
+# The longest phrase that is taken as the label written beside an unlabelled field.
+LABEL_BESIDE_MAX = 40
+# A letter or a digit in any script: what tells a line of words from a line that is only an icon.
+WORD_RE = re.compile(r"[^\W_]")
+
+
+def _text_beside(page: _Page, node: LiftNode) -> str:
+    """The text written beside a field that nothing labels, as a person reads it: the text just before
+    it in its block (``Date: <input>``), or just after a bare checkbox or radio (``<input> Remember
+    me``); when that is blank, the inline element next to it (``<span>Amount:</span>``). Only a short,
+    label-like phrase counts, without its colon; a sentence or a heading is not a label. The in-page
+    library names such a field the same way.
+    """
+
+    parent = page.by_id.get(node.parent_id) if node.parent_id else None
+    if parent is None or node.id not in parent.child_ids:
+        return ""
+    index = parent.child_ids.index(node.id)
+    after = node.tag == "input" and node.attrs.get("type", "").lower() in {"checkbox", "radio"}
+    runs = parent.text_runs
+    text = (runs[index + 1] if index + 1 < len(runs) else "") if after else (runs[index] if index < len(runs) else "")
+    if not text.strip():
+        siblings = parent.child_ids[index + 1 :] if after else list(reversed(parent.child_ids[:index]))
+        for sibling_id in siblings:
+            sibling = page.by_id[sibling_id]
+            if sibling.id in page.hidden:
+                continue
+            if is_inline(sibling) and _classify(sibling) is None:
+                text = page.text(sibling)
+            break
+    text = " ".join(text.split()).rstrip(":").strip()
+    return text if 0 < len(text) <= LABEL_BESIDE_MAX and not text.endswith(".") else ""
 
 
 def _form_of(page: _Page, node: LiftNode) -> LiftNode | None:
@@ -542,7 +711,8 @@ def _aria_options(page: _Page, root: LiftNode) -> tuple[HtmlOption, ...]:
             if child.id in page.hidden:
                 continue
             if _role(child) == "option":
-                label = child.attrs.get("aria-label") or page.text(child)
+                # An option that shows a description under its title is named by the title.
+                label = child.attrs.get("aria-label") or page.first_line(child)
                 options.append(
                     HtmlOption(
                         value=label,
@@ -596,6 +766,10 @@ def _field_value(
     if node.tag == "input" and control == "file":
         # A browser snapshot names the chosen files in data-lift-files; the files stay in the page.
         return attrs.get("data-lift-files", ""), None
+    if node.tag == "input" and control == "combobox":
+        # A combobox input shows its value in the field or, as react-select and Ant Design do, in a
+        # box beside it while the input stays empty.
+        return attrs.get("value") or _shown_beside(page, node), None
     if node.tag == "input":
         return attrs.get("value", ""), None
     if control == "listbox":
@@ -605,16 +779,85 @@ def _field_value(
     return page.text(node, skip_controls=True) or attrs.get("aria-valuenow"), None
 
 
+def _shown_beside(page: _Page, node: LiftNode) -> str:
+    """The text a widget shows beside an empty input: the text of the nearest ancestor that has any.
+
+    The input itself, hidden nodes, lists and options, live regions, labels, buttons, and other fields
+    do not count. The search stops at a form, a list item, a table cell, or a section, which hold more
+    than one widget, so the text of the page around the input is never taken for its value.
+    """
+
+    def skip(child: LiftNode) -> bool:
+        return (
+            child.id == node.id
+            or child.id in page.hidden
+            or child.tag in BESIDE_SKIP_TAGS
+            or _role(child) in {"listbox", "option"}
+            or _message_kind(child) is not None
+        )
+
+    for ancestor in page.ancestors(node):
+        if ancestor.tag in WIDGET_BOUNDARY_TAGS:
+            return ""
+        if ancestor.tag in BESIDE_SKIP_TAGS:
+            continue  # A label around the input names it; its text is not the value.
+        text = subtree_text(ancestor, page.by_id, skip=skip)
+        if text:
+            return text
+    return ""
+
+
 def _text_outside_lists(page: _Page, node: LiftNode) -> str:
     """What a combobox shows as its value: its text, without the list of options it may wrap."""
 
-    parts = [node.text]
-    for child_id in node.child_ids:
-        child = page.by_id[child_id]
-        if child.id in page.hidden or _role(child) in {"listbox", "option"}:
-            continue
-        parts.append(_text_outside_lists(page, child))
-    return " ".join(part for part in parts if part).strip()
+    return subtree_text(
+        node, page.by_id, skip=lambda child: child.id in page.hidden or _role(child) in {"listbox", "option"}
+    )
+
+
+def is_inline(node: LiftNode) -> bool:
+    """Whether the node flows inside a line of text: by its tag, unless a browser snapshot says how
+    the page lays it out (``data-lift-display``)."""
+
+    hint = node.attrs.get(HINT_DISPLAY, "").lower()
+    if hint in {"inline", "block"}:
+        return hint == "inline"
+    return node.tag in INLINE_TAGS
+
+
+def join_text(node: LiftNode, children: Iterable[tuple[bool, str | None]]) -> str:
+    """A subtree's text in page order, from the node's own text runs and each child's text.
+
+    ``children`` gives, for each child in order, whether it flows inline (see ``is_inline``) and its
+    text, or ``None`` for a child left out. Like the browser's ``innerText``, the text of an inline
+    child runs into the text around it, and the text of any other child is set on a line of its own.
+    The result keeps its line breaks and edge spaces, so the level above joins it correctly; collapse
+    it at the top with ``" ".join(text.split())``, or split it on newlines for its lines.
+    """
+
+    runs = node.text_runs or ((node.text,) if node.text else ())
+    pieces = [runs[0] if runs else ""]
+    for index, (inline, text) in enumerate(children, 1):
+        if text is not None:
+            pieces.append(text if inline else f"\n{text}\n")
+        pieces.append(runs[index] if index < len(runs) else "")
+    return "".join(pieces)
+
+
+def subtree_text(
+    node: LiftNode, by_id: Mapping[str, LiftNode], *, skip: Callable[[LiftNode], bool] | None = None
+) -> str:
+    """The text of a subtree in page order, with whitespace collapsed. ``skip`` leaves out a child
+    and everything in it."""
+
+    def raw(current: LiftNode) -> str:
+        children: list[tuple[bool, str | None]] = []
+        for child_id in current.child_ids:
+            child = by_id[child_id]
+            children.append((is_inline(child), None if skip is not None and skip(child) else raw(child)))
+        return join_text(current, children)
+
+    return " ".join(raw(node).split())
 
 
 def _submits(node: LiftNode, kind: str, control: str, form: LiftNode | None) -> bool:
@@ -673,8 +916,8 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 if text:
                     messages.append(HtmlMessage(node.id, kind, text))
         if node.parent_id is not None and node.parent_id in inside_control:
-            # A control's content is part of that control: its name, its options, or its value.
-            # Like the browser's tab order, a control nested in another control is not counted twice.
+            # The content of a control that owns it is part of that control: its name, its options,
+            # or its value. A control nested in it is not counted again.
             inside_control.add(node.id)
             excluded.add(node.id)
             continue
@@ -689,7 +932,8 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
         if classified is None:
             continue
         kind, control, confidence = classified
-        inside_control.add(node.id)
+        if control not in GUESSED_CONTROLS and _owns_content(node, kind, control):
+            inside_control.add(node.id)
         excluded.add(node.id)
         form = _form_of(page, node)
         expanded: bool | None = None
@@ -730,9 +974,18 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 accept=node.attrs.get("accept") or None if node.tag == "input" else None,
                 multiple="multiple" in node.attrs,
                 download=node.attrs.get("download") if node.tag in {"a", "area"} and "download" in node.attrs else None,
+                pattern=node.attrs.get("pattern") or None,
+                min_length=_length(node.attrs.get("minlength")),
+                max_length=_length(node.attrs.get("maxlength")),
+                step=node.attrs.get("step") or None,
             )
         )
         roles.append((node.id, kind, name, confidence))
+    wrappers = _guessed_wrappers(page, controls)
+    if wrappers:
+        controls = [control for control in controls if control.node_id not in wrappers]
+        roles = [role for role in roles if role[0] not in wrappers]
+        excluded.difference_update(wrappers)
     controls = _date_ranges(page, controls)
 
     forms: list[HtmlForm] = []
@@ -772,8 +1025,11 @@ def visible_text(nodes: Sequence[LiftNode]) -> str:
     Secret values are not in it: the lift never keeps them.
     """
 
+    if not nodes:
+        return ""
     page = _Page(nodes)
-    return " ".join(" ".join(node.text for node in nodes if node.text and node.id not in page.hidden).split())
+    root = next(node for node in nodes if node.parent_id is None)
+    return subtree_text(root, page.by_id, skip=lambda child: child.id in page.hidden)
 
 
 def _message_kind(node: LiftNode) -> str | None:
@@ -869,6 +1125,15 @@ def form_fields(form: HtmlForm, controls: Mapping[str, HtmlControl]) -> tuple[Fo
         kind = "boolean" if control.control == "radio" else _field_kind(control)
         fields.append(FormField(key, kind, (control,)))
     return tuple(fields)
+
+
+def _length(value: str | None) -> int | None:
+    """A minlength or maxlength attribute as a number; None when missing or not a whole number."""
+
+    try:
+        return int(value) if value is not None and int(value) >= 0 else None
+    except ValueError:
+        return None
 
 
 def _number(value: str | None) -> int | float | None:
@@ -975,6 +1240,13 @@ def _field_schema(field: FormField) -> dict[str, Any]:
         prop["type"] = "string"
         if control.control in STRING_FORMATS:
             prop["format"] = STRING_FORMATS[control.control]
+        # What the browser will check before it sends the form, in the schema's own words.
+        if control.min_length is not None:
+            prop["minLength"] = control.min_length
+        if control.max_length is not None:
+            prop["maxLength"] = control.max_length
+        if control.pattern:
+            prop["pattern"] = f"^(?:{control.pattern})$"
     custom_date = field.kind == "date" and control.control not in DATE_INPUT_TYPES
     if control.value not in {None, "", "[redacted]"} and field.kind not in {"boolean", "file"} and not custom_date:
         prop["default"] = control.value  # A calendar's own display format is not the tool's format.

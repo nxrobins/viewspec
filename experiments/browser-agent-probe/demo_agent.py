@@ -137,6 +137,28 @@ def checkout(session: BrowserSession, base: str) -> None:
         )
     check(session.blocked_writes() == [], "the refused call did nothing in the browser")
 
+    # The browser checks an email field's format when the form is sent, and says why it refused only
+    # in a tooltip that never reaches the page.
+    try:
+        session.call("checkout", {"email": "bo", "ship": "express", "terms": True})
+        check(False, "a form call with a bad email is refused")
+    except AgentActionError as error:
+        [problem] = [item for item in error.details if item["argument"] == "email"]
+        print(f"  !!  {problem['argument']}: {problem['problem']}: {problem['message']}")
+        check(
+            "is not an email address" in problem["message"],
+            "a form call with a bad email is refused before the browser acts, and says why",
+        )
+    session.act(handle_named(session, "Email"), "fill", "bo")
+    [clicked] = session.act(handle_named(session, "Place order"), "click")
+    show([clicked])
+    refused = [f"{item['name']}: {item['message']}" for item in clicked.invalid]
+    print(f"  ..  the browser refused: {refused}")
+    check(
+        not clicked.navigated and clicked.invalid[0]["name"] == "Email" and "@" in clicked.invalid[0]["message"],
+        "a click on Place order with a bad email is blocked by the browser, and the step names the field and the reason",
+    )
+
     arguments = {
         "email": "bo@example.com",
         "ship": "express",
@@ -253,7 +275,36 @@ def shop(session: BrowserSession, base: str) -> None:
         ],
         "Load more shows one new product and its button, with the button's new handle",
     )
+
     check(changes(more, session.observe())["empty"], "reading the page again shows no change")
+
+    # The search box suggests products, as gov.uk's does, and a click on a suggestion runs the search.
+    session.open(f"{base}/shop.html")
+    [tool] = [schema["name"] for schema in session.observe().lift.form_tool_schemas()]
+    searched = session.act(handle_named(session, "Search products"), "select", "Arc")
+    show(searched)
+    check(
+        searched[0].step.op == "choose"
+        and searched[0].chosen == "Arc lamp"
+        and searched[0].navigated
+        and searched[0].verified is None,
+        "a suggestion that loads the results page is reported as chosen and navigated, not verified",
+    )
+    check("/search?q=Arc+lamp" in session.observe().url, "and the agent is on the results page")
+
+    session.open(f"{base}/shop.html")
+    session.observe()
+    try:
+        session.call(tool, {"q": "Clamp lamp"})
+        check(False, "a form call whose suggestion loads the results page stops")
+    except BridgeError as error:
+        print(f"  !!  {error}")
+        check(
+            "navigated after step 1 of 2 (choose 'Search products')" in str(error)
+            and "1 step(s) did not run" in str(error),
+            "a form call whose suggestion loads the results page stops and names the submit step that did not run",
+        )
+    check("/search?q=Clamp+lamp" in session.observe().url, "the search ran all the same")
 
 
 def spa(session: BrowserSession, base: str) -> None:
@@ -322,6 +373,35 @@ def choosing(session: BrowserSession, base: str) -> None:
             check(words in str(error), f"{value!r} is refused: {words}")
         check(session.observe().handles[country].value == "Japan", "and the field still holds Japan")
 
+    city = handle_named(session, "Pickup city")
+    before = session.observe()
+    lisbon = session.act(city, "select", "Lis")
+    show(lisbon)
+    check(lisbon[0].chosen == "Lisbon" and lisbon[0].verified, "a combobox that filters on key presses chose Lisbon")
+    check(
+        changes(before, session.observe())["lines"]
+        == [f"changed [{city}] combobox 'Pickup city': value '' -> 'Lisbon'"],
+        "the diff shows Lisbon",
+    )
+
+    colour = handle_named(session, "Colour")
+    before = session.observe()
+    check(
+        before.handles[colour].readonly and before.handles[colour].value == "Pick a colour",
+        "a read-only combobox shows the text beside its unreachable input as its value",
+    )
+    purple = session.act(colour, "select", "Pur")
+    show(purple)
+    check(purple[0].chosen == "Purple" and purple[0].verified, "a click on its box opened the list and chose Purple")
+    check(
+        changes(before, session.observe())["lines"]
+        == [
+            "message live 'option Purple, selected.'",
+            f"changed [{colour}] combobox 'Colour': value 'Pick a colour' -> 'Purple'",
+        ],
+        "the diff shows the announcement and the value beside the input",
+    )
+
     wrap = handle_named(session, "Gift wrap")
     before = session.observe()
     boxed = session.act(wrap, "select", "box")
@@ -338,6 +418,34 @@ def choosing(session: BrowserSession, base: str) -> None:
     [write] = session.blocked_writes()
     body = {key: values[0] for key, values in parse_qs(write["post_data"] or "").items()}
     check(body.get("country") == "Kenya" and body.get("wrap") == "Paper", "a form call chose both and sent them")
+
+    # Like Wikipedia's search: a plain search field until it has focus, then a combobox whose
+    # suggestions show a title over a description and open the article when clicked.
+    session.open(f"{base}/search.html")
+    view = session.observe()
+    box = handle_named(session, "Search Wikipedia")
+    check(
+        view.handles[box].control == "search" and not view.handles[box].options, "the search field is no combobox yet"
+    )
+    picked = session.act(box, "select", "Alan Turing")
+    show(picked)
+    check(
+        picked[0].step.op == "choose" and picked[0].chosen == "Alan Turing" and picked[0].navigated,
+        "'Alan Turing' chose the article with that title, not the Institute or the law, and opened it",
+    )
+    check(session.observe().url.endswith("/wiki/Alan_Turing"), "the agent is on the article")
+    session.open(f"{base}/search.html")
+    box = handle_named(session, "Search Wikipedia")
+    try:
+        session.act(box, "select", "Alan")
+        check(False, "'Alan' is refused")
+    except BridgeError as error:
+        print(f"  !!  {error}")
+        check(
+            "Alan Turing, Alan Turing Institute, Alan Turing law" in str(error)
+            and session.observe().handles[box].value == "",
+            "'Alan' is refused with the three titles, and the typed text is removed",
+        )
 
 
 def scrolling(session: BrowserSession, base: str) -> None:
@@ -432,6 +540,46 @@ def dates(session: BrowserSession, base: str) -> None:
     check(
         body == {"checkin": "2026-12-01", "checkout": "05/12/2026", "dob": "06/15/1985", "guests": "3"},
         "a form call fills the native date and picks both calendar dates",
+    )
+
+    # A picker built like flatpickr: month arrows that are bare icons, a month list, a year number input.
+    session.open(f"{base}/booking.html")
+    session.observe()
+    delivery = handle_named(session, "Delivery date")
+    picked = session.act(delivery, "select", "Dec 25, 2026")
+    show(picked)
+    check(
+        picked[0].verified and session.observe().handles[delivery].value == "2026-12-25",
+        "a calendar whose month arrows are bare icons moves a month ahead and picks 25 December",
+    )
+    later = session.act(delivery, "select", "Feb 14, 2027")
+    show(later)
+    check(
+        later[0].verified and session.observe().handles[delivery].value == "2027-02-14",
+        "and moves across the year to 14 February",
+    )
+    try:
+        session.act(delivery, "select", "2026-11-05")
+        check(False, "a past day is refused in it")
+    except BridgeError as error:
+        print(f"  !!  {error}")
+        check(
+            "not available" in str(error) and session.observe().handles[delivery].value == "2027-02-14",
+            "a past day is refused in it, and the field keeps its date",
+        )
+
+    # A field with no label, as jQuery UI's demo has, with a calendar built like jQuery UI's.
+    session.open(f"{base}/booking.html")
+    view = session.observe()
+    date = handle_named(session, "Date")
+    check(
+        view.handles[date].date, "a field with no label is named by the text before it, and that makes it a date field"
+    )
+    picked = session.act(date, "select", "Mar 3, 2027")
+    show(picked)
+    check(
+        picked[0].verified and session.observe().handles[date].value == "03/03/2027",
+        "its Prev and Next links and its month title (with a non-breaking space) are read, and 3 March is picked",
     )
 
 

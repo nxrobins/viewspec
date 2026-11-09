@@ -12,6 +12,7 @@ from typing import Any
 
 from viewspec.raw_html import HtmlLiftResult, LiftNode
 from viewspec.raw_html_agent import HtmlControl, hidden_ids
+from viewspec.raw_html_agent import subtree_text as agent_subtree_text
 
 VIEW_GROUP_MIN = 3
 TEXT_PREVIEW = 70
@@ -59,8 +60,7 @@ def control_line(handle: int, control: HtmlControl) -> str:
 
 
 def subtree_text(node: LiftNode, by_id: dict[str, LiftNode]) -> str:
-    parts = [node.text, *(subtree_text(by_id[child_id], by_id) for child_id in node.child_ids)]
-    return " ".join(part for part in parts if part).strip()
+    return agent_subtree_text(node, by_id)
 
 
 # Elements that hold a section of the page. A heading names the content of its own section, not

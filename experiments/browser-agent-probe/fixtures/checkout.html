@@ -5,6 +5,9 @@
 <title>Fixture checkout</title>
 <style>
   .chip { cursor: pointer; }
+  .pick { display: inline-flex; min-width: 160px; padding: 4px 8px; border: 1px solid #999; cursor: default; }
+  .dummy { width: 1px; opacity: 0; border: 0; padding: 0; position: relative; left: -100px; transform: scale(.01); }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(1px, 1px, 1px, 1px); }
 </style>
 </head>
 <body>
@@ -55,6 +58,27 @@
   </form>
 
   <label><input type="checkbox" name="terms" form="checkout" required> I accept the terms</label>
+
+  <!-- A combobox that filters on key presses only, as the W3C APG examples do: an `input` event
+       alone does not open its list. -->
+  <label for="city">Pickup city</label>
+  <input id="city" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false"
+         aria-controls="city-list" autocomplete="off">
+  <ul role="listbox" id="city-list" aria-label="Cities" hidden></ul>
+
+  <!-- A combobox like react-select without search: a read-only input a person cannot see, the choice
+       shown in the box beside it, an announcement in a live region, and the list linked only while
+       it is open. A click on the box opens the list. -->
+  <span id="colour-label">Colour</span>
+  <div id="colour-box" class="pick">
+    <div id="colour-shown">Pick a colour</div>
+    <input id="colour" class="dummy" type="text" role="combobox" readonly aria-readonly="true"
+           aria-labelledby="colour-label" aria-haspopup="true" aria-expanded="false" autocomplete="off">
+    <span id="colour-live" class="sr-only" aria-live="polite"></span>
+  </div>
+  <ul role="listbox" id="colour-list" aria-label="Colours" hidden>
+    <li role="option">Red</li><li role="option">Purple</li><li role="option">Green</li>
+  </ul>
 
   <!-- A same-origin payment frame, as payment providers embed them. -->
   <iframe title="Card details" srcdoc='<label>Card number <input autocomplete="cc-number" name="card"></label>
@@ -125,6 +149,53 @@
     country.value = option.textContent;
     countryList.hidden = true;
     country.setAttribute("aria-expanded", "false");
+  });
+
+  // The pickup city combobox: each key press (keyup) filters the cities; nothing listens for input.
+  const cities = ["Lisbon", "London", "Los Angeles", "Lyon", "Madrid", "Milan"];
+  const city = document.getElementById("city");
+  const cityList = document.getElementById("city-list");
+  city.addEventListener("keyup", (event) => {
+    if (event.key === "Escape") {
+      cityList.hidden = true;
+      city.setAttribute("aria-expanded", "false");
+      return;
+    }
+    const typed = city.value.trim().toLowerCase();
+    const found = cities.filter((name) => typed && name.toLowerCase().startsWith(typed));
+    cityList.innerHTML = found.map((name) => `<li role="option">${name}</li>`).join("");
+    cityList.hidden = found.length === 0;
+    city.setAttribute("aria-expanded", String(found.length > 0));
+  });
+  cityList.addEventListener("click", (event) => {
+    const option = event.target.closest("[role=option]");
+    if (!option) return;
+    city.value = option.textContent;
+    cityList.hidden = true;
+    city.setAttribute("aria-expanded", "false");
+  });
+
+  // The colour combobox: a mouse press on its box opens the list (the input is unreachable); a click
+  // on an option shows it beside the input, announces it, and closes the list.
+  const colour = document.getElementById("colour");
+  const colourBox = document.getElementById("colour-box");
+  const colourList = document.getElementById("colour-list");
+  const openColours = (open) => {
+    colourList.hidden = !open;
+    colour.setAttribute("aria-expanded", String(open));
+    if (open) colour.setAttribute("aria-controls", "colour-list");
+    else colour.removeAttribute("aria-controls");
+  };
+  colourBox.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    openColours(colourList.hidden);
+  });
+  colourList.addEventListener("click", (event) => {
+    const option = event.target.closest("[role=option]");
+    if (!option) return;
+    document.getElementById("colour-shown").textContent = option.textContent;
+    document.getElementById("colour-live").textContent = `option ${option.textContent}, selected.`;
+    openColours(false);
   });
 
   // The gift wrap combobox: a click opens the list; a click on an option chooses it.

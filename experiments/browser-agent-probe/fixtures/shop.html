@@ -11,7 +11,10 @@
   </nav>
   <form action="/search">
     <label for="q">Search products</label>
-    <input id="q" name="q" type="search" placeholder="Search products">
+    <!-- A site search with suggestions, as gov.uk has: a click on a suggestion runs the search. -->
+    <input id="q" name="q" type="search" placeholder="Search products" role="combobox" aria-autocomplete="list"
+           aria-expanded="false" aria-controls="q-list" autocomplete="off">
+    <ul id="q-list" role="listbox" aria-label="Suggestions" hidden></ul>
     <select name="sort" aria-label="Sort by"><option>Price</option><option>Rating</option></select>
     <button type="submit">Search</button>
   </form>
@@ -45,6 +48,25 @@
     });
   }
   list.querySelectorAll("button").forEach(addable);
+
+  // The search box suggests products as you type; a click on a suggestion submits the form at once,
+  // which loads the results page.
+  const q = document.getElementById("q");
+  const qList = document.getElementById("q-list");
+  q.addEventListener("input", () => {
+    const typed = q.value.trim().toLowerCase();
+    const names = [...list.querySelectorAll("h2")].map((heading) => heading.textContent);
+    const found = names.filter((name) => typed && name.toLowerCase().includes(typed));
+    qList.innerHTML = found.map((name) => `<li role="option">${name}</li>`).join("");
+    qList.hidden = found.length === 0;
+    q.setAttribute("aria-expanded", String(found.length > 0));
+  });
+  qList.addEventListener("click", (event) => {
+    const option = event.target.closest("[role=option]");
+    if (!option) return;
+    q.value = option.textContent;
+    q.form.requestSubmit();
+  });
   document.querySelector("[role=button]").addEventListener("click", () => {
     const item = document.createElement("li");
     item.innerHTML = "<h2>Desk organizer</h2><p>$22.00</p><button>Add to cart</button>";

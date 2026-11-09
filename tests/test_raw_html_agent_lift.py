@@ -9,6 +9,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from viewspec.raw_html import compile_html, lift_html
+from viewspec.raw_html_agent import visible_text
 
 
 def _controls(html: str) -> dict[str, dict]:
@@ -177,6 +178,11 @@ def test_form_tool_schema_types_fields():
     assert schema["name"] == "checkout" and schema["x-method"] == "POST" and schema["x-action"] == "/pay"
     assert len(schema["x-submit-node-ids"]) == 1
     assert props["email"]["type"] == "string" and props["email"]["format"] == "email"
+    constrained = lift_html(
+        '<form aria-label="J"><input name="code" pattern="[A-Z]{3}" minlength="3" maxlength="3"><button>Go</button></form>',
+        profile="agent",
+    ).form_tool_schemas()[0]["input_schema"]["properties"]["code"]
+    assert constrained["pattern"] == "^(?:[A-Z]{3})$" and (constrained["minLength"], constrained["maxLength"]) == (3, 3)
     assert props["qty"] == {**props["qty"], "type": "number", "default": "1"}
     assert props["gift"]["type"] == "boolean" and props["gift"]["default"] is False
     assert props["speed"]["enum"] == ["std", "fast"] and props["speed"]["default"] == "std"
@@ -234,6 +240,117 @@ def test_hidden_unwrapped_elements_drop_their_content():
 def test_nested_controls_count_once():
     lift = lift_html('<a href="/p"><button>Buy</button></a>', profile="agent")
     assert [(control.control, control.name) for control in lift.controls] == [("link", "Buy")]
+
+
+def test_a_role_button_owns_what_it_holds():
+    lift = lift_html(
+        '<div role="button" tabindex="0"><span data-lift-clickable="true">Save</span></div>', profile="agent"
+    )
+    assert [(control.control, control.name) for control in lift.controls] == [("button", "Save")]
+
+
+def test_a_clickable_wrapper_gives_way_to_the_controls_inside_it():
+    # The W3C APG combobox: the page listens for clicks on the div around the input and its button.
+    lift = lift_html(
+        """
+        <label for="cb1-input">State</label>
+        <div data-lift-clickable="true">
+          <input id="cb1-input" type="text" role="combobox" aria-autocomplete="list" aria-controls="cb1-listbox">
+          <button id="cb1-button" aria-label="States" aria-controls="cb1-listbox" tabindex="-1"></button>
+        </div>
+        <ul id="cb1-listbox" role="listbox" aria-label="States"><li role="option">Alabama</li></ul>
+        """,
+        profile="agent",
+    )
+    assert [(control.control, control.name) for control in lift.controls] == [
+        ("combobox", "State"),
+        ("button", "States"),
+    ]
+    assert [option.label for option in lift.controls[0].options] == ["Alabama"]
+
+
+def test_a_focusable_card_gives_way_to_its_link():
+    lift = lift_html('<div tabindex="0"><h3>Arc lamp</h3><a href="/arc">Details</a></div>', profile="agent")
+    assert [(control.control, control.name, control.href) for control in lift.controls] == [("link", "Details", "/arc")]
+    assert ("heading", "Arc lamp") in {(role.role, role.text) for role in lift.roles}
+
+
+@pytest.mark.parametrize(
+    ("html", "name"),
+    [
+        # Wikipedia: an italic title before plain text.
+        ('<a href="/dw"><i>Doctor Who</i>, series 12</a>', "Doctor Who, series 12"),
+        # python.org: plain text on both sides of a span.
+        ('<a href="/help">Help &amp; <span>General</span> Contact</a>', "Help & General Contact"),
+        # A space inside an inline element still separates the words around it.
+        ('<a href="/help">Help &amp; <span>General </span>Contact</a>', "Help & General Contact"),
+        # Inline elements with no space between them run together, as the browser shows them (GitHub).
+        ('<a href="/stars"><span>Star</span><span>99.6k</span></a>', "Star99.6k"),
+        # Block elements are separate lines, so their words stay apart.
+        ("<button><div>Save</div><div>draft</div></button>", "Save draft"),
+        ("<button>Next<br>page</button>", "Next page"),
+        # A browser snapshot says how the page lays elements out: spans shown as lines of their own
+        # (Wikipedia's suggestions) and divs that run into their line.
+        (
+            '<a href="/t"><span data-lift-display="block">Alan Turing</span>'
+            '<span data-lift-display="block">English computer scientist</span></a>',
+            "Alan Turing English computer scientist",
+        ),
+        ('<button><div data-lift-display="inline">Sa</div><div data-lift-display="inline">ve</div></button>', "Save"),
+    ],
+)
+def test_names_keep_text_in_page_order(html, name):
+    [control] = lift_html(html, profile="agent").controls
+    assert control.name == name
+
+
+def test_messages_and_visible_text_keep_text_in_page_order():
+    lift = lift_html(
+        '<div role="status"><b>3</b> items in <a href="/cart">your cart</a>.</div><p>Hello <b>world</b> today</p>',
+        profile="agent",
+    )
+    assert [message.text for message in lift.messages] == ["3 items in your cart."]
+    assert "Hello world today" in visible_text(lift.nodes)
+
+
+def test_a_combobox_value_keeps_text_in_page_order():
+    [control] = lift_html(
+        '<div role="combobox" aria-label="Size"><b>Large</b> (12 in)'
+        '<ul role="listbox"><li role="option">Small</li></ul></div>',
+        profile="agent",
+    ).controls
+    assert control.value == "Large (12 in)"
+
+
+def test_an_unlabelled_field_is_named_by_the_text_beside_it():
+    # jQuery UI's demo: <p>Date: <input id="datepicker"></p>, with nothing that labels the field.
+    lift = lift_html(
+        """
+        <p>Date: <input id="datepicker"></p>
+        <p><span>Amount:</span> <input name="amount"></p>
+        <p><input type="checkbox" name="remember"> Remember me</p>
+        <p>Please tell us more about your request in the box provided below, as fully as you can. <input name="more"></p>
+        <h3>Dropdown List</h3><select name="dd"><option>One</option></select>
+        """,
+        profile="agent",
+    )
+    named = {control.name: control for control in lift.controls if control.name}
+    assert named["Date"].date is True
+    assert named["Amount"].field_name == "amount"
+    assert named["Remember me"].control == "checkbox"
+    assert [control.field_name for control in lift.controls if not control.name] == ["more", "dd"]
+
+
+def test_a_datepicker_id_marks_a_date_field():
+    [control] = lift_html('<input id="datepicker" aria-label="When">', profile="agent").controls
+    assert control.name == "When" and control.date is True
+
+
+def test_a_tree_item_keeps_the_link_inside_it():
+    # python.org's navigation: each item of the tree holds the link the user follows.
+    lift = lift_html('<ul role="tree"><li role="treeitem"><a href="/apps">Applications</a></li></ul>', profile="agent")
+    links = [(control.name, control.href) for control in lift.controls if control.control == "link"]
+    assert links == [("Applications", "/apps")]
 
 
 def test_content_roles_skip_control_text():

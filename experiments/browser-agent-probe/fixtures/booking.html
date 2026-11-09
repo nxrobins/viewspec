@@ -8,6 +8,12 @@
   [role=dialog] { border: 1px solid #999; padding: 8px; width: 300px; }
   .outside { color: #aaa; }
   table td button { width: 32px; }
+  .fp-calendar { border: 1px solid #999; padding: 8px; width: 300px; }
+  .fp-prev-month, .fp-next-month { display: inline-block; padding: 4px; cursor: pointer; }
+  .fp-days { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .fp-day { display: inline-block; text-align: center; cursor: pointer; }
+  .fp-day.prevMonthDay, .fp-day.nextMonthDay { color: #aaa; }
+  .fp-day.fp-disabled { color: #ccc; cursor: default; }
 </style>
 </head>
 <body>
@@ -43,6 +49,40 @@
     <div class="field"><label>Guests <input type="number" name="guests" min="1" max="8" value="2"></label></div>
     <button type="submit">Book</button>
   </form>
+
+  <!-- A picker built like flatpickr: a read-only field; a calendar whose month arrows are bare spans
+       around an icon, with a month list and a year number input; days named in full. -->
+  <div class="field">
+    <label for="delivery">Delivery date</label>
+    <input id="delivery" readonly placeholder="Select Date.." autocomplete="off">
+  </div>
+  <div class="fp-calendar" id="delivery-cal" hidden>
+    <div class="fp-months">
+      <span class="fp-prev-month"><svg width="12" height="12" viewBox="0 0 17 17"><path d="M5.2 8.5l7.1 7.1-0.7 0.7-7.9-7.8 7.9-7.9 0.7 0.7z"/></svg></span>
+      <div class="fp-current-month">
+        <select class="fp-month" aria-label="Month"></select>
+        <input class="fp-year" type="number" aria-label="Year">
+      </div>
+      <span class="fp-next-month"><svg width="12" height="12" viewBox="0 0 17 17"><path d="M13.2 8.5l-7.9 7.8-0.7-0.7 7.1-7.1-7.1-7.1 0.7-0.7z"/></svg></span>
+    </div>
+    <div class="fp-days"></div>
+  </div>
+
+  <!-- A field with no label, as jQuery UI's demo has: the text before it is all that names it. Its
+       calendar is built like jQuery UI's: Prev and Next links named by their title, a title with a
+       non-breaking space between month and year, and day numbers in table cells. -->
+  <p>Date: <input type="text" id="datepicker"></p>
+  <div id="ui-datepicker-div" class="ui-datepicker" hidden>
+    <div class="ui-datepicker-header">
+      <a class="ui-datepicker-prev" title="Prev"><span class="ui-icon">Prev</span></a>
+      <a class="ui-datepicker-next" title="Next"><span class="ui-icon">Next</span></a>
+      <div class="ui-datepicker-title"><span class="ui-datepicker-month"></span>&nbsp;<span class="ui-datepicker-year"></span></div>
+    </div>
+    <table class="ui-datepicker-calendar">
+      <thead><tr><th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
 </main>
 <script>
   // "Today" is fixed so the page is the same on every run.
@@ -126,6 +166,92 @@
     if (!button) return;
     dob.input.value = `${pad(Number(monthList.value) + 1)}/${pad(Number(button.textContent))}/${yearList.value}`;
     dob.cal.hidden = true;
+  });
+
+  // Delivery date, built like flatpickr: a Sunday-first grid of 42 days with the days of the months
+  // around it, bare-icon month arrows, a month list, a year number input, and a Y-m-d value.
+  const fp = { input: document.getElementById("delivery"), cal: document.getElementById("delivery-cal"),
+    year: TODAY.getFullYear(), month: TODAY.getMonth() };
+  const fpMonth = fp.cal.querySelector(".fp-month");
+  const fpYear = fp.cal.querySelector(".fp-year");
+  fpMonth.innerHTML = MONTHS.map((name, i) => `<option value="${i}">${name}</option>`).join("");
+  function renderDelivery() {
+    fpMonth.value = String(fp.month);
+    fpYear.value = String(fp.year);
+    const first = new Date(fp.year, fp.month, 1);
+    const start = new Date(fp.year, fp.month, 1 - first.getDay());
+    const cells = [];
+    for (let i = 0; i < 42; i++) {
+      const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const classes = ["fp-day"];
+      if (date.getMonth() !== fp.month) classes.push(date < first ? "prevMonthDay" : "nextMonthDay");
+      if (date < TODAY) classes.push("fp-disabled");
+      cells.push(`<span class="${classes.join(" ")}" aria-label="${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}"` +
+        ` data-iso="${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}">${date.getDate()}</span>`);
+    }
+    fp.cal.querySelector(".fp-days").innerHTML = cells.join("");
+  }
+  const moveDelivery = (by) => {
+    fp.month += by;
+    if (fp.month < 0) { fp.month = 11; fp.year -= 1; }
+    if (fp.month > 11) { fp.month = 0; fp.year += 1; }
+    renderDelivery();
+  };
+  fp.input.addEventListener("click", () => {
+    fp.cal.hidden = !fp.cal.hidden;
+    if (!fp.cal.hidden) renderDelivery();
+  });
+  fp.cal.querySelector(".fp-prev-month").addEventListener("click", () => moveDelivery(-1));
+  fp.cal.querySelector(".fp-next-month").addEventListener("click", () => moveDelivery(1));
+  fpMonth.addEventListener("change", () => { fp.month = Number(fpMonth.value); renderDelivery(); });
+  fpYear.addEventListener("change", () => { fp.year = Number(fpYear.value); renderDelivery(); });
+  fp.cal.querySelector(".fp-days").addEventListener("click", (event) => {
+    const day = event.target.closest(".fp-day");
+    if (!day || day.classList.contains("fp-disabled")) return;
+    fp.input.value = day.dataset.iso;
+    fp.cal.hidden = true;
+  });
+  // Date, built like jQuery UI's: opens on focus; Prev and Next; a click on a day fills mm/dd/yyyy.
+  const jq = { input: document.getElementById("datepicker"), cal: document.getElementById("ui-datepicker-div"),
+    year: TODAY.getFullYear(), month: TODAY.getMonth() };
+  function renderJq() {
+    jq.cal.querySelector(".ui-datepicker-month").textContent = MONTHS[jq.month];
+    jq.cal.querySelector(".ui-datepicker-year").textContent = String(jq.year);
+    const first = new Date(jq.year, jq.month, 1);
+    const days = new Date(jq.year, jq.month + 1, 0).getDate();
+    const blank = '<td class="ui-datepicker-other-month ui-state-disabled">&nbsp;</td>';
+    const cells = [];
+    for (let i = 0; i < first.getDay(); i++) cells.push(blank);
+    for (let d = 1; d <= days; d++) {
+      cells.push(`<td data-month="${jq.month}" data-year="${jq.year}"><a class="ui-state-default" href="#" data-date="${d}">${d}</a></td>`);
+    }
+    while (cells.length % 7) cells.push(blank);
+    const rows = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(`<tr>${cells.slice(i, i + 7).join("")}</tr>`);
+    jq.cal.querySelector("tbody").innerHTML = rows.join("");
+  }
+  const moveJq = (by) => {
+    jq.month += by;
+    if (jq.month < 0) { jq.month = 11; jq.year -= 1; }
+    if (jq.month > 11) { jq.month = 0; jq.year += 1; }
+    renderJq();
+  };
+  jq.input.addEventListener("focus", () => { jq.cal.hidden = false; renderJq(); });
+  jq.cal.querySelector(".ui-datepicker-prev").addEventListener("click", () => moveJq(-1));
+  jq.cal.querySelector(".ui-datepicker-next").addEventListener("click", () => moveJq(1));
+  jq.cal.querySelector("tbody").addEventListener("click", (event) => {
+    const day = event.target.closest("a");
+    if (!day) return;
+    event.preventDefault();
+    jq.input.value = `${pad(jq.month + 1)}/${pad(Number(day.dataset.date))}/${jq.year}`;
+    jq.cal.hidden = true;
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      fp.cal.hidden = true;
+      jq.cal.hidden = true;
+    }
   });
 </script>
 </body>
