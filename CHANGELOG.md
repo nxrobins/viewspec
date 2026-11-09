@@ -221,6 +221,30 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- In the agent lift, a `<button>` whose `type` is empty or unknown submits its form, as the HTML spec
+  gives a missing or invalid type the Submit Button state. `type=""` and `type="bogus"` used to make
+  it a plain button, so a form call did not click it. Only `type="button"` and `type="reset"` do not
+  submit.
+- The agent lift resolves ids in their own frame or shadow root. A browser snapshot flattens
+  same-origin frames and open shadow roots into one document, and the lift looked ids up across all
+  of it: two frames that each had `<input id="email">` both took the first frame's label, and a
+  shadow-DOM combobox took the page's `#results` list as its own. The in-page library now marks each
+  element outside the page that has or names an id (`id`, `for`, `form`, `list`, `aria-labelledby`,
+  `aria-controls`, `aria-owns`, and the like) with `data-lift-scope`: `1` for a frame, `0.2` for a
+  shadow root in the page. A label's `for` and a field's `form` resolve in that scope only, as the
+  browser resolves them; an ARIA reference that its shadow root does not have falls back to the
+  element's document, as the in-page library does when it names the element. A snapshot without the
+  hint reads as before.
+- A date, time, `datetime-local`, month, or week field's `min` and `max` are read the way its values
+  are before the agent lift compares them. A limit was compared as text, and only when it was as long
+  as the value: `min="09:00:00"` did not bound the value `08:30`, and a custom date field's
+  `min="20/11/2026"` was compared with `2026-11-19` letter by letter. A limit that cannot be read is
+  ignored, as the browser ignores it.
+- A form tool call also leaves to the browser a `pattern` with more than two quantifiers that leave a
+  choice (`*`, `+`, `?`, `{2,}`, `{1,3}`; not an exact count such as `{3}`), as it did a quantified
+  group. Quantifiers in a row backtrack without any group: on a 1000-character value,
+  `[a-z]+[a-z]+[a-z]+x` takes 0.4 s in Python's `re` and `.*.*.*.*x` more than 20 s. Marks after a
+  backslash, inside a character class, and in a group's `(?:` are not counted.
 - `compile_html()` and `lift_html()` keep text in page order around inline elements. Text that came
   after an element used to move before it: `<p>Hello <b>world</b> today</p>` compiled to
   `<p>Hello  today<b>world</b></p>`, and the agent lift named a link `', series 12 Doctor Who'`. Agent
