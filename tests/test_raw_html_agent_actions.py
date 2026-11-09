@@ -217,6 +217,42 @@ def test_a_pattern_that_could_backtrack_is_left_to_the_browser():
     assert [step.op for step in steps] == ["fill", "click"]  # Not refused, and not computed with re.
 
 
+def _pattern_form(pattern: str):
+    return _lift(f'<form aria-label="In"><input name="code" pattern="{pattern}"><button>Go</button></form>')
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    [
+        r"[a-z]+.*[a-z]+.*[a-z]+!",  # No group, but n**3 ways to split the text.
+        r"\w+\d+\w*x",
+        r"[a-z]{2,}.*[a-z]{2,}x",
+        "a?" * 20 + "a" * 20,  # Each optional "a" doubles the ways to fail.
+    ],
+)
+def test_a_pattern_with_many_open_quantifiers_is_left_to_the_browser(pattern):
+    # The value is short so the test stays fast either way; it does not match, so only a pattern
+    # left to the browser plans the fill instead of refusing it.
+    steps = plan_form_call(_pattern_form(pattern), "in", {"code": "a" * 20 + "b"})
+    assert [step.op for step in steps] == ["fill", "click"]
+
+
+@pytest.mark.parametrize(
+    ("pattern", "value"),
+    [
+        (r"[A-Z]+-\d+", "abc-12"),  # Two open quantifiers are still quick to check.
+        (r"\d{3}-\d{4}", "12-3456"),  # An exact count leaves no choice.
+        (r"[+*?]{3}\*\+", "abc"),  # Marks in a class or after a backslash are text.
+        (r"(?:ab)?(?=c)c+", "abd"),  # The "?" of "(?:" and "(?=" is group syntax.
+    ],
+)
+def test_a_pattern_with_few_open_quantifiers_is_still_checked(pattern, value):
+    with pytest.raises(AgentActionError) as caught:
+        plan_form_call(_pattern_form(pattern), "in", {"code": value})
+    [problem] = caught.value.details
+    assert "does not match the pattern" in problem["message"]
+
+
 def test_an_email_with_spaces_around_it_is_accepted_as_the_browser_does():
     steps = plan_form_call(_lift(CONSTRAINED), "join", {"email": " bo@example.com "})
     assert [step.op for step in steps] == ["fill", "click"]

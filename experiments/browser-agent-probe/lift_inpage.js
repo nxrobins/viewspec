@@ -163,14 +163,33 @@
   // - an element with a pointer cursor but no semantic control has data-lift-clickable;
   // - a custom element (a tag with a dash) becomes a <div data-lift-tag>, so its role and tab stop
   //   survive the lift, which unwraps unknown tags;
-  // - an iframe becomes <div data-lift-frame> around the frame's body.
+  // - an iframe becomes <div data-lift-frame> around the frame's body;
+  // - an element that has or names an id, outside the page's own tree, has data-lift-scope.
   // A secret value is never copied. The live page is not changed.
+  //
+  // The copy is one document, but each frame and each shadow root keeps ids of its own: two frames
+  // may both have <input id="email">, each with its own <label for="email">. data-lift-scope names
+  // the element's tree: "2" for a frame's document, "2.5" for a shadow root in that frame (its
+  // document first, as byId falls back to it). The page itself is "0", and is never written.
+  const ID_ATTRS = [
+    "id", "for", "form", "list", "aria-labelledby", "aria-describedby", "aria-controls", "aria-owns",
+    "aria-activedescendant",
+  ];
   function snapshot(selector, collectSecrets) {
     prune();
     const out = document.implementation.createHTMLDocument("");
     const interactive = [];
     const secrets = [];
     let actionIds = 0;
+    const scopes = new Map([[document, "0"]]);
+    const scopeOf = (el) => {
+      const root = el.getRootNode();
+      if (!scopes.has(root)) {
+        const doc = root === el.ownerDocument ? "" : scopeOf(el.ownerDocument.documentElement) + ".";
+        scopes.set(root, doc + scopes.size);
+      }
+      return scopes.get(root);
+    };
 
     const copy = (node, state) => {
       if (node.nodeType === 3) return [out.createTextNode(node.data)];
@@ -195,6 +214,10 @@
         for (const attr of el.attributes) result.setAttribute(attr.name, attr.value);
       }
       result.setAttribute("data-lift-ref", refOf(el));
+      if (ID_ATTRS.some((name) => result.hasAttribute(name))) {
+        const scope = scopeOf(el);
+        if (scope !== "0") result.setAttribute("data-lift-scope", scope);
+      }
 
       // Live form state.
       const secret = isSecret(el);

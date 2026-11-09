@@ -29,6 +29,12 @@ HINT_DISPLAY = "data-lift-display"
 # A browser-side snapshot may also give each element a ``data-lift-ref``: a handle the browser can
 # turn back into that exact element, so an agent can act on what it read.
 HINT_REF = "data-lift-ref"
+# Each tree scope (the page, a same-origin frame, an open shadow root) has ids of its own, and a
+# snapshot flattens them into one document. ``data-lift-scope`` names the scope of an element that has
+# or names an id (id, for, aria-labelledby, ...), when that is not the page: a frame's document is
+# "2", and a shadow root in it is "2.5". An element without it is in the page, scope "0".
+HINT_SCOPE = "data-lift-scope"
+TOP_SCOPE = "0"
 # Provenance attributes that ViewSpec writes into compiled artifacts. On a ViewSpec page they name
 # each action exactly, so an agent does not have to guess.
 AGENT_VIEWSPEC_DATA_ATTRS = frozenset(
@@ -348,20 +354,27 @@ class ControlExtraction:
     excluded_ids: frozenset[str]
 
 
+def _scope(node: LiftNode) -> str:
+    return node.attrs.get(HINT_SCOPE) or TOP_SCOPE
+
+
 class _Page:
     """Indexes over the lifted nodes. Nodes arrive in document (pre-)order."""
 
     def __init__(self, nodes: Sequence[LiftNode]) -> None:
         self.nodes = nodes
         self.by_id = {node.id: node for node in nodes}
-        self.by_html_id: dict[str, LiftNode] = {}
-        self.labels_for: dict[str, list[LiftNode]] = {}
+        # Ids are looked up in the scope of the element that names them (see HINT_SCOPE): two frames
+        # that both have an "email" field each label their own.
+        self.by_html_id: dict[tuple[str, str], LiftNode] = {}
+        self.labels_for: dict[tuple[str, str], list[LiftNode]] = {}
         for node in nodes:
+            scope = _scope(node)
             html_id = node.attrs.get("id")
-            if html_id and html_id not in self.by_html_id:
-                self.by_html_id[html_id] = node
+            if html_id and (scope, html_id) not in self.by_html_id:
+                self.by_html_id[(scope, html_id)] = node
             if node.tag == "label" and node.attrs.get("for"):
-                self.labels_for.setdefault(node.attrs["for"], []).append(node)
+                self.labels_for.setdefault((scope, node.attrs["for"]), []).append(node)
         # The list a combobox controls (aria-controls, or aria-owns) belongs to that combobox: it is
         # not a field of its own, and its options are the combobox's options.
         self.popup_owner: dict[str, str] = {}
@@ -371,12 +384,40 @@ class _Page:
                 continue
             for attr in ("aria-controls", "aria-owns"):
                 for html_id in node.attrs.get(attr, "").split():
-                    target = self.by_html_id.get(html_id)
+                    target = self.referenced(node, html_id)
                     if target is not None and target.id != node.id and target.id not in self.popup_owner:
                         self.popup_owner[target.id] = node.id
                         self.popup_of.setdefault(node.id, target.id)
         self.hidden = self._hidden_ids()
         self._text: dict[tuple[str, bool], str] = {}
+
+    def owned(self, node: LiftNode, html_id: str) -> LiftNode | None:
+        """The element with ``html_id`` in ``node``'s own scope, as a browser finds a label's ``for``
+        and a field's ``form``."""
+
+        return self.by_html_id.get((_scope(node), html_id))
+
+    def referenced(self, node: LiftNode, html_id: str) -> LiftNode | None:
+        """The element an ARIA reference on ``node`` names: in its own scope, or else in its
+        document, as the in-page library's byId finds it for a shadow-DOM element."""
+
+        scope = _scope(node)
+        found = self.by_html_id.get((scope, html_id))
+        if found is None and "." in scope:
+            found = self.by_html_id.get((scope.split(".", 1)[0], html_id))
+        return found
+
+    def labels(self, node: LiftNode) -> list[LiftNode]:
+        """The ``<label for>`` elements of ``node``, in its own scope."""
+
+        html_id = node.attrs.get("id")
+        return self.labels_for.get((_scope(node), html_id), []) if html_id else []
+
+    def labelled_by(self, node: LiftNode) -> str:
+        """The text of the elements ``node``'s ``aria-labelledby`` names, in order."""
+
+        targets = (self.referenced(node, ref) for ref in node.attrs.get("aria-labelledby", "").split())
+        return " ".join(self.text(target) for target in targets if target is not None).strip()
 
     def _hidden_ids(self) -> set[str]:
         hidden: set[str] = set()
@@ -568,16 +609,13 @@ def _tab_stop(attrs: Mapping[str, str]) -> bool:
 
 def _accessible_name(page: _Page, node: LiftNode, kind: str, control: str) -> str:
     attrs = node.attrs
-    labelled_by = attrs.get("aria-labelledby", "").split()
-    if labelled_by:
-        text = " ".join(page.text(page.by_html_id[ref]) for ref in labelled_by if ref in page.by_html_id).strip()
-        if text:
-            return text
+    text = page.labelled_by(node)
+    if text:
+        return text
     if attrs.get("aria-label"):
         return attrs["aria-label"]
     if node.tag in {"input", "select", "textarea"} and control not in INPUT_ACTION_TYPES:
-        html_id = attrs.get("id")
-        for label in page.labels_for.get(html_id, []) if html_id else []:
+        for label in page.labels(node):
             text = page.text(label, skip_controls=True)
             if text:
                 return text
@@ -639,9 +677,9 @@ def _text_beside(page: _Page, node: LiftNode) -> str:
 
 
 def _form_of(page: _Page, node: LiftNode) -> LiftNode | None:
-    owner = node.attrs.get("form")
-    if owner and owner in page.by_html_id and page.by_html_id[owner].tag == "form":
-        return page.by_html_id[owner]
+    owner = page.owned(node, node.attrs["form"]) if node.attrs.get("form") else None
+    if owner is not None and owner.tag == "form":
+        return owner
     for ancestor in page.ancestors(node):
         if ancestor.tag == "form":
             return ancestor
@@ -667,9 +705,7 @@ def _group_name(page: _Page, node: LiftNode) -> str | None:
                 if child.tag == "legend" and page.text(child):
                     return page.text(child)
         if ancestor.tag == "fieldset" or role in {"group", "radiogroup"}:
-            labelled_by = ancestor.attrs.get("aria-labelledby", "").split()
-            text = " ".join(page.text(page.by_html_id[ref]) for ref in labelled_by if ref in page.by_html_id).strip()
-            return text or ancestor.attrs.get("aria-label") or None
+            return page.labelled_by(ancestor) or ancestor.attrs.get("aria-label") or None
     return None
 
 
@@ -864,7 +900,8 @@ def _submits(node: LiftNode, kind: str, control: str, form: LiftNode | None) -> 
     if form is None or kind != "action":
         return False
     if node.tag == "button":
-        return node.attrs.get("type", "submit").lower() == "submit"
+        # A missing, empty, or unknown type is a submit button, as the HTML spec has it.
+        return (node.attrs.get("type") or "submit").lower() not in {"button", "reset"}
     return node.tag == "input" and control in {"submit", "image"}
 
 
@@ -872,11 +909,9 @@ def _form_name(page: _Page, form: LiftNode, members: Sequence[HtmlControl]) -> s
     for attr in ("aria-label", "name", "id"):
         if form.attrs.get(attr):
             return form.attrs[attr]
-    labelled_by = form.attrs.get("aria-labelledby", "").split()
-    if labelled_by:
-        text = " ".join(page.text(page.by_html_id[ref]) for ref in labelled_by if ref in page.by_html_id).strip()
-        if text:
-            return text
+    text = page.labelled_by(form)
+    if text:
+        return text
     for node in page.nodes:
         if node.tag in {"legend", "h1", "h2", "h3", "h4", "h5", "h6"} and any(
             ancestor.id == form.id for ancestor in page.ancestors(node)

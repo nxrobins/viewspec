@@ -125,6 +125,54 @@ def test_forms_group_controls_and_find_submit_buttons():
 
 
 @pytest.mark.parametrize(
+    ("button", "submits"),
+    [
+        ("<button>Go</button>", True),
+        ('<button type="">Go</button>', True),
+        ('<button type="bogus">Go</button>', True),
+        ('<button type="SUBMIT">Go</button>', True),
+        ('<button type="button">Go</button>', False),
+        ('<button type="reset">Go</button>', False),
+    ],
+)
+def test_a_button_with_a_missing_or_unknown_type_submits(button, submits):
+    # The HTML spec gives a missing or invalid type the Submit Button state.
+    [control] = lift_html(f'<form aria-label="F">{button}</form>', profile="agent").controls
+    assert control.submits is submits
+
+
+# A snapshot flattens a same-origin frame (scope "1") and a shadow root in the page (scope "0.2")
+# into one document. Each keeps its own ids; an element in the page has no data-lift-scope.
+SCOPED = """
+<label for="email">Work email</label> <input id="email" name="work">
+<div data-lift-frame="Newsletter"><div>
+  <label for="email" data-lift-scope="1">Newsletter email</label>
+  <input id="email" name="news" data-lift-scope="1">
+</div></div>
+<ul id="results" role="listbox"><li role="option">Page result</li></ul>
+<div data-lift-tag="x-search">
+  <input role="combobox" aria-label="Search" aria-controls="results" data-lift-scope="0.2">
+  <ul id="results" role="listbox" data-lift-scope="0.2"><li role="option">Shadow result</li></ul>
+  <input name="note" aria-labelledby="note-label" data-lift-scope="0.2">
+</div>
+<span id="note-label">Note from the page</span>
+"""
+
+
+def test_ids_resolve_in_their_own_frame_or_shadow_root():
+    lift = lift_html(SCOPED, profile="agent")
+    by_name = {control.name: control for control in lift.controls}
+
+    # Each frame's label names its own field, though both fields are id="email".
+    assert {"Work email", "Newsletter email"} <= set(by_name)
+    assert by_name["Newsletter email"].node_id != by_name["Work email"].node_id
+    # The shadow combobox controls the list in its own shadow root, not the page's list.
+    assert [option.label for option in by_name["Search"].options] == ["Shadow result"]
+    # An ARIA reference that its shadow root does not have falls back to the page, as byId does.
+    assert "Note from the page" in by_name
+
+
+@pytest.mark.parametrize(
     ("html", "name"),
     [
         ('<form aria-label="Find"><button>Go</button></form>', "Find"),
