@@ -38,6 +38,10 @@ def control_line(handle: int, control: HtmlControl) -> str:
             line += " read-only"
         if control.date and control.control == "text":
             line += " date"  # A custom date field: select a date, and its calendar is used.
+        if control.date_range == "range":
+            line += " range"  # One field that holds a whole date range.
+        elif control.date_range:
+            line += f" (range {control.date_range})"  # Select a range on either field to set both.
         if control.control == "file":
             line += " multiple" if control.multiple else ""
             line += f" accepts {control.accept}" if control.accept else ""

@@ -48,6 +48,12 @@ All notable changes to ViewSpec are documented in this file. The format follows
   It checks the input's `accept` and `multiple`, the file names, and size limits (10 MB a file, 25 MB a
   step). `act` with `upload` and file fields in form tool calls plan upload steps; steps show each
   file's name, media type, and size, never its contents.
+- Agent lift date fields carry `date_range` and `range_with`: a field that holds a whole range, or the
+  start and end fields of a pair (paired names, or one calendar named by both). `parse_date_range()`
+  reads a range, and `plan_date_range()` plans it as one `choose_date_range` step, or as one step per
+  field for a pair with a native date field. `select` with a range on a range field, or on a pair field
+  (with `lift=`), plans a range. Form tools describe range fields and pairs, and a form call that sets
+  both fields of a pair checks their order and plans them as one range.
 
 ## [0.4.0] - 2026-11-01
 

@@ -17,7 +17,7 @@ import datetime
 import mimetypes
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from viewspec.raw_html_agent import (
@@ -189,7 +189,9 @@ class ActionStep:
     ``op`` is ``click``, ``fill``, ``check``, ``uncheck``, ``select`` (``values`` holds option values),
     ``choose`` (pick the option named ``value`` from an ARIA combobox or listbox: open its list if
     needed, find the option, click it), ``choose_date`` (pick the date ``value``, as YYYY-MM-DD, from
-    the calendar of a custom date field), ``scroll`` (scroll the page, or the scrollable area that holds
+    the calendar of a custom date field), ``choose_date_range`` (pick the range ``value``, as
+    YYYY-MM-DD/YYYY-MM-DD, in the calendar of one field that holds a range, or of a pair of fields
+    whose end field is ``end_node_id``), ``scroll`` (scroll the page, or the scrollable area that holds
     the control ``node_id``, in the direction ``value``), ``upload`` (give ``files`` to a file input, or
     to the file chooser a button opens), or ``submit`` (submit the form ``node_id`` without a submit
     button). ``secret`` marks a value that must not be logged; ``to_json()`` redacts it unless asked
@@ -204,6 +206,9 @@ class ActionStep:
     values: tuple[str, ...] = field(default_factory=tuple)
     secret: bool = False
     files: tuple[UploadFile, ...] = field(default_factory=tuple)
+    end_node_id: str | None = None  # For a range on a pair of fields: the field that holds the end.
+    end_ref: str | None = None
+    end_name: str | None = None
 
     def to_json(self, *, redact: bool = True) -> dict[str, Any]:
         hide = redact and self.secret
@@ -214,16 +219,22 @@ class ActionStep:
             payload["values"] = [REDACTED] if hide else list(self.values)
         if self.op == "upload":
             payload["files"] = [item.to_json() for item in self.files]
+        if self.end_node_id is not None:
+            payload["end"] = {"node_id": self.end_node_id, "ref": self.end_ref, "name": self.end_name}
         if self.secret:
             payload["secret"] = True
         return payload
 
 
-def plan_control_action(control: HtmlControl, op: str, value: Any = None) -> tuple[ActionStep, ...]:
+def plan_control_action(
+    control: HtmlControl, op: str, value: Any = None, *, lift: HtmlLiftResult | None = None
+) -> tuple[ActionStep, ...]:
     """Plan one action on one control. The result is empty when the control is already in that state.
 
     ``check`` and ``uncheck`` on an ARIA checkbox or switch become a ``click`` when the state must
-    change. ``select`` takes one option value or label (a list for a multiple select).
+    change. ``select`` takes one option value or label (a list for a multiple select). On a field that
+    holds a date range, ``select`` takes a range (see ``parse_date_range``). On either field of a
+    start and end pair, ``select`` with a range sets both; that needs ``lift``, to find the other field.
     """
 
     if op not in ACTION_OPS or op == "submit":
@@ -238,7 +249,40 @@ def plan_control_action(control: HtmlControl, op: str, value: Any = None) -> tup
         return _set_checked(control, op == "check")
     if op == "upload":
         return (plan_upload(control, value),)
+    if control.date_range == "range":
+        return plan_date_range(control, None, value)
+    if control.date_range in {"start", "end"} and control.range_with and _is_range(value):
+        if lift is None:
+            raise AgentActionError(
+                "AGENT_ACTION_VALUE_INVALID", f"{_label(control)} holds one date; plan a range with the page's lift."
+            )
+        other = lift.control(control.range_with)
+        start, end = (control, other) if control.date_range == "start" else (other, control)
+        return plan_date_range(start, end, value)
     return (_select(control, value),)
+
+
+def plan_date_range(start: HtmlControl, end: HtmlControl | None, value: Any) -> tuple[ActionStep, ...]:
+    """Plan a date range on one field that holds a range (``end`` is None), or on a pair of fields.
+
+    One field, or a pair of custom date fields, gives one ``choose_date_range`` step whose value is
+    ``START/END`` (YYYY-MM-DD/YYYY-MM-DD): a driver picks both days, in one calendar when it stays
+    open after the first. A pair with a native date field gives a step for each field. Each day is
+    checked against its field's ``min`` and ``max``, and the end must not be before the start.
+    """
+
+    first, last = parse_date_range(value)
+    for control in (start, end):
+        if control is not None and control.disabled:
+            raise AgentActionError("AGENT_ACTION_DISABLED", f"{_label(control)} is disabled.")
+    if end is None:
+        span = f"{date_value(start, first.isoformat())}/{date_value(start, last.isoformat())}"
+        return (_step("choose_date_range", start, value=span),)
+    begins, ends = date_value(start, first.isoformat()), date_value(end, last.isoformat())
+    if _native_date(start) or _native_date(end):
+        return (_date(start, begins), _date(end, ends))
+    step = _step("choose_date_range", start, value=f"{begins}/{ends}")
+    return (replace(step, end_node_id=end.node_id, end_ref=end.ref, end_name=_name(end)),)
 
 
 def plan_upload(control: HtmlControl, files: Any) -> ActionStep:
@@ -311,7 +355,16 @@ def plan_form_call(
         if key not in by_key:
             problems.append({"argument": key, "problem": "unknown", "message": f"{tool_name} has no {key!r}."})
     steps: list[ActionStep] = []
+    by_node = {item.control.node_id: item for item in fields}
+    planned: set[str] = set()  # Keys whose step another field's step already holds.
     for item in fields:
+        if item.key in planned:
+            continue
+        end = by_node.get(item.control.range_with or "") if item.control.date_range == "start" else None
+        if end is not None and item.key in arguments and end.key in arguments:
+            steps.extend(_range_steps(item, end, arguments, problems))
+            planned.add(end.key)
+            continue
         if item.key not in arguments:
             if item.required and _empty(item):
                 problems.append({"argument": item.key, "problem": "missing", "message": f"{item.key!r} is required."})
@@ -383,6 +436,35 @@ def _field_steps(item: FormField, value: Any) -> tuple[ActionStep, ...]:
     return plan_control_action(control, "fill", value)
 
 
+def _range_steps(
+    start: FormField, end: FormField, arguments: Mapping[str, Any], problems: list[dict[str, str]]
+) -> tuple[ActionStep, ...]:
+    """Steps for both fields of a date range pair, given together. Problems go to ``problems``."""
+
+    days: dict[str, str] = {}
+    for item in (start, end):
+        try:
+            days[item.key] = date_value(item.control, arguments[item.key])
+        except AgentActionError as error:
+            problems.append({"argument": item.key, "problem": "invalid", "message": error.message})
+    if len(days) < 2:
+        return ()
+    if days[end.key] < days[start.key]:
+        problems.append(
+            {
+                "argument": end.key,
+                "problem": "invalid",
+                "message": f"{end.key!r} ({days[end.key]}) is before {start.key!r} ({days[start.key]}).",
+            }
+        )
+        return ()
+    try:
+        return plan_date_range(start.control, end.control, {"start": days[start.key], "end": days[end.key]})
+    except AgentActionError as error:
+        problems.append({"argument": start.key, "problem": "invalid", "message": error.message})
+        return ()
+
+
 def _empty(item: FormField) -> bool:
     if item.kind in {"date", "file"}:
         return not item.control.value
@@ -449,6 +531,52 @@ def parse_date(value: Any) -> datetime.date:
         return datetime.date(year, month, day)
     except ValueError:
         raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{value!r} is not a real date.") from None
+
+
+# Words and marks between the two dates of a range written as text.
+RANGE_SEPARATOR_RE = re.compile(r"\s+(?:to|until|till|through|thru|-)\s+|\s*[\u2013\u2014]\s*", re.IGNORECASE)
+ISO_RANGE_RE = re.compile(r"(\d{4}-\d{1,2}-\d{1,2})\s*/\s*(\d{4}-\d{1,2}-\d{1,2})")
+
+
+def _range_parts(value: Any) -> list[Any] | None:
+    """The two (or more) dates of a range, not yet read; None when ``value`` is not written as a range."""
+
+    if isinstance(value, Mapping):
+        return [value.get("start"), value.get("end")] if set(value) == {"start", "end"} else None
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if match := ISO_RANGE_RE.fullmatch(text):
+            return [match.group(1), match.group(2)]
+        parts = RANGE_SEPARATOR_RE.split(text)
+        return parts if len(parts) > 1 else None
+    return None
+
+
+def _is_range(value: Any) -> bool:
+    return _range_parts(value) is not None
+
+
+def parse_date_range(value: Any) -> tuple[datetime.date, datetime.date]:
+    """Read a date range: ``{"start", "end"}``, a list of two dates, or text with two dates
+    ("2026-11-20/2026-11-23", "Nov 20, 2026 to Nov 23, 2026", "20/11/2026 - 23/11/2026").
+
+    Each date is read by ``parse_date``. The end may be the start, but not before it.
+    """
+
+    parts = _range_parts(value)
+    if parts is None or len(parts) != 2:
+        raise AgentActionError(
+            "AGENT_ACTION_VALUE_INVALID",
+            f"Expected a date range with a start and an end, such as 2026-11-20/2026-11-23, not {value!r}.",
+        )
+    start, end = parse_date(parts[0]), parse_date(parts[1])
+    if end < start:
+        raise AgentActionError(
+            "AGENT_ACTION_VALUE_INVALID", f"The range ends ({end.isoformat()}) before it starts ({start.isoformat()})."
+        )
+    return start, end
 
 
 def date_value(control: HtmlControl, value: Any) -> str:
@@ -591,15 +719,19 @@ def _step(op: str, control: HtmlControl, *, value: str | None = None, values: tu
         op=op,
         node_id=control.node_id,
         ref=control.ref,
-        name=control.name or control.field_name or control.node_id,
+        name=_name(control),
         value=value,
         values=values,
         secret=control.secret,
     )
 
 
+def _name(control: HtmlControl) -> str:
+    return control.name or control.field_name or control.node_id
+
+
 def _label(control: HtmlControl) -> str:
-    return repr(control.name or control.field_name or control.node_id)
+    return repr(_name(control))
 
 
 __all__ = [
@@ -614,4 +746,6 @@ __all__ = [
     "accepts",
     "date_value",
     "parse_date",
+    "parse_date_range",
+    "plan_date_range",
 ]

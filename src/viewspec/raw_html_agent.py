@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -85,6 +85,25 @@ DATE_HINT_RE = re.compile(
     r"(?<![a-z])(?:dates?|dob|birth\w*|check.?in|check.?out|arrival|departure|deadline|due)(?![a-z])", re.IGNORECASE
 )
 DATE_PLACEHOLDER_RE = re.compile(r"(?<![a-z])(?:dd|mm|yy|yyyy)\s*[/.\-]\s*(?:dd|mm|yy|yyyy)(?![a-z])", re.IGNORECASE)
+# A text field that holds a whole date range: its name says so ("Travel dates", "date_range"), or its
+# placeholder shows two dates ("DD/MM/YYYY - DD/MM/YYYY").
+DATE_RANGE_RE = re.compile(r"(?<![a-z])(?:date.?range|dates)(?![a-z])", re.IGNORECASE)
+# Two date fields that hold the start and the end of one range, by the words in their names. The
+# end field must be the next date field after the start, in the same form.
+DATE_RANGE_PAIRS = tuple(
+    (
+        re.compile(rf"(?<![a-z])(?:{start})(?![a-z])", re.IGNORECASE),
+        re.compile(rf"(?<![a-z])(?:{end})(?![a-z])", re.IGNORECASE),
+    )
+    for start, end in (
+        (r"check.?in", r"check.?out"),
+        (r"arriv\w*", r"depart\w*"),
+        (r"depart\w*|outbound|leav\w*", r"return\w*|inbound"),
+        (r"start\w*|begin\w*", r"end\w*|finish\w*"),
+        (r"from", r"to|until|till"),
+        (r"pick.?up", r"drop.?off"),
+    )
+)
 
 
 def is_sensitive_control(tag: str, attrs: Mapping[str, str]) -> bool:
@@ -156,6 +175,8 @@ class HtmlControl:
     date: bool = False
     accept: str | None = None
     multiple: bool = False
+    date_range: str | None = None  # "start" or "end" of a pair of date fields, or "range" for one field.
+    range_with: str | None = None  # The node id of the other field of a pair.
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -184,6 +205,8 @@ class HtmlControl:
             "date": self.date,
             "accept": self.accept,
             "multiple": self.multiple,
+            "date_range": self.date_range,
+            "range_with": self.range_with,
         }
         if self.options:
             payload["options"] = [option.to_json() for option in self.options]
@@ -321,6 +344,48 @@ def _is_date_field(node: LiftNode, control: str, name: str) -> bool:
     return any(DATE_HINT_RE.search(hint) for hint in hints) or bool(
         DATE_PLACEHOLDER_RE.search(node.attrs.get("placeholder", ""))
     )
+
+
+def _date_range_hints(page: _Page, control: HtmlControl) -> tuple[str, ...]:
+    attrs = page.by_id[control.node_id].attrs
+    hints = (attrs.get("name", ""), attrs.get("id", ""), control.name)
+    return tuple(re.sub(r"([a-z])([A-Z])", r"\1 \2", hint) for hint in hints)  # "dateFrom" -> "date From"
+
+
+def _single_day_field(control: HtmlControl) -> bool:
+    """A date field that holds one day: a native date input, or a custom text date field."""
+
+    return control.date and (control.control == "date" or control.control not in DATE_INPUT_TYPES)
+
+
+def _date_ranges(page: _Page, controls: list[HtmlControl]) -> list[HtmlControl]:
+    """Mark fields that hold a date range, and pairs of fields that hold its start and its end."""
+
+    marked = list(controls)
+    days = [index for index, control in enumerate(marked) if _single_day_field(control)]
+    for index in days:
+        control = marked[index]
+        if control.control in DATE_INPUT_TYPES:
+            continue
+        placeholder = page.by_id[control.node_id].attrs.get("placeholder", "")
+        hints = _date_range_hints(page, control)
+        if len(DATE_PLACEHOLDER_RE.findall(placeholder)) >= 2 or any(DATE_RANGE_RE.search(hint) for hint in hints):
+            marked[index] = replace(control, date_range="range")
+    for first, second in zip(days, days[1:], strict=False):
+        start, end = marked[first], marked[second]
+        if start.date_range or end.date_range or start.form_id != end.form_id:
+            continue
+        own = page.by_id[start.node_id].attrs.get("aria-controls", "").split()
+        shared = bool(own) and own == page.by_id[end.node_id].attrs.get("aria-controls", "").split()
+        start_hints, end_hints = _date_range_hints(page, start), _date_range_hints(page, end)
+        named = any(
+            any(begins.search(hint) for hint in start_hints) and any(ends.search(hint) for hint in end_hints)
+            for begins, ends in DATE_RANGE_PAIRS
+        )
+        if shared or named:
+            marked[first] = replace(start, date_range="start", range_with=end.node_id)
+            marked[second] = replace(end, date_range="end", range_with=start.node_id)
+    return marked
 
 
 def _role(node: LiftNode) -> str:
@@ -665,6 +730,7 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
             )
         )
         roles.append((node.id, kind, name, confidence))
+    controls = _date_ranges(page, controls)
 
     forms: list[HtmlForm] = []
     for node in nodes:
@@ -863,6 +929,14 @@ def _field_schema(field: FormField) -> dict[str, Any]:
         prop["description"] = (
             f"{prop['description']} (files to upload: name and content, or a path in the upload folder{accepts})"
         )
+    elif field.kind == "date" and control.date_range == "range":
+        day = {"type": "string", "format": "date"}
+        prop["type"] = "object"
+        prop["properties"] = {"start": day, "end": day}
+        prop["required"] = ["start", "end"]
+        prop["description"] = (
+            f"{prop['description']} (a date range: start and end as YYYY-MM-DD; picked from its calendar)"
+        )
     elif field.kind == "date":
         native = control.tag == "input" and control.control in DATE_INPUT_TYPES
         kind = control.control if native else "date"
@@ -921,12 +995,20 @@ def form_tool_schema(form: HtmlForm, controls: Mapping[str, HtmlControl], *, nam
     """
 
     fields = form_fields(form, controls)
+    properties = {field.key: _field_schema(field) for field in fields}
+    keys = {field.control.node_id: field.key for field in fields}
+    for field in fields:
+        other = keys.get(field.control.range_with or "")
+        if other and field.control.date_range == "start":
+            properties[field.key]["description"] += f"; the start of a date range that ends at {other!r}"
+        elif other and field.control.date_range == "end":
+            properties[field.key]["description"] += f"; the end of the date range from {other!r}, not before it"
     return {
         "name": name or form_tool_name(form),
         "description": f"Fill in and submit the form {form.name!r}.",
         "input_schema": {
             "type": "object",
-            "properties": {field.key: _field_schema(field) for field in fields},
+            "properties": properties,
             "required": [field.key for field in fields if field.required],
         },
         "x-form-node-id": form.node_id,

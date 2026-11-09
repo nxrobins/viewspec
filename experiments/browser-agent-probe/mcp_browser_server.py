@@ -216,7 +216,7 @@ class BrowserTools:
         self,
         action: Literal["click", "fill", "check", "uncheck", "select", "scroll", "upload"],
         handle: int | None = None,
-        value: str | list[str] | None = None,
+        value: str | list[str] | dict[str, str] | None = None,
         observation_id: int | None = None,
         wait_for: WaitFor | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
@@ -240,7 +240,11 @@ class BrowserTools:
         ``fill`` takes text in ``value``. ``select`` takes an option value or label (a list for a
         multiple select). On a custom combobox or listbox, ``select`` chooses from its list: it opens
         the list (typing the value into an editable combobox), waits for the option, and clicks the one
-        whose name is the value, or starts with it; ``steps[0].chosen`` names it. ``check`` and
+        whose name is the value, or starts with it; ``steps[0].chosen`` names it. On a date field,
+        ``select`` takes a date and picks it from the field's calendar. On a field marked ``range``, or
+        on either field of a pair marked ``(range start)`` and ``(range end)``, it takes a range:
+        ``{"start": "2026-11-20", "end": "2026-11-23"}``, ``["2026-11-20", "2026-11-23"]``, or
+        ``"2026-11-20/2026-11-23"``; both days are picked in one step. ``check`` and
         ``uncheck`` take no value. The handle comes from the latest
         observation unless ``observation_id`` names an earlier one.
 
@@ -276,7 +280,7 @@ class BrowserTools:
                 if action == "upload":
                     steps = plan_control_action(observation.handles[handle], "upload", self._files(files or []))
                 else:
-                    steps = plan_control_action(observation.handles[handle], action, value)
+                    steps = plan_control_action(observation.handles[handle], action, value, lift=observation.lift)
             except AgentActionError as error:
                 return _planning_error(error)
             except _ToolError as error:
@@ -590,7 +594,10 @@ def _scroll_summary(scrolled: ScrollResult) -> str:
 
 
 def _summary(results: list[StepResult]) -> str:
-    parts = [f"{item.step.op} {item.step.name!r}" for item in results]
+    parts = [
+        f"{item.step.op} {item.step.name!r}" + (f" and {item.step.end_name!r}" if item.step.end_name else "")
+        for item in results
+    ]
     tail = " The page navigated." if any(item.navigated for item in results) else ""
     return f"Did {len(results)} step(s): {'; '.join(parts)}.{tail}"
 
@@ -654,9 +661,9 @@ def _bridge_code(error: BridgeError) -> str:
         return "BROWSER_OPTION_AMBIGUOUS"
     if message.startswith("choose: no option"):
         return "BROWSER_OPTION_NOT_FOUND"
-    if message.startswith("choose_date:") and "not available" in message:
+    if message.startswith(("choose_date:", "choose_date_range:")) and "not available" in message:
         return "BROWSER_DATE_UNAVAILABLE"
-    if message.startswith("choose_date:"):
+    if message.startswith(("choose_date:", "choose_date_range:")):
         return "BROWSER_DATE_NOT_PICKED"
     if message.startswith("upload:"):
         return "BROWSER_UPLOAD_REFUSED"

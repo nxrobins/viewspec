@@ -17,6 +17,8 @@ It serves the fixtures on 127.0.0.1, then:
    numbers, one with month and year lists).
 9. uploads: a file input, and an "Add photos" button whose file input is hidden. Wrong types and
    too many files are refused; the blocked form post holds the file names and sizes.
+10. ranges: a range picker that shows two months and fills check-in and check-out, one field that
+    holds a whole range, and two native date fields, each set by one range.
 
 After each action in checkout and shop, the script also checks the diff between the reading before
 and the reading after (``agent_session.changes``).
@@ -489,6 +491,97 @@ def uploads(session: BrowserSession, base: str) -> None:
     )
 
 
+def ranges(session: BrowserSession, base: str) -> None:
+    print("\n== ranges: a two-month range picker, a one-field range, and a native pair ==")
+    session.open(f"{base}/stay.html")
+    view = session.observe()
+    check(
+        "[1] text 'Check-in' read-only date (range start)" in view.view
+        and "[2] text 'Check-out' read-only date (range end)" in view.view
+        and "[5] text 'Rental dates' read-only date range" in view.view
+        and "[7] date 'From' (range start)" in view.view,
+        "the view marks the range fields and the pairs",
+    )
+
+    def pick(name: str, value: object) -> tuple[list[StepResult], list[str]]:
+        before = session.observe()
+        results = session.act(handle_named(session, name), "select", value)
+        show(results)
+        lines = changes(before, session.observe())["lines"]
+        print("\n".join(f"  ~~  {line}" for line in lines))
+        return results, lines
+
+    stay, lines = pick("Check-in", "Nov 20, 2026 to Nov 23, 2026")
+    check(
+        len(stay) == 1 and stay[0].step.op == "choose_date_range" and stay[0].verified,
+        "one step picks check-in and check-out in the shared calendar",
+    )
+    check(
+        lines
+        == [
+            "changed [1] text 'Check-in': value '' -> '20 Nov 2026'",
+            "changed [2] text 'Check-out': value '' -> '23 Nov 2026'",
+        ],
+        "and the diff shows both fields",
+    )
+    later, _ = pick("Check-out", ["2026-12-28", "2027-01-03"])
+    fields = session.observe().handles
+    check(
+        later[0].verified and (fields[1].value, fields[2].value) == ("28 Dec 2026", "3 Jan 2027"),
+        "a range from the second month shown into the next year: 28 Dec, not 28 Nov",
+    )
+    try:
+        session.act(handle_named(session, "Check-in"), "select", "2026-11-23/2026-11-20")
+        check(False, "a range that ends before it starts is refused")
+    except AgentActionError as error:
+        check(
+            "before it starts" in error.message, "a range that ends before it starts is refused before the browser acts"
+        )
+    try:
+        session.act(handle_named(session, "Check-in"), "select", "2026-11-05/2026-11-08")
+        check(False, "a past start day is refused")
+    except BridgeError as error:
+        print(f"  !!  {error}")
+        check("not available" in str(error), "a past (disabled) start day is refused")
+    open_days = [c.name for c in session.observe().lift.controls if c.name.isdigit()]
+    check(open_days == [], "and the calendar it opened is closed again")
+
+    rental, lines = pick("Rental dates", "Nov 20, 2026 \u2013 Dec 2, 2026")
+    check(
+        rental[0].verified and lines == ["changed [5] text 'Rental dates': value '' -> '20/11/2026 \u2013 02/12/2026'"],
+        "one field takes a whole range, across two months",
+    )
+    try:
+        session.act(handle_named(session, "Rental dates"), "select", "2026-11-20")
+        check(False, "one date is refused for a range field")
+    except AgentActionError as error:
+        check("a start and an end" in error.message, "one date is refused for a range field")
+
+    native, _ = pick("From", "2026-10-01/2026-10-31")
+    check(
+        [(r.step.op, r.step.name, r.verified) for r in native] == [("fill", "From", True), ("fill", "To", True)],
+        "a range on two native date fields fills both",
+    )
+
+    try:
+        session.call("find_a_stay", {"checkin": "2026-12-04", "checkout": "2026-12-03"})
+        check(False, "a form call with check-out before check-in is refused")
+    except AgentActionError as error:
+        check(
+            [item["argument"] for item in error.details] == ["checkout"],
+            "a form call with check-out before check-in is refused, and names check-out",
+        )
+    results = session.call("find_a_stay", {"checkin": "2026-12-04", "checkout": "December 6, 2026", "guests": 3})
+    show(results)
+    check(
+        [r.step.op for r in results] == ["choose_date_range", "fill", "click"], "a form call picks the pair in one step"
+    )
+    [write] = session.blocked_writes()
+    body = request_fields(write)
+    print(f"  ..  blocked {write['method']} {write['url']}: {body}")
+    check(body == {"checkin": "4 Dec 2026", "checkout": "6 Dec 2026", "guests": "3"}, "and the post holds both dates")
+
+
 def main() -> int:
     server, base = serve()
     try:
@@ -502,6 +595,7 @@ def main() -> int:
             scrolling(session, base)
             dates(session, base)
             uploads(session, base)
+            ranges(session, base)
     except AssertionError as error:
         print(f"\nFAILED: {error}")
         return 1

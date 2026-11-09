@@ -598,6 +598,35 @@
     const outer = best && best.closest("[role=dialog], [class*=calendar i], [class*=picker i]");
     return outer && dayCells(outer).length >= dayCells(best).length ? outer : best;
   }
+  // The months a calendar shows, from their titles ("November 2026"), each with the day cells under
+  // it: [{month: {y, m}, cells}]. Several titles mean several months side by side. Each month's
+  // cells are those in the nearest block around its title that holds a month of days and no other
+  // title; when the titles share a header row, the grids are matched to the titles in order.
+  function monthPanels(cal, cells) {
+    const selector = "h1, h2, h3, h4, h5, h6, caption, [aria-live], [class*=title i], [class*=caption i], [class*=header i], [class*=month i]";
+    const found = [...cal.querySelectorAll(selector)].filter((el) => shown(el) && monthTitle(el.textContent));
+    const titles = found.filter((el) => !found.some((other) => other !== el && el.contains(other)));
+    const months = [];
+    for (const el of titles) {
+      const month = monthTitle(el.textContent);
+      if (!months.some((t) => t.month.y === month.y && t.month.m === month.m)) months.push({ el, month });
+    }
+    if (months.length <= 1) return months.map(({ month }) => ({ month, cells }));
+    const cellsIn = (root) => cells.filter((c) => root.contains(c.cell));
+    let roots = months.map(({ el }) => {
+      let node = el.parentElement;
+      while (node && node !== cal && cellsIn(node).length < 28) node = node.parentElement;
+      return node;
+    });
+    const own = roots.every((root, i) => root && root !== cal && !months.some((t, k) => k !== i && root.contains(t.el)));
+    if (!own) {
+      const grids = [...cal.querySelectorAll("table, [role=grid]")].filter((g) => shown(g) && cellsIn(g).length >= 28);
+      const outer = grids.filter((g) => !grids.some((other) => other !== g && g.contains(other)));
+      if (outer.length !== months.length) return [{ month: months[0].month, cells }];
+      roots = outer;
+    }
+    return months.map(({ month }, i) => ({ month, cells: cellsIn(roots[i]) }));
+  }
   // Read the open calendar of the field ``ref`` for the date ``iso`` (YYYY-MM-DD).
   function readCalendar(ref, iso) {
     const el = get(ref);
@@ -615,25 +644,28 @@
     const lists = [...cal.querySelectorAll("select")];
     const monthList = lists.find((s) => s.options.length === 12 && [...s.options].every((o) => monthOf(o.textContent)));
     const yearList = lists.find((s) => s.options.length > 1 && [...s.options].every((o) => /^\d{4}$/.test(o.textContent.trim())));
-    let shownMonth = null;
+    // The months shown, each with its day cells. Most calendars show one month; a range picker
+    // often shows two side by side, each under its own title.
+    let panels = [];
     if (monthList && yearList) {
-      shownMonth = { y: +yearList.selectedOptions[0].textContent, m: monthOf(monthList.selectedOptions[0].textContent) };
+      panels = [{ month: { y: +yearList.selectedOptions[0].textContent, m: monthOf(monthList.selectedOptions[0].textContent) }, cells }];
     }
-    if (!shownMonth) {
-      for (const title of cal.querySelectorAll("h1, h2, h3, h4, h5, h6, caption, [aria-live], [class*=title i], [class*=caption i], [class*=header i]")) {
-        shownMonth = monthTitle(title.textContent);
-        if (shownMonth) break;
+    if (!panels.length) panels = monthPanels(cal, cells);
+    if (!panels.length) {
+      const dated = cells.filter((c) => c.date && !c.outside);
+      if (dated.length) {
+        const middle = dated[Math.floor(dated.length / 2)].date;
+        panels = [{ month: { y: middle.y, m: middle.m }, cells }];
       }
     }
-    if (!shownMonth) {
-      const dated = cells.filter((c) => c.date && !c.outside);
-      if (dated.length) shownMonth = { y: dated[Math.floor(dated.length / 2)].date.y, m: dated[Math.floor(dated.length / 2)].date.m };
-    }
+    const shownMonth = panels.length ? panels[0].month : null;
+    const lastMonth = panels.length ? panels[panels.length - 1].month : null;
     // The day to click: by its full date, or by its number in the month shown (skipping the days of
     // the months around it, which repeat numbers at the start and end of the grid).
     let target = cells.find((c) => c.date && c.date.y === ty && c.date.m === tm && c.date.d === td) || null;
-    if (!target && shownMonth && shownMonth.y === ty && shownMonth.m === tm) {
-      const inMonth = cells.filter((c) => !c.date && !c.outside);
+    const panel = panels.find((p) => p.month.y === ty && p.month.m === tm);
+    if (!target && panel) {
+      const inMonth = panel.cells.filter((c) => !c.date && !c.outside);
       const days = inMonth.map((c) => c.day);
       const start = days.findIndex((day, i) => day === 1 && days.slice(i, i + 28).every((d, k) => d === k + 1));
       const run = start >= 0 ? inMonth.slice(start) : inMonth;
@@ -646,6 +678,7 @@
     return {
       state: "open",
       shown: shownMonth,
+      last: lastMonth,
       target: target ? { ref: refOf(target.cell), disabled: target.disabled } : null,
       next: next ? refOf(next) : null,
       prev: prev ? refOf(prev) : null,
@@ -666,11 +699,22 @@
     return null;
   }
   // Does the field show the date ``iso``, in any common order of day, month, and year?
+  function fieldText(el) {
+    return "value" in el && el.tagName !== "BUTTON" ? el.value : el.textContent;
+  }
   function showsDate(ref, iso) {
     const el = get(ref);
+    return Boolean(el) && textShowsDate(fieldText(el), iso);
+  }
+  // Does the field show the range from ``startIso`` to ``endIso`` ("20/11/2026 - 23/11/2026")?
+  function showsRange(ref, startIso, endIso) {
+    const el = get(ref);
     if (!el) return false;
+    const parts = fieldText(el).split(/\s+(?:-|to|until)\s+|\s*[\u2013\u2014]\s*/i).map((t) => t.trim()).filter(Boolean);
+    return parts.length === 2 && textShowsDate(parts[0], startIso) && textShowsDate(parts[1], endIso);
+  }
+  function textShowsDate(text, iso) {
     const [y, m, d] = iso.split("-").map(Number);
-    const text = "value" in el && el.tagName !== "BUTTON" ? el.value : el.textContent;
     const named = fullDate(text);
     if (named) return named.y === y && named.m === m && named.d === d;
     const numbers = (text.match(/\d+/g) || []).map(Number);
@@ -728,6 +772,7 @@
     acceptsFile,
     calendarOpener,
     showsDate,
+    showsRange,
     hasValue,
     hasSelected,
     isChecked,

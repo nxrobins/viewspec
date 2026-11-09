@@ -29,8 +29,8 @@ See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile
 | `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
-| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 78 checks on the fixtures. |
-| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 86 checks. |
+| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 91 checks on the fixtures. |
+| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 92 checks. |
 
 ### Locators
 
@@ -112,6 +112,24 @@ If the calendar cannot reach the date, or the day is disabled, the step is refus
 opened is closed again. A numeric date that can be read two ways ("11/12/2026") is refused before the
 browser acts. When more than one calendar is open, the one the field names in `aria-controls`, or else
 the one nearest the field, is used.
+
+**Date ranges.** The lift marks a field that holds a whole range (`date range`: its name says
+"dates" or "date range", or its placeholder shows two dates) and a pair of fields that hold the start
+and the end (`(range start)`, `(range end)`: the next date field in the same form, with paired names
+such as check-in and check-out, arrival and departure, start and end, or from and to; or both name the
+same calendar in `aria-controls`). `select` on such a field takes a range: `{"start", "end"}`, a list of
+two dates, or text such as "2026-11-20/2026-11-23" or "Nov 20, 2026 to Nov 23, 2026". The end must not
+be before the start, and each day is checked against its field's `min` and `max`.
+
+- **A pair of custom fields, or one range field:** one `choose_date_range` step. The bridge picks the
+  start day as for one date. If the calendar stays open (a range picker that waits for the end), it
+  picks the end day there; else it opens the end field's calendar. The step is verified when both
+  fields show their dates, or the one field shows both.
+- **A pair with a native date field:** a `fill` for the native field, and a pick for the other.
+
+A calendar can show several months side by side, each under its own title ("November 2026",
+"December 2026"). The bridge reads each month's days apart, so day 28 of the second month is not
+mistaken for day 28 of the first. A form call that sets both fields of a pair plans them as one range.
 
 ### Uploads
 
@@ -217,7 +235,7 @@ view: a handle from any slice, or from `find`, works with `act`.
 | Tool | Arguments | Does |
 |---|---|---|
 | `observe` | `url` or `since` (both optional), `wait_for`, `timeout_ms`, `offset`, `limit`, `find`; or `observation_id` with `offset`, `limit`, `find` | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, and control; each control has a handle such as `[7]`), `view_page` (which lines these are), `form_tools` (one typed tool per form), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. With `observation_id`, it pages through that kept reading without reading the page again. |
-| `act` | `action` (`click`, `fill`, `check`, `uncheck`, `select`, `scroll`, `upload`), `handle`, `value`, `files`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. `upload` gives `files` to a file input, or to the file chooser a button opens. `scroll` needs no handle: it scrolls the page, or the pane of the control with the handle; `value` is the direction, and `wait_for` means "keep scrolling until it shows". The result has `scroll`: `scrolls`, `moved`, `loaded`, `at_end`, `end_reached`, `met`. |
+| `act` | `action` (`click`, `fill`, `check`, `uncheck`, `select`, `scroll`, `upload`), `handle`, `value`, `files`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. `upload` gives `files` to a file input, or to the file chooser a button opens. `select` on a date range field, or on either field of a pair, takes a range and picks both days. `scroll` needs no handle: it scrolls the page, or the pane of the control with the handle; `value` is the direction, and `wait_for` means "keep scrolling until it shows". The result has `scroll`: `scrolls`, `moved`, `loaded`, `at_end`, `end_reached`, `met`. |
 | `call` | `tool`, `arguments`, `submit`, `observation_id`, `wait_for`, `timeout_ms` | Fills in a form with typed arguments (files too) and submits it, waits for `wait_for` if given, then reads the page again. |
 
 The view in every result is a slice: 200 lines by default, at most 1000 (`limit`). `view_page` gives
@@ -343,17 +361,18 @@ with BrowserSession() as session:  # block_writes=True by default
 
 | page | aria tok | view tok | interactive | compile cov | agent cov | same name | located | confirmed | forms | fp stable | leaks |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
-| booking | 99 | 59 | 6 | 1/6 | 6/6 | 6/6 | 6/6 | 6/6 | 1 | True | 0 |
+| booking | 99 | 66 | 6 | 1/6 | 6/6 | 6/6 | 6/6 | 6/6 | 1 | True | 0 |
 | catalog | 13544 | 7819 | 675 | 649/675 | 675/675 | 675/675 | 675/675 | 675/675 | 2 | True | 0 |
 | checkout | 222 | 151 | 15 | 1/15 | 15/15 | 15/15 | 16/16 | 16/16 | 1 | True | 0 |
 | feed | 860 | 310 | 41 | 40/41 | 41/41 | 41/41 | 41/41 | 41/41 | 0 | True | 0 |
 | shop | 255 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
 | spa | 138 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 6/6 | 0 | True | 0 |
+| stay | 141 | 120 | 9 | 3/9 | 9/9 | 9/9 | 9/9 | 9/9 | 3 | True | 0 |
 | upload | 57 | 49 | 4 | 2/4 | 4/4 | 4/4 | 4/4 | 4/4 | 1 | True | 0 |
 | viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
 
-- **agent cov** matches by element (ref), not by name: 763 of 763 visible controls. **same name**: the
-  lift names all 763 as the browser does.
+- **agent cov** matches by element (ref), not by name: 772 of 772 visible controls. **same name**: the
+  lift names all 772 as the browser does.
 - **located**: every control has a locator (the agent lift also finds 2 pointer-only clickables).
   Kinds on the four small fixtures, for 39 controls and 2 forms: 28 stable attribute, 4 content
   anchor, 4 role and name, 4 exact text, and 1 structural path (a form with no name). On the catalog:
@@ -366,7 +385,7 @@ with BrowserSession() as session:  # block_writes=True by default
 - **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
   schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
-`demo_agent.py` (78 checks, all pass):
+`demo_agent.py` (91 checks, all pass):
 
 - **checkout:** a click inside the web component's shadow DOM changes the quantity from 2 to 3. Fills
   inside the payment iframe are verified, and the next snapshot does not contain the card number. A
@@ -403,8 +422,15 @@ with BrowserSession() as session:  # block_writes=True by default
   photos" opens the chooser of a hidden input, which takes two images, and the page says "2 photos
   added"; a text file is refused by the chooser's `accept`. A form call sends the name and a CV, and
   the blocked multipart post holds the name, the CV, and both photos, as names and sizes.
+- **ranges:** "Nov 20, 2026 to Nov 23, 2026" on Check-in picks both days in the shared two-month
+  picker, in one verified step, and the diff shows both fields. A range from 28 December (in the second
+  month shown) to 3 January picks 28 December, not 28 November. A range that ends before it starts is
+  refused before the browser acts; a past start day is refused, and its calendar is closed again. The
+  one-field "Rental dates" range shows `20/11/2026 – 02/12/2026`, and one date is refused for it. A
+  range on the native From and To fields fills both. A form call with check-out before check-in is
+  refused and names check-out; a good call picks the pair in one step, and the post holds both dates.
 
-`demo_mcp.py` (86 checks, all pass) runs the same kind of tasks through the MCP server, as a host
+`demo_mcp.py` (92 checks, all pass) runs the same kind of tasks through the MCP server, as a host
 would, with `--allow-origin` set to the local fixture server and without `NODE_PATH`. It also checks
 that the tool schemas carry no internal node ids, that a blocked post shows the password field as
 `[redacted]` and no result contains the password or the card number, that acting from a view of a
@@ -428,7 +454,11 @@ ahead, a disabled day refused, an ambiguous date refused, and a form call that f
 date. On the upload page, with `--upload-dir` set to a temporary folder, it checks a file uploaded by
 path, that `../private.txt`, an absolute path, and a missing file are refused, that a wrong type is
 refused before the browser acts, two inline photos for the "Add photos" button, a text file refused by
-the chooser, a form call that uploads by path, and that no result holds the bytes of a file.
+the chooser, a form call that uploads by path, and that no result holds the bytes of a file. On the
+stay page it checks that the form tools describe the pair and the one-field range, that one `act` with
+`{"start", "end"}` picks both days and its changes name both fields, that a range that ends before it
+starts is refused, that a range from a past day is `BROWSER_DATE_UNAVAILABLE`, and a form call that
+picks a one-field range.
 
 The fixtures are small and hand-made. Run the probe on real sites before you draw conclusions.
 
@@ -455,7 +485,12 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 - A list that removes the items it scrolls past (a virtual list) changes the handles of the items
   after them; the diff shows the removed and added controls.
 - `choose_date` reads month names in English. A calendar that shows only day numbers needs a month
-  title or month and year lists; one that shows several months at once uses the first it reads.
+  title or month and year lists. A calendar that shows several months needs a title for each.
+- A pair of date fields is found only when the end field is the next date field after the start, in
+  the same form. Other pairs are two fields, each with its own date.
+- `choose_date_range` on one field needs a calendar that stays open after the first day. On a pair with
+  two calendars, if the start field's calendar stays open after a pick, the bridge picks the end day in
+  it too, and the step is not verified.
 - A diff matches controls by ref, then by unique name, then by place. A control that the page
   re-rendered and also renamed and moved is reported as removed and added.
 - A message that the page shows again with the same text is not reported as new.
@@ -470,5 +505,6 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 ## Next steps
 
 1. Add the MCP server to an agent host, and try it on real sites.
-2. Let `choose_date` pick a date range in one step (check-in and check-out in one calendar).
-3. Let the agent download a file a page offers, into a folder the operator names.
+2. Let the agent download a file a page offers, into a folder the operator names.
+3. Let `observe` list the days a calendar offers (the free nights of a hotel), so the agent can choose
+   among them.

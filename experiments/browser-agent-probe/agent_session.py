@@ -75,7 +75,7 @@ class StepResult:
     verified: bool | None
     navigated: bool
     url: str
-    chosen: str | None = None  # The option or day that was picked, or the names of the files set.
+    chosen: str | None = None  # The option, day, or range that was picked, or the names of the files set.
 
     def to_json(self) -> dict[str, Any]:
         payload = {
@@ -422,7 +422,7 @@ class BrowserSession:
         observation = self._current()
         if handle not in observation.handles:
             raise KeyError(f"no control [{handle}] in the current view")
-        return self.run(plan_control_action(observation.handles[handle], op, value))
+        return self.run(plan_control_action(observation.handles[handle], op, value, lift=observation.lift))
 
     def call(self, tool_name: str, arguments: dict[str, Any], *, submit: bool = True) -> list[StepResult]:
         """Plan and run a form tool call from the current view's ``form_tool_schemas()``."""
@@ -446,11 +446,14 @@ class BrowserSession:
         results: list[StepResult] = []
         for step in steps:
             locator = observation.locators.get(step.node_id)
+            end_locator = observation.locators.get(step.end_node_id) if step.end_node_id else None
             reply = self._call(
                 "act",
                 op=step.op,
                 ref=step.ref,
                 locator=locator if locator and locator.get("strategy") else None,
+                end_ref=step.end_ref,
+                end_locator=end_locator if end_locator and end_locator.get("strategy") else None,
                 value=step.value,
                 values=list(step.values),
                 files=[

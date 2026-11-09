@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture stay</title>
+<style>
+  .field { margin: 8px 0; }
+  [role=dialog] { border: 1px solid #999; padding: 8px; }
+  .months { display: flex; gap: 16px; }
+  table td button { width: 32px; }
+  .in-range { background: #def; }
+  .edge { background: #36c; color: #fff; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Find a stay</h1>
+
+  <!-- Check-in and check-out share one range picker that shows two months side by side. The first
+       click sets check-in and the picker waits for check-out; a day before check-in starts again. -->
+  <form aria-label="Find a stay" action="/search" method="post">
+    <div class="field">
+      <label for="checkin">Check-in</label>
+      <input id="checkin" name="checkin" readonly placeholder="Add date" aria-controls="stay-cal" aria-haspopup="dialog">
+      <label for="checkout">Check-out</label>
+      <input id="checkout" name="checkout" readonly placeholder="Add date" aria-controls="stay-cal" aria-haspopup="dialog">
+      <div role="dialog" aria-label="Choose your dates" id="stay-cal" hidden>
+        <button type="button" class="prev" aria-label="Previous month">&lsaquo;</button>
+        <button type="button" class="next" aria-label="Next month">&rsaquo;</button>
+        <p class="hint" aria-live="polite"></p>
+        <div class="months"></div>
+      </div>
+    </div>
+    <div class="field"><label>Guests <input type="number" name="guests" min="1" max="8" value="2"></label></div>
+    <button type="submit">Search</button>
+  </form>
+
+  <!-- One field holds the whole range. Its calendar shows one month; each day is named in full. -->
+  <form aria-label="Hire a car" action="/hire" method="post">
+    <div class="field">
+      <label for="rental">Rental dates</label>
+      <input id="rental" name="rental" readonly placeholder="DD/MM/YYYY – DD/MM/YYYY">
+      <div class="calendar" id="rental-cal" hidden>
+        <button type="button" class="prev" aria-label="Previous">&lsaquo;</button>
+        <span class="title"></span>
+        <button type="button" class="next" aria-label="Next">&rsaquo;</button>
+        <div role="grid" class="days"></div>
+      </div>
+    </div>
+    <button type="submit">Hire</button>
+  </form>
+
+  <!-- Two native date fields. -->
+  <form aria-label="Export bookings" action="/export" method="post">
+    <label>From <input type="date" name="from" min="2026-01-01"></label>
+    <label>To <input type="date" name="to"></label>
+    <button type="submit">Export</button>
+  </form>
+</main>
+<script>
+  // "Today" is fixed so the page is the same on every run.
+  const TODAY = new Date(2026, 10, 9);
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+    "October", "November", "December"];
+  const SHORT = MONTHS.map((name) => name.slice(0, 3));
+  const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const pad = (n) => String(n).padStart(2, "0");
+  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parse = (text) => { const [y, m, d] = text.split("-").map(Number); return new Date(y, m - 1, d); };
+
+  // ---- The two-month range picker -------------------------------------------------------------
+  const stay = {
+    cal: document.getElementById("stay-cal"),
+    checkin: document.getElementById("checkin"),
+    checkout: document.getElementById("checkout"),
+    year: TODAY.getFullYear(), month: TODAY.getMonth(), start: null, end: null, picking: "start",
+  };
+  const shortDate = (d) => `${d.getDate()} ${SHORT[d.getMonth()]} ${d.getFullYear()}`;
+  function monthGrid(year, month) {
+    const first = new Date(year, month, 1);
+    const blanks = (first.getDay() + 6) % 7;
+    const days = new Date(year, month + 1, 0).getDate();
+    const cells = Array(blanks).fill("<td></td>");
+    for (let day = 1; day <= days; day++) {
+      const date = new Date(year, month, day);
+      const past = date < TODAY;
+      const edge = (stay.start && +date === +stay.start) || (stay.end && +date === +stay.end);
+      const inside = stay.start && stay.end && date > stay.start && date < stay.end;
+      cells.push(`<td class="${edge ? "edge" : inside ? "in-range" : ""}"><button type="button" tabindex="-1"` +
+        `${past ? " disabled" : ""} data-iso="${iso(date)}">${day}</button></td>`);
+    }
+    while (cells.length % 7) cells.push("<td></td>");
+    const rows = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(`<tr>${cells.slice(i, i + 7).join("")}</tr>`);
+    return `<section class="panel"><h3>${MONTHS[month]} ${year}</h3><table role="grid"><thead><tr><th>Mo</th>` +
+      `<th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th><th>Su</th></tr></thead><tbody>${rows.join("")}</tbody></table></section>`;
+  }
+  function renderStay() {
+    const nextYear = stay.month === 11 ? stay.year + 1 : stay.year;
+    stay.cal.querySelector(".months").innerHTML = monthGrid(stay.year, stay.month) + monthGrid(nextYear, (stay.month + 1) % 12);
+    stay.cal.querySelector(".hint").textContent = stay.picking === "start" ? "Select a check-in date" : "Select a check-out date";
+  }
+  function openStay(picking) {
+    stay.picking = picking === "end" && stay.start ? "end" : "start";
+    stay.cal.hidden = false;
+    renderStay();
+  }
+  stay.checkin.addEventListener("click", () => openStay("start"));
+  stay.checkout.addEventListener("click", () => openStay("end"));
+  stay.cal.querySelector(".prev").addEventListener("click", () => {
+    stay.month -= 1;
+    if (stay.month < 0) { stay.month = 11; stay.year -= 1; }
+    renderStay();
+  });
+  stay.cal.querySelector(".next").addEventListener("click", () => {
+    stay.month += 1;
+    if (stay.month > 11) { stay.month = 0; stay.year += 1; }
+    renderStay();
+  });
+  stay.cal.querySelector(".months").addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button || button.disabled) return;
+    const date = parse(button.dataset.iso);
+    if (stay.picking === "start" || date <= stay.start) {
+      stay.start = date;
+      stay.end = null;
+      stay.checkin.value = shortDate(date);
+      stay.checkout.value = "";
+      stay.picking = "end";
+      renderStay();
+      return;
+    }
+    stay.end = date;
+    stay.checkout.value = shortDate(date);
+    stay.cal.hidden = true;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { stay.cal.hidden = true; rental.cal.hidden = true; }
+  });
+
+  // ---- The one-field range ----------------------------------------------------------------------
+  const rental = {
+    input: document.getElementById("rental"), cal: document.getElementById("rental-cal"),
+    year: TODAY.getFullYear(), month: TODAY.getMonth(), start: null,
+  };
+  const numeric = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  function renderRental() {
+    rental.cal.querySelector(".title").textContent = `${MONTHS[rental.month]} ${rental.year}`;
+    const days = new Date(rental.year, rental.month + 1, 0).getDate();
+    const buttons = [];
+    for (let day = 1; day <= days; day++) {
+      const date = new Date(rental.year, rental.month, day);
+      const name = `${DAYS[date.getDay()]}, ${MONTHS[rental.month]} ${day}, ${rental.year}`;
+      buttons.push(`<button type="button" aria-label="${name}" data-iso="${iso(date)}"${date < TODAY ? " disabled" : ""}>${day}</button>`);
+    }
+    rental.cal.querySelector(".days").innerHTML = buttons.join("");
+  }
+  rental.input.addEventListener("click", () => {
+    rental.cal.hidden = false;
+    rental.start = null;
+    renderRental();
+  });
+  rental.cal.querySelector(".prev").addEventListener("click", () => {
+    rental.month -= 1;
+    if (rental.month < 0) { rental.month = 11; rental.year -= 1; }
+    renderRental();
+  });
+  rental.cal.querySelector(".next").addEventListener("click", () => {
+    rental.month += 1;
+    if (rental.month > 11) { rental.month = 0; rental.year += 1; }
+    renderRental();
+  });
+  rental.cal.querySelector(".days").addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button || button.disabled) return;
+    const date = parse(button.dataset.iso);
+    if (!rental.start || date < rental.start) {
+      rental.start = date;
+      rental.input.value = `${numeric(date)} – `;
+      return;
+    }
+    rental.input.value = `${numeric(rental.start)} – ${numeric(date)}`;
+    rental.start = null;
+    rental.cal.hidden = true;
+  });
+</script>
+</body>
+</html>

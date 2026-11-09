@@ -460,8 +460,11 @@ async function pickDay(info, read, changed, clickRef, target, ref, iso) {
       continue;
     }
     if (!info.shown) throw new Error("choose_date: cannot tell which month the calendar shows");
-    const ahead = (year - info.shown.y) * 12 + (month - info.shown.m);
-    if (ahead === 0) throw new Error(`choose_date: the calendar shows the month, but no day for ${iso}`);
+    // A calendar may show several months side by side: from info.shown to info.last.
+    const last = info.last || info.shown;
+    const ahead = (year - last.y) * 12 + (month - last.m);
+    const behind = (year - info.shown.y) * 12 + (month - info.shown.m);
+    if (ahead <= 0 && behind >= 0) throw new Error(`choose_date: the calendar shows the month, but no day for ${iso}`);
     const button = ahead > 0 ? info.next : info.prev;
     if (!button) throw new Error(`choose_date: the calendar has no ${ahead > 0 ? "next" : "previous"} month button`);
     const before = info.shown;
@@ -478,6 +481,40 @@ async function pickDay(info, read, changed, clickRef, target, ref, iso) {
   await settle();
   const verified = await page.evaluate(([r, d]) => window.__viewspecLift.showsDate(r, d), [ref, iso]);
   return { verified, chosen: iso };
+}
+
+// Pick a date range: the start day, then the end day. ``end`` is the field that holds the end of a
+// pair, or null for one field that holds the whole range. A range picker keeps its calendar open
+// after the first day and waits for the second; otherwise the end field's own calendar is opened.
+async function chooseDateRange(target, end, value) {
+  const [startIso, endIso] = value.split("/");
+  const ref = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
+  const endRef = end ? await end.evaluate((el) => window.top.__viewspecLift.refOf(el)) : ref;
+  const endField = end || target;
+  const read = () => page.evaluate(([r, d]) => window.__viewspecLift.readCalendar(r, d), [endRef, endIso]);
+  const changed = (ms = 1500) => page.evaluate((t) => window.__viewspecLift.nextChange(t), ms).catch(() => true);
+  const clickRef = async (r) => {
+    const handle = (await page.evaluateHandle((x) => window.__viewspecLift.get(x), r)).asElement();
+    await handle.click({ timeout: ACTION_TIMEOUT });
+  };
+  await chooseDate(target, startIso);
+  const info = await read();
+  if (info.state === "open") {
+    try {
+      await pickDay(info, read, changed, clickRef, endField, endRef, endIso);
+    } catch (error) {
+      await endField.press("Escape", { timeout: ACTION_TIMEOUT }).catch(() => {});
+      throw error;
+    }
+  } else if (end) {
+    await chooseDate(end, endIso);
+  } else {
+    throw new Error(`choose_date_range: the calendar closed after ${startIso}, before the end could be picked`);
+  }
+  const verified = end
+    ? await page.evaluate(([a, b, s, e]) => window.__viewspecLift.showsDate(a, s) && window.__viewspecLift.showsDate(b, e), [ref, endRef, startIso, endIso])
+    : await page.evaluate(([r, s, e]) => window.__viewspecLift.showsRange(r, s, e), [ref, startIso, endIso]);
+  return { verified, chosen: value };
 }
 
 // Give files to a file input, or to the file chooser that a button opens (its file input is often
@@ -518,7 +555,7 @@ async function upload(target, files) {
   return { verified: JSON.stringify(names) === JSON.stringify(payload.map((f) => f.name)), chosen: names.join(", ") };
 }
 
-async function act({ op, ref, locator: spec, value, values, files, wait_ms: waitMs = 2500 }) {
+async function act({ op, ref, locator: spec, end_ref: endRef, end_locator: endSpec, value, values, files, wait_ms: waitMs = 2500 }) {
   if (op === "scroll" && !ref && !spec) {
     const result = await scroll(null, value, waitMs);
     return { resolved_by: "page", verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
@@ -546,6 +583,9 @@ async function act({ op, ref, locator: spec, value, values, files, wait_ms: wait
     ({ verified, chosen } = await upload(target, files));
   } else if (op === "choose_date") {
     ({ verified, chosen } = await chooseDate(target, value));
+  } else if (op === "choose_date_range") {
+    const end = endRef || endSpec ? (await resolveTarget(endRef, endSpec)).target : null;
+    ({ verified, chosen } = await chooseDateRange(target, end, value));
   } else if (op === "scroll") {
     const liveRef = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
     const result = await scroll(liveRef, value, waitMs);

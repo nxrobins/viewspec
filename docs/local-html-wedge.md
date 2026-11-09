@@ -161,6 +161,34 @@ is a string with `format: date` (or `date-time`, `time`), a description that giv
 limits, and for a custom field, "picked from its calendar". Number fields get `minimum` and
 `maximum`. `viewspec.raw_html_agent.hidden_ids(nodes)` returns the nodes the user cannot see.
 
+### Date ranges
+
+A date field can hold part of a range. `date_range` is `"range"` for a text field that holds a whole
+range: its name, id, or label says "dates" or "date range", or its placeholder shows two dates
+(`DD/MM/YYYY - DD/MM/YYYY`). It is `"start"` and `"end"` for a pair of fields, and `range_with` gives
+the node id of the other field. A pair is a date field and the next date field after it in the same
+form, when their names pair up (check-in and check-out, arrival and departure, depart and return,
+start and end, from and to, pick-up and drop-off) or both name the same calendar in `aria-controls`.
+Native `date` inputs and custom text date fields can pair; time, month, and week inputs do not.
+
+`viewspec.raw_html_actions.parse_date_range()` reads `{"start", "end"}`, a list of two dates, or text
+with two dates: `2026-11-20/2026-11-23`, "Nov 20, 2026 to Nov 23, 2026", or "20/11/2026 - 23/11/2026".
+Each date is read by `parse_date()`. The end may be the start, but not before it.
+
+`plan_date_range(start, end, value)` plans a range on one range field (`end` is `None`) or on a pair:
+
+- One range field, or a pair of custom fields: one `choose_date_range` step whose value is
+  `START/END`. For a pair, the step's `end_node_id`, `end_ref`, and `end_name` name the end field, and
+  `to_json()` shows them as `end`. A driver picks both days, in one calendar when it stays open.
+- A pair with a native date field: a step for each field (`fill` for a native one).
+- Each day is checked against its field's `min` and `max`; a disabled field is `AGENT_ACTION_DISABLED`.
+
+`plan_control_action(control, "select", value, lift=lift)` with a range on either field of a pair plans
+the same steps; it needs `lift` to find the other field. One date on a pair field still sets only that
+field. On a range field, `select` needs a range. In a form tool, a range field is an object with
+`start` and `end`, and the fields of a pair say which field holds the other end. A form call that sets
+both fields of a pair checks that the end is not before the start and plans them as one range.
+
 ### File uploads
 
 A file input is a control with `control: "file"`, its `accept` (such as `.pdf,.docx` or `image/*`),

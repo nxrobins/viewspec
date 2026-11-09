@@ -435,6 +435,51 @@ async def run(base: str, folder: Path) -> None:
             "no result holds the bytes of a file",
         )
 
+        print("\n== date ranges ==")
+        stay = await tool(session, "observe", url=f"{base}/stay.html")
+        tools = {item["name"]: item["input_schema"]["properties"] for item in stay["form_tools"]}
+        check(
+            "the start of a date range that ends at 'checkout'" in tools["find_a_stay"]["checkin"]["description"]
+            and tools["hire_a_car"]["rental"]["required"] == ["start", "end"],
+            "the form tools describe the pair, and the one-field range as start and end",
+        )
+        both = await tool(
+            session,
+            "act",
+            handle=handle(stay, "Check-in"),
+            action="select",
+            value={"start": "2026-11-20", "end": "2026-11-23"},
+        )
+        print("\n".join(f"  ~~  {line}" for line in both["changes"]["lines"]))
+        check(
+            both["ok"]
+            and both["steps"][0]["step"]["op"] == "choose_date_range"
+            and both["steps"][0]["step"]["end"]["name"] == "Check-out"
+            and both["steps"][0]["verified"],
+            "one act picks check-in and check-out",
+        )
+        check(len(both["changes"]["lines"]) == 2, "and its changes name both fields")
+        backwards = await tool(
+            session, "act", handle=handle(stay, "Rental dates"), action="select", value="2026-11-22/2026-11-20"
+        )
+        check(
+            not backwards["ok"] and backwards["errors"][0]["code"] == "AGENT_ACTION_VALUE_INVALID",
+            "a range that ends before it starts is refused",
+        )
+        past = await tool(
+            session, "act", handle=handle(stay, "Check-in"), action="select", value=["2026-11-01", "2026-11-03"]
+        )
+        check(
+            not past["ok"] and past["errors"][0]["code"] == "BROWSER_DATE_UNAVAILABLE",
+            "a range that starts on a past day is BROWSER_DATE_UNAVAILABLE",
+        )
+        hired = await tool(
+            session, "call", tool="hire_a_car", arguments={"rental": {"start": "2026-11-20", "end": "2026-11-22"}}
+        )
+        fields = hired["blocked_writes"][0]["form_fields"]
+        print(f"  ..  {fields}")
+        check(fields == {"rental": "20/11/2026 \u2013 22/11/2026"}, "a form call picks a one-field range")
+
 
 def first_failure(error: BaseException) -> BaseException:
     """The first exception inside the task groups that the MCP client wraps failures in."""
