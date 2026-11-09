@@ -1,0 +1,1349 @@
+{
+  "schema_version": 1,
+  "description": "Conformance vectors for the closed AppBundle schema_version 5 state-text formatters. The Python reference (viewspec.app_format) and the generated JavaScript kernel must render every value exactly as expected. A null format is the unformatted scalar rendering.",
+  "cases": [
+    {
+      "id": "integer_zero",
+      "value": 0,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "integer_tie_half",
+      "value": 0.5,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "1"
+    },
+    {
+      "id": "integer_tie_one_and_half",
+      "value": 1.5,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "2"
+    },
+    {
+      "id": "integer_tie_two_and_half",
+      "value": 2.5,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "3"
+    },
+    {
+      "id": "integer_tie_negative_two_and_half",
+      "value": -2.5,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "-3"
+    },
+    {
+      "id": "integer_tie_negative_half",
+      "value": -0.5,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "-1"
+    },
+    {
+      "id": "integer_below_half",
+      "value": 0.49,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "integer_negative_rounds_to_zero",
+      "value": -0.49,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "integer_negative_zero",
+      "value": -0.0,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "integer_carry_into_new_group",
+      "value": 999.5,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "1,000"
+    },
+    {
+      "id": "integer_grouping",
+      "value": 1234,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "1,234"
+    },
+    {
+      "id": "integer_grouping_millions",
+      "value": 1234567,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "1,234,567"
+    },
+    {
+      "id": "integer_negative_grouping_tie",
+      "value": -1234567.5,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "-1,234,568"
+    },
+    {
+      "id": "integer_one_hundred",
+      "value": 100,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "100"
+    },
+    {
+      "id": "integer_negative_one",
+      "value": -1,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "-1"
+    },
+    {
+      "id": "integer_exponent_1e16",
+      "value": 1e+16,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "10,000,000,000,000,000"
+    },
+    {
+      "id": "integer_exponent_1e21",
+      "value": 1e+21,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "1,000,000,000,000,000,000,000"
+    },
+    {
+      "id": "integer_python_exponent_js_plain",
+      "value": 123456789012345680000,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "123,456,789,012,345,680,000"
+    },
+    {
+      "id": "integer_two_pow_53",
+      "value": 9007199254740992,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "9,007,199,254,740,992"
+    },
+    {
+      "id": "integer_above_two_pow_53_reads_as_double",
+      "value": 9007199254740993,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "9,007,199,254,740,992"
+    },
+    {
+      "id": "integer_tiny_exponent",
+      "value": 1e-07,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "integer_min_subnormal",
+      "value": 5e-324,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "integer_max_double",
+      "value": 1.7976931348623157e+308,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "179,769,313,486,231,570,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000"
+    },
+    {
+      "id": "integer_boolean_true_falls_back",
+      "value": true,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "true"
+    },
+    {
+      "id": "integer_boolean_false_falls_back",
+      "value": false,
+      "format": {
+        "format": "integer"
+      },
+      "expected": "false"
+    },
+    {
+      "id": "integer_null_falls_back",
+      "value": null,
+      "format": {
+        "format": "integer"
+      },
+      "expected": ""
+    },
+    {
+      "id": "integer_numeric_string_falls_back",
+      "value": "12",
+      "format": {
+        "format": "integer"
+      },
+      "expected": "12"
+    },
+    {
+      "id": "integer_text_falls_back",
+      "value": "abc",
+      "format": {
+        "format": "integer"
+      },
+      "expected": "abc"
+    },
+    {
+      "id": "integer_array_falls_back",
+      "value": [
+        1
+      ],
+      "format": {
+        "format": "integer"
+      },
+      "expected": ""
+    },
+    {
+      "id": "integer_object_falls_back",
+      "value": {
+        "a": 1
+      },
+      "format": {
+        "format": "integer"
+      },
+      "expected": ""
+    },
+    {
+      "id": "decimal0_tie_one_and_half",
+      "value": 1.5,
+      "format": {
+        "format": "decimal",
+        "digits": 0
+      },
+      "expected": "2"
+    },
+    {
+      "id": "decimal0_tie_two_and_half",
+      "value": 2.5,
+      "format": {
+        "format": "decimal",
+        "digits": 0
+      },
+      "expected": "3"
+    },
+    {
+      "id": "decimal0_tie_negative_two_and_half",
+      "value": -2.5,
+      "format": {
+        "format": "decimal",
+        "digits": 0
+      },
+      "expected": "-3"
+    },
+    {
+      "id": "decimal2_tie_1_005",
+      "value": 1.005,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "1.01"
+    },
+    {
+      "id": "decimal2_tie_2_675",
+      "value": 2.675,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "2.68"
+    },
+    {
+      "id": "decimal2_negative_tie_1_005",
+      "value": -1.005,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "-1.01"
+    },
+    {
+      "id": "decimal2_below_tie",
+      "value": 1.0049,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "1.00"
+    },
+    {
+      "id": "decimal2_zero",
+      "value": 0,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "0.00"
+    },
+    {
+      "id": "decimal2_negative_zero",
+      "value": -0.0,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "0.00"
+    },
+    {
+      "id": "decimal2_negative_rounds_to_zero",
+      "value": -0.004,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "0.00"
+    },
+    {
+      "id": "decimal2_negative_tie_away_from_zero",
+      "value": -0.005,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "-0.01"
+    },
+    {
+      "id": "decimal2_pads_fraction",
+      "value": 1234.5,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "1,234.50"
+    },
+    {
+      "id": "decimal2_integer_input",
+      "value": 42,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "42.00"
+    },
+    {
+      "id": "decimal2_binary_noise",
+      "value": 0.30000000000000004,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "0.30"
+    },
+    {
+      "id": "decimal2_carry_whole",
+      "value": 9.995,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "10.00"
+    },
+    {
+      "id": "decimal2_carry_new_digit",
+      "value": 99.995,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "100.00"
+    },
+    {
+      "id": "decimal2_negative_rounding",
+      "value": -1234.567,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "-1,234.57"
+    },
+    {
+      "id": "decimal2_exponent_1e16",
+      "value": 1e+16,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "10,000,000,000,000,000.00"
+    },
+    {
+      "id": "decimal2_exponent_1e21",
+      "value": 1e+21,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "1,000,000,000,000,000,000,000.00"
+    },
+    {
+      "id": "decimal1_tie_0_05",
+      "value": 0.05,
+      "format": {
+        "format": "decimal",
+        "digits": 1
+      },
+      "expected": "0.1"
+    },
+    {
+      "id": "decimal1_tie_0_25",
+      "value": 0.25,
+      "format": {
+        "format": "decimal",
+        "digits": 1
+      },
+      "expected": "0.3"
+    },
+    {
+      "id": "decimal1_tie_0_35",
+      "value": 0.35,
+      "format": {
+        "format": "decimal",
+        "digits": 1
+      },
+      "expected": "0.4"
+    },
+    {
+      "id": "decimal1_python_exponent_js_plain",
+      "value": 123456789012345680000,
+      "format": {
+        "format": "decimal",
+        "digits": 1
+      },
+      "expected": "123,456,789,012,345,680,000.0"
+    },
+    {
+      "id": "decimal3_tie_1_0005",
+      "value": 1.0005,
+      "format": {
+        "format": "decimal",
+        "digits": 3
+      },
+      "expected": "1.001"
+    },
+    {
+      "id": "decimal3_carry_group",
+      "value": 999.9995,
+      "format": {
+        "format": "decimal",
+        "digits": 3
+      },
+      "expected": "1,000.000"
+    },
+    {
+      "id": "decimal4_rounds_to_zero",
+      "value": 2.5e-05,
+      "format": {
+        "format": "decimal",
+        "digits": 4
+      },
+      "expected": "0.0000"
+    },
+    {
+      "id": "decimal4_tie_from_exponent_form",
+      "value": 5e-05,
+      "format": {
+        "format": "decimal",
+        "digits": 4
+      },
+      "expected": "0.0001"
+    },
+    {
+      "id": "decimal6_exponent_1e_minus_7",
+      "value": 1e-07,
+      "format": {
+        "format": "decimal",
+        "digits": 6
+      },
+      "expected": "0.000000"
+    },
+    {
+      "id": "decimal6_tie_from_exponent_form",
+      "value": 5e-07,
+      "format": {
+        "format": "decimal",
+        "digits": 6
+      },
+      "expected": "0.000001"
+    },
+    {
+      "id": "decimal6_below_tie_exponent_form",
+      "value": 1.5e-07,
+      "format": {
+        "format": "decimal",
+        "digits": 6
+      },
+      "expected": "0.000000"
+    },
+    {
+      "id": "decimal6_one_micro",
+      "value": 1e-06,
+      "format": {
+        "format": "decimal",
+        "digits": 6
+      },
+      "expected": "0.000001"
+    },
+    {
+      "id": "decimal6_python_exponent_js_plain_small",
+      "value": 1.5e-06,
+      "format": {
+        "format": "decimal",
+        "digits": 6
+      },
+      "expected": "0.000002"
+    },
+    {
+      "id": "decimal6_long_tie",
+      "value": 123.4567895,
+      "format": {
+        "format": "decimal",
+        "digits": 6
+      },
+      "expected": "123.456790"
+    },
+    {
+      "id": "decimal6_python_switch_1e_minus_5",
+      "value": 1e-05,
+      "format": {
+        "format": "decimal",
+        "digits": 6
+      },
+      "expected": "0.000010"
+    },
+    {
+      "id": "decimal0_negative_rounds_to_zero",
+      "value": -0.4,
+      "format": {
+        "format": "decimal",
+        "digits": 0
+      },
+      "expected": "0"
+    },
+    {
+      "id": "decimal2_numeric_string_falls_back",
+      "value": "3.14",
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "3.14"
+    },
+    {
+      "id": "decimal2_boolean_falls_back",
+      "value": true,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": "true"
+    },
+    {
+      "id": "decimal2_null_falls_back",
+      "value": null,
+      "format": {
+        "format": "decimal",
+        "digits": 2
+      },
+      "expected": ""
+    },
+    {
+      "id": "percent1_basic",
+      "value": 0.1234,
+      "format": {
+        "format": "percent",
+        "digits": 1
+      },
+      "expected": "12.3%"
+    },
+    {
+      "id": "percent2_tie",
+      "value": 0.12345,
+      "format": {
+        "format": "percent",
+        "digits": 2
+      },
+      "expected": "12.35%"
+    },
+    {
+      "id": "percent0_half",
+      "value": 0.5,
+      "format": {
+        "format": "percent",
+        "digits": 0
+      },
+      "expected": "50%"
+    },
+    {
+      "id": "percent0_whole",
+      "value": 1,
+      "format": {
+        "format": "percent",
+        "digits": 0
+      },
+      "expected": "100%"
+    },
+    {
+      "id": "percent0_tie",
+      "value": 0.005,
+      "format": {
+        "format": "percent",
+        "digits": 0
+      },
+      "expected": "1%"
+    },
+    {
+      "id": "percent0_below_tie",
+      "value": 0.0049,
+      "format": {
+        "format": "percent",
+        "digits": 0
+      },
+      "expected": "0%"
+    },
+    {
+      "id": "percent0_negative_tie",
+      "value": -0.005,
+      "format": {
+        "format": "percent",
+        "digits": 0
+      },
+      "expected": "-1%"
+    },
+    {
+      "id": "percent0_negative_rounds_to_zero",
+      "value": -0.004,
+      "format": {
+        "format": "percent",
+        "digits": 0
+      },
+      "expected": "0%"
+    },
+    {
+      "id": "percent1_tie_18_75",
+      "value": 0.1875,
+      "format": {
+        "format": "percent",
+        "digits": 1
+      },
+      "expected": "18.8%"
+    },
+    {
+      "id": "percent0_grouping",
+      "value": 12.5,
+      "format": {
+        "format": "percent",
+        "digits": 0
+      },
+      "expected": "1,250%"
+    },
+    {
+      "id": "percent2_exponent_1e_minus_7",
+      "value": 1e-07,
+      "format": {
+        "format": "percent",
+        "digits": 2
+      },
+      "expected": "0.00%"
+    },
+    {
+      "id": "percent0_exponent_1e21",
+      "value": 1e+21,
+      "format": {
+        "format": "percent",
+        "digits": 0
+      },
+      "expected": "100,000,000,000,000,000,000,000%"
+    },
+    {
+      "id": "percent2_zero",
+      "value": 0,
+      "format": {
+        "format": "percent",
+        "digits": 2
+      },
+      "expected": "0.00%"
+    },
+    {
+      "id": "percent1_negative_zero",
+      "value": -0.0,
+      "format": {
+        "format": "percent",
+        "digits": 1
+      },
+      "expected": "0.0%"
+    },
+    {
+      "id": "percent3_small_tie",
+      "value": 1.5e-05,
+      "format": {
+        "format": "percent",
+        "digits": 3
+      },
+      "expected": "0.002%"
+    },
+    {
+      "id": "percent6_binary_noise",
+      "value": 0.30000000000000004,
+      "format": {
+        "format": "percent",
+        "digits": 6
+      },
+      "expected": "30.000000%"
+    },
+    {
+      "id": "percent2_string_falls_back",
+      "value": "50%",
+      "format": {
+        "format": "percent",
+        "digits": 2
+      },
+      "expected": "50%"
+    },
+    {
+      "id": "percent2_boolean_falls_back",
+      "value": false,
+      "format": {
+        "format": "percent",
+        "digits": 2
+      },
+      "expected": "false"
+    },
+    {
+      "id": "currency_usd",
+      "value": 1234.5,
+      "format": {
+        "format": "currency",
+        "currency": "USD"
+      },
+      "expected": "$1,234.50"
+    },
+    {
+      "id": "currency_usd_negative",
+      "value": -1234.5,
+      "format": {
+        "format": "currency",
+        "currency": "USD"
+      },
+      "expected": "-$1,234.50"
+    },
+    {
+      "id": "currency_usd_zero",
+      "value": 0,
+      "format": {
+        "format": "currency",
+        "currency": "USD"
+      },
+      "expected": "$0.00"
+    },
+    {
+      "id": "currency_usd_negative_rounds_to_zero",
+      "value": -0.001,
+      "format": {
+        "format": "currency",
+        "currency": "USD"
+      },
+      "expected": "$0.00"
+    },
+    {
+      "id": "currency_usd_negative_tie",
+      "value": -0.005,
+      "format": {
+        "format": "currency",
+        "currency": "USD"
+      },
+      "expected": "-$0.01"
+    },
+    {
+      "id": "currency_usd_tie",
+      "value": 0.125,
+      "format": {
+        "format": "currency",
+        "currency": "USD"
+      },
+      "expected": "$0.13"
+    },
+    {
+      "id": "currency_usd_exponent_1e16",
+      "value": 1e+16,
+      "format": {
+        "format": "currency",
+        "currency": "USD"
+      },
+      "expected": "$10,000,000,000,000,000.00"
+    },
+    {
+      "id": "currency_usd_numeric_string_falls_back",
+      "value": "12",
+      "format": {
+        "format": "currency",
+        "currency": "USD"
+      },
+      "expected": "12"
+    },
+    {
+      "id": "currency_usd_null_falls_back",
+      "value": null,
+      "format": {
+        "format": "currency",
+        "currency": "USD"
+      },
+      "expected": ""
+    },
+    {
+      "id": "currency_usd_boolean_falls_back",
+      "value": true,
+      "format": {
+        "format": "currency",
+        "currency": "USD"
+      },
+      "expected": "true"
+    },
+    {
+      "id": "currency_eur",
+      "value": 1234.5,
+      "format": {
+        "format": "currency",
+        "currency": "EUR"
+      },
+      "expected": "€1,234.50"
+    },
+    {
+      "id": "currency_eur_negative",
+      "value": -0.5,
+      "format": {
+        "format": "currency",
+        "currency": "EUR"
+      },
+      "expected": "-€0.50"
+    },
+    {
+      "id": "currency_gbp_carry",
+      "value": 99.999,
+      "format": {
+        "format": "currency",
+        "currency": "GBP"
+      },
+      "expected": "£100.00"
+    },
+    {
+      "id": "currency_gbp_millions",
+      "value": 1000000,
+      "format": {
+        "format": "currency",
+        "currency": "GBP"
+      },
+      "expected": "£1,000,000.00"
+    },
+    {
+      "id": "currency_jpy_rounds_to_yen",
+      "value": 1234.5,
+      "format": {
+        "format": "currency",
+        "currency": "JPY"
+      },
+      "expected": "¥1,235"
+    },
+    {
+      "id": "currency_jpy_negative",
+      "value": -1234.5,
+      "format": {
+        "format": "currency",
+        "currency": "JPY"
+      },
+      "expected": "-¥1,235"
+    },
+    {
+      "id": "currency_jpy_rounds_to_zero",
+      "value": 0.4,
+      "format": {
+        "format": "currency",
+        "currency": "JPY"
+      },
+      "expected": "¥0"
+    },
+    {
+      "id": "currency_jpy_negative_rounds_to_zero",
+      "value": -0.4,
+      "format": {
+        "format": "currency",
+        "currency": "JPY"
+      },
+      "expected": "¥0"
+    },
+    {
+      "id": "currency_jpy_tie",
+      "value": 2.5,
+      "format": {
+        "format": "currency",
+        "currency": "JPY"
+      },
+      "expected": "¥3"
+    },
+    {
+      "id": "currency_chf",
+      "value": 5,
+      "format": {
+        "format": "currency",
+        "currency": "CHF"
+      },
+      "expected": "CHF 5.00"
+    },
+    {
+      "id": "currency_chf_negative",
+      "value": -1234.567,
+      "format": {
+        "format": "currency",
+        "currency": "CHF"
+      },
+      "expected": "-CHF 1,234.57"
+    },
+    {
+      "id": "currency_inr_groups_by_three",
+      "value": 1234567.891,
+      "format": {
+        "format": "currency",
+        "currency": "INR"
+      },
+      "expected": "₹1,234,567.89"
+    },
+    {
+      "id": "currency_inr_negative_zero",
+      "value": -0.0,
+      "format": {
+        "format": "currency",
+        "currency": "INR"
+      },
+      "expected": "₹0.00"
+    },
+    {
+      "id": "date_string_leap_day",
+      "value": "2024-02-29",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2024-02-29"
+    },
+    {
+      "id": "date_string_leap_day_with_time",
+      "value": "2024-02-29T23:59:59Z",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2024-02-29"
+    },
+    {
+      "id": "date_string_not_leap_year",
+      "value": "2023-02-29T00:00:00Z",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2023-02-29T00:00:00Z"
+    },
+    {
+      "id": "date_string_century_not_leap",
+      "value": "1900-02-29T00:00Z",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "1900-02-29T00:00Z"
+    },
+    {
+      "id": "date_string_four_hundred_leap",
+      "value": "2000-02-29T00:00Z",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2000-02-29"
+    },
+    {
+      "id": "date_string_year_zero_leap",
+      "value": "0000-02-29x",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "0000-02-29"
+    },
+    {
+      "id": "date_string_month_thirteen",
+      "value": "2024-13-01x",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2024-13-01x"
+    },
+    {
+      "id": "date_string_month_zero",
+      "value": "2024-00-10x",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2024-00-10x"
+    },
+    {
+      "id": "date_string_day_zero",
+      "value": "2024-01-00x",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2024-01-00x"
+    },
+    {
+      "id": "date_string_april_31",
+      "value": "2024-04-31x",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2024-04-31x"
+    },
+    {
+      "id": "date_string_april_30_with_suffix",
+      "value": "2024-04-30 later",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2024-04-30"
+    },
+    {
+      "id": "date_string_last_day",
+      "value": "9999-12-31T23:59:59.999Z",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "9999-12-31"
+    },
+    {
+      "id": "date_string_two_digit_year",
+      "value": "24-01-01",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "24-01-01"
+    },
+    {
+      "id": "date_string_slashes",
+      "value": "2024/01/01",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2024/01/01"
+    },
+    {
+      "id": "date_string_fullwidth_digits",
+      "value": "２０２４-01-01",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "２０２４-01-01"
+    },
+    {
+      "id": "date_string_empty",
+      "value": "",
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": ""
+    },
+    {
+      "id": "date_epoch_zero",
+      "value": 0,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "1970-01-01"
+    },
+    {
+      "id": "date_epoch_negative_millisecond",
+      "value": -1,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "1969-12-31"
+    },
+    {
+      "id": "date_epoch_last_millisecond_of_day",
+      "value": 86399999,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "1970-01-01"
+    },
+    {
+      "id": "date_epoch_next_day",
+      "value": 86400000,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "1970-01-02"
+    },
+    {
+      "id": "date_epoch_leap_day_2000",
+      "value": 951782400000,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2000-02-29"
+    },
+    {
+      "id": "date_epoch_leap_day_2024",
+      "value": 1709164800000,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2024-02-29"
+    },
+    {
+      "id": "date_epoch_2100_not_leap",
+      "value": 4107542400000,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2100-03-01"
+    },
+    {
+      "id": "date_epoch_1900",
+      "value": -2208988800000,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "1900-01-01"
+    },
+    {
+      "id": "date_epoch_year_one",
+      "value": -62135596800000,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "0001-01-01"
+    },
+    {
+      "id": "date_epoch_year_zero",
+      "value": -62167219200000,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "0000-01-01"
+    },
+    {
+      "id": "date_epoch_before_year_zero_falls_back",
+      "value": -62167219200001,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "-62167219200001"
+    },
+    {
+      "id": "date_epoch_last_supported",
+      "value": 253402300799999,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "9999-12-31"
+    },
+    {
+      "id": "date_epoch_after_9999_falls_back",
+      "value": 253402300800000,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "253402300800000"
+    },
+    {
+      "id": "date_epoch_mid_2023",
+      "value": 1700000000000,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2023-11-14"
+    },
+    {
+      "id": "date_epoch_exponent_form_integer",
+      "value": 1700000000000.0,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "2023-11-14"
+    },
+    {
+      "id": "date_epoch_fraction_falls_back",
+      "value": 1700000000000.5,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "1700000000000.5"
+    },
+    {
+      "id": "date_epoch_negative_zero",
+      "value": -0.0,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "1970-01-01"
+    },
+    {
+      "id": "date_exponent_1e21_falls_back",
+      "value": 1e+21,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "1e+21"
+    },
+    {
+      "id": "date_exponent_1e_minus_7_falls_back",
+      "value": 1e-07,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "1e-7"
+    },
+    {
+      "id": "date_boolean_falls_back",
+      "value": true,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": "true"
+    },
+    {
+      "id": "date_null_falls_back",
+      "value": null,
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": ""
+    },
+    {
+      "id": "date_array_falls_back",
+      "value": [],
+      "format": {
+        "format": "date_iso"
+      },
+      "expected": ""
+    },
+    {
+      "id": "scalar_exponent_1e21",
+      "value": 1e+21,
+      "format": null,
+      "expected": "1e+21"
+    },
+    {
+      "id": "scalar_python_exponent_1e_minus_5",
+      "value": 1e-05,
+      "format": null,
+      "expected": "0.00001"
+    },
+    {
+      "id": "scalar_exponent_1e_minus_7",
+      "value": 1e-07,
+      "format": null,
+      "expected": "1e-7"
+    },
+    {
+      "id": "scalar_exponent_1_5e_minus_7",
+      "value": 1.5e-07,
+      "format": null,
+      "expected": "1.5e-7"
+    },
+    {
+      "id": "scalar_python_exponent_1e16",
+      "value": 1e+16,
+      "format": null,
+      "expected": "10000000000000000"
+    },
+    {
+      "id": "scalar_python_exponent_js_plain",
+      "value": 123456789012345680000,
+      "format": null,
+      "expected": "123456789012345680000"
+    },
+    {
+      "id": "scalar_negative_zero",
+      "value": -0.0,
+      "format": null,
+      "expected": "0"
+    },
+    {
+      "id": "scalar_fraction",
+      "value": 1.5,
+      "format": null,
+      "expected": "1.5"
+    },
+    {
+      "id": "scalar_integral_float",
+      "value": 100.0,
+      "format": null,
+      "expected": "100"
+    },
+    {
+      "id": "scalar_binary_noise",
+      "value": 0.30000000000000004,
+      "format": null,
+      "expected": "0.30000000000000004"
+    },
+    {
+      "id": "scalar_true",
+      "value": true,
+      "format": null,
+      "expected": "true"
+    },
+    {
+      "id": "scalar_string",
+      "value": "x",
+      "format": null,
+      "expected": "x"
+    },
+    {
+      "id": "scalar_null",
+      "value": null,
+      "format": null,
+      "expected": ""
+    },
+    {
+      "id": "scalar_object",
+      "value": {},
+      "format": null,
+      "expected": ""
+    }
+  ]
+}

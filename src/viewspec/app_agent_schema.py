@@ -5,11 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 from viewspec.agent import SAFE_AGENT_ID_PATTERN
+from viewspec.app_format import STATE_TEXT_CURRENCIES, STATE_TEXT_FORMAT_MAX_DIGITS
 from viewspec.app_validation import (
     APP_BUNDLE_ALLOWED_KINDS,
     APP_BUNDLE_ALLOWED_RESOURCE_KINDS,
     APP_BUNDLE_BINDING_SCOPE,
     APP_BUNDLE_BOUND_SCHEMA_VERSION,
+    APP_BUNDLE_EXPRESSIONS_SCHEMA_VERSION,
     APP_BUNDLE_MAX_ID_CHARS,
     APP_BUNDLE_MAX_RECORD_FIELDS,
     APP_BUNDLE_MAX_RECORDS_PER_RESOURCE,
@@ -65,26 +67,61 @@ from viewspec.state_ir import (
     APP_STATE_MAX_REPLAY_ASSERTIONS,
     APP_STATE_MAX_SELECTOR_OPS,
     APP_STATE_MAX_SELECTORS,
+    APP_STATE_TEXT_MAX_PLACEHOLDERS,
     APP_STATE_TEXT_MAX_RULES,
     APP_STATE_TEXT_MAX_TEMPLATE_CHARS,
+    APP_STATE_TEXT_V5_MAX_TEMPLATE_CHARS,
+    APP_VISIBILITY_MAX_COMPOSITE_ITEMS,
+    APP_VISIBILITY_MAX_DEPTH,
+    APP_VISIBILITY_MAX_LEAVES,
     APP_VISIBILITY_MAX_RULES,
+    APP_VISIBILITY_MIN_COMPOSITE_ITEMS,
     INTERACTIVE_STATE_PROFILE,
 )
+
+# The schema_version 5 guidance a later agent-prompt build splices into the AppBundle section.
+# tests/test_app_bundle_v5.py keeps it within 1200 bytes and validates both examples.
+APPBUNDLE_V5_PROMPT_SECTION = """Use AppBundle schema_version 5 only for composed visibility, multi-value text, or formatted numbers and dates. Version 5 accepts every version 4 bundle. A when may also be all or any of 2 to 8 conditions, or not of one condition. Nest at most 3 levels. Use at most 8 leaf conditions per rule:
+{"id": "escalation", "screen_id": "queue", "target_ref": "binding:escalate", "when": {"all": [{"selector": "active", "is": "non_empty"}, {"not": {"state": "acked", "is": "truthy"}}]}}
+A multi-value state_text template names each {placeholder} once. Its values map each placeholder to {"state": id} or {"selector": id, "measure": "count"}. A value may add one format: integer, decimal or percent (digits 0 to 6), currency (USD, EUR, GBP, JPY, CHF, INR), or date_iso:
+{"id": "open_summary", "screen_id": "queue", "target_ref": "binding:open_text", "template": "{open} open of {total}, {spend} spent", "values": {"open": {"selector": "active", "measure": "count"}, "total": {"selector": "all_incidents", "measure": "count"}, "spend": {"state": "spend", "format": {"format": "currency", "currency": "USD"}}}}
+Formats use no locale or time zone. Version 5 adds no free expressions, paths, or host functions.
+"""
+
+
+def _composed_condition_forms(child_ref: str) -> list[dict[str, Any]]:
+    """A leaf condition or one all/any/not node whose children use ``child_ref``."""
+    child = {"$ref": f"#/$defs/{child_ref}"}
+    child_list = {
+        "type": "array",
+        "minItems": APP_VISIBILITY_MIN_COMPOSITE_ITEMS,
+        "maxItems": APP_VISIBILITY_MAX_COMPOSITE_ITEMS,
+        "items": child,
+    }
+    return [
+        {"$ref": "#/$defs/visibility_condition"},
+        {"type": "object", "required": ["all"], "additionalProperties": False, "properties": {"all": child_list}},
+        {"type": "object", "required": ["any"], "additionalProperties": False, "properties": {"any": child_list}},
+        {"type": "object", "required": ["not"], "additionalProperties": False, "properties": {"not": child}},
+    ]
+
 
 AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://viewspec.dev/agent-app-bundle.schema.json",
-    "title": "ViewSpec Agent AppBundle V1/V2/V3/V4",
+    "title": "ViewSpec Agent AppBundle V1/V2/V3/V4/V5",
     "description": (
         "Local-only multi-screen app contract with embedded IntentBundles, static routes, V1 unbound "
-        "fixtures, V2 read-only fixture binding proof, V3 bounded interactive_state_v0 reducers, and "
-        "V4 bounded visibility_v0 conditional visibility rules."
+        "fixtures, V2 read-only fixture binding proof, V3 bounded interactive_state_v0 reducers, "
+        "V4 bounded visibility_v0 conditional visibility rules, and V5 bounded expressions: composed "
+        "visibility conditions, multi-value state text, and closed formatters."
     ),
     "oneOf": [
         {"$ref": "#/$defs/app_bundle_v1"},
         {"$ref": "#/$defs/app_bundle_v2"},
         {"$ref": "#/$defs/app_bundle_v3"},
         {"$ref": "#/$defs/app_bundle_v4"},
+        {"$ref": "#/$defs/app_bundle_v5"},
     ],
     "x-viewspec-app-schema-versions": list(APP_BUNDLE_SUPPORTED_SCHEMA_VERSIONS),
     "x-viewspec-resource-binding": APP_BUNDLE_RESOURCE_BINDING,
@@ -99,6 +136,8 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
         "schema_version 3 requires fixture_readonly_v0 plus interactive_state_v0 state, mutations, and selectors.",
         "schema_version 4 adds optional bounded visibility rules: per-screen show/hide conditions over declared state and selectors, at most one rule per (screen, target).",
         "schema_version 4 optionally projects one scalar state value into one exactly-once text binding through a literal {value} template.",
+        "schema_version 5 accepts every schema_version 4 construct, composes visibility conditions with all, any, and not (lists of 2 to 8, depth at most 3, at most 8 leaves per rule), and fills up to 8 named state_text placeholders from scalar state or selector counts through closed formatters.",
+        "A schema_version 1 to 4 bundle that uses a schema_version 5 construct fails with APP_V5_FEATURE_REQUIRES_SCHEMA_VERSION_5.",
         "Routes are static canonical paths only and must map to declared screens.",
         "The root route must resolve to exactly one route.",
         "Every screen must be reachable by at least one static route.",
@@ -116,8 +155,9 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
         "No transformed, localized, formatted, joined, sorted, filtered, paginated, grouped, or aggregated fixture proof.",
         "No whole-app data-flow consistency proof beyond explicitly declared resource_views.",
         "No accessibility, pixel-perfect, cross-browser, production deployment, or arbitrary host-app certification.",
-        "Visibility V0 is bounded conditional show/hide only: no boolean condition composition, animation, or focus management.",
-        "State Text V0 is one scalar-to-text projection only: no HTML, expressions, paths, localization, formatting functions, or multiple placeholders.",
+        "Visibility V0 (schema_version 4) is bounded conditional show/hide only: no boolean condition composition, animation, or focus management.",
+        "State Text V0 (schema_version 4) is one scalar-to-text projection only: no HTML, expressions, paths, localization, formatting functions, or multiple placeholders.",
+        "Bounded expressions (schema_version 5) add no free expressions, arbitrary JSON paths, host functions, HTML, Intl, locale, or time zone behavior, and no animation or focus management.",
     ],
     "$defs": {
         "app_bundle_v1": {
@@ -223,6 +263,42 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                 "visibility": {"$ref": "#/$defs/visibility_rules"},
                 "state_text": {"$ref": "#/$defs/state_text_rules"},
                 "state_replay_assertions": {"$ref": "#/$defs/state_replay_assertions_v4"},
+            },
+        },
+        "app_bundle_v5": {
+            "type": "object",
+            "required": [
+                "schema_version",
+                "resource_binding",
+                "interactive_state",
+                "app",
+                "routes",
+                "resources",
+                "screens",
+                "state",
+                "mutations",
+                "selectors",
+            ],
+            "additionalProperties": False,
+            "properties": {
+                "schema_version": {"const": APP_BUNDLE_EXPRESSIONS_SCHEMA_VERSION},
+                "resource_binding": {"const": APP_BUNDLE_RESOURCE_BINDING_READONLY},
+                "interactive_state": {"const": INTERACTIVE_STATE_PROFILE},
+                "app": {"$ref": "#/$defs/app"},
+                "routes": {"$ref": "#/$defs/routes"},
+                "resources": {"$ref": "#/$defs/resources"},
+                "screens": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": APP_BUNDLE_MAX_SCREENS,
+                    "items": {"$ref": "#/$defs/screen_v2"},
+                },
+                "state": {"$ref": "#/$defs/state_entries"},
+                "mutations": {"$ref": "#/$defs/state_mutations"},
+                "selectors": {"$ref": "#/$defs/state_selectors"},
+                "visibility": {"$ref": "#/$defs/visibility_rules_v5"},
+                "state_text": {"$ref": "#/$defs/state_text_rules_v5"},
+                "state_replay_assertions": {"$ref": "#/$defs/state_replay_assertions_v5"},
             },
         },
         "safe_id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN, "maxLength": APP_BUNDLE_MAX_ID_CHARS},
@@ -911,6 +987,205 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                 },
             },
         },
+        "visibility_rules_v5": {
+            "type": "array",
+            "maxItems": APP_VISIBILITY_MAX_RULES,
+            "items": {"$ref": "#/$defs/visibility_rule_v5"},
+        },
+        "visibility_rule_v5": {
+            "type": "object",
+            "required": ["id", "screen_id", "target_ref", "when"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "screen_id": {"$ref": "#/$defs/safe_id"},
+                "target_ref": {
+                    "type": "string",
+                    "maxLength": APP_BUNDLE_MAX_ID_CHARS + 8,
+                    "pattern": "^(region|binding|motif):[A-Za-z0-9_.-]+$",
+                },
+                "when": {"$ref": "#/$defs/visibility_condition_v5"},
+            },
+        },
+        "visibility_condition_v5": {
+            "description": (
+                f"A leaf condition, all or any of {APP_VISIBILITY_MIN_COMPOSITE_ITEMS} to "
+                f"{APP_VISIBILITY_MAX_COMPOSITE_ITEMS} conditions, or not of one condition. Nesting stops at depth "
+                f"{APP_VISIBILITY_MAX_DEPTH}, and a rule holds at most {APP_VISIBILITY_MAX_LEAVES} leaves."
+            ),
+            "oneOf": _composed_condition_forms("visibility_condition_v5_level_2"),
+        },
+        "visibility_condition_v5_level_2": {
+            "oneOf": _composed_condition_forms("visibility_condition"),
+        },
+        "state_text_rules_v5": {
+            "type": "array",
+            "maxItems": APP_STATE_TEXT_MAX_RULES,
+            "items": {"$ref": "#/$defs/state_text_rule_v5"},
+        },
+        "state_text_rule_v5": {
+            "oneOf": [
+                {"$ref": "#/$defs/state_text_rule_v5_single"},
+                {"$ref": "#/$defs/state_text_rule_v5_values"},
+            ]
+        },
+        "state_text_rule_v5_single": {
+            "type": "object",
+            "required": ["id", "screen_id", "target_ref", "state", "template"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "screen_id": {"$ref": "#/$defs/safe_id"},
+                "target_ref": {
+                    "type": "string",
+                    "maxLength": APP_BUNDLE_MAX_ID_CHARS + 8,
+                    "pattern": "^binding:[A-Za-z0-9_.-]+$",
+                },
+                "state": {"$ref": "#/$defs/safe_id"},
+                "template": {
+                    "type": "string",
+                    "maxLength": APP_STATE_TEXT_MAX_TEMPLATE_CHARS,
+                    "pattern": "^[^{}]*\\{value\\}[^{}]*$",
+                },
+                "format": {"$ref": "#/$defs/state_text_format"},
+            },
+        },
+        "state_text_rule_v5_values": {
+            "type": "object",
+            "description": "Each {name} placeholder appears once in template and has exactly one values entry.",
+            "required": ["id", "screen_id", "target_ref", "template", "values"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "screen_id": {"$ref": "#/$defs/safe_id"},
+                "target_ref": {
+                    "type": "string",
+                    "maxLength": APP_BUNDLE_MAX_ID_CHARS + 8,
+                    "pattern": "^binding:[A-Za-z0-9_.-]+$",
+                },
+                "template": {
+                    "type": "string",
+                    "maxLength": APP_STATE_TEXT_V5_MAX_TEMPLATE_CHARS,
+                    "pattern": "^[^{}]*(\\{[a-z][a-z0-9_]{0,31}\\}[^{}]*)+$",
+                },
+                "values": {
+                    "type": "object",
+                    "minProperties": 1,
+                    "maxProperties": APP_STATE_TEXT_MAX_PLACEHOLDERS,
+                    "propertyNames": {"pattern": "^[a-z][a-z0-9_]{0,31}$"},
+                    "additionalProperties": {"$ref": "#/$defs/state_text_value_source"},
+                },
+            },
+        },
+        "state_text_value_source": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": ["state"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "state": {"$ref": "#/$defs/safe_id"},
+                        "format": {"$ref": "#/$defs/state_text_format"},
+                    },
+                },
+                {
+                    "type": "object",
+                    "required": ["selector", "measure"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "selector": {"$ref": "#/$defs/safe_id"},
+                        "measure": {"const": "count"},
+                        "format": {"$ref": "#/$defs/state_text_format"},
+                    },
+                },
+            ]
+        },
+        "state_text_format": {
+            "description": "The closed formatter set. Formatters use no locale or time zone.",
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": ["format"],
+                    "additionalProperties": False,
+                    "properties": {"format": {"const": "integer"}},
+                },
+                {
+                    "type": "object",
+                    "required": ["format", "digits"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "format": {"const": "decimal"},
+                        "digits": {"type": "integer", "minimum": 0, "maximum": STATE_TEXT_FORMAT_MAX_DIGITS},
+                    },
+                },
+                {
+                    "type": "object",
+                    "required": ["format", "digits"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "format": {"const": "percent"},
+                        "digits": {"type": "integer", "minimum": 0, "maximum": STATE_TEXT_FORMAT_MAX_DIGITS},
+                    },
+                },
+                {
+                    "type": "object",
+                    "required": ["format", "currency"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "format": {"const": "currency"},
+                        "currency": {"enum": sorted(STATE_TEXT_CURRENCIES)},
+                    },
+                },
+                {
+                    "type": "object",
+                    "required": ["format"],
+                    "additionalProperties": False,
+                    "properties": {"format": {"const": "date_iso"}},
+                },
+            ],
+        },
+        "state_replay_assertions_v5": {
+            "type": "array",
+            "maxItems": APP_STATE_MAX_REPLAY_ASSERTIONS,
+            "items": {"$ref": "#/$defs/state_replay_assertion_v5"},
+        },
+        "state_replay_assertion_v5": {
+            "type": "object",
+            "required": ["id", "events", "expect_state", "expect_selectors"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "events": {
+                    "type": "array",
+                    "maxItems": APP_STATE_MAX_EVENTS_PER_REPLAY,
+                    "items": {"$ref": "#/$defs/state_replay_event"},
+                },
+                "expect_state": {
+                    "type": "object",
+                    "propertyNames": {"$ref": "#/$defs/safe_id"},
+                    "additionalProperties": {"$ref": "#/$defs/json_value"},
+                },
+                "expect_selectors": {
+                    "type": "object",
+                    "propertyNames": {"$ref": "#/$defs/safe_id"},
+                    "additionalProperties": {"$ref": "#/$defs/json_value"},
+                },
+                "expect_visibility": {
+                    "type": "object",
+                    "propertyNames": {"$ref": "#/$defs/safe_id"},
+                    "additionalProperties": {"type": "boolean"},
+                },
+                "expect_text": {
+                    "type": "object",
+                    "propertyNames": {"$ref": "#/$defs/safe_id"},
+                    "additionalProperties": {
+                        "type": "string",
+                        "maxLength": APP_STATE_TEXT_V5_MAX_TEMPLATE_CHARS
+                        + APP_STATE_TEXT_MAX_PLACEHOLDERS * APP_BUNDLE_MAX_SCALAR_STRING_CHARS,
+                    },
+                },
+            },
+        },
         "intent_bundle": {
             "type": "object",
             "description": "Embedded local V1 IntentBundle. viewspec check and viewspec prove enforce the full local V1 validator.",
@@ -919,4 +1194,4 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
 }
 
 
-__all__ = ["AGENT_APP_BUNDLE_SCHEMA"]
+__all__ = ["AGENT_APP_BUNDLE_SCHEMA", "APPBUNDLE_V5_PROMPT_SECTION"]

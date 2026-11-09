@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from viewspec.app_errors import AppBundleProofFailure
-from viewspec.app_validation import APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION
+from viewspec.app_versions import app_has_interactive_state, app_has_visibility
 from viewspec.local_tools import atomic_write, file_hash
 from viewspec.state_ir import APP_STATE_MAX_MANIFEST_BYTES, APP_STATE_MAX_REDUCER_BYTES, INTERACTIVE_STATE_PROFILE
 
@@ -24,7 +24,7 @@ def _write_state_artifacts(
     check_conformance: Callable[..., dict[str, Any]],
     build_manifest: Callable[..., dict[str, Any]],
 ) -> dict[str, Any] | None:
-    if payload.get("schema_version") not in {APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION}:
+    if not app_has_interactive_state(payload):
         return None
     reducer_path = output_dir / APP_STATE_REDUCER
     manifest_path = output_dir / APP_STATE_MANIFEST
@@ -52,7 +52,7 @@ def _write_state_artifacts(
                     str(message),
                     str(
                         first.get("fix")
-                        or "Install Node.js (>=18) on PATH for V3/V4 reducer conformance, or use a V1/V2 AppBundle."
+                        or "Install Node.js (>=18) on PATH for V3 to V5 reducer conformance, or use a V1/V2 AppBundle."
                     ),
                 )
             raise AppBundleProofFailure(
@@ -131,12 +131,8 @@ def _write_state_artifacts(
             else True,
             "contract_hash": manifest.get("contract_hash"),
             "reducer_conformance": _state_conformance_status(conformance),
-            # v4-only keys: the v3 summary shape stays byte-stable.
-            **(
-                _visibility_summary(payload, manifest)
-                if payload.get("schema_version") == APP_BUNDLE_VISIBILITY_SCHEMA_VERSION
-                else {}
-            ),
+            # v4+ keys: the v3 summary shape stays byte-stable.
+            **(_visibility_summary(payload, manifest) if app_has_visibility(payload) else {}),
             **(_state_text_summary(payload, manifest) if "state_text" in payload else {}),
         },
         "replay": manifest.get("replay") if isinstance(manifest.get("replay"), dict) else None,

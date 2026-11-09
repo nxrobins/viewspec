@@ -8,12 +8,14 @@ from pathlib import Path
 
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, starter_app_bundle
+from viewspec.compact_form import COMPACT_FORM_SCHEMA
 from viewspec.intent_tools import starter_intent_payload
 
 DEMOS = Path(__file__).resolve().parents[1] / "demos"
 JSON_FILES = {
     "agent-intent-bundle.schema.json": AGENT_INTENT_BUNDLE_SCHEMA,
     "agent-intent-example.dashboard.json": starter_intent_payload("dashboard"),
+    "agent-intent-compact.schema.json": COMPACT_FORM_SCHEMA,
     "agent-app-bundle.schema.json": AGENT_APP_BUNDLE_SCHEMA,
     "agent-app-example.internal-tool.json": starter_app_bundle("internal_tool"),
 }

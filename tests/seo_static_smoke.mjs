@@ -800,7 +800,7 @@ const agentPrompt = await readFile('demos/agent-system-prompt.txt', 'utf8')
 assert.match(agentPrompt, /IntentBundle/)
 assert.match(agentPrompt, /CompositionIR is compiler output only/)
 assert.match(agentPrompt, /Generated JSON is not a finished ViewSpec proof/)
-assert.match(agentPrompt, /viewspec prove viewspec\.intent\.json --out \.viewspec-proof/)
+assert.match(agentPrompt, /viewspec prove viewspec\.compact\.json --out \.viewspec-proof/)
 assert.match(agentPrompt, /\.viewspec-proof\/PROOF\.md/)
 assert.match(agentPrompt, /proof_report\.json/)
 assert.match(agentPrompt, /support_bundle\.json/)
@@ -827,9 +827,13 @@ assert.deepEqual(publicFacts.agent_assets.payload_files, [
   'agent-system-prompt.txt',
   'agent-intent-bundle.schema.json',
   'agent-intent-example.dashboard.json',
+  'agent-intent-compact.schema.json',
   'agent-app-bundle.schema.json',
   'agent-app-example.internal-tool.json',
 ])
+const compactContractSchema = JSON.parse(await readFile('demos/agent-intent-compact.schema.json', 'utf8'))
+assertPublicEqual(publicFacts.agent_assets.compact_schema_id, compactContractSchema.$id, 'public facts compact schema id')
+assert.equal(compactContractSchema.properties.format.const, 'compact')
 const agentExample = JSON.parse(await readFile('demos/agent-intent-example.dashboard.json', 'utf8'))
 assert.equal(agentExample.view_spec.motifs[0].kind, 'dashboard')
 assert.equal(agentExample.view_spec.substrate_id, agentExample.substrate.id)

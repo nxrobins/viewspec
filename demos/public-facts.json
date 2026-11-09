@@ -149,6 +149,7 @@
   },
   "agent_assets": {
     "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
+    "compact_schema_id": "https://viewspec.dev/agent-intent-compact.schema.json",
     "app_schema_id": "https://viewspec.dev/agent-app-bundle.schema.json",
     "regenerate_command": "python scripts/export_agent_contract.py",
     "network_policy": "no SDK network calls",
@@ -156,6 +157,7 @@
       "agent-system-prompt.txt",
       "agent-intent-bundle.schema.json",
       "agent-intent-example.dashboard.json",
+      "agent-intent-compact.schema.json",
       "agent-app-bundle.schema.json",
       "agent-app-example.internal-tool.json"
     ]

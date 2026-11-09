@@ -1,4 +1,4 @@
-"""`viewspec mcp`: the CLI's five verbs as MCP tools for a coding agent, over stdio."""
+"""`viewspec mcp`: six tools for a coding agent, over stdio: the CLI's five verbs and `patch`."""
 
 from __future__ import annotations
 
@@ -14,7 +14,12 @@ from typing import Any, Literal
 from viewspec import api
 from viewspec._version import __version__
 from viewspec.app_bundle import APP_SHELL_TARGET, compile_app, init_app_file
-from viewspec.intent_tools import compile_intent_bundle_file_tool, init_intent_file
+from viewspec.intent_tools import (
+    check_intent_source,
+    compile_intent_bundle_file_tool,
+    init_compact_file,
+    init_intent_file,
+)
 from viewspec.local_tools import (
     exception_response,
     init_design_file,
@@ -30,9 +35,12 @@ MCP_INSTALL_HINT = 'Install with: python -m pip install "viewspec[agents]"'
 # caps mcp below 2.
 _MCP_SERVER_MODULE = "mcp.server.fastmcp"
 _SERVER_INSTRUCTIONS = (
-    "ViewSpec compiles semantic JSON into checked UI. Edit viewspec.intent.json or viewspec.app.json, never "
+    "ViewSpec compiles semantic JSON into checked UI. Edit viewspec.compact.json, viewspec.intent.json, or "
+    "viewspec.app.json, never "
     "the generated output. The loop is init, edit the source, check, compile, then prove. Every result "
-    "carries ok; on failure, follow its errors, issues, or correction_prompt and retry."
+    "carries ok; on failure, follow its errors, issues, or correction_prompt and retry. check and compile "
+    "apply lossless fixes and report them under fixes; patch applies a JSON Patch to an IntentBundle source "
+    "and checks the result."
 )
 
 
@@ -97,23 +105,26 @@ class ViewSpecTools:
     @_reported("IO_ERROR", "Choose a writable path under the working directory, or pass force=True.")
     def init(
         self,
-        what: Literal["intent", "app", "design"] = "intent",
+        what: Literal["intent", "app", "design", "compact"] = "intent",
         out: str | None = None,
         kind: str | None = None,
         template: Literal["contract", "react-app"] = "contract",
         force: bool = False,
     ) -> dict[str, Any]:
-        """Write a starter viewspec.intent.json, viewspec.app.json, or DESIGN.md.
+        """Write a starter viewspec.intent.json, viewspec.app.json, DESIGN.md, or viewspec.compact.json.
 
-        Replace the sample content with the user's intent. kind picks a starter motif for intent
-        (default dashboard) or an app kind for app (default internal_tool). template="react-app"
-        writes the runnable AppBundle golden path.
+        Replace the sample content with the user's intent. kind picks a starter motif for intent and
+        compact (default dashboard) or an app kind for app (default internal_tool). template="react-app"
+        writes the runnable AppBundle golden path. compact writes the same starter as intent in the
+        compact authoring form.
         """
         path = self._path(out or api.INIT_DEFAULT_OUT[what])
         if what == "app":
             written = init_app_file(path, kind=kind or "internal_tool", force=force, template=template)
         elif what == "design":
             written = init_design_file(path, force=force)
+        elif what == "compact":
+            written = init_compact_file(path, kind=kind or "dashboard", force=force)
         else:
             written = init_intent_file(path, kind=kind or "dashboard", force=force)
         return tool_response(
@@ -169,13 +180,63 @@ class ViewSpecTools:
         )
 
     @_reported("CHECK_FAILED", "Fix the reported path and retry.")
-    def check(self, path: str, compile_check: bool = True) -> dict[str, Any]:
+    def check(
+        self, path: str, compile_check: bool = True, fix: bool = True, canonical_out: str | None = None
+    ) -> dict[str, Any]:
         """Run the fast local checks on a source file or a compiled artifact directory.
 
         A source file gets contract checks, and a failure includes a correction_prompt to act on.
-        A directory gets provenance, tamper, and active-content checks.
+        An IntentBundle gets the lossless fixes first, reported under fixes; fix=False reports the
+        same problems as issues. A directory gets provenance, tamper, and active-content checks.
+        canonical_out writes the canonical bundle of an IntentBundle source after the fixes. For a
+        compact-form source, that is the document its fixes and canonical issues name.
         """
-        return api.check(self._path(path), compile_check=compile_check)
+        target = self._path(path)
+        if canonical_out is None:
+            return api.check(target, compile_check=compile_check, fix=fix)
+        out = self._canonical_out(target, canonical_out)
+        return check_intent_source(target, compile_check=compile_check, fix=fix, canonical_out=out)
+
+    @_reported("CHECK_FAILED", "Fix the reported path or patch and retry.")
+    def patch(
+        self,
+        source: str,
+        operations: list[dict[str, Any]],
+        out: str | None = None,
+        compile_check: bool = True,
+        fix: bool = True,
+        canonical_out: str | None = None,
+    ) -> dict[str, Any]:
+        """Apply an RFC 6902 JSON Patch to an IntentBundle file in memory, then check the result.
+
+        The source file is not changed; out writes the patched source. The report is the check
+        report: ok, issues, fixes, and a correction_prompt on failure. A patch that cannot be applied
+        is one PATCH_* issue. operations holds at most 256 add, remove, replace, move, copy, or test
+        operations, and the patched source must stay under 256 KB. A patch applies to an IntentBundle
+        source file only, never to an AppBundle or to compiled output. For a compact-form source the
+        pointers name the compact document; fixes and canonical issues name its canonical document,
+        which canonical_out writes.
+        """
+        target = self._path(source)
+        return check_intent_source(
+            target,
+            compile_check=compile_check,
+            fix=fix,
+            patch=operations,
+            patched_out=self._path(out) if out is not None else None,
+            canonical_out=self._canonical_out(target, canonical_out) if canonical_out is not None else None,
+        )
+
+    def _canonical_out(self, source: Path, canonical_out: str) -> Path:
+        """The canonical_out file inside the workspace: an IntentBundle source only, never the input."""
+        if source.is_dir() or api.source_kind(source) == "app_bundle":
+            raise ValueError("canonical_out applies to an IntentBundle source file")
+        out = self._path(canonical_out)
+        if out.is_dir():
+            raise ValueError(f"canonical_out must be a file path, not a directory: {canonical_out}")
+        if source.exists() and out.resolve() == source.resolve():
+            raise ValueError("canonical_out must not be the input file")
+        return out
 
     @_reported("PROVE_INVALID_REQUEST", "Fix the reported option and retry.")
     def prove(
@@ -231,7 +292,8 @@ class ViewSpecTools:
 
         The preview runs in the background and rebuilds when the source or DESIGN.md changes. One
         runs at a time: starting another replaces it, and stop=True ends it. With no source, uses
-        the only viewspec.app.json or viewspec.intent.json in the working directory. port=0 picks
+        the only viewspec.app.json, viewspec.intent.json, or viewspec.compact.json in the working
+        directory. port=0 picks
         a free port. A failed first build is reported in build_errors while the preview keeps watching.
         """
         if stop:
@@ -281,7 +343,7 @@ def run_mcp_server(
 
     tools = ViewSpecTools(cwd, allow_outside_cwd=allow_outside_cwd)
     app = FastMCP("viewspec", instructions=_SERVER_INSTRUCTIONS, log_level=log_level or "INFO")
-    for tool in (tools.init, tools.compile, tools.check, tools.prove, tools.studio):
+    for tool in (tools.init, tools.compile, tools.check, tools.patch, tools.prove, tools.studio):
         app.add_tool(tool)
 
     def stop(signum: int, _frame: FrameType | None) -> None:

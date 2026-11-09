@@ -216,6 +216,68 @@
       ],
       "type": "object"
     },
+    "app_bundle_v5": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "$ref": "#/$defs/app"
+        },
+        "interactive_state": {
+          "const": "interactive_state_v0"
+        },
+        "mutations": {
+          "$ref": "#/$defs/state_mutations"
+        },
+        "resource_binding": {
+          "const": "fixture_readonly_v0"
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "routes": {
+          "$ref": "#/$defs/routes"
+        },
+        "schema_version": {
+          "const": 5
+        },
+        "screens": {
+          "items": {
+            "$ref": "#/$defs/screen_v2"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "type": "array"
+        },
+        "selectors": {
+          "$ref": "#/$defs/state_selectors"
+        },
+        "state": {
+          "$ref": "#/$defs/state_entries"
+        },
+        "state_replay_assertions": {
+          "$ref": "#/$defs/state_replay_assertions_v5"
+        },
+        "state_text": {
+          "$ref": "#/$defs/state_text_rules_v5"
+        },
+        "visibility": {
+          "$ref": "#/$defs/visibility_rules_v5"
+        }
+      },
+      "required": [
+        "schema_version",
+        "resource_binding",
+        "interactive_state",
+        "app",
+        "routes",
+        "resources",
+        "screens",
+        "state",
+        "mutations",
+        "selectors"
+      ],
+      "type": "object"
+    },
     "fixture_record": {
       "additionalProperties": {
         "anyOf": [
@@ -1395,6 +1457,65 @@
       ],
       "type": "object"
     },
+    "state_replay_assertion_v5": {
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "items": {
+            "$ref": "#/$defs/state_replay_event"
+          },
+          "maxItems": 32,
+          "type": "array"
+        },
+        "expect_selectors": {
+          "additionalProperties": {
+            "$ref": "#/$defs/json_value"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "type": "object"
+        },
+        "expect_state": {
+          "additionalProperties": {
+            "$ref": "#/$defs/json_value"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "type": "object"
+        },
+        "expect_text": {
+          "additionalProperties": {
+            "maxLength": 16896,
+            "type": "string"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "type": "object"
+        },
+        "expect_visibility": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "type": "object"
+        },
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "id",
+        "events",
+        "expect_state",
+        "expect_selectors"
+      ],
+      "type": "object"
+    },
     "state_replay_assertions": {
       "items": {
         "$ref": "#/$defs/state_replay_assertion"
@@ -1405,6 +1526,13 @@
     "state_replay_assertions_v4": {
       "items": {
         "$ref": "#/$defs/state_replay_assertion_v4"
+      },
+      "maxItems": 32,
+      "type": "array"
+    },
+    "state_replay_assertions_v5": {
+      "items": {
+        "$ref": "#/$defs/state_replay_assertion_v5"
       },
       "maxItems": 32,
       "type": "array"
@@ -1504,6 +1632,94 @@
       "maxItems": 64,
       "type": "array"
     },
+    "state_text_format": {
+      "description": "The closed formatter set. Formatters use no locale or time zone.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "format": {
+              "const": "integer"
+            }
+          },
+          "required": [
+            "format"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "digits": {
+              "maximum": 6,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "format": {
+              "const": "decimal"
+            }
+          },
+          "required": [
+            "format",
+            "digits"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "digits": {
+              "maximum": 6,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "format": {
+              "const": "percent"
+            }
+          },
+          "required": [
+            "format",
+            "digits"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "currency": {
+              "enum": [
+                "CHF",
+                "EUR",
+                "GBP",
+                "INR",
+                "JPY",
+                "USD"
+              ]
+            },
+            "format": {
+              "const": "currency"
+            }
+          },
+          "required": [
+            "format",
+            "currency"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "format": {
+              "const": "date_iso"
+            }
+          },
+          "required": [
+            "format"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "state_text_rule": {
       "additionalProperties": false,
       "properties": {
@@ -1536,12 +1752,143 @@
       ],
       "type": "object"
     },
+    "state_text_rule_v5": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/state_text_rule_v5_single"
+        },
+        {
+          "$ref": "#/$defs/state_text_rule_v5_values"
+        }
+      ]
+    },
+    "state_text_rule_v5_single": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/state_text_format"
+        },
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "state": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "target_ref": {
+          "maxLength": 104,
+          "pattern": "^binding:[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "template": {
+          "maxLength": 256,
+          "pattern": "^[^{}]*\\{value\\}[^{}]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "screen_id",
+        "target_ref",
+        "state",
+        "template"
+      ],
+      "type": "object"
+    },
+    "state_text_rule_v5_values": {
+      "additionalProperties": false,
+      "description": "Each {name} placeholder appears once in template and has exactly one values entry.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "target_ref": {
+          "maxLength": 104,
+          "pattern": "^binding:[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "template": {
+          "maxLength": 512,
+          "pattern": "^[^{}]*(\\{[a-z][a-z0-9_]{0,31}\\}[^{}]*)+$",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": {
+            "$ref": "#/$defs/state_text_value_source"
+          },
+          "maxProperties": 8,
+          "minProperties": 1,
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}$"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "screen_id",
+        "target_ref",
+        "template",
+        "values"
+      ],
+      "type": "object"
+    },
     "state_text_rules": {
       "items": {
         "$ref": "#/$defs/state_text_rule"
       },
       "maxItems": 64,
       "type": "array"
+    },
+    "state_text_rules_v5": {
+      "items": {
+        "$ref": "#/$defs/state_text_rule_v5"
+      },
+      "maxItems": 64,
+      "type": "array"
+    },
+    "state_text_value_source": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/state_text_format"
+            },
+            "state": {
+              "$ref": "#/$defs/safe_id"
+            }
+          },
+          "required": [
+            "state"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/state_text_format"
+            },
+            "measure": {
+              "const": "count"
+            },
+            "selector": {
+              "$ref": "#/$defs/safe_id"
+            }
+          },
+          "required": [
+            "selector",
+            "measure"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "visibility_condition": {
       "oneOf": [
@@ -1601,6 +1948,113 @@
         }
       ]
     },
+    "visibility_condition_v5": {
+      "description": "A leaf condition, all or any of 2 to 8 conditions, or not of one condition. Nesting stops at depth 3, and a rule holds at most 8 leaves.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/visibility_condition"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "all": {
+              "items": {
+                "$ref": "#/$defs/visibility_condition_v5_level_2"
+              },
+              "maxItems": 8,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "required": [
+            "all"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "any": {
+              "items": {
+                "$ref": "#/$defs/visibility_condition_v5_level_2"
+              },
+              "maxItems": 8,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "required": [
+            "any"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "not": {
+              "$ref": "#/$defs/visibility_condition_v5_level_2"
+            }
+          },
+          "required": [
+            "not"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "visibility_condition_v5_level_2": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/visibility_condition"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "all": {
+              "items": {
+                "$ref": "#/$defs/visibility_condition"
+              },
+              "maxItems": 8,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "required": [
+            "all"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "any": {
+              "items": {
+                "$ref": "#/$defs/visibility_condition"
+              },
+              "maxItems": 8,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "required": [
+            "any"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "not": {
+              "$ref": "#/$defs/visibility_condition"
+            }
+          },
+          "required": [
+            "not"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "visibility_rule": {
       "additionalProperties": false,
       "properties": {
@@ -1627,9 +2081,42 @@
       ],
       "type": "object"
     },
+    "visibility_rule_v5": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "target_ref": {
+          "maxLength": 104,
+          "pattern": "^(region|binding|motif):[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "when": {
+          "$ref": "#/$defs/visibility_condition_v5"
+        }
+      },
+      "required": [
+        "id",
+        "screen_id",
+        "target_ref",
+        "when"
+      ],
+      "type": "object"
+    },
     "visibility_rules": {
       "items": {
         "$ref": "#/$defs/visibility_rule"
+      },
+      "maxItems": 64,
+      "type": "array"
+    },
+    "visibility_rules_v5": {
+      "items": {
+        "$ref": "#/$defs/visibility_rule_v5"
       },
       "maxItems": 64,
       "type": "array"
@@ -1637,7 +2124,7 @@
   },
   "$id": "https://viewspec.dev/agent-app-bundle.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Local-only multi-screen app contract with embedded IntentBundles, static routes, V1 unbound fixtures, V2 read-only fixture binding proof, V3 bounded interactive_state_v0 reducers, and V4 bounded visibility_v0 conditional visibility rules.",
+  "description": "Local-only multi-screen app contract with embedded IntentBundles, static routes, V1 unbound fixtures, V2 read-only fixture binding proof, V3 bounded interactive_state_v0 reducers, V4 bounded visibility_v0 conditional visibility rules, and V5 bounded expressions: composed visibility conditions, multi-value state text, and closed formatters.",
   "oneOf": [
     {
       "$ref": "#/$defs/app_bundle_v1"
@@ -1650,9 +2137,12 @@
     },
     {
       "$ref": "#/$defs/app_bundle_v4"
+    },
+    {
+      "$ref": "#/$defs/app_bundle_v5"
     }
   ],
-  "title": "ViewSpec Agent AppBundle V1/V2/V3/V4",
+  "title": "ViewSpec Agent AppBundle V1/V2/V3/V4/V5",
   "x-viewspec-anti-goals": [
     "No runtime browser navigation proof.",
     "No dynamic routes, route params, query strings, hashes, redirects, guards, nested routers, or locale routing.",
@@ -1660,14 +2150,16 @@
     "No transformed, localized, formatted, joined, sorted, filtered, paginated, grouped, or aggregated fixture proof.",
     "No whole-app data-flow consistency proof beyond explicitly declared resource_views.",
     "No accessibility, pixel-perfect, cross-browser, production deployment, or arbitrary host-app certification.",
-    "Visibility V0 is bounded conditional show/hide only: no boolean condition composition, animation, or focus management.",
-    "State Text V0 is one scalar-to-text projection only: no HTML, expressions, paths, localization, formatting functions, or multiple placeholders."
+    "Visibility V0 (schema_version 4) is bounded conditional show/hide only: no boolean condition composition, animation, or focus management.",
+    "State Text V0 (schema_version 4) is one scalar-to-text projection only: no HTML, expressions, paths, localization, formatting functions, or multiple placeholders.",
+    "Bounded expressions (schema_version 5) add no free expressions, arbitrary JSON paths, host functions, HTML, Intl, locale, or time zone behavior, and no animation or focus management."
   ],
   "x-viewspec-app-schema-versions": [
     1,
     2,
     3,
-    4
+    4,
+    5
   ],
   "x-viewspec-binding-scope": "declared_resource_views_only",
   "x-viewspec-embedded-intent-schema": "https://viewspec.dev/agent-intent-bundle.schema.json",
@@ -1679,6 +2171,8 @@
     "schema_version 3 requires fixture_readonly_v0 plus interactive_state_v0 state, mutations, and selectors.",
     "schema_version 4 adds optional bounded visibility rules: per-screen show/hide conditions over declared state and selectors, at most one rule per (screen, target).",
     "schema_version 4 optionally projects one scalar state value into one exactly-once text binding through a literal {value} template.",
+    "schema_version 5 accepts every schema_version 4 construct, composes visibility conditions with all, any, and not (lists of 2 to 8, depth at most 3, at most 8 leaves per rule), and fills up to 8 named state_text placeholders from scalar state or selector counts through closed formatters.",
+    "A schema_version 1 to 4 bundle that uses a schema_version 5 construct fails with APP_V5_FEATURE_REQUIRES_SCHEMA_VERSION_5.",
     "Routes are static canonical paths only and must map to declared screens.",
     "The root route must resolve to exactly one route.",
     "Every screen must be reachable by at least one static route.",

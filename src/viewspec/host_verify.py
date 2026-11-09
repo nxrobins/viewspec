@@ -17,7 +17,14 @@ from importlib import resources
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from viewspec.emitters.react_registry import (
+    ReactComponentRegistry,
+    ReactRegistryError,
+    react_component_registry_from_manifest,
+)
 from viewspec.local_tools import (
+    REACT_TSX_FORBIDDEN_SURFACES,
+    _strip_tsx_literals_and_comments,
     atomic_write,
     check_artifact_dir,
     file_hash,
@@ -69,6 +76,18 @@ HOST_VERIFY_EXPECTED_CSS_LINES = [
 ]
 HOST_VERIFY_NODE_MODULE_BINS = ("tsc", "vite", "playwright")
 HOST_VERIFY_CODE_RE = re.compile(r"\b(HOST_VERIFY_[A-Z0-9_]+)\b")
+# A host registry module mounted in the reference host imports only React: the bounded host has no
+# other package, and the proof stays offline.
+HOST_VERIFY_REGISTRY_MODULE_MAX_BYTES = 256 * 1024
+HOST_VERIFY_REGISTRY_ALLOWED_SPECIFIERS = frozenset({"react"})
+# Every module specifier a statement names: `import ... from "x"` and `export ... from "x"`, on one
+# line or several, and a bare `import "x"`. The clause before `from` holds only names, braces,
+# commas, `*`, and whitespace, so a string inside a function body never reads as a specifier.
+HOST_VERIFY_REGISTRY_SPECIFIER_RES = (
+    re.compile(r"^[ \t]*(?:import|export)\b[\w$\s,{}*]*?\bfrom[ \t]*([\"'])(?P<spec>[^\"'\n]*)\1", re.MULTILINE),
+    re.compile(r"^[ \t]*import[ \t]*([\"'])(?P<spec>[^\"'\n]*)\1", re.MULTILINE),
+)
+HOST_VERIFY_REGISTRY_REQUIRE_RE = re.compile(r"\brequire\s*\(")
 
 
 class HostVerifyFailure(ValueError):
@@ -102,6 +121,8 @@ def verify_host_artifact_dir(
     started = time.perf_counter()
     artifact_path = Path(artifact_dir).resolve()
     manifest_summary: dict[str, Any] | None = None
+    requirements: dict[str, int] | None = None
+    registry_report: dict[str, Any] | None = None
     try:
         if target != HOST_VERIFY_TARGET:
             raise HostVerifyFailure("HOST_VERIFY_UNSUPPORTED_TARGET", f"Unsupported host verification target: {target}")
@@ -133,7 +154,15 @@ def verify_host_artifact_dir(
 
         manifest = _read_manifest(artifact_path)
         _assert_supported_manifest(manifest)
-        source_files = _artifact_files(artifact_path)
+        registry = _manifest_component_registry(manifest)
+        source_files = _artifact_files(artifact_path, registry=registry)
+        registry_module = source_files.get("registry_module")
+        if registry_module is not None:
+            _assert_registry_module_safe(registry_module)
+        requirements = _host_assertion_requirements(
+            manifest_summary, registry_node_count=_manifest_node_count(manifest) if registry is not None else 0
+        )
+        registry_report = _registry_report(registry, registry_module)
         artifact_hash = file_hash(source_files["tsx"])
         if artifact_hash != manifest.get("artifact_hash"):
             raise HostVerifyFailure(
@@ -168,7 +197,7 @@ def verify_host_artifact_dir(
                     verification_plan=verification_plan,
                     evidence_dir=Path(evidence_dir).resolve(),
                 )
-            assertions = _assert_runtime_report(runtime, manifest_summary=manifest_summary)
+            assertions = _assert_runtime_report(runtime, manifest_summary=manifest_summary, requirements=requirements)
             report = _base_report(
                 ok=True,
                 artifact_dir=artifact_path,
@@ -181,10 +210,12 @@ def verify_host_artifact_dir(
                 node_version=runtime["node_version"],
                 npm_version=runtime["npm_version"],
                 assertions=assertions,
+                assertion_requirements=requirements,
                 verification_diagnostics=runtime.get("verification_diagnostics", []),
                 evidence=runtime.get("evidence", []),
                 viewport_count=runtime.get("viewport_count", 1),
                 manifest_summary=manifest_summary,
+                registry=registry_report,
                 errors=[],
             )
             return _finalize_report(report, report_out)
@@ -197,6 +228,8 @@ def verify_host_artifact_dir(
                 install=install,
                 timings=timings,
                 manifest_summary=manifest_summary,
+                assertion_requirements=requirements,
+                registry=registry_report,
                 fix=exc.fix,
             ),
             report_out,
@@ -210,6 +243,8 @@ def verify_host_artifact_dir(
                 install=install,
                 timings=timings,
                 manifest_summary=manifest_summary,
+                assertion_requirements=requirements,
+                registry=registry_report,
             ),
             report_out,
         )
@@ -489,7 +524,23 @@ def _assert_supported_manifest(manifest: dict[str, Any]) -> None:
         )
 
 
-def _artifact_files(artifact_path: Path) -> dict[str, Path]:
+def _manifest_component_registry(manifest: dict[str, Any]) -> ReactComponentRegistry | None:
+    """The host component registry the manifest declares, or ``None`` for a plain artifact."""
+    section = manifest.get("registry")
+    if section is None:
+        return None
+    try:
+        return react_component_registry_from_manifest(section)
+    except ReactRegistryError as exc:
+        raise HostVerifyFailure(exc.code, exc.message, exc.fix) from exc
+
+
+def _manifest_node_count(manifest: dict[str, Any]) -> int:
+    nodes = manifest.get("nodes")
+    return len(nodes) if isinstance(nodes, dict) else 0
+
+
+def _artifact_files(artifact_path: Path, *, registry: ReactComponentRegistry | None = None) -> dict[str, Path]:
     files = {
         "tsx": artifact_path / "ViewSpecView.tsx",
         "manifest": artifact_path / "provenance_manifest.json",
@@ -500,7 +551,65 @@ def _artifact_files(artifact_path: Path) -> dict[str, Path]:
         raise HostVerifyFailure(
             "HOST_VERIFY_ARTIFACT_CHECK_FAILED", f"Artifact is missing required files: {', '.join(missing)}"
         )
+    if registry is not None:
+        module_name = registry.module_file_name
+        if module_name is None:
+            raise HostVerifyFailure(
+                "REGISTRY_MODULE_INVALID",
+                f"The reference host mounts only a registry module beside ViewSpecView.tsx; got {registry.module}.",
+                "Name the registry module as ./<name> and keep <name>.tsx beside ViewSpecView.tsx.",
+            )
+        module_path = artifact_path / module_name
+        if not module_path.is_file() or module_path.is_symlink():
+            raise HostVerifyFailure(
+                "REGISTRY_MODULE_INVALID",
+                f"Registry module {registry.module} resolves to no file {module_name} beside ViewSpecView.tsx.",
+                f"Copy the host registry module to {module_name} in the artifact directory; "
+                "viewspec init registry writes the default one.",
+            )
+        files["registry_module"] = module_path
     return files
+
+
+def _assert_registry_module_safe(module_path: Path) -> None:
+    """The mounted registry module is bounded, imports only React, and has no active surface."""
+    if module_path.stat().st_size > HOST_VERIFY_REGISTRY_MODULE_MAX_BYTES:
+        raise HostVerifyFailure(
+            "REGISTRY_MODULE_INVALID",
+            f"Registry module {module_path.name} is larger than {HOST_VERIFY_REGISTRY_MODULE_MAX_BYTES} bytes.",
+        )
+    try:
+        source = module_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise HostVerifyFailure(
+            "REGISTRY_MODULE_INVALID", f"Registry module {module_path.name} is not UTF-8 text."
+        ) from exc
+    for pattern in HOST_VERIFY_REGISTRY_SPECIFIER_RES:
+        for match in pattern.finditer(source):
+            if match.group("spec") not in HOST_VERIFY_REGISTRY_ALLOWED_SPECIFIERS:
+                raise HostVerifyFailure(
+                    "REGISTRY_MODULE_INVALID",
+                    f"Registry module {module_path.name} imports more than react: {match.group('spec')!r}",
+                    "The reference host has only React and Tailwind; keep the proof module self-contained.",
+                )
+    code = _strip_tsx_literals_and_comments(source)
+    if HOST_VERIFY_REGISTRY_REQUIRE_RE.search(code):
+        raise HostVerifyFailure(
+            "REGISTRY_MODULE_INVALID",
+            f"Registry module {module_path.name} calls require(); the reference host loads only ES module imports of react.",
+        )
+    for pattern, message in REACT_TSX_FORBIDDEN_SURFACES:
+        if pattern.search(code):
+            raise HostVerifyFailure(
+                "REGISTRY_MODULE_INVALID",
+                f"Registry module {module_path.name}: {message.replace('ViewSpecView.tsx', module_path.name)}",
+            )
+
+
+def _registry_report(registry: ReactComponentRegistry | None, module_path: Path | None) -> dict[str, Any] | None:
+    if registry is None or module_path is None:
+        return None
+    return {**registry.to_summary(), "module_file": module_path.name, "module_hash": file_hash(module_path)}
 
 
 def _assert_workspace_safe(host_dir: Path, artifact_path: Path) -> None:
@@ -562,10 +671,14 @@ def _copy_artifact_files(source_files: dict[str, Path], host_dir: Path) -> str:
         "manifest": generated / "provenance_manifest.json",
         "diagnostics": generated / "diagnostics.json",
     }
+    registry_module = source_files.get("registry_module")
+    if registry_module is not None:
+        # The host-owned module sits beside the view, where its relative import resolves.
+        targets["registry_module"] = generated / registry_module.name
     for key, source in source_files.items():
         shutil.copyfile(source, targets[key])
     copied = sorted(path.name for path in generated.iterdir() if path.is_file())
-    if copied != ["ViewSpecView.tsx", "diagnostics.json", "provenance_manifest.json"]:
+    if copied != sorted(path.name for path in targets.values()):
         raise HostVerifyFailure(
             "HOST_VERIFY_ARTIFACT_HASH_MISMATCH", "Generated host artifact directory contains unexpected files."
         )
@@ -756,10 +869,18 @@ def _assert_runtime_report(
         "aesthetic_layout_assertion_count": int(assertions.get("aesthetic_layout_assertion_count", 0)),
         "aesthetic_profile_assertion_count": int(assertions.get("aesthetic_profile_assertion_count", 0)),
         "payload_binding_count": int(assertions.get("payload_binding_count", 0)),
+        "registry_primitive_assertion_count": int(assertions.get("registry_primitive_assertion_count", 0)),
     }
     requirements = requirements or _host_assertion_requirements(manifest_summary)
     if normalized["dom_count"] < requirements["dom_count"]:
         raise HostVerifyFailure("HOST_VERIFY_DOM_NODE_MISSING", "Browser report did not include a DOM assertion.")
+    expected_registry_count = requirements.get("registry_primitive_assertion_count", 0)
+    if normalized["registry_primitive_assertion_count"] < expected_registry_count:
+        raise HostVerifyFailure(
+            "HOST_VERIFY_DOM_NODE_MISSING",
+            f"Browser report included {normalized['registry_primitive_assertion_count']} data-ir-primitive assertions "
+            f"for {expected_registry_count} registry-rendered nodes.",
+        )
     if normalized["style_assertion_count"] < requirements["style_assertion_count"]:
         raise HostVerifyFailure(
             "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK",
@@ -785,12 +906,17 @@ def _assert_runtime_report(
     return normalized
 
 
-def _host_assertion_requirements(manifest_summary: dict[str, Any] | None) -> dict[str, int]:
+def _host_assertion_requirements(
+    manifest_summary: dict[str, Any] | None, *, registry_node_count: int = 0
+) -> dict[str, int]:
+    """What the browser report must contain. ``registry_node_count`` is the manifest node count of a
+    registry build, where every node must carry its ``data-ir-primitive`` through the host component."""
     return {
         "aesthetic_layout_assertion_count": _manifest_summary_aesthetic_layout_node_count(manifest_summary),
         "aesthetic_profile_assertion_count": 1 if _manifest_summary_has_aesthetic_profile(manifest_summary) else 0,
         "dom_count": 1,
         "grid_span_assertion_count": _manifest_summary_aesthetic_span_node_count(manifest_summary),
+        "registry_primitive_assertion_count": max(0, int(registry_node_count)),
         "style_assertion_count": 4,
     }
 
@@ -859,6 +985,7 @@ def _base_report(
     evidence: list[dict[str, Any]] | None = None,
     viewport_count: int = 1,
     manifest_summary: dict[str, Any] | None = None,
+    registry: dict[str, Any] | None = None,
     errors: list[dict[str, str]] | None = None,
     target: str = HOST_VERIFY_TARGET,
 ) -> dict[str, Any]:
@@ -875,6 +1002,7 @@ def _base_report(
         "node_version": node_version,
         "npm_version": npm_version,
         "manifest_summary": manifest_summary,
+        "registry": registry,
         "assertions": assertions
         or {
             "action_count": 0,
@@ -884,6 +1012,7 @@ def _base_report(
             "grid_column_assertion_count": 0,
             "grid_span_assertion_count": 0,
             "payload_binding_count": 0,
+            "registry_primitive_assertion_count": 0,
             "style_assertion_count": 0,
         },
         "assertion_requirements": assertion_requirements or _host_assertion_requirements(manifest_summary),
@@ -904,6 +1033,8 @@ def _error_report(
     timings: dict[str, int] | None = None,
     fix: str | None = None,
     manifest_summary: dict[str, Any] | None = None,
+    assertion_requirements: dict[str, int] | None = None,
+    registry: dict[str, Any] | None = None,
     errors: list[dict[str, str]] | None = None,
     target: str = HOST_VERIFY_TARGET,
     verification_diagnostics: list[dict[str, Any]] | None = None,
@@ -915,6 +1046,8 @@ def _error_report(
         install=install,
         timings=timings or {},
         manifest_summary=manifest_summary,
+        assertion_requirements=assertion_requirements,
+        registry=registry,
         target=target,
         verification_diagnostics=verification_diagnostics,
         evidence=evidence,

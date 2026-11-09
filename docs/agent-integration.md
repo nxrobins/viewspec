@@ -1,21 +1,25 @@
 # ViewSpec Agent Integration
 
-Agents write semantic JSON; ViewSpec compiles it. An agent should emit `viewspec.intent.json` as
-IntentBundle JSON, or `viewspec.app.json` as AppBundle JSON for a multi-screen tool, and never write
-HTML, CSS, React, or CompositionIR as source. Everything runs locally, with no SDK network calls.
+Agents write semantic JSON; ViewSpec compiles it. An agent should emit an IntentBundle as
+`viewspec.compact.json` in the compact form, or as `viewspec.intent.json` in the canonical form when
+the compact form lacks a construct. For a multi-screen tool it emits `viewspec.app.json` as AppBundle
+JSON. It never writes HTML, CSS, React, or CompositionIR as source. Everything runs locally, with no
+SDK network calls.
 
 ## Canonical Agent Loop
 
 1. Load the published contract: `agent-system-prompt.txt` plus the JSON Schema for the bundle kind.
    They are published at `https://viewspec.dev/`, and `scripts/export_agent_contract.py` regenerates
-   them from `viewspec.agent` and `viewspec.app_bundle`.
+   them from the SDK. The [system prompt](#system-prompt) asks for the compact form by default.
 2. Generate strict JSON, ideally with schema-constrained structured output, and save it.
-3. Run `viewspec check viewspec.intent.json --json`.
-4. On failure, feed `correction_prompt` back and regenerate the full bundle.
-5. Run `viewspec compile viewspec.intent.json --out dist/`, then `viewspec check dist/ --json`.
-6. Run `viewspec prove viewspec.intent.json --out .viewspec-proof` before claiming the UI is valid.
+3. Run `viewspec check viewspec.compact.json --json`, or name `viewspec.intent.json` for a canonical source.
+4. On failure, feed `correction_prompt` back and regenerate the full document.
+5. Run `viewspec compile viewspec.compact.json --out dist/`, then `viewspec check dist/ --json`.
+6. Run `viewspec prove viewspec.compact.json --out .viewspec-proof` before claiming the UI is valid.
    Read `.viewspec-proof/PROOF.md` first; use `proof_report.json` for status and
    `support_bundle.json` for redacted failure triage.
+
+The commands below show the canonical file. Every one takes `viewspec.compact.json` the same way.
 
 ```bash
 viewspec init --out viewspec.intent.json
@@ -48,11 +52,14 @@ Any other MCP client takes the same command:
 { "mcpServers": { "viewspec": { "command": "viewspec", "args": ["mcp"] } } }
 ```
 
+The server exposes six tools:
+
 | Tool | Does |
 |---|---|
-| `init` | Writes a starter `viewspec.intent.json`, `viewspec.app.json`, or `DESIGN.md`. |
-| `compile` | Compiles an IntentBundle or AppBundle file. The kind is detected from the file. |
-| `check` | Checks a source file or a compiled directory. A failed source includes `correction_prompt`. |
+| `init` | Writes a starter `viewspec.intent.json`, `viewspec.compact.json`, `viewspec.app.json`, or `DESIGN.md`. |
+| `compile` | Compiles an IntentBundle or AppBundle file. The kind is detected from the file. An IntentBundle gets the lossless fixes, reported under `fixes`. |
+| `check` | Checks a source file or a compiled directory. An IntentBundle gets the lossless fixes, reported under `fixes`; a failed source includes `correction_prompt`. `canonical_out` writes the canonical bundle of an IntentBundle source, which for a compact source is the document its fixes and canonical issues name. |
+| `patch` | Applies an RFC 6902 JSON Patch (`operations`) to an IntentBundle file in memory and returns the `check` report. The file is unchanged; `out` writes the patched source, and `canonical_out` writes its canonical bundle. |
 | `prove` | Compiles and verifies a source, or browser-verifies a compiled directory. |
 | `studio` | Starts a background preview and returns its URL; `stop=True` ends it. One runs at a time. |
 
@@ -252,7 +259,7 @@ else:
 
 `validate_agent_intent_bundle()` accepts a JSON string or a dictionary. Dictionary payloads must still be JSON-serializable and fit the same 256KB serialized-size cap as raw JSON text. The validator checks the agent contract, parses successful payloads through `IntentBundle.from_json()`, and by default compiles with the local reference compiler so diagnostics are returned in an agent-readable shape.
 
-Every validation issue includes `severity`, `code`, `path`, `message`, and `suggestion`. Validation payloads also include a bounded `repair_checklist` of retry invariants derived from the issue codes. `agent_correction_prompt()` returns the same checklist inside a bounded repair report so agents regenerate the full IntentBundle instead of patching fragments; the raw validation result still exposes the full issue list for tooling.
+Every validation issue includes `severity`, `code`, `path`, `message`, and `suggestion`. Validation payloads also include a bounded `repair_checklist` of retry invariants derived from the issue codes. `agent_correction_prompt()` returns the same checklist inside a bounded repair report. The prompt asks the agent to return the whole document, not a fragment, and to return an RFC 6902 JSON Patch only when the host asks for one. The raw validation result still exposes the full issue list for tooling. See [the correction prompt](#the-correction-prompt) for its keys.
 
 The CLI exposes the same repair loop:
 
@@ -278,13 +285,20 @@ assert report["ok"], report["correction_prompt"]
 
 `viewspec init` is a scaffold only. Agents must replace sample labels, values, and structure with the user's actual UI intent before compiling. Run `viewspec init design --out DESIGN.md` only when the repo does not already have a design file; an existing `DESIGN.md` remains the theming source of truth.
 
-`viewspec compile` performs the same intent validation before writing output files. If compilation returns an intent validation payload, feed its `correction_prompt` back to the agent and regenerate the full IntentBundle instead of patching fragments.
+`viewspec compile` performs the same intent validation before writing output files. If compilation returns an intent validation payload, feed its `correction_prompt` back to the agent. The agent regenerates the full document unless the host asks for a JSON Patch.
 
 `viewspec check` treats the compiled artifact as a proof boundary. For IntentBundle artifacts, DOM `data-ir-id`, `data-binding-id`, and `data-action-id` values must agree with `provenance_manifest.json`; binding/action ids cannot be duplicated; binding nodes must retain source `content_refs`; and binding/action manifest entries must include the matching `viewspec:binding:*` or `viewspec:action:*` intent ref. Human check output prints the bounded manifest summary, including root aesthetic profile, compact style-delta counts, and checked aesthetic layout columns/spans when present; `viewspec check --json` returns the same summary for tools.
 
-## AppBundle V1/V2/V3/V4
+## AppBundle V1 to V5
 
 Use AppBundle JSON for the first narrow multi-screen internal-tool app-generation contract. Agents still emit strict JSON, but the source file is `viewspec.app.json`: app metadata, static routes, fixture resources, and embedded local V1 `IntentBundle`s for each screen. `schema_version: 1` reports `resource_binding: "unbound_v0"`; `schema_version: 2` adds proof-only `resource_binding: "fixture_readonly_v0"` with declared per-screen `resource_views`; `schema_version: 3` adds bounded `interactive_state_v0` state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer; `schema_version: 4` adds optional bounded `visibility` rules — per-screen show/hide conditions over declared state and selectors (at most one rule per screen target), baked into compiled screens as `data-visibility-rule` markers with initial `hidden` attributes, replayable via `expect_visibility`, and exported from the generated reducer as `evaluateViewSpecVisibility`.
+
+`schema_version: 5` adds bounded expressions to V4: visibility conditions composed with `all`, `any`,
+and `not`, `state_text` rules with up to 8 named placeholders, and closed formatters (`integer`,
+`decimal`, `percent`, `currency`, `date_iso`) that use no locale or time zone. Use it only when a
+screen needs one of those three. V4 stays the golden path, and every starter keeps its schema
+version. A V1 to V4 bundle that uses a V5 construct fails with
+`APP_V5_FEATURE_REQUIRES_SCHEMA_VERSION_5`. See [AppBundle V5](app-bundle-v0.md#appbundle-v5).
 
 For reference-sensitive screens, declare `screen.presentation` with stable region, motif, and binding targets. Put shared layout in `base`, viewport overrides in `compact`/`medium`/`wide` variants, and per-record or per-group geometry in a motif rule's `items` layout. Use named `area` claims plus an `areas` matrix when source order is not visual order, and declare relational anchors only at viewports where their geometry is true. An `operations_workspace` keeps sibling sidebar/main regions visible, stacks them at compact/medium, and uses a wide rail/content row; use a `hero` motif for the primary page eyebrow/title to preserve native header/h1 semantics. Static and React consume the same deterministic `presentation_plan.json` and report the same hash; an inferred fallback emits `APP_PRESENTATION_INFERRED`. React proof checks declared anchors at 390, 768, and 1440 pixels and identifies the first divergent target/property.
 
@@ -298,11 +312,11 @@ viewspec compile viewspec.app.json --out app-dist --target html-tailwind-app --j
 viewspec prove viewspec.app.json --out .viewspec-app-proof --with-shell --json
 ```
 
-The AppBundle contract is physically bounded: 1 MiB raw JSON, 16 screens, 32 routes, 8 fixture resources, 100 records per resource, 32 scalar fields per record, 2,048 characters per scalar string, 256 KiB per embedded `IntentBundle`, 256 KiB for the resolved presentation plan, and 1 MiB aggregate embedded intent JSON. Presentation allows at most 96 rules and 64 anchors per screen with 1–4 grid tracks/rows. V2 binding adds max 32 resource views per app, 8 per screen, 50 record refs per view, 16 fields per view, 800 record-field assertions, and 128 KiB serialized assertion report. V3 state adds max 32 state entries, 128 mutations, 16 ops per mutation, 64 selectors, 8 selector ops, 32 replay assertions, 32 events per replay assertion, 64 KiB generated reducer, and 64 KiB state manifest. Routes are static canonical paths only; route paths never become proof output paths. AppBundle-owned objects reject unknown fields and no-network surfaces. Embedded screen intents must pass the existing local V1 validator.
+The AppBundle contract is physically bounded: 1 MiB raw JSON, 16 screens, 32 routes, 8 fixture resources, 100 records per resource, 32 scalar fields per record, 2,048 characters per scalar string, 256 KiB per embedded `IntentBundle`, 256 KiB for the resolved presentation plan, and 1 MiB aggregate embedded intent JSON. Presentation allows at most 96 rules and 64 anchors per screen with 1–4 grid tracks/rows. V2 binding adds max 32 resource views per app, 8 per screen, 50 record refs per view, 16 fields per view, 800 record-field assertions, and 128 KiB serialized assertion report. V3 state adds max 32 state entries, 128 mutations, 16 ops per mutation, 64 selectors, 8 selector ops, 32 replay assertions, 32 events per replay assertion, 64 KiB generated reducer, and 64 KiB state manifest. V4 visibility adds max 64 rules and one rule per screen target. V5 adds 2 to 8 conditions per `all` or `any` list, nesting depth 3, 8 leaves per rule, 512-character multi-value templates, and 8 placeholders per rule. Routes are static canonical paths only; route paths never become proof output paths. AppBundle-owned objects reject unknown fields and no-network surfaces. Embedded screen intents must pass the existing local V1 validator.
 
-`viewspec prove` writes `.viewspec-app-proof/APP_PROOF.md`, `.viewspec-app-proof/app_proof_report.json`, `.viewspec-app-proof/app_support_bundle.json`, and per-screen `viewspec.intent.json`, `artifact/index.html`, `provenance_manifest.json`, and `diagnostics.json`. React proofs additionally write a hash-linked `app_analysis_evidence.json`: the main report keeps compact analyzer coverage and phase summaries while the evidence file retains complete Freerange/Pretext host reports for local diagnostics. The proof report uses `proof_level: "app_contract_source_artifacts"`, `target: "html-tailwind"`, the validated resource binding mode, and for V2/V3 includes `binding_scope: "declared_resource_views_only"`, assertion counts, per-view status, and a binding digest.
+`viewspec prove` writes `.viewspec-app-proof/APP_PROOF.md`, `.viewspec-app-proof/app_proof_report.json`, `.viewspec-app-proof/app_support_bundle.json`, and per-screen `viewspec.intent.json`, `artifact/index.html`, `provenance_manifest.json`, and `diagnostics.json`. React proofs additionally write a hash-linked `app_analysis_evidence.json`: the main report keeps compact analyzer coverage and phase summaries while the evidence file retains complete Freerange/Pretext host reports for local diagnostics. The proof report uses `proof_level: "app_contract_source_artifacts"`, `target: "html-tailwind"`, the validated resource binding mode, and for V2 to V5 includes `binding_scope: "declared_resource_views_only"`, assertion counts, per-view status, and a binding digest.
 
-Static Shell V0 consumes the same validated AppBundle contract and writes a local shell artifact with `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. `viewspec compile` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, `presentation_plan.json`, checked screen artifacts, and for V3 `state_reducer.ts` plus `state_manifest.json`; `viewspec prove --with-shell` writes the same byte-identical shell under `.viewspec-app-proof/app-shell/` and records `shell_artifact_hash`, `shell_manifest_hash`, presentation-plan hash/diagnostics, no-network policy, route assertions, resource binding assertions when V2/V3 is enabled, per-screen proof data, and V3 `state_contract_hash`, state artifact hashes, replay status, and generated reducer conformance status. Static Shell V0 is bounded to 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, 8 MiB aggregate embedded checked screen HTML, 64 KiB generated reducer, and 64 KiB state manifest; it rejects external network/embed/script surfaces and generated framework/backend adapters.
+Static Shell V0 consumes the same validated AppBundle contract and writes a local shell artifact with `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. `viewspec compile` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, `presentation_plan.json`, checked screen artifacts, and for V3 to V5 `state_reducer.ts` plus `state_manifest.json`; `viewspec prove --with-shell` writes the same byte-identical shell under `.viewspec-app-proof/app-shell/` and records `shell_artifact_hash`, `shell_manifest_hash`, presentation-plan hash/diagnostics, no-network policy, route assertions, resource binding assertions for V2 to V5, per-screen proof data, and for V3 to V5 `state_contract_hash`, state artifact hashes, replay status, and generated reducer conformance status. Static Shell V0 is bounded to 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, 8 MiB aggregate embedded checked screen HTML, 64 KiB generated reducer, and 64 KiB state manifest; it rejects external network/embed/script surfaces and generated framework/backend adapters.
 
 AppBundle proof does not prove runtime browser navigation, dynamic routes, live DOM rebinding, transformed fixture values, deployable app scaffolding, Zustand/Redux/SwiftData adapters, API clients, backends, persistence, CRDTs, websocket sync, optimistic server reconciliation, accessibility certification, pixel-perfect visual equivalence, or arbitrary host-app compatibility.
 
@@ -355,16 +369,253 @@ AppBundle proof does not prove runtime browser navigation, dynamic routes, live 
 }
 ```
 
+## Compact form
+
+The canonical bundle above spells out every node, binding, group, and member. The compact form is
+the same bundle written as the Python builder's calls, in JSON. The starter dashboard is 2,604
+bytes of compact JSON as a canonical bundle and 415 bytes in the compact form.
+
+```json
+{
+  "schema_version": 1,
+  "format": "compact",
+  "id": "sales_dashboard",
+  "title": "Sales dashboard",
+  "aesthetic": "aesthetic.calm_ops",
+  "motifs": [
+    {"id": "kpis", "kind": "dashboard", "group": "cards",
+     "cards": [{"id": "revenue", "label": "Revenue", "value": "$2.4M"}]},
+    {"id": "items", "kind": "table", "rows": [{"label": "Design System Audit", "value": "$4,200"}]},
+    {"id": "contact", "kind": "form", "fields": [{"id": "message", "label": "Message", "value": ""}]},
+    {"id": "intro", "kind": "hero", "eyebrow": "Ops", "title": "Incident console"}
+  ],
+  "inputs": [{"id": "query", "label": "Search"}],
+  "styles": [{"target": "motif:kpis", "token": "density.compact"}],
+  "actions": [
+    {"id": "send", "kind": "submit", "label": "Send", "target": "motif:contact", "payload": ["message"]},
+    {"id": "search", "kind": "search", "label": "Search", "collection": "items", "payload": ["query"]}
+  ]
+}
+```
+
+`"format": "compact"` marks the form. A canonical bundle never carries `format`, so detection is
+exact. `viewspec check`, `viewspec compile`, and `viewspec prove` normalize a compact file into the
+canonical bundle, then run the unchanged canonical validator and compiler on it. The Python
+`check()` and `prove()` do the same for a path. A canonical file is validated and compiled exactly
+as before, byte for byte.
+
+Normalization drives `ViewSpecBuilder`, so the result is the bundle the same builder calls export:
+`normalize(compact) == {"schema_version": 1, **builder.build_bundle().to_json()}`. Derived ids are
+the builder's: an item without `id` becomes `<motif>_row_<n>`, `_card_`, `_field_`, `_item_`, or
+`_branch_`, counting every item of the motif, and its bindings are `<node>_label`, `<node>_value`,
+and `<node>_<attribute>`. Normalization is deterministic: one compact document gives one canonical
+document.
+
+Root keys:
+
+| Key | Meaning |
+|---|---|
+| `schema_version` | Optional; `1`. |
+| `format` | `"compact"`. Required. |
+| `id` | The view id. Required. The substrate id is `<id>_substrate` and the root node id is `<id>`. |
+| `title` | The root node's `title` attribute. |
+| `aesthetic` | One `aesthetic.*` profile token. It becomes the last style, `aesthetic_profile` on `view:<id>`. |
+| `root` | `{"min_children", "max_children"}` for the root region. |
+| `regions` | Regions below root: `{id, parent="root", role=id, layout="stack", min_children=1, max_children=null}`. Without this key the bundle has `root` and `main`; with it, `root` plus exactly the listed regions. |
+| `motifs` | Motifs in order. Each has `id`, `kind`, optional `region` (default `main`) and `group`, and one item key. |
+| `inputs` | Text inputs: `{id, label, value="", region="main", group}`. |
+| `styles` | `{id?, target, token}`. A missing id becomes `style_<n>`. |
+| `actions` | `{id, kind, label, region="main", target or collection, payload}`. |
+
+Item keys by motif kind:
+
+| Kind | Key | Item |
+|---|---|---|
+| `table` | `rows` | `{id?, label, value?, values?}` |
+| `dashboard` | `cards` | `{id?, label, value, present_as?}` |
+| `detail` | `fields` | `{id?, label, value?, values?}` |
+| `form` | `fields` | `{id?, label, value=""}` |
+| `list` | `items` | `{id?, label, value?, description?, values?}` |
+| `comparison` | `items` | `{id?, label, value}` |
+| `outline` | `items` | `{id?, label}` |
+| `hero` | none | `title`, `description`, and `eyebrow` on the motif |
+| `empty_state`, `loading_state`, `error_state` | none | `title` and `description` on the motif |
+
+`values` is an object of extra attributes; each becomes a value binding `<node>_<attribute>`. It may
+not carry `label`, `value`, or `description`. Labels and values are any JSON value except `null`.
+
+An action takes `target`, an explicit `region:id`, `binding:id`, `motif:id`, or `view:id`, or
+`collection`, the id of a table or list motif. `payload` lists form field or input ids; each binds
+to that field's `<id>_value` binding. A payload entry may also name a binding id directly.
+`bulk_action` needs a hand-declared selection binding and is not available in the compact form.
+
+Motifs, inputs, styles, the aesthetic profile, and actions normalize in that order, so the
+canonical `styles[i]` is the compact `styles[i]`.
+
+The compact form rejects what the builder cannot express or would lose: an unknown key
+(`COMPACT_UNKNOWN_FIELD`), a missing or invalid field (`COMPACT_MISSING_FIELD`,
+`COMPACT_FIELD_INVALID`), a reused id (`COMPACT_DUPLICATE_ID`), an unknown motif kind
+(`COMPACT_MOTIF_KIND_UNKNOWN`), a motif without its items (`COMPACT_MOTIF_ITEMS_MISSING`), an
+undeclared region (`COMPACT_REGION_UNKNOWN`), an action kind outside the compact form
+(`COMPACT_ACTION_KIND_UNSUPPORTED`), an action target or collection that is not declared
+(`COMPACT_ACTION_TARGET_UNKNOWN`), a payload entry that names nothing
+(`COMPACT_ACTION_PAYLOAD_UNKNOWN`), and a document over 256 KB (`COMPACT_TOO_LARGE`). Issues use
+the shared shape, with `$.`-rooted paths into the compact document. Everything the canonical
+contract checks, such as style targets, motif completeness, collection action rules, and the caps,
+is reported by the canonical validator against the normalized bundle, with canonical
+`$.view_spec` paths; `--canonical-out` writes the document those paths refer to. The 256 KB cap
+applies to the compact file, to the patched compact text, and to the normalized bundle.
+
+```bash
+viewspec init compact --out viewspec.compact.json
+viewspec check viewspec.compact.json --json --canonical-out viewspec.intent.json
+viewspec compile viewspec.compact.json --out dist/
+```
+
+The compact form composes with the [repair loop](#error-repair-loop) in a fixed order. `check` and
+`compile` read the file and apply `--patch` to it as written. Patch pointers therefore name the
+compact document, such as `/motifs/0/cards/1/value`. Then the compact document is checked and
+normalized; its own problems stop there and keep compact paths. The lossless fixes and the canonical
+validator run next, on the canonical document. Their `fixes` and `issues` carry canonical paths,
+such as `$.view_spec.bindings[7].present_as`, into the document that `--canonical-out` writes.
+`check --json` reports `source_format: "compact"`, so an agent knows which document a path names. A
+`present_as` alias on a card, such as `metric`, reaches the canonical binding and is fixed there like
+any other alias.
+
+`--canonical-out PATH` on `check` and `compile` writes the canonical document after the lossless
+fixes, with the formatting `viewspec init` uses. It writes whenever there is one: a compact source
+has one as soon as it normalizes, even when the canonical check then fails. It never writes over the
+input file or a compiled output file. For a canonical source it writes the fixed document with sorted
+keys. `check --json` reports the written file as `canonical_out`, and `compile --json` reports it
+under `paths`. `--patched-out` writes the patched compact text. `--fixed-out` keeps the key order of
+a canonical source, so on a compact source it is a usage error that names `--canonical-out`. The MCP
+`patch` tool takes a compact file as well. The payload for a canonical source is unchanged.
+
+A compact compile records `source_format: "compact"` and `compact_source_sha256` in
+`provenance_manifest.json`. `compact_source_sha256` and `raw_source_hash` hash the compact text
+after any patch. `source_hash` hashes exactly the bytes `--canonical-out` writes, after the fixes. A
+canonical compile writes neither key and hashes the source as written, or the patched text. Compact
+and canonical twins produce the same `artifact_hash` and `semantic_digest`.
+
+The JSON Schema is published as
+[`agent-intent-compact.schema.json`](https://viewspec.dev/agent-intent-compact.schema.json). The
+Python entry points are `viewspec.compact_form.detect_compact()` and
+`viewspec.compact_form.normalize()`; the MCP `init` tool takes `what="compact"`. AppBundle screens
+take canonical IntentBundles.
+
 ## Error Repair Loop
 
-When validation fails:
+`viewspec check` and `viewspec compile` first apply lossless fixes to an IntentBundle, then validate
+it. A fix is lossless when it cannot change what the compiler emits: adding `schema_version: 1`,
+adding an empty `slots` or `edges` map to a node, setting the root region's `parent_region` to `""`,
+moving a field to its one legal position (for example `regions` placed at the root instead of in
+`view_spec`), or spelling a `present_as` alias canonically (`image` becomes `image_slot`). Every fix
+is reported under `fixes` as `{code, path, message, lossy: false}` with a `FIX_SCHEMA_VERSION_ADDED`,
+`FIX_EMPTY_RELATIONS_ADDED`, `FIX_ROOT_PARENT_REGION_SET`, `FIX_FIELD_RELOCATED`, or
+`FIX_PRESENT_AS_ALIAS` code. When the fixed document is valid, `ok` is true and `compile` compiles the
+fixed document. The source file is not changed; `--fixed-out PATH` writes the fixed source so the
+agent can keep it, and `--no-fix` reports the same problems as issues instead.
 
-1. Pass `agent_correction_prompt(result)` back to the agent.
-2. Require the agent to regenerate the full IntentBundle.
-3. Validate again.
-4. Compile only after `result.valid` is true.
+Everything else is lossy: ViewSpec never adds, removes, or re-targets a node, binding, group member,
+motif member, style, or action, and never guesses a value. `viewspec.agent.ISSUE_CODE_CLASSIFICATION`
+maps every issue code to `lossless_fixable` or `lossy`. A lossy problem stays an issue for the agent.
 
-The correction prompt intentionally contains compact structured issues. It should not ask the agent to patch fragments or emit prose.
+```bash
+viewspec check viewspec.intent.json --json --fixed-out viewspec.intent.json
+```
+
+```json
+{
+  "ok": true,
+  "compile_check": "passed",
+  "issues": [],
+  "fixes": [
+    {"code": "FIX_SCHEMA_VERSION_ADDED", "path": "$.schema_version", "message": "Added schema_version 1; a document without it is schema version 1 already.", "lossy": false}
+  ],
+  "fixed_out": "viewspec.intent.json"
+}
+```
+
+When issues remain, the agent fixes them in one of two ways:
+
+1. Regenerate the full document from `correction_prompt`. The prompt lists only the remaining
+   issues and names the fixes already applied under `applied_fixes`, so the agent does not redo them.
+2. Apply an RFC 6902 JSON Patch with `--patch OPS.json`. The patch is applied to the source in
+   memory, then the result is validated and, for `compile`, compiled. `--patched-out PATH` writes the
+   patched source. A patch holds at most 256 `add`, `remove`, `replace`, `move`, `copy`, or `test`
+   operations, and the patched document must stay under 256 KB. It may target only an IntentBundle
+   source file, never a compiled directory, an imported HTML file, or an AppBundle
+   (`PATCH_TARGET_FORBIDDEN`). A patch that does not apply is reported as one issue whose `path`
+   names the operation (`patch[2]`) and whose code is `PATCH_INVALID`, `PATCH_APPLY_FAILED`,
+   `PATCH_TEST_FAILED`, `PATCH_TOO_MANY_OPERATIONS`, or `PATCH_RESULT_TOO_LARGE`; the source is
+   validated only when the whole patch applied.
+
+```bash
+cat > ops.json <<'EOF'
+[
+  {"op": "test", "path": "/view_spec/bindings/0/present_as", "value": "chart"},
+  {"op": "replace", "path": "/view_spec/bindings/0/present_as", "value": "label"}
+]
+EOF
+viewspec check viewspec.intent.json --patch ops.json --patched-out viewspec.intent.json --json
+viewspec compile viewspec.intent.json --patch ops.json --out dist/
+```
+
+The MCP `patch` tool runs the same loop without a file: pass `operations` and an optional `out` path.
+Then validate again, and compile only after `ok` is true. `viewspec.agent.REPAIR_LOOP_PROMPT_SECTION`
+holds the text that tells an agent these rules, and the system prompt carries it verbatim.
+
+### The correction prompt
+
+`correction_prompt` is a few sentences of instructions and one line of JSON, the bounded report. The
+instructions match the form of the source:
+
+- A canonical source gets "Regenerate the full ViewSpec IntentBundle JSON."
+- A compact source gets "Regenerate the full ViewSpec compact document". The prompt says that
+  issue paths under `$.view_spec` and `$.substrate` name the canonical document that
+  `viewspec check --canonical-out` writes, and that patch pointers name the compact document.
+
+Both forms ask for the whole document, not a fragment. They ask for an RFC 6902 JSON Patch only when
+the host asks for one. The report keeps `repair_mode` and `retry_command` and adds `source_format`.
+`repair_mode` is `regenerate_full_intent_bundle` or `regenerate_full_compact_document`.
+`retry_command` and `patch_command` name the file that was checked, such as
+`viewspec check orders.compact.json --json`. When the caller passes no file, as
+`validate_intent_text()` does, they name `viewspec.intent.json` or `viewspec.compact.json`.
+`agent_correction_prompt(result, source_format="compact", source_path="orders.compact.json")` builds
+the same prompt in Python.
+
+## System prompt
+
+`agent-system-prompt.txt` is `viewspec.agent.AGENT_SYSTEM_PROMPT`.
+`viewspec.agent_prompt.build_agent_system_prompt()` generates it from the contract registries, so it
+names only values the validator accepts. The same code always gives the same bytes. The sections come
+in this order:
+
+1. The role and the output rule: strict JSON only.
+2. Common mistakes, most frequent first. `viewspec.agent_prompt.COMMON_MISTAKES` pairs each rule with
+   the issue codes it prevents. Reorder it from the top issue codes of an
+   [agent eval](../CONTRIBUTING.md) report.
+3. The authoring format: the compact form by default, as `viewspec.compact.json`, and the canonical
+   form only for `bulk_action`, as `viewspec.intent.json`, and in AppBundle screens. These are the
+   file names the [agent skill](../skills/viewspec/SKILL.md) uses. A complete compact document sits
+   between `<example>` and `</example>`. Then comes
+   `viewspec.compact_form.COMPACT_FORM_PROMPT_SECTION` without its own closing example.
+4. One compact motif per kind, all 11 kinds, one line of JSON each. The compact schema publishes the
+   same motifs as `x-viewspec-examples` on its motif definition.
+5. The canonical contract: the id pattern, the root shape, attribute addresses, the value registries,
+   the aesthetic profiles, motif completeness, the collection action bounds, and the 256 KB cap. The
+   published JSON Schema carries the per-array caps.
+6. The repair loop, `REPAIR_LOOP_PROMPT_SECTION`.
+7. Proof and handoff: `viewspec check` and `viewspec prove` on `viewspec.compact.json`.
+8. The AppBundle sections, `viewspec.agent_prompt.APP_PROMPT_SECTIONS`: the contract through
+   `schema_version` 4, then `viewspec.app_agent_schema.APPBUNDLE_V5_PROMPT_SECTION`. The version 4
+   text states each limit that version 5 lifts as a fact of version 4, so every sentence holds for
+   both versions.
+9. Optional reference grounding.
+
+Tests pin two budgets. Everything before the AppBundle sections stays within 6,000 bytes, and the
+AppBundle sections stay within 6,000 bytes. Tests also run `viewspec check` on the worked example and
+on each motif example, alone in a compact document, and expect `ok` with no `fixes`.
 
 
 ## Optional Reference Grounding

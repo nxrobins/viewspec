@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, delimiter, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,6 +12,10 @@ const generatedDir = join(fixtureRoot, "src", "generated");
 const tmpDir = join(fixtureRoot, ".tmp");
 const intentPath = join(repoRoot, "tests", "fixtures", "tailwind_admin_workspace.intent.json");
 const markerPath = join(tmpDir, "host-proof-check.json");
+// HOST_PROOF_REGISTRY=1 compiles through the fixture host component registry and mounts its module.
+const registryMode = process.env.HOST_PROOF_REGISTRY === "1";
+const registryDir = join(repoRoot, "tests", "fixtures", "react_registry");
+const registryModule = "viewspec-registry.tsx";
 
 function fail(code, message) {
   console.error(`${code}: ${message}`);
@@ -47,7 +51,8 @@ async function sha256(path) {
 async function assertGeneratedIdentity() {
   const files = (await readdir(generatedDir)).sort();
   const expected = ["ViewSpecView.tsx", "diagnostics.json", "provenance_manifest.json"];
-  if (JSON.stringify(files) !== JSON.stringify(expected)) {
+  if (registryMode) expected.push(registryModule);
+  if (JSON.stringify(files) !== JSON.stringify(expected.sort())) {
     fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", `generated output must contain only ${expected.join(", ")}`);
   }
   const manifest = JSON.parse(await readFile(join(generatedDir, "provenance_manifest.json"), "utf8"));
@@ -55,9 +60,16 @@ async function assertGeneratedIdentity() {
   if (manifest.artifact_hash !== artifactHash) {
     fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "manifest artifact_hash does not match ViewSpecView.tsx");
   }
+  if (registryMode !== Boolean(manifest.registry)) {
+    fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "manifest registry section does not match the registry mode");
+  }
   await writeFile(
     markerPath,
-    JSON.stringify({ artifactHash, checkOk: true, runToken: process.env.HOST_PROOF_RUN_TOKEN ?? "" }, null, 2),
+    JSON.stringify(
+      { artifactHash, checkOk: true, registry: registryMode, runToken: process.env.HOST_PROOF_RUN_TOKEN ?? "" },
+      null,
+      2,
+    ),
   );
 }
 
@@ -74,6 +86,9 @@ try {
 }
 
 const python = pythonCommand();
-await run(python, ["-m", "viewspec.cli", "compile", intentPath, "--target", "react-tailwind-tsx", "--out", generatedDir], "HOST_PROOF_CHECK_NOT_RUN");
+const compileArgs = ["-m", "viewspec.cli", "compile", intentPath, "--target", "react-tailwind-tsx", "--out", generatedDir];
+if (registryMode) compileArgs.push("--registry", join(registryDir, "registry.json"));
+await run(python, compileArgs, "HOST_PROOF_CHECK_NOT_RUN");
+if (registryMode) await copyFile(join(registryDir, registryModule), join(generatedDir, registryModule));
 await run(python, ["-m", "viewspec.cli", "check", generatedDir, "--json"], "HOST_PROOF_CHECK_NOT_RUN");
 await assertGeneratedIdentity();

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -898,6 +899,8 @@ def test_declared_anchor_generates_canonical_viewport_proof_and_typechecks(tmp_p
     tsc = template_modules / ".bin" / "tsc"
     if not tsc.is_file() or not (template_modules / "@types" / "node").exists():
         pytest.skip("host verifier dependencies are not installed")
+    if shutil.which("node") is None:
+        pytest.skip("Node.js is required: the tsc shim runs on Node.")
 
     payload = _app_with_declared_presentation()
     app_path = tmp_path / "viewspec.app.json"

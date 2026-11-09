@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "module": "./viewspec-registry",
+  "primitives": {
+    "badge": "Badge",
+    "button": "Button",
+    "cluster": "Cluster",
+    "error_boundary": "ErrorBoundary",
+    "grid": "Grid",
+    "image_slot": "ImageSlot",
+    "input": "Input",
+    "label": "Label",
+    "root": "Root",
+    "rule": "Rule",
+    "stack": "Stack",
+    "surface": "Surface",
+    "svg": "Svg",
+    "text": "Text",
+    "value": "Value"
+  }
+}

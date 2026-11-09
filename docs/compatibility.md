@@ -19,9 +19,13 @@ waits for the next major version.
 1. **Document contracts.** IntentBundle schema version 1 (including the optional root
    `schema_version` field — a document without it is version 1, and any future intent revision
    will *require* the field, so versionless documents stay unambiguous forever) and AppBundle
-   `schema_version` 1–4. Every AppBundle declares its version; readers discriminate by that field.
-2. **Published JSON Schemas.** `agent-intent-bundle.schema.json` and
-   `agent-app-bundle.schema.json`, including their `$id` URIs and `x-viewspec-*` extension fields.
+   `schema_version` 1–5. Every AppBundle declares its version; readers discriminate by that field.
+   Version 5 accepts every version 4 construct unchanged. The compact authoring form of an
+   IntentBundle (`"format": "compact"`, schema version 1) is a covered document kind too: a compact
+   document that normalizes and validates today keeps doing so, with the same derived ids.
+2. **Published JSON Schemas.** `agent-intent-bundle.schema.json`,
+   `agent-intent-compact.schema.json`, and `agent-app-bundle.schema.json`, including their `$id`
+   URIs and `x-viewspec-*` extension fields.
 3. **Error codes and error shape.** The closed registry in `viewspec.error_codes.ERROR_CODES`.
    Validation issues are `{code, path, message, fix}` objects; tool-level failures are
    `{code, message, fix}` (no `path`). Codes are stable identifiers: they are never renamed and
@@ -84,7 +88,7 @@ waits for the next major version.
 
 - Python `>=3.11`. The floor may rise in a minor release only for Python versions that have
   reached upstream end-of-life; otherwise it rises only at a major version.
-- Node.js `>=18` is required only for AppBundle V3/V4 (`interactive_state_v0`) reducer
+- Node.js `>=18` is required only for AppBundle V3/V4/V5 (`interactive_state_v0`) reducer
   conformance; V1/V2 and all IntentBundle flows are Python-only.
 
 ## Verifying mechanically

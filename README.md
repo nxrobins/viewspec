@@ -29,20 +29,25 @@ viewspec compile viewspec.intent.json --out dist/  # write dist/index.html
 viewspec check dist/                               # fast static, provenance, and security checks
 viewspec prove viewspec.intent.json                # compile, verify, and write a proof bundle
 viewspec studio                                    # live-reloading local preview
-viewspec mcp                                       # the five above as MCP tools for an agent
+viewspec mcp                                       # the five above, plus patch, as MCP tools for an agent
 ```
 
 | Command | Takes | Does |
 |---|---|---|
-| `viewspec init [intent\|app\|design]` | what to write | Writes a starter `viewspec.intent.json`, `viewspec.app.json`, or `DESIGN.md`. |
+| `viewspec init [intent\|app\|design\|compact\|registry]` | what to write | Writes a starter `viewspec.intent.json`, `viewspec.app.json`, `DESIGN.md`, compact-form `viewspec.compact.json`, or the default React component registry with its module. |
 | `viewspec compile INPUT --out DIR` | IntentBundle, AppBundle, or imported HTML | Writes the artifact and its manifest. The kind is detected from the file. |
 | `viewspec check PATH` | a source file, or a compiled directory | Contract checks for a source; provenance, tamper, and active-content checks for a directory. |
 | `viewspec prove [SOURCE]` | nothing, a source file, or a compiled directory | Compiles and verifies, adding browser layout, Pretext, and Freerange evidence on request. |
 | `viewspec studio [SOURCE]` | a source file | Serves a preview on 127.0.0.1 that rebuilds whenever the source or `DESIGN.md` changes. |
-| `viewspec mcp` | nothing | Serves the other five to a coding agent as MCP tools over stdio. Needs `viewspec[agents]`. |
+| `viewspec mcp` | nothing | Serves the other five, plus a `patch` tool, to a coding agent as six MCP tools over stdio. Needs `viewspec[agents]`. |
 
 Every command accepts `--json`. Exit codes are `0` for success, `2` for input or contract failures,
 and `1` for internal errors. Run `viewspec COMMAND --help` for the options.
+
+`check` and `compile` apply lossless fixes to an IntentBundle before validation and report them
+under `fixes`; `--no-fix` turns that off, `--fixed-out PATH` keeps the fixed source, and `--patch
+OPS.json` applies an RFC 6902 JSON Patch to the source in memory first. Lossy problems are never
+fixed. See [agent integration](docs/agent-integration.md#error-repair-loop).
 
 Run `viewspec init design --out DESIGN.md` once when the repository has no governed design file.
 
@@ -63,6 +68,15 @@ the file.
 
 An `IntentBundle` is capped at 256 KB. That is small enough for an agent to regenerate whole, which
 is the expected way to make a change.
+
+The same bundle can be written in the compact form: the Python builder's calls as JSON, at about a
+fifth of the size. Set `"format": "compact"` at the root and list each motif with its items.
+`viewspec check`, `compile`, and `prove` detect a compact file and normalize it into the canonical
+bundle. The lossless fixes, the unchanged validator, and the compiler then run on that bundle, and
+`--patch` applies to the compact file as written. `--canonical-out viewspec.intent.json` on `check`
+or `compile` writes the canonical bundle after the fixes. `viewspec init compact --out
+viewspec.compact.json` writes the starter dashboard in this form. See
+[Compact form](docs/agent-integration.md#compact-form).
 
 For React with Tailwind, the compiled artifact can also be verified in a real browser across the
 canonical 390, 768, and 1440 pixel viewports:
@@ -118,7 +132,9 @@ viewspec prove viewspec.app.json --target react-tailwind-app --install --freeran
 Resources are `unbound_v0` by default, or `fixture_readonly_v0` with
 `viewspec init app --resource-binding fixture-readonly-v0`. AppBundle V3 adds bounded interactive
 state with a generated, replay-proved TypeScript reducer; V4 adds conditional visibility and scalar
-state text. See the [AppBundle contract](docs/app-bundle-v0.md).
+state text. V5 composes visibility conditions with `all`, `any`, and `not` and fills text with
+several values through closed formatters that use no locale or time zone. See the
+[AppBundle contract](docs/app-bundle-v0.md).
 
 Generated React apps can opt into two exact-versioned proof integrations by
 [chenglou](https://github.com/chenglou): [Freerange](https://github.com/chenglou/freerange) analyzes
@@ -178,16 +194,49 @@ limits, and
 
 ## Agents
 
+An agent writes the compact form by default: `viewspec.compact.json`, an IntentBundle written as the
+Python builder's calls. For the starter dashboard it is about a sixth the size of the canonical
+bundle. The agent writes the canonical form only for what the compact form cannot express: a
+`bulk_action`, or a screen inside an AppBundle.
+
+Then it runs the repair loop until `ok` is true. `viewspec check FILE --json` applies lossless fixes
+and lists them under `fixes`. It never fixes a lossy problem. For each issue that remains, the agent
+regenerates the file from `correction_prompt` or applies an RFC 6902 JSON Patch with
+`--patch OPS.json`. On a compact file, patch pointers name the compact document, and
+`--canonical-out PATH` writes the canonical bundle that the fixes and canonical issues name.
+
+```bash
+viewspec init compact --out viewspec.compact.json
+viewspec check viewspec.compact.json --json
+viewspec compile viewspec.compact.json --out dist/
+```
+
 Give your agent the published contract, then let it generate JSON with structured output:
 
 - [`agent-system-prompt.txt`](https://viewspec.dev/agent-system-prompt.txt): the authoring rules.
+- [`agent-intent-compact.schema.json`](https://viewspec.dev/agent-intent-compact.schema.json): the
+  JSON Schema of the compact form.
 - [`agent-intent-bundle.schema.json`](https://viewspec.dev/agent-intent-bundle.schema.json) and
-  [`agent-app-bundle.schema.json`](https://viewspec.dev/agent-app-bundle.schema.json): JSON Schemas.
+  [`agent-app-bundle.schema.json`](https://viewspec.dev/agent-app-bundle.schema.json): the JSON
+  Schemas of the canonical IntentBundle and the AppBundle.
+- [`skills/viewspec/SKILL.md`](skills/viewspec/SKILL.md): the same rules as an agent skill. Install
+  it with `npx skills add nxrobins/viewspec --skill viewspec`.
 
-`viewspec check FILE --json` returns a `correction_prompt` that an agent can act on directly. The
-[agent integration guide](docs/agent-integration.md) has the full loop.
+The [agent integration guide](docs/agent-integration.md) has the full loop. One short page explains
+each idea behind the JSON: [substrate](docs/concepts/substrate.md),
+[binding](docs/concepts/binding.md), [motif](docs/concepts/motif.md),
+[region](docs/concepts/region.md), [compact form](docs/concepts/compact-form.md), and
+[proof](docs/concepts/proof.md). [ViewSpec next to json-render, A2UI, and MCP Apps](docs/comparison.md)
+compares where each runs and what each checks.
 
-To give an MCP client the tools `init`, `compile`, `check`, `prove`, and `studio`:
+A React component registry is host input. The agent never writes a registry or the components it
+names. See [React Host Component Registry](docs/react-registry.md).
+
+[Contributing](CONTRIBUTING.md#opt-in-end-to-end-suites) shows how to run the repository's
+model-in-the-loop eval, which measures how often a model's first and corrected answers pass
+`viewspec check`.
+
+To give an MCP client the tools `init`, `compile`, `check`, `patch`, `prove`, and `studio`:
 
 ```bash
 python -m pip install "viewspec[agents]"
@@ -244,7 +293,7 @@ in-process Python: load only plugins you would trust as any other dependency.
 IntentBundle JSON -> ViewSpec compiler -> HTML / React / CompositionIR
        |-- validate the agent contract
        |-- apply DESIGN.md
-       |-- generate and replay TypeScript reducers (AppBundle V3/V4)
+       |-- generate and replay TypeScript reducers (AppBundle V3 to V5)
        |-- write provenance_manifest.json
        `-- keep DOM and framework code as compiler output
 ```
@@ -253,9 +302,18 @@ Existing HTML can be imported as a [fallback path](docs/local-html-wedge.md): `v
 page.html --out dist/` sanitizes it and applies `DESIGN.md`. New UI should start from an
 `IntentBundle`.
 
+The React targets can render through host-owned components. `viewspec compile --target
+react-tailwind-tsx --registry REGISTRY.json` maps each of the fifteen primitive kinds to a named
+export of one host module; `ViewSpecView.tsx` imports those exports and passes each component the
+same props and `data-*` provenance attributes it writes today, plus `as`, the element the default
+rendering uses. The compiler owns structure, semantics, and provenance; the host owns the components;
+the agent still writes only the IntentBundle, canonical or compact. `viewspec init registry` writes the default
+registry and a module that reproduces today's elements, so a host can replace one component at a time.
+Without `--registry` the output is unchanged. See [React Host Component Registry](docs/react-registry.md).
+
 ## Requirements
 
-Python 3.11 or newer. AppBundle V3/V4 reducer conformance also needs Node.js 18 or newer on `PATH`.
+Python 3.11 or newer. AppBundle V3 to V5 reducer conformance also needs Node.js 18 or newer on `PATH`.
 The Freerange proof needs a stable Bun 1.x on `PATH`; ViewSpec never installs it.
 
 Linux and macOS are supported. Browser verification uses POSIX process groups and is not supported

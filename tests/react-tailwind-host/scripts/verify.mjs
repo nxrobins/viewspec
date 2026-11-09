@@ -14,6 +14,11 @@ const markerPath = join(fixtureRoot, ".tmp", "host-proof-check.json");
 const proofDir = join(fixtureRoot, ".tmp", "host-verify-proof");
 const reportPath = join(proofDir, "evidence", "host-report.json");
 const npm = "npm";
+// `--registry` proves the same fixture compiled through the fixture host component registry.
+const registryMode = process.argv.includes("--registry");
+const generatedFiles = ["ViewSpecView.tsx", "diagnostics.json", "provenance_manifest.json"];
+if (registryMode) generatedFiles.push("viewspec-registry.tsx");
+generatedFiles.sort();
 
 function fail(code, message) {
   console.error(`${code}: ${message}`);
@@ -197,23 +202,27 @@ function assertDocs() {
 async function assertCheckedArtifact(runToken) {
   const marker = JSON.parse(await readFile(markerPath, "utf8").catch(() => fail("HOST_PROOF_CHECK_NOT_RUN", "missing check marker")));
   if (marker.runToken !== runToken || marker.checkOk !== true) fail("HOST_PROOF_CHECK_NOT_RUN", "check marker does not match this run");
+  if (marker.registry !== registryMode) fail("HOST_PROOF_CHECK_NOT_RUN", "check marker does not match the registry mode");
   const files = (await readdir(join(fixtureRoot, "src", "generated"))).sort();
-  const expected = ["ViewSpecView.tsx", "diagnostics.json", "provenance_manifest.json"];
-  if (JSON.stringify(files) !== JSON.stringify(expected)) fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "unexpected generated files");
+  if (JSON.stringify(files) !== JSON.stringify(generatedFiles)) fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "unexpected generated files");
   const tsx = await readFile(join(fixtureRoot, "src", "generated", "ViewSpecView.tsx"));
   const manifest = JSON.parse(await readFile(join(fixtureRoot, "src", "generated", "provenance_manifest.json"), "utf8"));
   const hash = createHash("sha256").update(tsx).digest("hex");
   if (hash !== manifest.artifact_hash || hash !== marker.artifactHash) {
     fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "checked artifact hash chain is broken");
   }
-  return marker;
+  if (registryMode && !manifest.registry?.sha256) fail("HOST_PROOF_CHECK_NOT_RUN", "manifest has no registry section");
+  return { ...marker, manifest };
 }
 
 await rm(markerPath, { force: true });
 await rm(proofDir, { recursive: true, force: true });
 await staticGuard();
 const runToken = randomUUID();
-await runPhase("prepare", ["run", "prepare:artifact"], 30_000, { HOST_PROOF_RUN_TOKEN: runToken });
+await runPhase("prepare", ["run", "prepare:artifact"], 30_000, {
+  HOST_PROOF_RUN_TOKEN: runToken,
+  HOST_PROOF_REGISTRY: registryMode ? "1" : "0",
+});
 const marker = await assertCheckedArtifact(runToken);
 await runHostVerify(180_000);
 const report = JSON.parse(await readFile(reportPath, "utf8").catch(() => fail("HOST_PROOF_CI_SOFT_GATE", "missing host report")));
@@ -244,4 +253,15 @@ const aestheticLayoutCount = Object.values(report.manifest_summary?.aesthetic_la
 }, 0);
 if (aestheticLayoutCount > 0 && (report.assertions?.aesthetic_layout_assertion_count ?? 0) < aestheticLayoutCount) {
   fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "host report did not include all aesthetic layout assertions");
+}
+if (registryMode) {
+  const nodeCount = Object.keys(marker.manifest.nodes ?? {}).length;
+  if (report.registry?.sha256 !== marker.manifest.registry.sha256 || !report.registry?.module_hash) {
+    fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "host report does not name the checked registry and its module");
+  }
+  if ((report.assertions?.registry_primitive_assertion_count ?? 0) < nodeCount) {
+    fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "host report did not assert data-ir-primitive on every registry node");
+  }
+} else if (report.registry != null) {
+  fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "host report names a registry for a plain artifact");
 }

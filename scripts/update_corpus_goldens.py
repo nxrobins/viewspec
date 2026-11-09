@@ -18,8 +18,9 @@ Why the pins are portable:
   ``command_args`` in the manifests do not depend on the checkout path; outputs are hashed by
   content only, so the work directory does not matter either.
 * The writers emit LF on every platform and no artifact embeds a path, a clock, the machine or
-  the Python version. Only the Node reducer conformance could differ per machine, and the pinned
-  AppBundle declares no state, so it never runs.
+  the Python version. The demo AppBundle declares no state. The schema_version 5 fixture declares
+  state, so compiling it runs the generated reducer under Node; its conformance report records
+  no Node version, path, or timing, so the pinned bytes match on every machine that has Node.
 * ``provenance_manifest.json`` and ``viewspec_app_manifest.json`` embed the SDK version, so the
   file hashes of those two manifests (never ``artifact_hash`` or ``semantic_digest``) rotate on a
   version bump: regenerate the goldens in the release commit.
@@ -37,8 +38,9 @@ from viewspec import __version__
 from viewspec.app_bundle import compile_app
 from viewspec.app_react import REACT_APP_TARGET
 from viewspec.app_shell import APP_SHELL_TARGET
+from viewspec.compact_form import COMPACT_FORMAT
 from viewspec.conformance import ConformanceCase, load_conformance_corpus
-from viewspec.intent_tools import INTENT_COMPILE_TARGETS, compile_intent_bundle_file_tool
+from viewspec.intent_tools import INTENT_COMPILE_TARGETS, compile_intent_bundle_file_tool, prepare_intent_source
 from viewspec.local_tools_hash import bytes_hash, source_hash
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,9 +50,11 @@ REGENERATE_COMMAND = "python scripts/update_corpus_goldens.py"
 SCHEMA_VERSION = 1
 INTENT_TARGETS: tuple[str, ...] = tuple(INTENT_COMPILE_TARGETS)
 APP_TARGETS: tuple[str, ...] = (APP_SHELL_TARGET, REACT_APP_TARGET)
-# Top-level demo examples that are AppBundles. Their embedded screens are already corpus cases
-# (app-queue, app-detail); this compiles the whole bundle with every local app target.
+# Whole AppBundles compiled with every local app target. The demo example's embedded screens are
+# already corpus cases (app-queue, app-detail). The schema_version 5 fixture pins composed
+# visibility, multi-value state text, and the formatter kernel in both app targets.
 APP_BUNDLE_SOURCES: dict[str, str] = {
+    "agent-app-bounded-expressions.incident-console": "tests/fixtures/app_bundle_v5_incident_console.json",
     "agent-app-example.internal-tool": "demos/agent-app-example.internal-tool.json",
 }
 
@@ -130,8 +134,22 @@ def compile_app_bundle(bundle_id: str, source: Path, target: str, *, work_dir: P
     }
 
 
-def build_goldens(work_dir: Path, *, root: Path = ROOT) -> dict[str, Any]:
-    """Compile every corpus case and AppBundle under ``work_dir`` and return the golden document."""
+def app_bundle_declares_state(relative: str, *, root: Path = ROOT) -> bool:
+    """True when compiling the AppBundle runs generated-reducer conformance, which needs Node."""
+    payload = json.loads((root / relative).read_text(encoding="utf-8"))
+    return isinstance(payload, dict) and "interactive_state" in payload
+
+
+def build_goldens(
+    work_dir: Path,
+    *,
+    root: Path = ROOT,
+    app_bundle_ids: set[str] | None = None,
+) -> dict[str, Any]:
+    """Compile every corpus case and AppBundle under ``work_dir`` and return the golden document.
+
+    ``app_bundle_ids`` limits the AppBundles compiled; the default compiles all of them.
+    """
     # Resolve once so every derived path shares one spelling. On Windows a temporary directory
     # can be handed out in 8.3 short form (RUNNER~1) while the compiler returns the long form,
     # which makes relative_to() fail although both name the same directory.
@@ -139,12 +157,23 @@ def build_goldens(work_dir: Path, *, root: Path = ROOT) -> dict[str, Any]:
     corpus = load_conformance_corpus(str(root / CORPUS_MANIFEST))
     cases: dict[str, Any] = {}
     for case in corpus.cases:
-        case_source_hash = source_hash(intent_source_text(case))
+        text = intent_source_text(case)
+        case_source_hash = source_hash(text)
+        # A compact source compiles through its canonical document after the lossless fixes, so the
+        # manifest records that document's hash as source_hash and the compact file's hash as
+        # compact_source_sha256. The document does not depend on the compile check, so skip it here.
+        staged = prepare_intent_source(text, compile_check=False)
+        compact = staged.compact
         targets: dict[str, Any] = {}
         for target in INTENT_TARGETS:
             manifest, pins = compile_intent_case(case, target, work_dir=work_dir)
-            if manifest["source_hash"] != case_source_hash:
+            if manifest["source_hash"] != staged.manifest_source_hash:
                 raise RuntimeError(f"{case.id} ({target}): manifest source_hash does not match the staged source")
+            if compact and (
+                manifest.get("source_format") != COMPACT_FORMAT
+                or manifest.get("compact_source_sha256") != case_source_hash
+            ):
+                raise RuntimeError(f"{case.id} ({target}): manifest does not record the compact source")
             targets[target] = pins
         cases[case.id] = {
             "kind": case.kind,
@@ -153,8 +182,14 @@ def build_goldens(work_dir: Path, *, root: Path = ROOT) -> dict[str, Any]:
             "source_hash": case_source_hash,
             "targets": targets,
         }
+        if compact:
+            # Pins the normalization itself: a derived-id change rotates this hash, visibly.
+            cases[case.id]["source_format"] = COMPACT_FORMAT
+            cases[case.id]["canonical_source_hash"] = staged.manifest_source_hash
     app_bundles: dict[str, Any] = {}
     for bundle_id, relative in sorted(APP_BUNDLE_SOURCES.items()):
+        if app_bundle_ids is not None and bundle_id not in app_bundle_ids:
+            continue
         source = root / relative
         app_bundles[bundle_id] = {
             "source": relative,

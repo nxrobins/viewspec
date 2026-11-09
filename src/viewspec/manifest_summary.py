@@ -22,7 +22,7 @@ def summarize_intent_manifest(manifest_path: Path) -> dict[str, Any]:
     if not isinstance(nodes, dict):
         return {"available": False, "reason": "missing_nodes"}
     profile = manifest_root_aesthetic_profile(nodes)
-    return {
+    summary: dict[str, Any] = {
         "available": True,
         "kind": manifest.get("kind"),
         "emitter": manifest.get("emitter"),
@@ -31,6 +31,28 @@ def summarize_intent_manifest(manifest_path: Path) -> dict[str, Any]:
         "aesthetic_profile": profile,
         "aesthetic_style": manifest_aesthetic_style_summary(profile),
         "aesthetic_layout": manifest_aesthetic_layout_summary(nodes),
+    }
+    # Only a manifest compiled from a compact source carries source_format; a summary without it
+    # describes a canonical source, and the summaries embedded in app shells keep their bytes.
+    if "source_format" in manifest:
+        source_format = manifest["source_format"]
+        summary["source_format"] = source_format if isinstance(source_format, str) else None
+    # Likewise, only a manifest compiled with --registry carries a registry section.
+    registry = manifest_registry_summary(manifest.get("registry"))
+    if registry is not None:
+        summary["registry"] = registry
+    return summary
+
+
+def manifest_registry_summary(section: object) -> dict[str, Any] | None:
+    """The module, kind count, and sha256 of a React artifact's host component registry section."""
+    if not isinstance(section, dict):
+        return None
+    count = section.get("primitive_count")
+    return {
+        "module": _manifest_string(section.get("module")),
+        "primitive_count": count if isinstance(count, int) and not isinstance(count, bool) else None,
+        "sha256": _manifest_string(section.get("sha256")),
     }
 
 

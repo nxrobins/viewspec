@@ -1,0 +1,36 @@
+{
+  "format": "compact",
+  "id": "starter_dashboard",
+  "motifs": [
+    {
+      "cards": [
+        {
+          "id": "revenue",
+          "label": "Revenue",
+          "value": "$12.4K"
+        },
+        {
+          "id": "users",
+          "label": "Users",
+          "value": "1,284"
+        },
+        {
+          "id": "weekly_trend",
+          "label": "Weekly trend",
+          "value": "Revenue +12%"
+        },
+        {
+          "id": "priority",
+          "label": "Priority",
+          "present_as": "badge",
+          "value": "Activation -4%"
+        }
+      ],
+      "group": "cards",
+      "id": "metrics",
+      "kind": "dashboard"
+    }
+  ],
+  "schema_version": 1,
+  "title": "Starter Dashboard"
+}
