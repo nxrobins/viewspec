@@ -371,6 +371,7 @@ def test_public_prove_app_real_pretext_browser_e2e(
         "rebound_binding_count": 6,
         "selector_assertion_count": 1,
         "visibility_assertion_count": 0 if freerange else 1,
+        "state_text_assertion_count": 0,
         "presentation_anchor_assertion_count": 2,
         "presentation_viewport_count": 3,
     }

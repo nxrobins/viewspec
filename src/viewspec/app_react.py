@@ -1455,24 +1455,28 @@ def _runtime_proof_cases(payload: dict[str, Any]) -> list[dict[str, Any]]:
         for rule in payload.get("state_text", [])
         if isinstance(rule, dict) and isinstance(rule.get("id"), str)
     }
-    resource_bindings = _resource_bindings(payload)
+    # A binding that a state_text rule targets shows the rule's text, not its resource field, so
+    # the proof checks that element through the rule's expect_text alone.
+    text_targets = {
+        (str(rule.get("screen_id")), str(rule.get("target_ref")).partition(":")[2]) for rule in text_rules.values()
+    }
+    resource_bindings = [
+        binding
+        for binding in _resource_bindings(payload)
+        if (binding["screenId"], binding["bindingId"]) not in text_targets
+    ]
     cases: list[dict[str, Any]] = []
     for assertion in payload.get("state_replay_assertions", []):
         if not isinstance(assertion, dict):
             continue
         events: list[dict[str, Any]] = []
         for event in assertion.get("events", []):
-            mutation = mutations.get(str(event.get("mutation_id"))) if isinstance(event, dict) else None
-            trigger = mutation.get("trigger") if isinstance(mutation, dict) else None
-            if not isinstance(trigger, dict):
+            click = _runtime_proof_click(event, mutations)
+            if click is None:
                 continue
-            events.append(
-                {
-                    "screenId": str(trigger.get("screen_id")),
-                    "actionId": str(trigger.get("action_id")),
-                    "payloadValues": event.get("payload_values", {}),
-                }
-            )
+            repeat = event.get("repeat", 1)
+            times = repeat if isinstance(repeat, int) and not isinstance(repeat, bool) and repeat >= 1 else 1
+            events.extend(json.loads(json.dumps(click)) for _ in range(times))
         bindings = _runtime_binding_assertions(assertion.get("expect_state"), resource_bindings)
         visibility = [
             {
@@ -1503,6 +1507,44 @@ def _runtime_proof_cases(payload: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return cases
+
+
+def _runtime_proof_click(event: object, mutations: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    """The click one replay event stands for, before its repeat.
+
+    A mutation event clicks the action that triggers the mutation. A compact action event clicks its
+    action on its screen, or on the one screen whose mutations it triggers. A click applies every
+    mutation of that trigger in declared order, exactly as replay normalizes an action event.
+    """
+    if not isinstance(event, dict):
+        return None
+    mutation_id = event.get("mutation_id")
+    action_id = event.get("action_id")
+    if isinstance(mutation_id, str):
+        mutation = mutations.get(mutation_id)
+        trigger = mutation.get("trigger") if isinstance(mutation, dict) else None
+        if not isinstance(trigger, dict):
+            return None
+        screen_id, action_id = trigger.get("screen_id"), trigger.get("action_id")
+    elif isinstance(action_id, str):
+        screen_id = event.get("screen_id")
+        if screen_id is None:
+            screens = {
+                mutation["trigger"].get("screen_id")
+                for mutation in mutations.values()
+                if isinstance(mutation.get("trigger"), dict) and mutation["trigger"].get("action_id") == action_id
+            }
+            if len(screens) != 1:
+                return None
+            screen_id = next(iter(screens))
+    else:
+        return None
+    payload_values = event.get("payload_values", {})
+    return {
+        "screenId": str(screen_id),
+        "actionId": str(action_id),
+        "payloadValues": payload_values if isinstance(payload_values, dict) else {},
+    }
 
 
 def _runtime_binding_assertions(expect_state: object, resource_bindings: list[dict[str, str]]) -> list[dict[str, str]]:

@@ -252,7 +252,10 @@ def test_v4_generated_reducer_renders_the_same_text_as_python(tmp_path) -> None:
 _TSC = Path("src/viewspec/host_verify_template/node_modules/.bin/tsc").resolve()
 
 
-@pytest.mark.skipif(not _TSC.is_file(), reason="Pinned TypeScript compiler is required")
+@pytest.mark.skipif(
+    not _TSC.is_file() or shutil.which("node") is None,
+    reason="The pinned TypeScript compiler and Node.js are required: the tsc shim runs on Node.",
+)
 def test_v4_state_text_reducer_typechecks(tmp_path) -> None:
     payload = _state_text_app_bundle()
     source = tmp_path / "state_reducer.ts"

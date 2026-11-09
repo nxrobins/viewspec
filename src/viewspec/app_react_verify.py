@@ -30,6 +30,7 @@ APP_REACT_VERIFY_ASSERTION_KEYS = (
     "rebound_binding_count",
     "selector_assertion_count",
     "visibility_assertion_count",
+    "state_text_assertion_count",
     "presentation_anchor_assertion_count",
     "presentation_viewport_count",
 )

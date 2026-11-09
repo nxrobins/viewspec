@@ -173,6 +173,20 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- The `react-tailwind-app` browser proof clicks once for each replay event and each `repeat`, as
+  Python replay applies them. The generated test used to skip every `action_id` event and to click
+  a repeated event once, so the proof of a valid bundle failed or checked fewer clicks than the
+  replay applied. An `action_id` event clicks its action on its screen, which applies every
+  mutation of that trigger, as replay does, and `state_action_count` counts the clicks.
+- The `react-tailwind-app` browser proof no longer checks the resource field text of a binding
+  that a `state_text` rule targets. The rule replaces that text, so the proof failed for each
+  replay that expected the record. The rule's `expect_text` checks that element.
+- The React app verifier requires `state_text_assertion_count` in the runtime report, returns it
+  under `assertions`, and `APP_PROOF.md` lists it. The generated test wrote the count, but the
+  verifier dropped it. A runtime report without the count fails with
+  `APP_REACT_VERIFY_REPORT_INVALID`.
+- The typecheck tests that run the pinned `tsc` skip when Node.js is not on `PATH`, as the other
+  Node tests do. They used to fail there.
 - Every AppBundle schema version rejects an integer above 2^53 in magnitude in `resources`,
   `state`, `mutations`, `selectors`, `visibility`, and `state_replay_assertions` with
   `APP_STATE_INTEGER_OUT_OF_SAFE_RANGE`. Python kept such an integer exact while the generated

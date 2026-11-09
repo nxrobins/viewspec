@@ -27,7 +27,12 @@ The proof checks the same embedded screen provenance and resource assertions as 
 verifies generated reducer replay under Node, checks every generated file hash, runs strict
 TypeScript checking before the Vite production build, and exercises routes, browser history,
 unknown-route fallback, state actions, live resource-field rebinding, selector expectations,
-visibility, and declared state text in Chromium.
+visibility, and declared state text in Chromium. Each replay event, and each `repeat` of it, is one
+click on its action. One click applies every mutation that the action triggers on its screen, in
+declared order, as replay does for an `action_id` event. A `mutation_id` event also clicks the
+action that triggers it, so when an action triggers more than one mutation, write its replay events
+with `action_id`. A binding that a `state_text` rule targets is checked by the rule's text, not by
+its resource field.
 
 The generated `ViewSpecApp` accepts fixture-compatible resource records plus typed navigation, action, state-change, and error callbacks. Network requests, authentication, persistence, optimistic updates, and deployment infrastructure remain host-owned.
 
@@ -317,8 +322,9 @@ motif: keeping a hand-authored prototype field there fails with
 ### Compact action replay
 
 Replay events may name a mutation directly or use `{ "screen_id", "action_id", "repeat" }` to
-model real user actions compactly. Action events resolve to exactly one declared mutation and
-normalize into the same deterministic state IR; `repeat` expands into bounded identical events.
+model real user actions compactly. An action event resolves to exactly one screen and to every
+mutation that its action triggers there, in declared order, and normalizes into the same
+deterministic state IR; `repeat` expands into bounded identical events.
 Replay mismatches carry the assertion ID, event index, mutation ID, state/selector/visibility path,
 expected value, and actual value. This makes reveal, increment, derived visibility, and independent
 transition failures actionable before generated reducer code is accepted.

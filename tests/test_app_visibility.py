@@ -294,7 +294,10 @@ def test_v4_reducer_exports_visibility_and_v3_does_not():
     assert STATE_REDUCER_VISIBILITY_EXPORT not in state_reducer_exports(_stateful_app_bundle())
 
 
-@pytest.mark.skipif(not _TSC.is_file(), reason="Pinned TypeScript compiler is required")
+@pytest.mark.skipif(
+    not _TSC.is_file() or shutil.which("node") is None,
+    reason="The pinned TypeScript compiler and Node.js are required: the tsc shim runs on Node.",
+)
 def test_v4_equals_visibility_reducer_typechecks(tmp_path):
     source = tmp_path / "state_reducer.ts"
     payload = _visibility_app_bundle()

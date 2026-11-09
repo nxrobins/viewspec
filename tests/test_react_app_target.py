@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from copy import deepcopy
 from pathlib import Path
@@ -21,11 +22,15 @@ from viewspec.app_pretext import PRETEXT_PROFILE, PRETEXT_PROTOCOL, PRETEXT_VIEW
 from viewspec.app_react import (
     _assert_cross_target_semantic_contract,
     _assert_react_landmark_contract,
+    _mutation_triggers,
+    _playwright_test_source,
+    _runtime_proof_cases,
     _write_runtime_template,
 )
 from viewspec.app_react_verify import ReactAppVerifyFailure, _pretext_scope, verify_react_app_artifact_dir
 from viewspec.cli import main as cli_main
 from viewspec.local_tools import file_hash
+from viewspec.state_ir import replay_state_assertions, validate_state_ir
 
 REACT_APP_TARGET = "react-tailwind-app"
 ROOT = Path(__file__).resolve().parents[1]
@@ -113,6 +118,8 @@ def test_generated_react_apps_v1_through_v4_pass_strict_typescript(tmp_path):
     tsc = template_modules / ".bin" / "tsc"
     if not tsc.is_file() or not (template_modules / "@types" / "node").exists():
         pytest.skip("host verifier dependencies are not installed")
+    if shutil.which("node") is None:
+        pytest.skip("Node.js is required: the tsc shim runs on Node.")
 
     payloads = {
         "v1": starter_app_bundle(),
@@ -444,6 +451,116 @@ def test_react_app_starter_compiles_to_the_react_target(tmp_path):
     assert compiled["paths"]["app"].endswith("src/ViewSpecApp.tsx")
 
 
+_TRIAGE = {"inc_1043_id": "inc_1043"}
+_TRIAGE_CLICK = {"screenId": "queue", "actionId": "triage_incident", "payloadValues": _TRIAGE}
+
+
+def _counter_react_app_bundle(events: list[dict], *, count: int, second_mutation: bool = False) -> dict:
+    """The starter with a counter that every triage click moves, shown as state text.
+
+    With ``second_mutation`` the triage action triggers two mutations, so one click applies both.
+    """
+    payload = _react_app_bundle()
+    payload["state"].append({"id": "triage_count", "kind": "scalar", "scope": "app", "initial": {"value": 0}})
+    payload["mutations"][0]["ops"].append({"op": "increment", "state": "triage_count", "amount": 1})
+    if second_mutation:
+        payload["mutations"].append(
+            {
+                "id": "count_triage_state",
+                "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+                "ops": [{"op": "increment", "state": "triage_count", "amount": 10}],
+            }
+        )
+    payload["state_text"] = [
+        {
+            "id": "triage_count_text",
+            "screen_id": "queue",
+            "target_ref": "binding:inc_1042_status",
+            "state": "triage_count",
+            "template": "Triaged {value} times",
+        }
+    ]
+    replay = payload["state_replay_assertions"][0]
+    replay["events"] = events
+    replay["expect_state"]["triage_count"] = count
+    replay["expect_text"] = {"triage_count_text": f"Triaged {count} times"}
+    return payload
+
+
+def _proof_cases_replaying_python_events(payload: dict) -> list[dict]:
+    """The React proof cases, after a check that their clicks apply the events Python replay applies.
+
+    A click applies every mutation of its trigger in declared order, as handleAction in ViewSpecApp does.
+    """
+    assert validate_app_text(json.dumps(payload))["ok"] is True
+    replay = replay_state_assertions(payload)
+    assert replay["ok"] is True, replay
+    state_ir, issues = validate_state_ir(payload)
+    assert state_ir is not None and not issues
+    triggers = _mutation_triggers(payload)
+    cases = _runtime_proof_cases(payload)
+    for case, assertion in zip(cases, state_ir.replay_assertions, strict=True):
+        applied = [
+            {"mutation_id": mutation_id, "payload_values": click["payloadValues"]}
+            for click in case["events"]
+            for mutation_id in triggers[f"{click['screenId']}::{click['actionId']}"]
+        ]
+        assert applied == list(assertion.events)
+    return cases
+
+
+def _runtime_report(payload: dict) -> dict:
+    """The runtime report that the generated Playwright test writes after it passes."""
+    prefix = "const runtimeReport = "
+    line = next(line for line in _playwright_test_source(payload).splitlines() if line.startswith(prefix))
+    return json.loads(line.removeprefix(prefix).removesuffix(";"))
+
+
+def test_react_proof_replays_action_events_and_repeats_click_for_click():
+    payload = _counter_react_app_bundle(
+        [
+            {"mutation_id": "triage_incident_state", "payload_values": _TRIAGE, "repeat": 2},
+            {"action_id": "triage_incident", "payload_values": _TRIAGE},
+            {"screen_id": "queue", "action_id": "triage_incident", "payload_values": _TRIAGE, "repeat": 2},
+        ],
+        count=5,
+    )
+
+    cases = _proof_cases_replaying_python_events(payload)
+
+    assert cases[0]["events"] == [_TRIAGE_CLICK] * 5
+    assert cases[0]["text"] == [{"ruleId": "triage_count_text", "screenId": "queue", "text": "Triaged 5 times"}]
+    report = _runtime_report(payload)
+    assert report["state_action_count"] == 5
+    assert report["state_text_assertion_count"] == 1
+
+
+def test_react_proof_clicks_an_action_event_once_for_all_mutations_it_triggers():
+    payload = _counter_react_app_bundle(
+        [{"action_id": "triage_incident", "payload_values": _TRIAGE, "repeat": 2}],
+        count=22,
+        second_mutation=True,
+    )
+
+    cases = _proof_cases_replaying_python_events(payload)
+
+    assert cases[0]["events"] == [_TRIAGE_CLICK] * 2
+    assert _runtime_report(payload)["state_action_count"] == 2
+
+
+def test_react_proof_checks_a_state_text_target_by_its_text_alone():
+    plain = _runtime_proof_cases(_react_app_bundle())[0]
+    payload = _counter_react_app_bundle([{"action_id": "triage_incident", "payload_values": _TRIAGE}], count=1)
+
+    case = _proof_cases_replaying_python_events(payload)[0]
+
+    # The rule replaces the text of inc_1042_status, so its resource field is not on screen to check.
+    assert {"screenId": "queue", "bindingId": "inc_1042_status", "text": "investigating"} in plain["bindings"]
+    assert [binding for binding in case["bindings"] if binding["bindingId"] == "inc_1042_status"] == []
+    assert len(case["bindings"]) == len(plain["bindings"]) - 1
+    assert case["text"] == [{"ruleId": "triage_count_text", "screenId": "queue", "text": "Triaged 1 times"}]
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -501,6 +618,7 @@ def test_verify_react_app_runs_exact_generated_package(tmp_path, monkeypatch):
                         "rebound_binding_count": 1,
                         "selector_assertion_count": 1,
                         "visibility_assertion_count": 1,
+                        "state_text_assertion_count": 0,
                         "presentation_anchor_assertion_count": 0,
                         "presentation_viewport_count": 3,
                     }
@@ -530,6 +648,43 @@ def test_verify_react_app_runs_exact_generated_package(tmp_path, monkeypatch):
     ]
 
 
+def _verify_with_runtime_report(tmp_path: Path, monkeypatch, payload: dict, runtime_report: dict) -> dict:
+    app_path = tmp_path / "viewspec.app.json"
+    out_dir = tmp_path / "react-app"
+    _write_app(app_path, payload)
+    assert compile_app(app_path, out_dir=out_dir, target=REACT_APP_TARGET, cwd=tmp_path)["ok"] is True
+
+    def fake_run(command, *, cwd, timeout):
+        del timeout
+        if tuple(command) == ("npm", "run", "viewspec:verify"):
+            (cwd / "viewspec_runtime_report.json").write_text(json.dumps(runtime_report), encoding="utf-8")
+        return {"returncode": 0, "stdout": "ok", "stderr": ""}
+
+    monkeypatch.setattr("viewspec.app_react_verify._run_process", fake_run)
+    return verify_react_app_artifact_dir(out_dir, install=True)
+
+
+def test_verify_react_app_reports_state_text_assertions(tmp_path, monkeypatch):
+    payload = _counter_react_app_bundle([{"action_id": "triage_incident", "payload_values": _TRIAGE}], count=1)
+
+    report = _verify_with_runtime_report(tmp_path, monkeypatch, payload, _runtime_report(payload))
+
+    assert report["ok"] is True, report["errors"]
+    assert report["assertions"]["state_text_assertion_count"] == 1
+
+
+def test_verify_react_app_rejects_a_report_without_state_text_assertions(tmp_path, monkeypatch):
+    payload = _counter_react_app_bundle([{"action_id": "triage_incident", "payload_values": _TRIAGE}], count=1)
+    runtime_report = _runtime_report(payload)
+    del runtime_report["state_text_assertion_count"]
+
+    report = _verify_with_runtime_report(tmp_path, monkeypatch, payload, runtime_report)
+
+    assert report["ok"] is False
+    assert report["errors"][0]["code"] == "APP_REACT_VERIFY_REPORT_INVALID"
+    assert "state_text_assertion_count" in report["errors"][0]["message"]
+
+
 def test_verify_react_app_runs_freerange_after_typecheck_before_build(tmp_path, monkeypatch):
     app_path = tmp_path / "numeric.app.json"
     out_dir = tmp_path / "react-app"
@@ -551,6 +706,7 @@ def test_verify_react_app_runs_freerange_after_typecheck_before_build(tmp_path, 
                         "rebound_binding_count": 1,
                         "selector_assertion_count": 1,
                         "visibility_assertion_count": 0,
+                        "state_text_assertion_count": 0,
                         "presentation_anchor_assertion_count": 0,
                         "presentation_viewport_count": 3,
                     }
@@ -700,6 +856,7 @@ def test_verify_react_app_rejects_original_output_race_and_retains_evidence(tmp_
                         "rebound_binding_count": 1,
                         "selector_assertion_count": 1,
                         "visibility_assertion_count": 0,
+                        "state_text_assertion_count": 0,
                         "presentation_anchor_assertion_count": 0,
                         "presentation_viewport_count": 3,
                     }
@@ -748,6 +905,7 @@ def test_verify_react_app_invalidates_static_evidence_on_post_analysis_tamper(tm
                         "rebound_binding_count": 1,
                         "selector_assertion_count": 1,
                         "visibility_assertion_count": 0,
+                        "state_text_assertion_count": 0,
                         "presentation_anchor_assertion_count": 0,
                         "presentation_viewport_count": 3,
                     }
@@ -820,6 +978,7 @@ def test_verify_react_app_uses_prebuilt_dependencies_without_network(tmp_path, m
                         "rebound_binding_count": 1,
                         "selector_assertion_count": 1,
                         "visibility_assertion_count": 1,
+                        "state_text_assertion_count": 0,
                         "presentation_anchor_assertion_count": 0,
                         "presentation_viewport_count": 3,
                     }
@@ -867,6 +1026,7 @@ def test_prove_app_react_target_records_exact_host_runtime(tmp_path, monkeypatch
                 "rebound_binding_count": 6,
                 "selector_assertion_count": 1,
                 "visibility_assertion_count": 1,
+                "state_text_assertion_count": 0,
                 "presentation_anchor_assertion_count": 0,
                 "presentation_viewport_count": 3,
             },
@@ -902,7 +1062,9 @@ def test_prove_app_react_target_records_exact_host_runtime(tmp_path, monkeypatch
     assert proof["policy"]["install_command"] == "npm ci --ignore-scripts"
     assert proof["app_artifact_hash"] == proof["host_report"]["app_artifact_hash"]
     assert Path(proof["paths"]["report"]).exists()
-    assert Path(proof["paths"]["proof_summary"]).exists()
+    summary = Path(proof["paths"]["proof_summary"]).read_text(encoding="utf-8")
+    assert "- visibility_assertion_count: `1`" in summary
+    assert "- state_text_assertion_count: `0`" in summary
 
 
 def test_failed_react_proof_summary_does_not_claim_reference_host_success(tmp_path, monkeypatch):
@@ -992,6 +1154,7 @@ def test_prove_app_freerange_propagates_composite_machine_evidence(tmp_path, mon
                 "rebound_binding_count": 6,
                 "selector_assertion_count": 1,
                 "visibility_assertion_count": 0,
+                "state_text_assertion_count": 0,
                 "presentation_anchor_assertion_count": 0,
                 "presentation_viewport_count": 3,
             },
@@ -1067,6 +1230,7 @@ def test_prove_app_cli_accepts_react_target_and_install(tmp_path, monkeypatch, c
                 "rebound_binding_count": 6,
                 "selector_assertion_count": 1,
                 "visibility_assertion_count": 1,
+                "state_text_assertion_count": 0,
                 "presentation_anchor_assertion_count": 0,
                 "presentation_viewport_count": 3,
             },
