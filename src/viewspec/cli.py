@@ -28,20 +28,36 @@ from viewspec.compiler import compile as compile_intent
 from viewspec.compiler_errors import LocalToolContractError
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.emitters.react_registry import (
+    REACT_REGISTRY_TARGETS,
+    ReactComponentRegistry,
+    ReactRegistryError,
+    load_react_component_registry,
+    write_default_react_registry,
+)
 from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.intent_tools import (
     INTENT_COMPILE_TARGETS,
     STARTER_INTENT_KINDS,
+    IntentPatchError,
+    IntentSourcePreparation,
+    check_intent_source,
+    fixed_intent_source_text,
+    init_compact_file,
     init_intent_file,
-    validate_intent_text,
+    intent_error_payload,
+    load_intent_patch,
+    patch_target_problem,
+    prepare_intent_source,
+    reject_compact_fixed_out,
     wrap_intent_bundle_manifest,
 )
 from viewspec.local_tools import (
     MCP_APP_TARGET,
+    atomic_write,
     ensure_no_input_overwrite,
     init_design_file,
-    source_hash,
     tool_error_response,
     tool_response,
 )
@@ -49,7 +65,6 @@ from viewspec.mcp_apps import default_mcp_app_uri, emit_mcp_app, write_mcp_app_m
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, run_mcp_server
 from viewspec.raw_html import HtmlInputError, compile_html, write_html_compile_result
 from viewspec.studio import STUDIO_DEFAULT_PORT, Studio, open_studio
-from viewspec.types import IntentBundle
 from viewspec.verification import VerificationPlan
 
 COMPILE_TARGETS = (*INTENT_COMPILE_TARGETS, MCP_APP_TARGET, APP_SHELL_TARGET, REACT_APP_TARGET)
@@ -180,15 +195,30 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"viewspec {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    init_parser = subparsers.add_parser("init", help="Write a starter IntentBundle, AppBundle, or DESIGN.md.")
+    init_parser = subparsers.add_parser(
+        "init",
+        help=(
+            "Write a starter IntentBundle, AppBundle, DESIGN.md, compact-form IntentBundle, "
+            "or React component registry."
+        ),
+    )
     init_parser.add_argument(
         "what", nargs="?", default="intent", choices=tuple(INIT_DEFAULT_OUT), help="What to write (default: intent)."
     )
-    init_parser.add_argument("--out", help="Output path (default: viewspec.intent.json, viewspec.app.json, DESIGN.md).")
+    init_parser.add_argument(
+        "--out",
+        help=(
+            "Output path (default: viewspec.intent.json, viewspec.app.json, DESIGN.md, viewspec.compact.json, "
+            "or viewspec-registry.json with viewspec-registry.tsx beside it)."
+        ),
+    )
     init_parser.add_argument(
         "--kind",
         choices=(*STARTER_INTENT_KINDS, *APP_BUNDLE_ALLOWED_KINDS),
-        help="Starter kind: a motif for intent (default: dashboard), an app kind for app (default: internal_tool).",
+        help=(
+            "Starter kind: a motif for intent and compact (default: dashboard), "
+            "an app kind for app (default: internal_tool)."
+        ),
     )
     init_parser.add_argument(
         "--resource-binding",
@@ -221,6 +251,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors."
     )
     compile_parser.add_argument(
+        "--registry",
+        metavar="REGISTRY.json",
+        help=(
+            "react-tsx and react-tailwind-tsx: render each primitive through the host components this "
+            "registry names (see docs/react-registry.md)."
+        ),
+    )
+    compile_parser.add_argument(
         "--force",
         action="store_true",
         help="Replace an existing AppBundle output directory after safety checks.",
@@ -235,6 +273,7 @@ def _build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--stdin-format", choices=("html", "json"), help="Required when input is '-'.")
     compile_parser.add_argument("--title", help="Optional HTML document title for raw HTML input.")
     compile_parser.add_argument("--lift-json", action="store_true", help="Also write lift.json for raw HTML input.")
+    _add_repair_loop_arguments(compile_parser)
     compile_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     compile_parser.set_defaults(func=_compile_command)
 
@@ -247,6 +286,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="For a source file, skip local compiler support validation.",
     )
+    _add_repair_loop_arguments(check_parser)
     check_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     check_parser.set_defaults(func=_check_command)
 
@@ -322,7 +362,8 @@ def _build_parser() -> argparse.ArgumentParser:
     studio_parser.set_defaults(func=_studio_command)
 
     mcp_parser = subparsers.add_parser(
-        "mcp", help="Serve init, compile, check, prove, and studio to an agent over stdio (needs viewspec[agents])."
+        "mcp",
+        help="Serve init, compile, check, patch, prove, and studio to an agent over stdio (needs viewspec[agents]).",
     )
     mcp_parser.add_argument("--cwd", default=".", help="Workspace root; tools cannot reach paths outside it.")
     mcp_parser.add_argument(
@@ -341,13 +382,91 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _add_repair_loop_arguments(parser: argparse.ArgumentParser) -> None:
+    """The IntentBundle repair-loop options that check and compile share."""
+    parser.add_argument(
+        "--no-fix",
+        action="store_true",
+        help="IntentBundle: do not apply lossless fixes before validation; report them as issues instead.",
+    )
+    parser.add_argument(
+        "--fixed-out",
+        metavar="PATH",
+        help="IntentBundle: write the source after lossless fixes to PATH. For a compact source, use --canonical-out.",
+    )
+    parser.add_argument(
+        "--canonical-out",
+        metavar="PATH",
+        help=(
+            "IntentBundle: write the canonical document after lossless fixes (a compact source normalized) "
+            "to PATH, formatted as viewspec init writes it."
+        ),
+    )
+    parser.add_argument(
+        "--patch",
+        metavar="OPS.json",
+        help="IntentBundle: apply this RFC 6902 JSON Patch to the source in memory first; the file is unchanged.",
+    )
+    parser.add_argument(
+        "--patched-out",
+        metavar="PATH",
+        help="IntentBundle: with --patch, write the patched source to PATH.",
+    )
+
+
 def _init_command(args: argparse.Namespace) -> int:
     out = args.out or INIT_DEFAULT_OUT[args.what]
     if args.what == "app":
         return _init_app(args, out)
     if args.what == "design":
         return _init_design(args, out)
+    if args.what == "compact":
+        return _init_compact(args, out)
+    if args.what == "registry":
+        return _init_registry(args, out)
     return _init_intent(args, out)
+
+
+def _init_compact(args: argparse.Namespace, out: str) -> int:
+    kind = args.kind or "dashboard"
+    path = init_compact_file(out, kind=kind, force=args.force)
+    if args.json:
+        _print_json(
+            tool_response(
+                True,
+                "Wrote starter compact-form IntentBundle.",
+                paths={"compact": str(path)},
+                next_actions=[
+                    "Replace sample labels and values with real user intent.",
+                    f"Run viewspec check {path} --json --canonical-out viewspec.intent.json.",
+                ],
+                metadata=_cli_metadata(kind=kind),
+            )
+        )
+    else:
+        print(str(path))
+    return 0
+
+
+def _init_registry(args: argparse.Namespace, out: str) -> int:
+    registry_path, module_path = write_default_react_registry(out, force=args.force)
+    if args.json:
+        _print_json(
+            tool_response(
+                True,
+                "Wrote the default React component registry and module.",
+                paths={"registry": str(registry_path), "registry_module": str(module_path)},
+                next_actions=[
+                    f"Compile with --target react-tailwind-tsx --registry {registry_path}.",
+                    f"Keep {module_path.name} beside ViewSpecView.tsx and replace one export at a time.",
+                ],
+                metadata=_cli_metadata(),
+            )
+        )
+    else:
+        print(str(registry_path))
+        print(str(module_path))
+    return 0
 
 
 def _init_app(args: argparse.Namespace, out: str) -> int:
@@ -432,15 +551,40 @@ def _init_intent(args: argparse.Namespace, out: str) -> int:
 
 def _compile_command(args: argparse.Namespace) -> int:
     input_format = _input_format(args.input, args.stdin_format)
-    if input_format == "json" and args.input != "-" and source_kind(args.input) == "app_bundle":
+    is_intent_source = input_format == "json" and args.input != "-"
+    if is_intent_source and source_kind(args.input) == "app_bundle":
+        if args.patch:
+            return _finish_intent_validation_failure(
+                args,
+                _patch_target_forbidden_payload(
+                    f"{args.input} is an AppBundle; a patch applies to an IntentBundle source file."
+                ),
+            )
+        _reject_intent_only_options(args, "an AppBundle source")
+        _load_component_registry(args.registry, target=args.target or APP_SHELL_TARGET)
         return _compile_app(args)
     target = args.target or "html-tailwind"
     if target not in (*INTENT_COMPILE_TARGETS, MCP_APP_TARGET):
         raise ValueError(f"--target {target} requires an AppBundle source")
     if target != MCP_APP_TARGET and (args.uri or args.action_tool):
         raise ValueError(f"--uri and --action-tool apply to --target {MCP_APP_TARGET}")
+    if args.patched_out and not args.patch:
+        raise ValueError("--patched-out requires --patch")
+    if not is_intent_source:
+        what = "imported HTML" if input_format == "html" else "stdin"
+        if args.patch:
+            return _finish_intent_validation_failure(
+                args,
+                _patch_target_forbidden_payload(
+                    f"{args.input} is {what}, not a source file; a patch applies to an IntentBundle source file."
+                ),
+            )
+        _reject_intent_only_options(args, what)
+    # The registry is checked before any input is read or any repair-loop file is written.
+    registry = _load_component_registry(args.registry, target=target)
     data, source_name, input_path = _read_input(args.input, stdin_format=args.stdin_format)
     out_dir = Path(args.out)
+    canonical_out = _canonical_out_path(args.canonical_out, input_path)
 
     if input_format == "html":
         if target != "html-tailwind":
@@ -477,29 +621,52 @@ def _compile_command(args: argparse.Namespace) -> int:
             print(json.dumps(paths, indent=2, sort_keys=True))
         return 0
 
-    validation = validate_intent_text(data, compile_check=True)
-    if not validation["ok"]:
-        if args.json:
-            _print_json(_intent_validation_failure_response(validation))
-        else:
-            _print_intent_validation_failure(validation)
-        return 2
     output_names = (
         ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json")
         if target in {"react-tsx", "react-tailwind-tsx"}
         else ("index.html", "provenance_manifest.json", "diagnostics.json")
     )
+    if canonical_out is not None and any(
+        canonical_out.resolve() == (out_dir / name).resolve() for name in output_names
+    ):
+        raise ValueError("--canonical-out must not name a compiled output file")
+    source_path = args.input if is_intent_source else None
+    patch = None
+    if args.patch:
+        try:
+            patch = load_intent_patch(args.patch)
+        except IntentPatchError as exc:
+            return _finish_intent_validation_failure(
+                args,
+                intent_error_payload(
+                    exc.code, exc.message, exc.fix, compile_check=True, path=exc.path, source_path=source_path
+                ),
+            )
+    if args.fixed_out:
+        reject_compact_fixed_out(data)
+    prepared = prepare_intent_source(
+        data, compile_check=True, fix=not args.no_fix, patch=patch, source_path=source_path
+    )
+    if args.fixed_out:
+        reject_compact_fixed_out(prepared.text, prepared)
+    validation = prepared.validation
+    extra_paths = _write_repair_loop_outputs(
+        prepared, patched_out=args.patched_out, fixed_out=args.fixed_out, canonical_out=canonical_out
+    )
+    if not validation["ok"]:
+        return _finish_intent_validation_failure(args, validation, paths=extra_paths)
+    bundle = prepared.result.bundle
+    if bundle is None:  # pragma: no cover - a valid result always carries its bundle
+        raise ValueError("IntentBundle validation passed without a bundle.")
     ensure_no_input_overwrite(input_path, out_dir, output_names)
     design = _load_design(args.design, strict=args.strict_design)
-    payload = json.loads(data)
-    bundle = IntentBundle.from_json(payload)
     ast = compile_intent(bundle, design=design, strict_design=args.strict_design)
     if target == "react-tsx":
-        paths = ReactTsxEmitter().emit(ast, out_dir)
+        paths = ReactTsxEmitter(component_registry=registry).emit(ast, out_dir)
         artifact_path = Path(paths["tsx"])
         emitter = "react_tsx"
     elif target == "react-tailwind-tsx":
-        paths = ReactTailwindTsxEmitter().emit(ast, out_dir)
+        paths = ReactTailwindTsxEmitter(component_registry=registry).emit(ast, out_dir)
         artifact_path = Path(paths["tsx"])
         emitter = "react_tailwind_tsx"
     elif target == MCP_APP_TARGET:
@@ -514,28 +681,121 @@ def _compile_command(args: argparse.Namespace) -> int:
     wrap_intent_bundle_manifest(
         Path(paths["manifest"]),
         source_name=source_name,
-        raw_source_hash=source_hash(data),
+        raw_source_hash=prepared.raw_source_hash,
         design=design,
         command_args=_compile_command_args(args, source_name, target),
         artifact_path=artifact_path,
         emitter=emitter,
         target=MCP_APP_TARGET if target == MCP_APP_TARGET else None,
+        source_format=prepared.source_format,
+        canonical_source_hash=prepared.manifest_source_hash,
+        registry=registry,
     )
     if target == MCP_APP_TARGET:
         paths["mcp_app"] = str(write_mcp_app_metadata(out_dir, uri))
+    paths.update(extra_paths)
     if args.json:
+        next_actions = [f"Run viewspec check {out_dir} --json before using the artifact."]
+        metadata = _cli_metadata(
+            input_format="json", target=target, emitter=emitter, source_format=prepared.source_format
+        )
+        if registry is not None:
+            metadata["registry"] = registry.to_summary()
+            next_actions.append(
+                f"Keep the registry module {registry.module} beside ViewSpecView.tsx; "
+                "viewspec init registry writes the default one."
+            )
         _print_json(
             tool_response(
                 True,
                 "Compiled IntentBundle artifact.",
                 paths=paths,
-                next_actions=[f"Run viewspec check {out_dir} --json before using the artifact."],
-                metadata=_cli_metadata(input_format="json", target=target, emitter=emitter),
+                next_actions=next_actions,
+                metadata=metadata,
+                data={"fixes": validation["fixes"]},
             )
         )
     else:
+        # stdout holds the paths mapping, so the fix notices go to stderr.
+        for line in _repair_loop_lines(validation, extra_paths):
+            print(line, file=sys.stderr)
         print(json.dumps(paths, indent=2, sort_keys=True))
     return 0
+
+
+def _load_component_registry(path: str | None, *, target: str) -> ReactComponentRegistry | None:
+    """Load ``--registry`` for a React target; any other target fails closed."""
+    if path is None:
+        return None
+    if target not in REACT_REGISTRY_TARGETS:
+        raise ReactRegistryError(
+            "REGISTRY_TARGET_UNSUPPORTED",
+            f"--registry applies to --target react-tsx or react-tailwind-tsx, not {target}",
+            "Drop --registry, or compile with --target react-tsx or --target react-tailwind-tsx.",
+        )
+    return load_react_component_registry(path)
+
+
+def _reject_intent_only_options(args: argparse.Namespace, what: str) -> None:
+    """--fixed-out, --patched-out, and --canonical-out write IntentBundle sources; refuse them for anything else."""
+    for option in ("--fixed-out", "--patched-out", "--canonical-out"):
+        if getattr(args, option[2:].replace("-", "_")):
+            raise ValueError(f"{option} applies to an IntentBundle source file, not {what}")
+
+
+def _patch_target_forbidden_payload(message: str, *, compile_check: bool = True) -> dict[str, Any]:
+    return intent_error_payload(
+        "PATCH_TARGET_FORBIDDEN",
+        message,
+        "Pass the IntentBundle .json file that the compiled output came from.",
+        compile_check=compile_check,
+        path="patch",
+    )
+
+
+def _write_repair_loop_outputs(
+    prepared: IntentSourcePreparation,
+    *,
+    patched_out: str | None,
+    fixed_out: str | None,
+    canonical_out: Path | None = None,
+) -> dict[str, str]:
+    """Write --patched-out, --fixed-out, and --canonical-out when their documents exist; return the written paths."""
+    written: dict[str, str] = {}
+    if patched_out and prepared.patched:
+        atomic_write(Path(patched_out), prepared.text)
+        written["patched_out"] = patched_out
+    fixed_text = fixed_intent_source_text(prepared.result)
+    if fixed_out and fixed_text is not None:
+        atomic_write(Path(fixed_out), fixed_text)
+        written["fixed_out"] = fixed_out
+    canonical_text = prepared.canonical_text
+    if canonical_out is not None and canonical_text is not None:
+        atomic_write(canonical_out, canonical_text)
+        written["canonical_out"] = str(canonical_out)
+    return written
+
+
+def _repair_loop_lines(validation: dict[str, Any], written: dict[str, str] | None = None) -> list[str]:
+    """Human-mode lines for the fixes a report carries and the repair-loop files that were written."""
+    lines = [f"fix: {fix['code']} at {fix['path']}: {fix['message']}" for fix in validation.get("fixes") or []]
+    for key in ("patched_out", "fixed_out", "canonical_out"):
+        value = (written or {}).get(key, validation.get(key))
+        if value:
+            lines.append(f"{key}: {value}")
+    return lines
+
+
+def _finish_intent_validation_failure(
+    args: argparse.Namespace, validation: dict[str, Any], *, paths: dict[str, str] | None = None
+) -> int:
+    if args.json:
+        _print_json(_intent_validation_failure_response(validation, paths=paths))
+    else:
+        _print_intent_validation_failure(validation)
+        for line in _repair_loop_lines(validation, paths):
+            print(line, file=sys.stderr)
+    return 2
 
 
 def _compile_app(args: argparse.Namespace) -> int:
@@ -571,12 +831,15 @@ def _print_intent_validation_failure(payload: dict[str, object]) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True), file=sys.stderr)
 
 
-def _intent_validation_failure_response(validation: dict[str, Any]) -> dict[str, Any]:
+def _intent_validation_failure_response(
+    validation: dict[str, Any], *, paths: dict[str, str] | None = None
+) -> dict[str, Any]:
     """The compile --json failure for an invalid IntentBundle."""
     return tool_error_response(
         "COMPILE_FAILED",
         "IntentBundle validation failed.",
         "Regenerate the IntentBundle using correction_prompt, then rerun viewspec compile.",
+        paths=paths,
         errors=[
             {
                 "code": issue["code"],
@@ -585,17 +848,59 @@ def _intent_validation_failure_response(validation: dict[str, Any]) -> dict[str,
             }
             for issue in validation["issues"]
         ],
-        data={"validation": validation, "correction_prompt": validation["correction_prompt"]},
+        data={
+            "validation": validation,
+            "correction_prompt": validation["correction_prompt"],
+            "fixes": validation.get("fixes", []),
+        },
         metadata=_cli_metadata(),
     )
 
 
 def _check_command(args: argparse.Namespace) -> int:
     path = Path(args.path)
-    result = check(path, compile_check=not args.no_compile_check)
+    compile_check = not args.no_compile_check
+    if args.patched_out and not args.patch:
+        raise ValueError("--patched-out requires --patch")
+    canonical_out = _canonical_out_path(args.canonical_out, path)
+    if canonical_out is not None and (path.is_dir() or source_kind(path) == "app_bundle"):
+        raise ValueError("--canonical-out applies to an IntentBundle source file")
+    if args.patch:
+        problem = patch_target_problem(path)
+        if problem is not None:
+            result = _patch_target_forbidden_payload(problem, compile_check=compile_check)
+        else:
+            try:
+                patch = load_intent_patch(args.patch)
+            except IntentPatchError as exc:
+                result = intent_error_payload(
+                    exc.code, exc.message, exc.fix, compile_check=compile_check, path=exc.path, source_path=args.path
+                )
+            else:
+                result = check_intent_source(
+                    path,
+                    compile_check=compile_check,
+                    fix=not args.no_fix,
+                    patch=patch,
+                    patched_out=args.patched_out,
+                    fixed_out=args.fixed_out,
+                    canonical_out=canonical_out,
+                )
+    elif args.fixed_out or canonical_out is not None:
+        if args.fixed_out and (path.is_dir() or source_kind(path) == "app_bundle"):
+            raise ValueError("--fixed-out applies to an IntentBundle source file")
+        result = check_intent_source(
+            path,
+            compile_check=compile_check,
+            fix=not args.no_fix,
+            fixed_out=args.fixed_out,
+            canonical_out=canonical_out,
+        )
+    else:
+        result = check(path, compile_check=compile_check, fix=not args.no_fix)
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
-    elif path.is_dir():
+    elif path.is_dir() and "compile_check" not in result:
         print("ok" if result["ok"] else "failed")
         for error in result["errors"]:
             print(f"error: {error}")
@@ -609,8 +914,12 @@ def _check_command(args: argparse.Namespace) -> int:
             f" screens={summary['screen_count']} routes={summary['route_count']}" if "route_count" in summary else ""
         )
         print(f"ok: compile_check={result['compile_check']}{counts}")
+        for line in _repair_loop_lines(result):
+            print(line)
     else:
         print(f"failed: compile_check={result['compile_check']}")
+        for line in _repair_loop_lines(result):
+            print(line)
         for issue in result["issues"]:
             print(f"{issue['severity']}: {issue['code']} at {issue['path']}: {issue['message']}")
         if result.get("correction_prompt"):
@@ -635,6 +944,14 @@ def _check_manifest_summary_lines(summary: object) -> list[str]:
     aesthetic_profile = summary.get("aesthetic_profile")
     if isinstance(aesthetic_profile, str) and aesthetic_profile:
         lines.append(f"aesthetic_profile: {aesthetic_profile}")
+    registry = summary.get("registry")
+    if isinstance(registry, dict) and registry:
+        lines.append(
+            "registry: "
+            f"module={_cli_summary_value(registry.get('module'))} "
+            f"primitives={_cli_summary_value(registry.get('primitive_count'))} "
+            f"sha256={_cli_summary_value(registry.get('sha256'))}"
+        )
     style = summary.get("aesthetic_style")
     if isinstance(style, dict) and style:
         if style.get("available") is False:
@@ -890,6 +1207,18 @@ def _load_design(path: str | None, *, strict: bool) -> DesignSystemContext | Non
     return load_design_system(path=path, strict=strict)
 
 
+def _canonical_out_path(raw: str | None, source: Path | None) -> Path | None:
+    """The ``--canonical-out`` file, or None; it is never the input file or a directory."""
+    if not raw:
+        return None
+    out = Path(raw)
+    if out.is_dir():
+        raise ValueError(f"--canonical-out must be a file path, not a directory: {raw}")
+    if source is not None and source.exists() and out.resolve() == source.resolve():
+        raise ValueError("--canonical-out must not be the input file")
+    return out
+
+
 def _read_input(path_arg: str, *, stdin_format: str | None) -> tuple[str, str | None, Path | None]:
     if path_arg == "-":
         if stdin_format is None:
@@ -930,6 +1259,12 @@ def _compile_command_args(args: argparse.Namespace, source_name: str | None, tar
         command.append("--strict-design")
     if target != "html-tailwind":
         command.extend(["--target", target])
+    # --patch changes the compiled source and --registry the emitted bytes, so both are recorded, in
+    # the order the compile tool records them; --no-fix never changes the compiled bytes, so it is not.
+    if getattr(args, "patch", None):
+        command.extend(["--patch", Path(args.patch).name])
+    if getattr(args, "registry", None):
+        command.extend(["--registry", Path(args.registry).name])
     command.extend(["--out", "<out>"])
     if args.stdin_format:
         command.extend(["--stdin-format", args.stdin_format])

@@ -1,0 +1,64 @@
+name: Agent Eval
+
+# Model-in-the-loop measurement of the agent contract. It asks a model for IntentBundle and
+# AppBundle JSON for every prompt in conformance/eval/prompts.json, validates each answer with the
+# SDK, retries once with the correction prompt, and uploads the report. It is a separate,
+# non-blocking workflow: it never runs on pull requests and no branch protection waits for it.
+# The model id comes from the dispatch input or, on the schedule, from the repository variable
+# VIEWSPEC_EVAL_MODEL. The key comes from the ANTHROPIC_API_KEY secret. Without a model id or a
+# key the script exits 2 and the run is red.
+
+on:
+  schedule:
+    - cron: "41 4 * * 2"
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Model id to evaluate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  agent_eval:
+    name: Model-in-the-loop agent contract eval
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      VIEWSPEC_EVAL_MODEL: ${{ inputs.model || vars.VIEWSPEC_EVAL_MODEL }}
+      VIEWSPEC_EVAL_OUT: ${{ github.workspace }}/.agent-eval-runs/current
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -c requirements-ci.txt ".[dev,agents]"
+
+      - name: Record the plan without a model call
+        run: python scripts/eval_agent_contract.py --dry-run --out "$VIEWSPEC_EVAL_OUT/plan"
+
+      - name: Run the eval against the model
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/eval_agent_contract.py --out "$VIEWSPEC_EVAL_OUT"
+
+      - name: Upload the eval report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: agent-eval-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .agent-eval-runs/current
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 90

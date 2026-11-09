@@ -7,6 +7,216 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `viewspec studio` lays an inspector over the preview. Hovering an element shows its `data-ir-id`,
+  binding or action id, motif, region, and the JSON path of its source, such as
+  `$.view_spec.bindings[3]` or `$.substrate.nodes.revenue.attrs.value`; a click copies the path,
+  Shift+click copies the value path, and Alt+I turns the inspector off and on.
+  `GET /__viewspec/inspector.json` returns the map for the current build, and `?id=` returns one
+  entry. The compiled files on disk do not change, and Studio still answers only on loopback.
+- `viewspec studio` finds `viewspec.compact.json` as well as `viewspec.intent.json` and
+  `viewspec.app.json`. For a compact source, the inspector maps each node to its path in the
+  canonical bundle that `viewspec check --canonical-out` writes, reports `source_format` in
+  `/__viewspec/inspector.json`, and says which document the paths name. The MCP `check` and
+  `patch` tools take `canonical_out`, which writes that canonical bundle.
+- `viewspec check` and `viewspec compile` apply lossless fixes to an IntentBundle before validation
+  and report each one under a new `fixes` key, as `{code, path, message, lossy: false}`, in JSON and
+  human output. The fixes add a missing `schema_version: 1`, add a missing empty `slots` or `edges`
+  map to a substrate node, set a missing or null root-region `parent_region` to `""`, move a field
+  placed one level too high or too low to its one legal position, and spell a `present_as` alias
+  canonically (`image`, `divider`, `separator`, `metric`, `number`, `tag`, `chip`, `text_input`,
+  `textbox`). Their codes are `FIX_SCHEMA_VERSION_ADDED`, `FIX_EMPTY_RELATIONS_ADDED`,
+  `FIX_ROOT_PARENT_REGION_SET`, `FIX_FIELD_RELOCATED`, and `FIX_PRESENT_AS_ALIAS`. When the fixed
+  document is valid, `ok` is true and `compile` compiles the fixed document. The compiled artifact
+  is the same as for a document written correctly, and the manifest still records the hash of the
+  source as written. Lossy problems are never fixed:
+  `viewspec.agent.ISSUE_CODE_CLASSIFICATION` maps every issue code to `lossless_fixable` or `lossy`.
+  `--no-fix` reports the fixable problems as issues instead, and `--fixed-out PATH` writes the fixed
+  source. `viewspec.check()` and `validate_agent_intent_bundle()` take `fix=`. AppBundle screens are
+  validated and compiled as written.
+- `viewspec check FILE --patch OPS.json` and `viewspec compile FILE --patch OPS.json` apply an RFC
+  6902 JSON Patch (`add`, `remove`, `replace`, `move`, `copy`, `test` over RFC 6901 pointers) to an
+  IntentBundle source in memory, then validate and compile as usual; `--patched-out PATH` writes the
+  patched source, and `compile` records `--patch` in the manifest's `command_args` and hashes the
+  patched text. A patch holds at most 256 operations and the result must stay under 256 KB. Failures
+  are issues with the codes `PATCH_INVALID`, `PATCH_APPLY_FAILED`, `PATCH_TEST_FAILED`,
+  `PATCH_TOO_MANY_OPERATIONS`, `PATCH_RESULT_TOO_LARGE`, and `PATCH_TARGET_FORBIDDEN` (a patch may
+  target only an IntentBundle source file, never a compiled directory, imported HTML, or an
+  AppBundle). The pure implementation is `viewspec.json_patch`, with no new dependency.
+- The MCP server has a sixth tool, `patch(source, operations, out=None, compile_check=True,
+  fix=True)`, which applies the operations to an IntentBundle file in memory and returns the `check`
+  report; `out` writes the patched source. The `check` tool takes `fix=`.
+- `correction_prompt` lists only the remaining issues and names the applied fixes under
+  `applied_fixes`, with a `patch_command` beside `retry_command`. `viewspec.agent.REPAIR_LOOP_PROMPT_SECTION`
+  holds prompt text for the repair loop.
+- `scripts/eval_agent_contract.py` measures how often a model writes valid ViewSpec JSON. It sends
+  the 39 prompts in `conformance/eval/prompts.json` to a model with the SDK's agent system prompt.
+  It validates each answer with the SDK and retries once with the correction prompt.
+  `eval_report.json` and `eval_report.md` give first-pass and second-pass validity, median output
+  size, and the top issue codes. The script calls a model only when `VIEWSPEC_EVAL_MODEL` and
+  `ANTHROPIC_API_KEY` are set, and `--dry-run` writes the plan without one. Structured output is
+  off unless `--structured-output` or `--schema` asks for it. The weekly `agent-eval.yml` workflow
+  reads the model id from the repository variable `VIEWSPEC_EVAL_MODEL` and uploads the report as
+  an artifact. The SDK and its tests still make no model calls.
+- The compact authoring form of an `IntentBundle`: `"format": "compact"` plus the Python builder's
+  calls as JSON, at about a sixth of the canonical size. `viewspec check`, `compile`, and `prove`,
+  the Python `check()` and `prove()`, the MCP `check`, `compile`, and `patch` tools, and the
+  conformance corpus detect a compact file and normalize it into the canonical bundle. A `--patch`
+  applies to the compact file as written, so its pointers name the compact document. The lossless
+  fixes and the unchanged validator and compiler then run on the canonical bundle; a canonical file
+  is handled exactly as before. Normalization drives `ViewSpecBuilder`, so derived ids are the
+  builder's and a compact file and its canonical twin compile to the same `artifact_hash` and
+  `semantic_digest`. Compact-only problems fail closed with `COMPACT_*` codes at `$.`-rooted compact
+  paths. The schema is published as `agent-intent-compact.schema.json`, and
+  `docs/agent-integration.md` documents the form. AppBundle screens stay canonical bundles.
+- `viewspec init compact --out viewspec.compact.json` and the MCP `init` tool's `what="compact"`
+  write the starter in the compact form.
+- `--canonical-out PATH` on `viewspec check` and `viewspec compile` writes the canonical document of
+  an IntentBundle source after the lossless fixes, with the formatting `viewspec init` uses, whenever
+  there is one: a compact source has one once it normalizes, even when a later check fails. For a
+  compact source, `fixes` and the canonical issues carry paths into that document. `check --json`
+  reports the file as `canonical_out` and reports `source_format: "compact"` for a compact source.
+  `--fixed-out` on a compact source is a usage error that names `--canonical-out`.
+- `provenance_manifest.json` records `source_format: "compact"` and `compact_source_sha256` for a
+  compact source. `compact_source_sha256` and `raw_source_hash` hash the compact text after any
+  patch, and `source_hash` hashes exactly the bytes `--canonical-out` writes. `viewspec check`
+  validates both keys, and the manifest summary reports `source_format`. Canonical manifests are
+  unchanged.
+- Compact corpus cases for the starter dashboard and the `examples/*.py` builder bundles, with the
+  builder bundles' canonical twins, in `conformance/verification/corpus.json`; the goldens pin that
+  each pair shares its artifact hashes.
+- `viewspec compile --registry REGISTRY.json` for `--target react-tsx` and `--target
+  react-tailwind-tsx` renders every primitive through host-owned React components. The registry maps
+  each of the fifteen primitive kinds to a named export of one relative module; `ViewSpecView.tsx`
+  imports those exports and passes each component the props and `data-*` provenance attributes it
+  writes today plus `as`, the element the default rendering uses. The agent still writes only the
+  IntentBundle, canonical or compact. The flag composes with `--patch`, the lossless fixes, and a
+  compact source: the source pipeline runs first, and the registry renders the canonical bundle.
+  Without the flag the output is byte-identical to before. The flag on any
+  other target fails with `REGISTRY_TARGET_UNSUPPORTED`; a bad registry file fails before anything is
+  written with `REGISTRY_INVALID`, `REGISTRY_PRIMITIVE_MISSING`, `REGISTRY_PRIMITIVE_UNKNOWN`,
+  `REGISTRY_EXPORT_INVALID`, or `REGISTRY_MODULE_INVALID`. See [docs/react-registry.md](docs/react-registry.md).
+- The provenance manifest of a registry build records `registry: {sha256, module, primitive_count,
+  primitives}` and `--registry` in `command_args`; `viewspec check` verifies the section against the
+  emitted source and fails with `REGISTRY_MANIFEST_MISMATCH` on drift. `viewspec check` prints a
+  `registry:` line in its manifest summary, and the JSON `manifest_summary` gains a `registry` object.
+- `viewspec init registry` writes the default registry JSON and the default module,
+  `viewspec-registry.tsx`, which reproduces today's elements so a host can replace one component at a
+  time. `examples/react_registry/` holds a shadcn-style reference module that uses class names only: it
+  keeps the compiled layout classes and the `vs-*` hooks, and replaces the visual classes.
+- `viewspec prove DIR --install` on a `react-tailwind-tsx` registry build mounts the host module from
+  beside `ViewSpecView.tsx` in the reference host and asserts `data-ir-primitive` on every node. Its host
+  report, `evidence/host-report.json`, records `registry_primitive_assertion_count` and a `registry`
+  section. A missing, deeper, or unsafe module fails with `REGISTRY_MODULE_INVALID`. CI runs the React
+  Tailwind host proof a second time through a fixture registry.
+- `viewspec.emitters.react_registry`: `REACT_PRIMITIVE_KINDS`, `REACT_PRIMITIVE_CONTRACT`,
+  `ReactComponentRegistry`, `DEFAULT_REACT_COMPONENT_REGISTRY`, `load_react_component_registry`, and
+  `write_default_react_registry`; `ReactTsxEmitter`, `ReactTailwindTsxEmitter`, both
+  `emit_compiler_result` functions, `compile_intent_bundle_file_tool`, and
+  `wrap_intent_bundle_manifest` take the registry as a keyword.
+- AppBundle `schema_version` 5 adds bounded expressions on top of V4 and accepts every V4 bundle
+  unchanged. A visibility `when` may combine conditions with `all`, `any`, and `not`, with 2 to 8
+  conditions per list, nesting depth 3, and at most 8 leaves per rule. A `state_text` rule may fill
+  up to 8 named placeholders from scalar state or selector counts, as in `"{open} open of {total}"`.
+  Python replay, Node reducer conformance, the static shell, React, and the generated Playwright
+  proof all evaluate the same rules. V3 and V4 reducers, shells, and React apps stay byte-identical,
+  and every starter keeps its schema version.
+- V5 state text takes closed formatters: `integer`, `decimal` and `percent` with 0 to 6 digits,
+  `currency` for USD, EUR, GBP, JPY, CHF, and INR, and `date_iso`. They round half away from zero
+  in decimal digit space, never call Intl, a locale, or a time zone, and render any input they do
+  not accept as plain V4 text. `conformance/formatters/vectors.json` holds 161 cases that the
+  Python reference and the generated TypeScript both pass.
+- A V1 to V4 bundle that uses a V5 construct fails with `APP_V5_FEATURE_REQUIRES_SCHEMA_VERSION_5`,
+  whose fix is to set `schema_version` to 5. V5 rules fail closed with
+  `APP_VISIBILITY_CONDITION_ARITY_INVALID`, `APP_VISIBILITY_CONDITION_TOO_DEEP`,
+  `APP_VISIBILITY_CONDITION_TOO_MANY_LEAVES`, `APP_STATE_TEXT_VALUES_INVALID`,
+  `APP_STATE_TEXT_VALUES_MISMATCH`, `APP_STATE_TEXT_SELECTOR_MISSING`,
+  `APP_STATE_TEXT_SELECTOR_SOURCE_UNSUPPORTED`, and `APP_STATE_TEXT_FORMAT_INVALID`.
+- `agent-app-bundle.schema.json` describes `schema_version` 5, and
+  `viewspec.app_agent_schema.APPBUNDLE_V5_PROMPT_SECTION` holds the agent guidance for it.
+- `skills/viewspec/SKILL.md`, an agent skill with `name` and `description` front matter, which
+  `npx skills add nxrobins/viewspec --skill viewspec` installs. It teaches the compact form first,
+  the lossless fixes and the `--patch` repair loop, Studio's inspector, the rule that a React
+  component registry is host input that the agent never writes, and AppBundle V5.
+- `docs/concepts/` has one short page each for the substrate, bindings, motifs, regions, the compact
+  form, and proof. Each page has one complete example, and a test checks every example with
+  `viewspec check`.
+- `docs/comparison.md` sets ViewSpec next to json-render, A2UI, and MCP Apps: where each runs, who
+  writes the spec, what comes out, what each checks, and what each does not do.
+
+### Changed
+
+- `docs/compatibility.md` covers the compact authoring form and `agent-intent-compact.schema.json`,
+  and the AppBundle Node.js messages and README lines say V3 to V5.
+- `integrations/claude-code/SKILL.md` is now a short pointer to `skills/viewspec/SKILL.md`.
+- The README's Agents section, `docs/README.md`, `demos/llms.txt`, and `demos/llms-full.txt` lead
+  with the compact form and the repair loop, and list the concept pages, the comparison, and the
+  skill. The two `llms` files also cover `viewspec init compact` and `viewspec init registry`, the
+  six MCP tools, `--patch`, `--canonical-out`, `--registry`, the Studio inspector, the `mcp-app`
+  target, and AppBundle V5.
+- The AppBundle headings in `docs/getting-started.md` and `docs/agent-integration.md` say V1 to V5.
+- `agent-system-prompt.txt` (`viewspec.agent.AGENT_SYSTEM_PROMPT`) is now generated from the contract
+  registries by `viewspec.agent_prompt.build_agent_system_prompt()`. It asks for the compact form by
+  default, as `viewspec.compact.json`, and for the canonical form, as `viewspec.intent.json`, only
+  for `bulk_action` and AppBundle screens. Its proof commands name the compact source, as the agent
+  skill does. It lists the common mistakes first. It shows one complete compact document between
+  `<example>` and `</example>` and one compact motif per kind, and each of them passes
+  `viewspec check` with no fixes. It carries the repair loop and the AppBundle `schema_version` 5
+  guidance. Its contract part and its AppBundle part each stay within 6,000 bytes. The compact
+  schema publishes the motif examples as `x-viewspec-examples`. `correction_prompt` now matches the
+  source: a compact source is asked for the full compact document (`repair_mode`
+  `regenerate_full_compact_document`) and told that `$.view_spec` paths name the document
+  `--canonical-out` writes. `retry_command` and `patch_command` name the file that was checked, and
+  the report adds `source_format`. Both forms ask for the whole document unless the host asks for an
+  RFC 6902 JSON Patch.
+
+### Fixed
+
+- The `react-tailwind-app` browser proof clicks once for each replay event and each `repeat`, as
+  Python replay applies them. The generated test used to skip every `action_id` event and to click
+  a repeated event once, so the proof of a valid bundle failed or checked fewer clicks than the
+  replay applied. An `action_id` event clicks its action on its screen, which applies every
+  mutation of that trigger, as replay does, and `state_action_count` counts the clicks.
+- The `react-tailwind-app` browser proof clicks once for consecutive `mutation_id` events that
+  list every mutation of one action in declared order with the same `payload_values`. No click
+  applies only part of an action, so any other `mutation_id` event of an action with more than one
+  mutation now fails the `react-tailwind-app` compile with `APP_REACT_REPLAY_EVENT_NOT_CLICKABLE`,
+  which names the replay, the event, and the mutations of one click. It used to compile, and its
+  browser proof failed on a state that did not match, without the cause. The static shell target
+  is unchanged.
+- The `react-tailwind-app` browser proof no longer checks the resource field text of a binding
+  that a `state_text` rule targets. The rule replaces that text, so the proof failed for each
+  replay that expected the record. The rule's `expect_text` checks that element.
+- The React app verifier requires `state_text_assertion_count` in the runtime report, returns it
+  under `assertions`, and `APP_PROOF.md` lists it. The generated test wrote the count, but the
+  verifier dropped it. A runtime report without the count fails with
+  `APP_REACT_VERIFY_REPORT_INVALID`.
+- The typecheck tests that run the pinned `tsc` skip when Node.js is not on `PATH`, as the other
+  Node tests do. They used to fail there.
+- Every AppBundle schema version rejects an integer above 2^53 in magnitude in `resources`,
+  `state`, `mutations`, `selectors`, `visibility`, and `state_replay_assertions` with
+  `APP_STATE_INTEGER_OUT_OF_SAFE_RANGE`. Python kept such an integer exact while the generated
+  runtime read the nearest double, so text, equality, and replay could disagree. A V1 to V4
+  bundle that holds one used to validate and now fails; write larger identifiers as strings.
+- A V4 visibility rule whose `when` is `null` fails with `APP_VISIBILITY_CONDITION_INVALID` at its
+  `when`. It used to be dropped without an issue, so its target never hid. A missing `when` is
+  still reported once, as `APP_VISIBILITY_FIELD_REQUIRED`.
+- The generated reducer escapes `<`, `>`, and `&` in its JSON literals in every AppBundle schema
+  version, as V5 already did. A V4 static shell inlines the reducer in a `<script>` element, so a
+  template, state value, or mutation value holding `</script>` ended the script there: the shell
+  failed to compile, or it compiled with the runtime broken and a script element made from the
+  data. The escape keeps every value, and a V3 or V4 reducer whose data has none of the three
+  characters keeps its bytes.
+- AppBundle V4 state text renders the same string in the bake, the replay, and the runtime. The
+  generated reducer used to fill `{value}` with a replacement string, so a value holding `$&`,
+  `$'`, `` $` ``, or `$$` showed different text at runtime than in the compiled screen and the
+  replay. It now inserts the value literally. Python also renders numbers as JavaScript `String()`
+  does, so `1e-05` bakes as `0.00001`, `1e21` as `1e+21`, and an integer beyond 2^53 as the double
+  the runtime holds. V4 reducers change by that one line; every corpus golden is unchanged.
+- `viewspec check` reports `APP_SCHEMA_VERSION_REQUIRED` for an AppBundle whose `schema_version`
+  is an array or an object. It used to raise `TypeError`.
+
 ## [0.4.0] - 2026-11-01
 
 ViewSpec is now a local, open-source compiler with no hosted service and a much smaller surface.

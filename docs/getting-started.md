@@ -55,14 +55,21 @@ Patch to it; `viewspec check` validates the result either way.
 viewspec studio
 ```
 
-Studio finds the one `viewspec.app.json` or `viewspec.intent.json` in the current directory, or takes
-a path, then serves a preview on `http://127.0.0.1:4388/`. Editing the source or `--design DESIGN.md`
+Studio finds the one `viewspec.app.json`, `viewspec.intent.json`, or `viewspec.compact.json` in the
+current directory, or takes a path, then serves a preview on `http://127.0.0.1:4388/`. Editing the source or `--design DESIGN.md`
 rebuilds the preview and reloads the page. A broken edit leaves the last good build on screen with
 the error shown over it. Stop it with Ctrl-C.
 
 Studio previews the static HTML targets. It listens on loopback only and refuses requests for any
 other host. `--port` picks another port, `--no-open` skips launching a browser, and `--json` prints
 one line with the URL once it is serving, which suits an agent starting it in the background.
+
+The preview carries an inspector: hover an element to see its `data-ir-id`, binding or action id,
+motif, region, and the JSON path of its source, such as `$.view_spec.bindings[3]` or
+`$.substrate.nodes.revenue.attrs.value`. Click copies that path, Shift+click copies the value path,
+and Alt+I turns the inspector off and on; while it is on, a click does not reach the artifact.
+`GET /__viewspec/inspector.json` returns the same map for the current build, with `?id=` for one
+entry, and the compiled files on disk never carry the inspector.
 
 ## Browser Proof
 
@@ -192,10 +199,10 @@ or immutable-input drift fails closed with `APP_PRETEXT_*`. No eligible compiler
 
 This is bounded native text-wrapping evidence for the recorded Chromium environment. It is not a
 cross-browser, Retina/device-pixel-ratio, canvas-rendering, pixel-perfect, accessibility, or
-arbitrary-host claim. See [AppBundle V1/V2/V3/V4](app-bundle-v0.md) for the exact support profile
+arbitrary-host claim. See [AppBundle V1 to V5](app-bundle-v0.md) for the exact support profile
 and evidence fields.
 
-## AppBundle V1/V2/V3/V4
+## AppBundle V1 to V5
 
 Use `viewspec.app.json` for a multi-screen internal tool:
 
@@ -208,8 +215,9 @@ viewspec prove viewspec.app.json --out .viewspec-app-proof --with-shell --json
 
 Resource binding is `unbound_v0` by default and `fixture_readonly_v0` with
 `viewspec init app --resource-binding fixture-readonly-v0`. The default target is Static Shell V0, a
-local proof artifact with bounded browser navigation, not a deployable app. See the
-[AppBundle contract](app-bundle-v0.md).
+local proof artifact with bounded browser navigation, not a deployable app. V3 adds bounded
+interactive state, and V4 adds visibility and state text. V5 adds composed visibility conditions,
+multi-value state text, and closed formatters. See the [AppBundle contract](app-bundle-v0.md).
 
 ## Machine-readable output
 
@@ -233,6 +241,37 @@ Every command accepts `--json`. `init` and `compile` print one standard tool env
 with `"ok": false` and `errors: [{code, message, fix}]`. An invalid IntentBundle passed to `compile`
 also carries `validation` and `correction_prompt`, and a DESIGN.md error lists its findings under
 `diagnostics`.
+
+For an IntentBundle, `check` and `compile` apply lossless fixes before validation and report them
+under `fixes`, in the report and in the compile envelope. Each fix is `{code, path, message, lossy}`
+with `lossy` always `false`: ViewSpec never fixes a lossy problem. A document that needs no fix
+reports `"fixes": []`; one that needed a fix lists it:
+
+```json
+{
+  "schema_version": 1,
+  "ok": true,
+  "compile_check": "passed",
+  "issues": [],
+  "fixes": [{"code": "FIX_EMPTY_RELATIONS_ADDED", "path": "$.substrate.nodes.revenue.slots", "message": "Added an empty slots map to substrate node revenue; a node without slots has none.", "lossy": false}],
+  "repair_checklist": [],
+  "correction_prompt": null
+}
+```
+
+`--no-fix` reports the same problems as issues. `--fixed-out PATH` writes the fixed source.
+`--patch OPS.json` applies an RFC 6902 JSON Patch to the source in memory before validation, and
+`--patched-out PATH` writes the patched source; `compile` then compiles the patched document. A
+patch may target only an IntentBundle source file. A patch that does not apply is reported as one
+issue with a `PATCH_*` code and exit `2`:
+
+```bash
+viewspec check viewspec.intent.json --patch ops.json --patched-out viewspec.intent.json --json
+viewspec compile viewspec.intent.json --patch ops.json --fixed-out viewspec.intent.json --out dist/ --json
+```
+
+Human mode prints each fix as a `fix: CODE at PATH: message` line: after the verdict for `check`,
+and on stderr for `compile`, whose stdout stays the paths mapping.
 
 Exit codes match human mode: `0` on success; `2` for invalid input, including a missing input file,
 invalid JSON, an invalid IntentBundle or DESIGN.md, and an existing output without `--force`; and
@@ -296,6 +335,10 @@ Use `--target react-tailwind-tsx` when the host React app already has Tailwind a
 viewspec compile viewspec.intent.json --target react-tailwind-tsx --out react-tailwind-output/
 ```
 
+Both React targets accept `--registry REGISTRY.json` to render every primitive through host-owned
+components instead of plain HTML elements. `viewspec init registry` writes the default registry and
+module; [React Host Component Registry](react-registry.md) has the primitive contract.
+
 The ViewSpec repo CI includes one bounded host proof for this target: it regenerates a representative fixture, runs `viewspec check`, mounts the exact checked `ViewSpecView.tsx` in a Vite/Tailwind host, builds it, and smoke-tests rendered DOM, computed Tailwind styles including grid column/span counts, profiled aesthetic marker/layout assertions, and action payloads in Chromium. The checked manifest summary also carries compact aesthetic style-delta counts when a profile is present. That proof is not run for every user artifact; `viewspec check` verifies source artifact integrity and provenance for the output you compiled.
 
 Run the same bounded proof for a specific artifact with:
@@ -305,7 +348,7 @@ viewspec prove react-tailwind-output/ --install --json
 viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json
 ```
 
-`--install` opts into `npm ci --ignore-scripts` inside the isolated reference host. Without it, the command stays no-install and fails fast when host dependencies are absent. JSON proof reports include `assertion_requirements` for expected `dom_count`, `style_assertion_count`, and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, and `grid_span_assertion_count` before comparing observed browser assertions.
+`--install` opts into `npm ci --ignore-scripts` inside the isolated reference host. Without it, the command stays no-install and fails fast when host dependencies are absent. JSON proof reports include `assertion_requirements` for expected `dom_count`, `style_assertion_count`, and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, `grid_span_assertion_count`, and `registry_primitive_assertion_count` before comparing observed browser assertions.
 
 `viewspec check` also verifies React TSX source artifacts: manifest shape, exact `ViewSpecView.tsx` hash, generated-source markers, diagnostics shape, and absence of active network/runtime escape surfaces. This is source artifact verification, not a rendered DOM proof inside a host React app.
 

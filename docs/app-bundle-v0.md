@@ -1,11 +1,11 @@
-# AppBundle V1/V2/V3/V4
+# AppBundle V1/V2/V3/V4/V5
 
 > **Naming note.** This file keeps the name `app-bundle-v0.md` for link stability, but it documents
-> AppBundle `schema_version` 1 through 4 (V1 to V4). "V0" survives only in the Static Shell V0 proof
+> AppBundle `schema_version` 1 through 5 (V1 to V5). "V0" survives only in the Static Shell V0 proof
 > target and in the `unbound_v0`, `fixture_readonly_v0`, `interactive_state_v0`, and `visibility_v0`
 > contract names used below.
 
-AppBundle is the bounded app-generation contract for local multi-screen internal tools. Its default Static Shell V0 target remains a proof artifact. The additive `react-tailwind-app` target emits a complete runnable Vite/React/Tailwind package with browser-history routes, host resource props, generated state reducers, selectors, conditional visibility, scalar state text, typed host callbacks, and exact-artifact browser verification. `schema_version: 1` keeps fixtures unbound; `schema_version: 2` adds proof-only read-only fixture binding; `schema_version: 3` adds bounded declarative state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer artifact. `schema_version: 4` adds bounded visibility and optional scalar-to-text rules and is the golden-path runtime contract.
+AppBundle is the bounded app-generation contract for local multi-screen internal tools. Its default Static Shell V0 target remains a proof artifact. The additive `react-tailwind-app` target emits a complete runnable Vite/React/Tailwind package with browser-history routes, host resource props, generated state reducers, selectors, conditional visibility, scalar state text, typed host callbacks, and exact-artifact browser verification. `schema_version: 1` keeps fixtures unbound; `schema_version: 2` adds proof-only read-only fixture binding; `schema_version: 3` adds bounded declarative state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer artifact. `schema_version: 4` adds bounded visibility and optional scalar-to-text rules and is the golden-path runtime contract. `schema_version: 5` adds bounded expressions: composed visibility conditions, multi-value state text, and closed formatters.
 
 ## Runnable React App Golden Path
 
@@ -27,7 +27,14 @@ The proof checks the same embedded screen provenance and resource assertions as 
 verifies generated reducer replay under Node, checks every generated file hash, runs strict
 TypeScript checking before the Vite production build, and exercises routes, browser history,
 unknown-route fallback, state actions, live resource-field rebinding, selector expectations,
-visibility, and declared state text in Chromium.
+visibility, and declared state text in Chromium. Each replay event, and each `repeat` of it, is one
+click on its action. One click applies every mutation that the action triggers on its screen, in
+declared order, as replay does for an `action_id` event. Consecutive `mutation_id` events that
+list every mutation of one action in that order, with the same `payload_values`, are also one
+click. No click applies only part of an action, so any other `mutation_id` event of an action that
+triggers more than one mutation fails the `react-tailwind-app` compile with
+`APP_REACT_REPLAY_EVENT_NOT_CLICKABLE`. A binding that a `state_text` rule targets is checked by the
+rule's text, not by its resource field.
 
 The generated `ViewSpecApp` accepts fixture-compatible resource records plus typed navigation, action, state-change, and error callbacks. Network requests, authentication, persistence, optimistic updates, and deployment infrastructure remain host-owned.
 
@@ -227,7 +234,7 @@ V2 validates every resource view against existing fixture resources, unique reco
 
 AppBundle V3 adds required root `interactive_state: "interactive_state_v0"`, `state`, `mutations`, and `selectors`, with optional `state_replay_assertions`. Mutation triggers reference declared embedded screen actions by `{ "screen_id": "...", "action_id": "..." }`, and `from_payload` reads must reference that action's declared `payload_bindings`. Supported mutation ops are `set`, `patch`, `toggle`, `append`, `remove`, `move`, and `increment`. Supported selector ops are `filter_eq`, `sort_by`, and `slice`.
 
-AppBundle V4 keeps the full V3 contract and adds an optional root `visibility` array. Each rule is `{ "id", "screen_id", "target_ref", "when" }`: `target_ref` is `region:<id>`, `motif:<id>`, or `binding:<id>` declared in that screen's embedded intent (`view:` is excluded — whole-screen visibility is the router's job), and `when` is exactly one closed condition form: `{"state": id, "is": "truthy"|"falsy"}` (scalar or selection state), `{"state": id, "equals": <JSON scalar>}` (scalar state, JS strict-equality semantics), or `{"selector": id, "is": "non_empty"|"empty"}` (selectors sourcing collection or selection state). At most one rule per `(screen_id, target_ref)`. Replay assertions may declare `expect_visibility` maps of rule id to boolean; replay and Node reducer conformance both verify the verdicts, and compiled screens bake initial visibility that proof cross-checks against `initial_visibility` (`APP_VISIBILITY_BAKE_MISMATCH` fails closed).
+AppBundle V4 keeps the full V3 contract and adds an optional root `visibility` array. Each rule is `{ "id", "screen_id", "target_ref", "when" }`: `target_ref` is `region:<id>`, `motif:<id>`, or `binding:<id>` declared in that screen's embedded intent (`view:` is excluded — whole-screen visibility is the router's job), and `when` is exactly one closed condition form: `{"state": id, "is": "truthy"|"falsy"}` (scalar or selection state), `{"state": id, "equals": <JSON scalar>}` (scalar state, JS strict-equality semantics), or `{"selector": id, "is": "non_empty"|"empty"}` (selectors sourcing collection or selection state). At most one rule per `(screen_id, target_ref)`. A rule whose `when` is missing, `null`, or not one of these forms fails validation with `APP_VISIBILITY_FIELD_REQUIRED` or `APP_VISIBILITY_CONDITION_INVALID`; a rule is never dropped. Replay assertions may declare `expect_visibility` maps of rule id to boolean; replay and Node reducer conformance both verify the verdicts, and compiled screens bake initial visibility that proof cross-checks against `initial_visibility` (`APP_VISIBILITY_BAKE_MISMATCH` fails closed).
 
 V4 may also add optional root `state_text` rules:
 
@@ -247,8 +254,12 @@ template is a literal string with exactly one `{value}` placeholder and no other
 text is derived and cross-checked during screen compilation; the generated reducer exports
 `evaluateViewSpecText(state)`; the static shell updates `textContent`; React consumes the same
 derived map. Replay assertions may add `expect_text` maps, and the generated Chromium test verifies
-each final string at its stable `data-state-text-id`. The contract deliberately excludes HTML,
-expressions, paths, localization, formatters, and heuristic source discovery.
+each final string at its stable `data-state-text-id`. The value is inserted literally, so `$&`
+stays `$&`. A number renders as JavaScript `String()` renders it, in the bake, the replay, and the
+runtime alike: `1e-05` renders as `0.00001`, `1e21` as `1e+21`, and an integer beyond 2^53 as the
+double JavaScript holds. The V4 contract deliberately excludes HTML,
+expressions, paths, localization, formatters, and heuristic source discovery. V5 adds only named
+placeholders and the closed formatter set described in [AppBundle V5](#appbundle-v5).
 
 ### Shared presentation and responsive anchors
 
@@ -313,15 +324,146 @@ motif: keeping a hand-authored prototype field there fails with
 ### Compact action replay
 
 Replay events may name a mutation directly or use `{ "screen_id", "action_id", "repeat" }` to
-model real user actions compactly. Action events resolve to exactly one declared mutation and
-normalize into the same deterministic state IR; `repeat` expands into bounded identical events.
+model real user actions compactly. An action event resolves to exactly one screen and to every
+mutation that its action triggers there, in declared order, and normalizes into the same
+deterministic state IR; `repeat` expands into bounded identical events.
 Replay mismatches carry the assertion ID, event index, mutation ID, state/selector/visibility path,
 expected value, and actual value. This makes reveal, increment, derived visibility, and independent
 transition failures actionable before generated reducer code is accepted.
 
+## AppBundle V5
+
+`schema_version: 5` adds bounded expressions to the V4 contract. It accepts every V4 construct
+unchanged and adds composed visibility conditions, multi-value state text, and a closed formatter
+set. Use it only when a screen needs one of those three. V4 stays the golden-path contract, and
+`viewspec init app` and every starter keep their schema version. A bundle that declares
+`schema_version` 1 to 4 and uses a V5 construct fails with
+`APP_V5_FEATURE_REQUIRES_SCHEMA_VERSION_5`; the fix is to set `schema_version` to 5.
+
+### Composed visibility
+
+A V5 `when` is a V4 leaf condition, `{"all": [when, ...]}`, `{"any": [when, ...]}`, or
+`{"not": when}`:
+
+```json
+{
+  "id": "escalation",
+  "screen_id": "queue",
+  "target_ref": "binding:escalate",
+  "when": {
+    "all": [
+      {"selector": "active", "is": "non_empty"},
+      {"not": {"state": "acked", "is": "truthy"}}
+    ]
+  }
+}
+```
+
+Each `all` and `any` list holds 2 to 8 conditions. A leaf directly in `when` sits at depth 1, and
+nesting stops at depth 3. A rule holds at most 8 leaves. The 64-rule cap and the one rule per
+`(screen_id, target_ref)` pair stay as in V4. Python replay and the generated
+`evaluateViewSpecVisibility` evaluate the same tree, and both stay total for any state shape.
+Broken trees fail with `APP_VISIBILITY_CONDITION_INVALID`, `APP_VISIBILITY_CONDITION_ARITY_INVALID`,
+`APP_VISIBILITY_CONDITION_TOO_DEEP`, or `APP_VISIBILITY_CONDITION_TOO_MANY_LEAVES`, and each leaf
+keeps its V4 checks.
+
+### Multi-value state text
+
+A V5 `state_text` rule may name several placeholders and fill each one from `values`:
+
+```json
+{
+  "id": "open_summary",
+  "screen_id": "queue",
+  "target_ref": "binding:open_text",
+  "template": "{open} open of {total}, {spend} spent",
+  "values": {
+    "open": {"selector": "active", "measure": "count"},
+    "total": {"selector": "all_incidents", "measure": "count"},
+    "spend": {"state": "spend", "format": {"format": "currency", "currency": "USD"}}
+  }
+}
+```
+
+The template is a literal of at most 512 characters with 1 to 8 placeholders and no other braces.
+Each placeholder is `{name}`, its name matches `^[a-z][a-z0-9_]{0,31}$`, and it appears once.
+Every placeholder has exactly one `values` entry, and every entry is used. An entry is either
+`{"state": id, "format"?: F}`, which reads scalar app state or scalar state of the rule's screen,
+or `{"selector": id, "measure": "count", "format"?: F}`, which reads the length of a selector
+result over collection or selection state. The V4 form `{id, screen_id, target_ref, state,
+template}` with one `{value}` stays valid in V5 and may add an optional `format`. Broken rules fail
+with `APP_STATE_TEXT_VALUES_INVALID`, `APP_STATE_TEXT_VALUES_MISMATCH`,
+`APP_STATE_TEXT_SELECTOR_MISSING`, `APP_STATE_TEXT_SELECTOR_SOURCE_UNSUPPORTED`,
+`APP_STATE_TEXT_FORMAT_INVALID`, or the V4 state text codes. Replay `expect_text`, Node reducer
+conformance, the baked screens, the static shell, React, and the generated Playwright proof all
+cover the new form. Text renders literally: a template never becomes markup.
+
+### Closed formatters
+
+| Format | Shape | Example |
+| --- | --- | --- |
+| integer | `{"format": "integer"}` | `1234.5` renders `1,235` |
+| decimal | `{"format": "decimal", "digits": n}`, n from 0 to 6 | `2.675` with 2 digits renders `2.68` |
+| percent | `{"format": "percent", "digits": n}`, n from 0 to 6 | `0.1875` with 1 digit renders `18.8%` |
+| currency | `{"format": "currency", "currency": CODE}` | `-1234.5` in USD renders `-$1,234.50` |
+| date_iso | `{"format": "date_iso"}` | `1700000000000` renders `2023-11-14` |
+
+The currency table is closed: USD `$`, EUR `€`, GBP `£`, and INR `₹` print 2 minor digits, JPY `¥`
+prints 0, and CHF prints `CHF ` (with a space) and 2. Python and the generated TypeScript follow
+one rule set:
+
+- Numeric formats accept only finite JSON numbers. Booleans, numeric strings, null, and every other
+  value render exactly as V4 renders that scalar, so text never throws.
+- A number is read from its shortest round-trip text (Python `repr(float(x))`, JavaScript
+  `String(x)`). Both exponent forms normalize into digits and a decimal point position.
+- Rounding works half away from zero in that digit space. No binary floating point rounding takes
+  place, so `1.005` with 2 digits renders `1.01`.
+- `percent` shifts the decimal point two places, formats like `decimal`, and appends `%`.
+- Grouping puts a comma every three integer digits, and the decimal separator is a period.
+  `decimal` always prints exactly n fraction digits.
+- A result that rounds to zero prints no minus sign.
+- `currency` prints the sign, then the symbol, then the grouped amount, as in `-$1,234.50` and
+  `¥1,235`.
+- `date_iso` prints the date of a string that starts with a valid `YYYY-MM-DD` calendar date, with
+  leap years checked. It also converts integer epoch milliseconds in UTC, from 0000-01-01 through
+  9999-12-31, with a pure civil-from-days algorithm. Every other value falls back.
+- No formatter calls Intl, a locale, a time zone, or a local-time Date API.
+
+`conformance/formatters/vectors.json` is the specification. It holds over 120 cases: rounding ties,
+exponent-form inputs, negative zero, results that round to zero, every currency, leap days, invalid
+dates, booleans, strings, and null. A Python test and a Node test assert every vector.
+
+In a V5 bundle, a number without a format renders as JavaScript `String()` renders it, in Python
+too. Every schema version, not only V5, rejects an integer above 2^53 in magnitude anywhere in
+`resources`, `state`, `mutations`, `selectors`, `visibility`, or `state_replay_assertions` with
+`APP_STATE_INTEGER_OUT_OF_SAFE_RANGE`, because the generated reducer reads such a number as the
+nearest 64-bit double. Write larger identifiers as strings.
+
+### Generated code and caps
+
+The generated reducer carries formatter code only for a V5 bundle that uses a format. Adding V5
+changed no V3 or V4 reducer, shell, or React app. The 64 KiB reducer cap and the 96 KiB static
+shell runtime cap apply unchanged. Every schema version escapes `<`, `>`, and `&` in the reducer's
+JSON literals, so no template, state value, or mutation value can end the static shell's inline
+script. For the incident console fixture
+(`tests/fixtures/app_bundle_v5_incident_console.json`), the TypeScript reducer uses about 20 KiB of
+its 64 KiB cap, and the static shell state runtime uses about 20 KiB of its 96 KiB cap.
+
+### What V5 does not do
+
+- It adds no free expressions, arithmetic, string functions, or comparisons beyond the V4 leaf
+  forms.
+- A placeholder reads one declared state value or one selector count; there are no JSON paths.
+- It calls no host functions and has no Intl, locale, time zone, relative date, or custom number
+  pattern behavior.
+- It does not pluralize, localize, convert currencies, or render HTML.
+- It adds no animation, transitions, or focus management on show and hide.
+
 ## Constraints & Fallbacks
 
-AppBundle V0 is physically bounded: max 1 MiB raw JSON, 16 screens, 32 routes, 8 fixture resources, 100 records per resource, 32 scalar fields per record, 2,048 characters per scalar string, 256 KiB per embedded IntentBundle, 1 MiB aggregate embedded IntentBundle JSON, 256 KiB app proof report, and 16 KiB redacted support bundle. V3 state adds max 32 state entries, 128 mutations, 16 ops per mutation, 64 selectors, 8 selector ops, 32 replay assertions, 32 events per replay assertion, 64 KiB generated reducer, and 64 KiB state manifest. V4 visibility adds max 64 rules, one rule per screen target, and equals values bounded to JSON scalars of at most 2,048 characters. Validation fails closed with stable error codes before writing proof artifacts when any bound is exceeded.
+AppBundle V0 is physically bounded: max 1 MiB raw JSON, 16 screens, 32 routes, 8 fixture resources, 100 records per resource, 32 scalar fields per record, 2,048 characters per scalar string, 256 KiB per embedded IntentBundle, 1 MiB aggregate embedded IntentBundle JSON, 256 KiB app proof report, and 16 KiB redacted support bundle. V3 state adds max 32 state entries, 128 mutations, 16 ops per mutation, 64 selectors, 8 selector ops, 32 replay assertions, 32 events per replay assertion, 64 KiB generated reducer, and 64 KiB state manifest. V4 visibility adds max 64 rules, one rule per screen target, and equals values bounded to JSON scalars of at most 2,048 characters. V5 adds 2 to 8 conditions per `all` or `any` list, depth 3, 8 leaves per rule, 512-character multi-value templates, and 8 placeholders per rule. Validation fails closed with stable error codes before writing proof artifacts when any bound is exceeded.
+
+Every schema version rejects an integer above 2^53 in magnitude in `resources`, `state`, `mutations`, `selectors`, `visibility`, and `state_replay_assertions` with `APP_STATE_INTEGER_OUT_OF_SAFE_RANGE`. Python would keep such an integer exact while the generated runtime reads the nearest 64-bit double, so text, equality, and replay would disagree. Write larger identifiers as strings.
 
 Routes are static and canonical only: paths are unique, at most 96 characters, start with `/`, contain only letters, digits, `_`, `.`, `~`, `-`, and `/`, and must not contain `//`, `/../`, `/./`, `%`, `?`, `#`, or `\`. Proof output paths derive only from validated safe ids, never route paths, labels, titles, resource values, or user copy.
 
@@ -333,7 +475,7 @@ Resource Binding V0 is physically bounded and proof-only: max 32 resource views 
 
 If `resource_binding: "fixture_readonly_v0"` is declared, validation, compile, and proof fail closed with stable `APP_RESOURCE_BINDING_*` or `APP_RESOURCE_REPEAT_*` errors on schema mismatch, empty assertion set, unsupported source, canonical identity or generated DOM collision, incomplete repeat field coverage, limit overflow, report overflow, digest mismatch, or missing `binding_scope: "declared_resource_views_only"`. Commands never downgrade to `unbound_v0`, skip assertions, imply runtime/live/adapter/state/data-flow execution, or return a partial successful proof.
 
-Static Shell V0 is physically bounded: max 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, 8 MiB aggregate embedded checked screen HTML, 64 KiB generated reducer, 64 KiB state manifest, 0 external network surfaces, 0 dynamic route features, and 0 third-party executable/embed surfaces. For V4, the shell additionally embeds the generated reducer (as a bounded inline runtime, max 96 KiB combined) plus exactly one delegated click listener that dispatches declared mutations for `(screen, action)` triggers and toggles `hidden` + `data-visibility-state` on `data-visibility-rule` nodes — bounded visibility binding only; data and text rebinding stay out of scope, and a halted mutation sequence marks the screen section with `data-viewspec-state-halted` instead of failing silently. The shell manifest records the runtime under `state_runtime` (hashes, sizes, `listener_count: 1`). Shell generation fails closed before writing a successful report with stable `APP_SHELL_*` or `APP_STATE_*` error codes if any bound is exceeded, any route/screen/state assertion fails, any output path escapes the shell/proof root, any preexisting output exists without `--force`, any screen validation/compile/check/hash fails, or `viewspec compile` and `viewspec prove --with-shell` would produce non-identical shell artifacts.
+Static Shell V0 is physically bounded: max 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, 8 MiB aggregate embedded checked screen HTML, 64 KiB generated reducer, 64 KiB state manifest, 0 external network surfaces, 0 dynamic route features, and 0 third-party executable/embed surfaces. For V4, the shell additionally embeds the generated reducer (as a bounded inline runtime, max 96 KiB combined, with `<`, `>`, and `&` escaped in its JSON literals) plus exactly one delegated click listener that dispatches declared mutations for `(screen, action)` triggers and toggles `hidden` + `data-visibility-state` on `data-visibility-rule` nodes — bounded visibility binding only; data and text rebinding stay out of scope, and a halted mutation sequence marks the screen section with `data-viewspec-state-halted` instead of failing silently. The shell manifest records the runtime under `state_runtime` (hashes, sizes, `listener_count: 1`). Shell generation fails closed before writing a successful report with stable `APP_SHELL_*` or `APP_STATE_*` error codes if any bound is exceeded, any route/screen/state assertion fails, any output path escapes the shell/proof root, any preexisting output exists without `--force`, any screen validation/compile/check/hash fails, or `viewspec compile` and `viewspec prove --with-shell` would produce non-identical shell artifacts.
 
 `viewspec compile` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, `presentation_plan.json`, and checked screen artifacts using `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. For V3 it also writes `state_reducer.ts` and schema-versioned `state_manifest.json`; the state manifest records the normalized state contract, `state_contract_hash`, state event schemas, replay report, reducer exports, reducer hash, and local reducer conformance report. It rejects external network/embed/script surfaces, renders unknown route state as one local 404 panel with zero selected screen containers, and remains a local proof artifact rather than a deployable framework app.
 
@@ -358,7 +500,7 @@ The proof report keeps report schema metadata separate from app contract metadat
 
 With `--with-shell`, `viewspec prove` also writes `.viewspec-app-proof/app-shell/index.html`, `.viewspec-app-proof/app-shell/shell_manifest.json`, and `.viewspec-app-proof/app-shell/diagnostics.json`; the proof report uses `target: "html-tailwind-app"`, `route_navigation: "static_shell_v0"`, `shell_artifact_hash`, `shell_manifest_hash`, shell route assertions, and the same per-screen proof data.
 
-For V3/V4 shell proofs, `viewspec compile` and `viewspec prove --with-shell` also write matching `state_reducer.ts` and `state_manifest.json`, record `state_contract_hash`, `state_reducer_hash`, `state_manifest_hash`, replay status, and reducer conformance status. Replay assertions execute through the normalized mutation definitions in the Python interpreter, and the generated reducer is imported with local Node and compared against the Python replay before returning a successful report. **Node.js (>=18) on `PATH` is a prerequisite for V3/V4 conformance** — without it, `viewspec compile` and `viewspec prove` fail with `APP_STATE_REDUCER_NODE_UNAVAILABLE` (install Node, or use a V1/V2 AppBundle, which needs no Node).
+For V3/V4 shell proofs, `viewspec compile` and `viewspec prove --with-shell` also write matching `state_reducer.ts` and `state_manifest.json`, record `state_contract_hash`, `state_reducer_hash`, `state_manifest_hash`, replay status, and reducer conformance status. Replay assertions execute through the normalized mutation definitions in the Python interpreter, and the generated reducer is imported with local Node and compared against the Python replay before returning a successful report. **Node.js (>=18) on `PATH` is a prerequisite for V3/V4/V5 conformance** — without it, `viewspec compile` and `viewspec prove` fail with `APP_STATE_REDUCER_NODE_UNAVAILABLE` (install Node, or use a V1/V2 AppBundle, which needs no Node).
 
 ## Explicit Anti-Goals
 
@@ -377,4 +519,5 @@ For V3/V4 shell proofs, `viewspec compile` and `viewspec prove --with-shell` als
 - Resource Binding V0 is not required to resolve semantic intent when multiple fixture fields intentionally contain the same scalar value unless the declared record-field assertion boundary is unambiguous.
 - State IR V0 is not required to generate Zustand, Redux, SwiftData, CRDT, websocket, optimistic reconciliation, persistence, auth, backend/API client, package install, or gesture/pointer runtimes.
 - State IR V0 is not required to relax local V1/V2/V3 caps, stream massive dynamic apps, discover plugins, execute untrusted code,.
-- Visibility V0 is not required to support boolean condition composition (and/or/not), animation or transitions, focus management on show/hide, `view:` targets, or any data/text rebinding; it is bounded conditional show/hide only, and conditions over states driven to unexpected JSON shapes stay total (never crash) under Python-equals-JavaScript semantics verified by Node conformance.
+- Visibility V0 in AppBundle V4 is not required to support boolean condition composition (and/or/not), animation or transitions, focus management on show/hide, `view:` targets, or any data/text rebinding; it is bounded conditional show/hide only, and conditions over states driven to unexpected JSON shapes stay total (never crash) under Python-equals-JavaScript semantics verified by Node conformance. AppBundle V5 adds bounded `all`, `any`, and `not` composition and keeps every other limit.
+- State Text V0 in AppBundle V4 is not required to support formatters or more than one placeholder. AppBundle V5 adds the closed formatter set and up to 8 named placeholders, and still excludes free expressions, JSON paths, host functions, HTML, localization, and locale or time zone behavior.

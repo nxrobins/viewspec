@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "substrate": {
+    "id": "pricing_comparison_substrate",
+    "nodes": {
+      "plans_item_1": {
+        "attrs": {
+          "label": "Starter",
+          "value": "$9/mo — 1 seat, 10GB storage, email support"
+        },
+        "edges": {},
+        "id": "plans_item_1",
+        "kind": "comparison_item",
+        "slots": {}
+      },
+      "plans_item_2": {
+        "attrs": {
+          "label": "Pro",
+          "value": "$29/mo — 5 seats, 100GB storage, priority support"
+        },
+        "edges": {},
+        "id": "plans_item_2",
+        "kind": "comparison_item",
+        "slots": {}
+      },
+      "plans_item_3": {
+        "attrs": {
+          "label": "Enterprise",
+          "value": "Custom — unlimited seats, unlimited storage, dedicated CSM"
+        },
+        "edges": {},
+        "id": "plans_item_3",
+        "kind": "comparison_item",
+        "slots": {}
+      },
+      "pricing_comparison": {
+        "attrs": {},
+        "edges": {},
+        "id": "pricing_comparison",
+        "kind": "app",
+        "slots": {}
+      }
+    },
+    "root_id": "pricing_comparison"
+  },
+  "view_spec": {
+    "actions": [],
+    "bindings": [
+      {
+        "address": "node:plans_item_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "plans_item_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:plans_item_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "plans_item_1_value",
+        "present_as": "text",
+        "target_region": "main"
+      },
+      {
+        "address": "node:plans_item_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "plans_item_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:plans_item_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "plans_item_2_value",
+        "present_as": "text",
+        "target_region": "main"
+      },
+      {
+        "address": "node:plans_item_3#attr:label",
+        "cardinality": "exactly_once",
+        "id": "plans_item_3_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:plans_item_3#attr:value",
+        "cardinality": "exactly_once",
+        "id": "plans_item_3_value",
+        "present_as": "text",
+        "target_region": "main"
+      }
+    ],
+    "complexity_tier": 1,
+    "groups": [
+      {
+        "id": "tiers",
+        "kind": "ordered",
+        "members": [
+          "plans_item_1_label",
+          "plans_item_1_value",
+          "plans_item_2_label",
+          "plans_item_2_value",
+          "plans_item_3_label",
+          "plans_item_3_value"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "id": "pricing_comparison",
+    "motifs": [
+      {
+        "id": "plans",
+        "kind": "comparison",
+        "members": [
+          "plans_item_1_label",
+          "plans_item_1_value",
+          "plans_item_2_label",
+          "plans_item_2_value",
+          "plans_item_3_label",
+          "plans_item_3_value"
+        ],
+        "region": "main"
+      }
+    ],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "main",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "main"
+      }
+    ],
+    "root_region": "root",
+    "styles": [],
+    "substrate_id": "pricing_comparison_substrate"
+  }
+}

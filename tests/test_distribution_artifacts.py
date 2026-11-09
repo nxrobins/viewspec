@@ -132,6 +132,7 @@ def test_distribution_audit_rejects_sdist_runtime_version_drift(tmp_path: Path) 
         "api.py",
         "host_verify_template/package-lock.json",
         "html_verify_template/verify.mjs",
+        "emitters/react_registry/viewspec-registry.default.tsx",
         "schema/viewspec_pb2.pyi",
     ],
 )

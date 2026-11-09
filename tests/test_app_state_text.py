@@ -3,14 +3,19 @@ from __future__ import annotations
 import copy
 import json
 import shutil
+import subprocess
+from pathlib import Path
 
 import pytest
 
 from viewspec.app_bundle import compile_app, prove_app, starter_react_app_bundle, validate_app_text
+from viewspec.app_format import render_state_scalar
+from viewspec.app_numeric import generate_numeric_typescript
 from viewspec.state_ir import (
     APP_STATE_TEXT_MAX_RULES,
     check_reducer_conformance,
     evaluate_state_text,
+    generate_javascript_reducer,
     generate_typescript_reducer,
     initial_state,
     replay_state_assertions,
@@ -154,3 +159,116 @@ def test_static_and_react_targets_share_baked_and_live_state_text(tmp_path) -> N
     assert 'renderValue(stateText["selected_incident_text"], "Selected: ")' in screen_source
     assert "const stateText = React.useMemo(() => evaluateViewSpecText(state), [state]);" in app_source
     assert "stateText={stateText}" in app_source
+
+
+# --- Python and JavaScript render the same text --------------------------------------------------
+
+# Values on which the V4 bake and replay (Python) and the V4 runtime (the generated reducer) used to
+# render different text: replacement patterns that String.prototype.replace expands, and numbers
+# whose Python repr differs from JavaScript String().
+_DIVERGENT_VALUES = [
+    "$&",
+    "a$'b",
+    "a$`b",
+    "$$",
+    "$1",
+    "$<name>",
+    "total: $5 & $& more",
+    1e-05,
+    1.5e-07,
+    0.000123,
+    1e21,
+    1.5e300,
+    10**21,
+    9007199254740993,
+    2**60,
+    10**400,
+    -0.0,
+    0.1 + 0.2,
+    1e16,
+    100,
+    -42,
+    True,
+    False,
+    None,
+    "",
+    "plain",
+]
+
+_EVALUATE_TEXT_RUNNER = """
+import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+const mod = await import(pathToFileURL(process.argv[2]).href);
+const states = JSON.parse(readFileSync(process.argv[3], "utf8"));
+console.log(JSON.stringify(states.map((state) => mod.evaluateViewSpecText(state))));
+""".lstrip()
+
+
+def _texts_for(values: list) -> tuple[dict, object, list[dict]]:
+    payload = _state_text_app_bundle()
+    state_ir, issues = validate_state_ir(payload)
+    assert state_ir is not None and not issues
+    states = [{**initial_state(payload, state_ir), "selected_incident": value} for value in values]
+    return payload, state_ir, states
+
+
+def test_v4_text_inserts_the_value_literally_and_renders_numbers_as_javascript_does() -> None:
+    _, state_ir, states = _texts_for(_DIVERGENT_VALUES)
+    for value, state in zip(_DIVERGENT_VALUES, states, strict=True):
+        text = evaluate_state_text(state, state_ir)["selected_incident_text"]
+        assert text == "Selected: " + render_state_scalar(value), value
+    # The documented JavaScript String() forms, so the bake matches what the runtime shows later.
+    _, state_ir, states = _texts_for([1e-05, 1.5e-07, 1e21, "$&"])
+    assert [evaluate_state_text(state, state_ir)["selected_incident_text"] for state in states] == [
+        "Selected: 0.00001",
+        "Selected: 1.5e-7",
+        "Selected: 1e+21",
+        "Selected: $&",
+    ]
+
+
+@pytest.mark.skipif(not _NODE_AVAILABLE, reason="Node.js is not on PATH, so the generated reducer cannot run.")
+def test_v4_generated_reducer_renders_the_same_text_as_python(tmp_path) -> None:
+    payload, state_ir, states = _texts_for(_DIVERGENT_VALUES)
+    module = tmp_path / "state_reducer.mjs"
+    module.write_text(generate_javascript_reducer(payload), encoding="utf-8")
+    runner = tmp_path / "runner.mjs"
+    runner.write_text(_EVALUATE_TEXT_RUNNER, encoding="utf-8")
+    states_path = tmp_path / "states.json"
+    states_path.write_text(json.dumps(states), encoding="utf-8")
+    completed = subprocess.run(
+        [str(shutil.which("node")), str(runner), str(module), str(states_path)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=60,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    for value, state, js_text in zip(_DIVERGENT_VALUES, states, json.loads(completed.stdout), strict=True):
+        assert js_text == evaluate_state_text(state, state_ir), value
+
+
+_TSC = Path("src/viewspec/host_verify_template/node_modules/.bin/tsc").resolve()
+
+
+@pytest.mark.skipif(
+    not _TSC.is_file() or shutil.which("node") is None,
+    reason="The pinned TypeScript compiler and Node.js are required: the tsc shim runs on Node.",
+)
+def test_v4_state_text_reducer_typechecks(tmp_path) -> None:
+    payload = _state_text_app_bundle()
+    source = tmp_path / "state_reducer.ts"
+    source.write_text(generate_typescript_reducer(payload), encoding="utf-8")
+    tmp_path.joinpath("viewspec_numeric.ts").write_text(generate_numeric_typescript(payload), encoding="utf-8")
+
+    result = subprocess.run(
+        [str(_TSC), "--strict", "--noEmit", "--skipLibCheck", "--target", "ES2022", str(source)],
+        cwd=tmp_path,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout

@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "substrate": {
+    "id": "sales_dashboard_substrate",
+    "nodes": {
+      "kpis_card_1": {
+        "attrs": {
+          "label": "Revenue",
+          "value": "$2.4M"
+        },
+        "edges": {},
+        "id": "kpis_card_1",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "kpis_card_2": {
+        "attrs": {
+          "label": "Customers",
+          "value": "1,847"
+        },
+        "edges": {},
+        "id": "kpis_card_2",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "kpis_card_3": {
+        "attrs": {
+          "label": "Churn",
+          "value": "3.2%"
+        },
+        "edges": {},
+        "id": "kpis_card_3",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "kpis_card_4": {
+        "attrs": {
+          "label": "MRR Growth",
+          "value": "+18%"
+        },
+        "edges": {},
+        "id": "kpis_card_4",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "sales_dashboard": {
+        "attrs": {},
+        "edges": {},
+        "id": "sales_dashboard",
+        "kind": "app",
+        "slots": {}
+      }
+    },
+    "root_id": "sales_dashboard"
+  },
+  "view_spec": {
+    "actions": [],
+    "bindings": [
+      {
+        "address": "node:kpis_card_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "kpis_card_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:kpis_card_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "kpis_card_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:kpis_card_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "kpis_card_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:kpis_card_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "kpis_card_2_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:kpis_card_3#attr:label",
+        "cardinality": "exactly_once",
+        "id": "kpis_card_3_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:kpis_card_3#attr:value",
+        "cardinality": "exactly_once",
+        "id": "kpis_card_3_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:kpis_card_4#attr:label",
+        "cardinality": "exactly_once",
+        "id": "kpis_card_4_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:kpis_card_4#attr:value",
+        "cardinality": "exactly_once",
+        "id": "kpis_card_4_value",
+        "present_as": "value",
+        "target_region": "main"
+      }
+    ],
+    "complexity_tier": 1,
+    "groups": [
+      {
+        "id": "metrics",
+        "kind": "ordered",
+        "members": [
+          "kpis_card_1_label",
+          "kpis_card_1_value",
+          "kpis_card_2_label",
+          "kpis_card_2_value",
+          "kpis_card_3_label",
+          "kpis_card_3_value",
+          "kpis_card_4_label",
+          "kpis_card_4_value"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "id": "sales_dashboard",
+    "motifs": [
+      {
+        "id": "kpis",
+        "kind": "dashboard",
+        "members": [
+          "kpis_card_1_label",
+          "kpis_card_1_value",
+          "kpis_card_2_label",
+          "kpis_card_2_value",
+          "kpis_card_3_label",
+          "kpis_card_3_value",
+          "kpis_card_4_label",
+          "kpis_card_4_value"
+        ],
+        "region": "main"
+      }
+    ],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "main",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "main"
+      }
+    ],
+    "root_region": "root",
+    "styles": [
+      {
+        "id": "s1",
+        "target": "kpis_card_1_value",
+        "token": "emphasis.high"
+      },
+      {
+        "id": "s2",
+        "target": "kpis_card_4_value",
+        "token": "tone.accent"
+      }
+    ],
+    "substrate_id": "sales_dashboard_substrate"
+  }
+}

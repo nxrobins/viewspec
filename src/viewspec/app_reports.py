@@ -940,6 +940,7 @@ def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str)
             "rebound_binding_count",
             "selector_assertion_count",
             "visibility_assertion_count",
+            "state_text_assertion_count",
         ):
             lines.append(f"- {key}: `{_summary_value(host_assertions.get(key))}`")
         static_analysis = report.get("static_analysis") if isinstance(report.get("static_analysis"), dict) else None

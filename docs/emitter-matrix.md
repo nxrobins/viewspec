@@ -8,8 +8,10 @@
 | Submit actions | CustomEvent | `onAction` callback | `onAction` callback |
 | Styling | Offline `vs-*` CSS | Inline styles + `vs-*` classes | Closed Tailwind recipes |
 | Runtime recording | Live static page | Live React page | Host React app |
+| Host component registry | Not available | `--registry REGISTRY.json` | `--registry REGISTRY.json` |
 
-Known limits are documented per emitter.
+Known limits are documented per emitter. The host component registry, its primitive contract, and
+the `REGISTRY_*` codes are in [React Host Component Registry](react-registry.md).
 
 ## MCP Apps Target
 

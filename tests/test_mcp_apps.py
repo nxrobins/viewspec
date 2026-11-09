@@ -20,6 +20,7 @@ import pytest
 from viewspec import ERROR_CODES, ViewSpecBuilder, ViewSpecError, check, compile_mcp_app
 from viewspec import cli as viewspec_cli
 from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
+from viewspec.compact_form import detect_compact, normalize
 from viewspec.compiler_errors import LocalToolContractError
 from viewspec.emitters.html_tailwind import (
     ACTION_EVENT_SCRIPT,
@@ -389,7 +390,9 @@ def test_bridge_allows_everything_the_emitter_source_can_write():
     "fixture", sorted((ROOT / "conformance" / "verification" / "fixtures").glob("*.json")), ids=lambda path: path.stem
 )
 def test_bridge_allows_the_root_of_every_conformance_fixture(fixture: Path):
-    bundle = IntentBundle.from_json(json.loads(fixture.read_text(encoding="utf-8")))
+    document = json.loads(fixture.read_text(encoding="utf-8"))
+    # Compact-form fixtures compile through the canonical bundle they normalize to.
+    bundle = IntentBundle.from_json(normalize(document) if detect_compact(document) else document)
     elements = _Elements()
     elements.feed(compile_mcp_app(bundle, uri=URI).root)
     allowed_tags, allowed_attributes = _bridge_allow_list()

@@ -72,6 +72,55 @@
       "source": "conformance/verification/fixtures/outcome-states.intent.json",
       "expected_status": "conformant",
       "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "data-dense-dashboard-compact",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/data-dense-dashboard.compact.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "invoice-table",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/invoice-table.intent.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "invoice-table-compact",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/invoice-table.compact.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "kpi-dashboard",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/kpi-dashboard.intent.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "kpi-dashboard-compact",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/kpi-dashboard.compact.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "pricing-comparison",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/pricing-comparison.intent.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "pricing-comparison-compact",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/pricing-comparison.compact.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
     }
   ]
 }

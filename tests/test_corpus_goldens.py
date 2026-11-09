@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,7 @@ from scripts.update_corpus_goldens import (
     GOLDENS_PATH,
     INTENT_TARGETS,
     REGENERATE_COMMAND,
+    app_bundle_declares_state,
     build_goldens,
     diff_goldens,
     render_goldens,
@@ -42,12 +44,20 @@ GOLDENS_RELATIVE = GOLDENS_PATH.relative_to(ROOT).as_posix()
 CORPUS_CASE_IDS = [case.id for case in load_conformance_corpus(str(ROOT / CORPUS_MANIFEST)).cases]
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 HINT = f"If this output change is intentional, run `{REGENERATE_COMMAND}` and review the diff of {GOLDENS_RELATIVE}."
+NODE_AVAILABLE = shutil.which("node") is not None
+STATEFUL_APP_BUNDLES = {
+    bundle_id for bundle_id, relative in APP_BUNDLE_SOURCES.items() if app_bundle_declares_state(relative)
+}
 
 
 @pytest.fixture(scope="module")
 def compiled(tmp_path_factory) -> dict:
-    """Every corpus case and AppBundle compiled once, into a fresh directory, through the public API."""
-    return build_goldens(tmp_path_factory.mktemp("corpus-goldens"))
+    """Every corpus case and AppBundle compiled once, into a fresh directory, through the public API.
+
+    Without Node the stateful AppBundles are left out, and their golden tests skip with the reason.
+    """
+    bundle_ids = None if NODE_AVAILABLE else set(APP_BUNDLE_SOURCES) - STATEFUL_APP_BUNDLES
+    return build_goldens(tmp_path_factory.mktemp("corpus-goldens"), app_bundle_ids=bundle_ids)
 
 
 def _fail_drift(label: str, lines: list[str], *, source_changed: bool) -> None:
@@ -131,7 +141,8 @@ def test_golden_sources_match_the_checked_in_inputs(compiled):
     ] + [
         f"app_bundles.{bundle_id}.source_hash"
         for bundle_id, bundle in GOLDENS["app_bundles"].items()
-        if bundle["source_hash"] != compiled["app_bundles"][bundle_id]["source_hash"]
+        if bundle_id in compiled["app_bundles"]
+        and bundle["source_hash"] != compiled["app_bundles"][bundle_id]["source_hash"]
     ]
     assert not stale, (
         f"The checked-in inputs changed since the goldens were generated ({', '.join(stale)}); run `{REGENERATE_COMMAND}`."
@@ -160,6 +171,8 @@ def test_app_bundle_output_matches_golden(compiled, bundle_id, target):
     expected = (expected_bundle or {}).get("targets", {}).get(target)
     if expected is None:
         pytest.fail(f"No golden is pinned for {label}; run `{REGENERATE_COMMAND}`.", pytrace=False)
+    if bundle_id not in compiled["app_bundles"]:
+        pytest.skip(f"Node.js is not on PATH; compiling {bundle_id} runs generated-reducer conformance in Node.")
     actual_bundle = compiled["app_bundles"][bundle_id]
     lines = diff_goldens(expected, actual_bundle["targets"][target])
     if lines:

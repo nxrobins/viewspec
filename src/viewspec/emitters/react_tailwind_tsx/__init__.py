@@ -44,6 +44,7 @@ from viewspec.emitters.html_tailwind import (
     _validate_ir_contract,
     _validate_style_values,
 )
+from viewspec.emitters.react_registry import ReactComponentRegistry
 from viewspec.emitters.react_tailwind_tsx import recipes as _recipes
 from viewspec.emitters.react_tailwind_tsx.recipes import (
     DEFAULT_TAILWIND_RECIPE_REGISTRY,
@@ -299,6 +300,16 @@ def _render_node_spec(
 ) -> RenderedNode:
     recipe = _recipe_for_context_node(node, context)
     tag = _tag_for_node(node)
+    component_registry = context.state.get("component_registry")
+    if isinstance(component_registry, ReactComponentRegistry):
+        # The host component renders the element ``as`` names, and wraps table rows in <tbody>.
+        return RenderedNode(
+            tag=component_registry.export_for(node.primitive),
+            attrs=(_literal_attr("as", tag), *_attrs_for_node(node, recipe)),
+            text=text,
+            self_closing=self_closing,
+            manifest_entry=_manifest_entry_for_node(node, recipe),
+        )
     return RenderedNode(
         tag=tag,
         attrs=tuple(_attrs_for_node(node, recipe)),
@@ -381,16 +392,20 @@ def _render_node(
     parent: IRNode | None = None,
     indent: int = 4,
     registry: EmitterNodeRegistry | None = None,
+    component_registry: ReactComponentRegistry | None = None,
 ) -> list[str]:
     dom_id = f"dom-{node.id}"
     node_registry = registry or TAILWIND_NODE_REGISTRY
+    state: dict[str, Any] = {"recipes": recipes}
+    if component_registry is not None:
+        state["component_registry"] = component_registry
     rendered = node_registry.render(
         node,
         EmitterNodeContext(
             target="react-tailwind-tsx",
             root=root,
             parent=parent,
-            state={"recipes": recipes},
+            state=state,
         ),
     )
     if rendered.manifest_entry is not None:
@@ -415,6 +430,7 @@ def _render_node(
                     parent=node,
                     indent=indent + 4,
                     registry=node_registry,
+                    component_registry=component_registry,
                 )
             )
         lines.append(f"{child_pad}</{rendered.child_wrapper_tag}>")
@@ -429,6 +445,7 @@ def _render_node(
                     parent=node,
                     indent=indent + 2,
                     registry=node_registry,
+                    component_registry=component_registry,
                 )
             )
     lines.append(f"{pad}</{rendered.tag}>")
@@ -440,11 +457,17 @@ def _emit_source(
     title: str,
     *,
     recipe_registry: TailwindRecipeRegistry | None = None,
+    component_registry: ReactComponentRegistry | None = None,
 ) -> tuple[str, dict[str, Any], dict[str, ResolvedRecipe]]:
     root = result.root.root
     recipes = _resolve_emitted_recipes(root, _registry_or_default(recipe_registry))
     manifest: dict[str, Any] = {}
-    rendered = _render_node(root, manifest=manifest, recipes=recipes, root=root)
+    rendered = _render_node(root, manifest=manifest, recipes=recipes, root=root, component_registry=component_registry)
+    registry_imports = (
+        [component_registry.import_line(node.primitive for node in _walk(root))]
+        if component_registry is not None
+        else []
+    )
     input_values = _safe_json_literal(_initial_input_values(root))
     compiled_values = _safe_json_literal(_compiled_payload_values(root))
     initial_visibility = {
@@ -465,6 +488,7 @@ def _emit_source(
         '"use client";',
         "",
         'import * as React from "react";',
+        *registry_imports,
         "",
         "export type ViewSpecActionIntent = {",
         "  schemaVersion: 1;",
@@ -554,11 +578,14 @@ def emit_compiler_result(
     output_dir: str | Path = "viewspec_react_tailwind_output",
     title: str = "ViewSpec Artifact",
     recipe_registry: TailwindRecipeRegistry | None = None,
+    component_registry: ReactComponentRegistry | None = None,
 ) -> dict[str, str]:
     """Emit a CompilerResult as deterministic React TSX with closed Tailwind recipes.
 
     ``recipe_registry`` selects the recipe tables (``DEFAULT_TAILWIND_RECIPE_REGISTRY`` when
-    omitted). It is checked before anything is written.
+    omitted). It is checked before anything is written. ``component_registry`` renders every
+    primitive through the host components it names (``--registry``); see
+    :mod:`viewspec.emitters.react_registry`.
     """
     registry = _registry_or_default(recipe_registry)
     _validate_recipe_registry(registry)
@@ -577,7 +604,9 @@ def emit_compiler_result(
             "TAILWIND_UNSUPPORTED_PRIMITIVE",
             f"Unsupported IR primitive(s) for React Tailwind TSX emitter: {', '.join(sorted(unsupported))}.",
         )
-    tsx, manifest, _resolved = _emit_source(result, title, recipe_registry=registry)
+    tsx, manifest, _resolved = _emit_source(
+        result, title, recipe_registry=registry, component_registry=component_registry
+    )
     output_path.mkdir(parents=True, exist_ok=True)
     tsx_path = output_path / "ViewSpecView.tsx"
     manifest_path = output_path / "provenance_manifest.json"
@@ -602,20 +631,32 @@ class ReactTailwindTsxEmitter(EmitterPlugin):
     """Deterministic React Tailwind TSX emitter plugin.
 
     ``recipe_registry`` selects the recipe tables this instance emits with; the default is the
-    checked-in ``DEFAULT_TAILWIND_RECIPE_REGISTRY``.
+    checked-in ``DEFAULT_TAILWIND_RECIPE_REGISTRY``. ``component_registry`` renders every primitive
+    through host components (``--registry``); the default, ``None``, writes plain HTML elements.
     """
 
-    # The default for an instance that never ran __init__: a subclass whose own __init__ does not
+    # The defaults for an instance that never ran __init__: a subclass whose own __init__ does not
     # call super().__init__(), an object.__new__ instance, or one unpickled from a release whose
     # emitter held no state.
     _recipe_registry: TailwindRecipeRegistry = DEFAULT_TAILWIND_RECIPE_REGISTRY
+    _component_registry: ReactComponentRegistry | None = None
 
-    def __init__(self, *, recipe_registry: TailwindRecipeRegistry | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        recipe_registry: TailwindRecipeRegistry | None = None,
+        component_registry: ReactComponentRegistry | None = None,
+    ) -> None:
         self._recipe_registry = _registry_or_default(recipe_registry)
+        self._component_registry = component_registry
 
     @property
     def recipe_registry(self) -> TailwindRecipeRegistry:
         return self._recipe_registry
+
+    @property
+    def component_registry(self) -> ReactComponentRegistry | None:
+        return self._component_registry
 
     def emit(self, ast_bundle: ASTBundle, output_dir: str | Path) -> dict[str, str]:
         style_values = dict(ast_bundle.style_values or DEFAULT_STYLE_TOKEN_VALUES)
@@ -625,6 +666,7 @@ class ReactTailwindTsxEmitter(EmitterPlugin):
             output_dir=output_dir,
             title=ast_bundle.title,
             recipe_registry=self._recipe_registry,
+            component_registry=self._component_registry,
         )
 
 

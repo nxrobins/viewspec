@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "substrate": {
+    "id": "invoice_substrate",
+    "nodes": {
+      "invoice": {
+        "attrs": {},
+        "edges": {},
+        "id": "invoice",
+        "kind": "app",
+        "slots": {}
+      },
+      "line_items_row_1": {
+        "attrs": {
+          "label": "Widget A",
+          "value": "$50.00"
+        },
+        "edges": {},
+        "id": "line_items_row_1",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "line_items_row_2": {
+        "attrs": {
+          "label": "Widget B",
+          "value": "$120.00"
+        },
+        "edges": {},
+        "id": "line_items_row_2",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "line_items_row_3": {
+        "attrs": {
+          "label": "Widget C",
+          "value": "$30.00"
+        },
+        "edges": {},
+        "id": "line_items_row_3",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "line_items_row_4": {
+        "attrs": {
+          "label": "Shipping",
+          "value": "$15.00"
+        },
+        "edges": {},
+        "id": "line_items_row_4",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "line_items_row_5": {
+        "attrs": {
+          "label": "Total",
+          "value": "$215.00"
+        },
+        "edges": {},
+        "id": "line_items_row_5",
+        "kind": "table_row",
+        "slots": {}
+      }
+    },
+    "root_id": "invoice"
+  },
+  "view_spec": {
+    "actions": [],
+    "bindings": [
+      {
+        "address": "node:line_items_row_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "line_items_row_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:line_items_row_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "line_items_row_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:line_items_row_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "line_items_row_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:line_items_row_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "line_items_row_2_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:line_items_row_3#attr:label",
+        "cardinality": "exactly_once",
+        "id": "line_items_row_3_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:line_items_row_3#attr:value",
+        "cardinality": "exactly_once",
+        "id": "line_items_row_3_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:line_items_row_4#attr:label",
+        "cardinality": "exactly_once",
+        "id": "line_items_row_4_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:line_items_row_4#attr:value",
+        "cardinality": "exactly_once",
+        "id": "line_items_row_4_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:line_items_row_5#attr:label",
+        "cardinality": "exactly_once",
+        "id": "line_items_row_5_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:line_items_row_5#attr:value",
+        "cardinality": "exactly_once",
+        "id": "line_items_row_5_value",
+        "present_as": "value",
+        "target_region": "main"
+      }
+    ],
+    "complexity_tier": 1,
+    "groups": [
+      {
+        "id": "rows",
+        "kind": "ordered",
+        "members": [
+          "line_items_row_1_label",
+          "line_items_row_1_value",
+          "line_items_row_2_label",
+          "line_items_row_2_value",
+          "line_items_row_3_label",
+          "line_items_row_3_value",
+          "line_items_row_4_label",
+          "line_items_row_4_value",
+          "line_items_row_5_label",
+          "line_items_row_5_value"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "id": "invoice",
+    "motifs": [
+      {
+        "id": "line_items",
+        "kind": "table",
+        "members": [
+          "line_items_row_1_label",
+          "line_items_row_1_value",
+          "line_items_row_2_label",
+          "line_items_row_2_value",
+          "line_items_row_3_label",
+          "line_items_row_3_value",
+          "line_items_row_4_label",
+          "line_items_row_4_value",
+          "line_items_row_5_label",
+          "line_items_row_5_value"
+        ],
+        "region": "main"
+      }
+    ],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "main",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "main"
+      }
+    ],
+    "root_region": "root",
+    "styles": [],
+    "substrate_id": "invoice_substrate"
+  }
+}

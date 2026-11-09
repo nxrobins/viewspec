@@ -58,6 +58,11 @@ def test_validate_intent_valid_bundle_exits_zero_and_returns_json(tmp_path, caps
     assert cli_main(["check", str(path), "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
 
+    # A builder bundle carries no schema_version, so check adds it and says so under fixes.
+    fixes = payload.pop("fixes")
+    assert [(fix["code"], fix["path"], fix["lossy"]) for fix in fixes] == [
+        ("FIX_SCHEMA_VERSION_ADDED", "$.schema_version", False)
+    ]
     assert payload == {
         "schema_version": 1,
         "ok": True,
@@ -94,7 +99,7 @@ def test_validate_intent_rejects_non_intent_payloads(tmp_path, capsys, text, cod
     assert payload["repair_checklist"]
     assert any("Regenerate the full IntentBundle" in item for item in payload["repair_checklist"])
     assert "Output strict JSON only" in payload["correction_prompt"]
-    assert "Do not patch fragments" in payload["correction_prompt"]
+    assert "Return the whole document, not a fragment." in payload["correction_prompt"]
 
 
 @pytest.mark.parametrize(

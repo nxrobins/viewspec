@@ -263,7 +263,7 @@ def test_stateful_app_bundle_v3_validates_and_keeps_intent_v1_closed():
         "replay_assertion_count": 1,
     }
     assert validation["summary"]["state_ir"] == validation["state_ir"]
-    assert AGENT_APP_BUNDLE_SCHEMA["x-viewspec-app-schema-versions"] == [1, 2, 3, 4]
+    assert AGENT_APP_BUNDLE_SCHEMA["x-viewspec-app-schema-versions"] == [1, 2, 3, 4, 5]
     assert AGENT_APP_BUNDLE_SCHEMA["x-viewspec-interactive-state"] == "interactive_state_v0"
     assert {"$ref": "#/$defs/app_bundle_v3"} in AGENT_APP_BUNDLE_SCHEMA["oneOf"]
     assert {"$ref": "#/$defs/app_bundle_v4"} in AGENT_APP_BUNDLE_SCHEMA["oneOf"]
@@ -1701,3 +1701,63 @@ def test_prove_app_rejects_report_path_outside_proof_root(tmp_path):
     assert report["errors"][0]["code"] == "APP_PROOF_REPORT_PATH_UNSAFE"
     assert not out_dir.exists()
     assert not escaped_report.exists()
+
+
+# --- integers a JavaScript double cannot hold, in every schema version ---------------------------
+
+_UNSAFE = 2**53 + 1
+
+
+def _set_resource_count(value):
+    def mutate(payload):
+        payload["resources"][0]["records"][0]["count"] = value
+
+    return mutate
+
+
+def _set_v3_state(value):
+    def mutate(payload):
+        payload["state"].append({"id": "big", "kind": "scalar", "scope": "app", "initial": {"value": value}})
+
+    return mutate
+
+
+def _set_increment_amount(value):
+    def mutate(payload):
+        payload["mutations"][0]["ops"][2]["amount"] = value
+
+    return mutate
+
+
+def _set_slice_end(value):
+    def mutate(payload):
+        payload["selectors"][0]["ops"][2]["end"] = value
+
+    return mutate
+
+
+@pytest.mark.parametrize(
+    ("make_bundle", "set_value", "path"),
+    [
+        (lambda: starter_app_bundle("internal_tool"), _set_resource_count, "$.resources[0].records[0].count"),
+        (_stateful_app_bundle, _set_v3_state, "$.state[4].initial.value"),
+        (_stateful_app_bundle, _set_increment_amount, "$.mutations[0].ops[2].amount"),
+        (_stateful_app_bundle, _set_slice_end, "$.selectors[0].ops[2].end"),
+    ],
+    ids=["v1-resource", "v3-state", "v3-mutation", "v3-selector"],
+)
+def test_every_schema_version_rejects_integers_a_double_cannot_hold(make_bundle, set_value, path):
+    for unsafe in (_UNSAFE, -_UNSAFE):
+        payload = make_bundle()
+        set_value(unsafe)(payload)
+        result = validate_app_text(json.dumps(payload))
+        assert result["ok"] is False
+        assert ("APP_STATE_INTEGER_OUT_OF_SAFE_RANGE", path) in {
+            (issue["code"], issue["path"]) for issue in result["issues"]
+        }
+    # 2^53 itself is exact in a double, and a float is a double already.
+    for safe in (2**53, -(2**53), 1e20):
+        payload = make_bundle()
+        set_value(safe)(payload)
+        codes = {issue["code"] for issue in validate_app_text(json.dumps(payload))["issues"]}
+        assert "APP_STATE_INTEGER_OUT_OF_SAFE_RANGE" not in codes

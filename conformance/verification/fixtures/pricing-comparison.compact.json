@@ -1,0 +1,26 @@
+{
+  "format": "compact",
+  "id": "pricing_comparison",
+  "motifs": [
+    {
+      "group": "tiers",
+      "id": "plans",
+      "items": [
+        {
+          "label": "Starter",
+          "value": "$9/mo — 1 seat, 10GB storage, email support"
+        },
+        {
+          "label": "Pro",
+          "value": "$29/mo — 5 seats, 100GB storage, priority support"
+        },
+        {
+          "label": "Enterprise",
+          "value": "Custom — unlimited seats, unlimited storage, dedicated CSM"
+        }
+      ],
+      "kind": "comparison"
+    }
+  ],
+  "schema_version": 1
+}

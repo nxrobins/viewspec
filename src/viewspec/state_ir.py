@@ -12,7 +12,18 @@ from pathlib import Path
 from typing import Any
 
 from viewspec._canonical import canonical_json_utf8
+from viewspec.app_format import (
+    format_state_value,
+    render_state_scalar,
+    state_text_format_problem,
+    state_text_format_type_declarations,
+    state_text_formatter_source,
+    state_text_passthrough_source,
+    state_text_scalar_source,
+)
 from viewspec.app_numeric import generate_numeric_javascript, numeric_import_names
+from viewspec.app_versions import app_has_interactive_state, app_has_visibility, app_is_v5
+from viewspec.intent_contract import MAX_SAFE_INTEGER
 
 INTERACTIVE_STATE_PROFILE = "interactive_state_v0"
 STATE_KIND_COLLECTION = "collection"
@@ -52,6 +63,22 @@ APP_STATE_TEXT_MAX_RULES = 64
 APP_STATE_TEXT_MAX_TEMPLATE_CHARS = 256
 STATE_TEXT_TARGET_REF_RE = re.compile(r"^binding:[A-Za-z0-9_.-]+$")
 STATE_REDUCER_TEXT_EXPORT = "evaluateViewSpecText"
+# Bounded expressions (AppBundle schema_version 5): visibility conditions compose with all, any,
+# and not, and a state_text rule may fill several named placeholders through closed formatters.
+APP_VISIBILITY_MAX_DEPTH = 3
+APP_VISIBILITY_MAX_LEAVES = 8
+APP_VISIBILITY_MIN_COMPOSITE_ITEMS = 2
+APP_VISIBILITY_MAX_COMPOSITE_ITEMS = 8
+VISIBILITY_COMPOSITE_KEYS = ("all", "any", "not")
+APP_STATE_TEXT_V5_MAX_TEMPLATE_CHARS = 512
+APP_STATE_TEXT_MAX_PLACEHOLDERS = 8
+STATE_TEXT_PLACEHOLDER_RE = re.compile(r"\{([a-z][a-z0-9_]{0,31})\}")
+STATE_TEXT_V5_ONLY_FIELDS = ("format", "values")
+APP_V5_FEATURE_CODE = "APP_V5_FEATURE_REQUIRES_SCHEMA_VERSION_5"
+APP_V5_FEATURE_SUGGESTION = (
+    "Set schema_version to 5. Version 5 accepts everything version 4 accepts, plus composed "
+    "visibility conditions, multi-value state text, and formatters."
+)
 
 
 @dataclass(frozen=True)
@@ -116,11 +143,20 @@ class VisibilityRule:
 
 @dataclass(frozen=True)
 class StateTextRule:
+    """One state_text rule.
+
+    The single-value form names ``state`` and a template with one ``{value}`` and, in
+    schema_version 5, an optional ``format``. The multi-value form (schema_version 5) leaves
+    ``state`` empty and maps each ``{name}`` placeholder of the template in ``values``.
+    """
+
     id: str
     screen_id: str
     target_ref: str
     state: str
     template: str
+    format: dict[str, Any] | None = None
+    values: dict[str, dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -132,6 +168,8 @@ class StateIR:
     replay_assertions: tuple[StateReplayAssertion, ...]
     visibility: tuple[VisibilityRule, ...] = ()
     state_text: tuple[StateTextRule, ...] = ()
+    # True for schema_version 5, whose text rendering goes through the closed formatter set.
+    bounded_expressions: bool = False
 
 
 @dataclass(frozen=True)
@@ -151,7 +189,7 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
             StateValidationIssue(
                 "APP_STATE_PROFILE_REQUIRED",
                 "$.interactive_state",
-                f"AppBundle V3/V4 must declare interactive_state {INTERACTIVE_STATE_PROFILE}.",
+                f"AppBundle V3 to V5 must declare interactive_state {INTERACTIVE_STATE_PROFILE}.",
                 "Set interactive_state to interactive_state_v0.",
             )
         )
@@ -194,7 +232,9 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
     visibility_ids: set[str] | None = None
     state_text_rules: list[StateTextRule] = []
     state_text_ids: set[str] | None = None
-    if app_payload.get("schema_version") == 4:
+    bounded_expressions = app_is_v5(app_payload)
+    gated_ids: set[str] = set()
+    if app_has_visibility(app_payload):
         visibility_items = app_payload.get("visibility", [])
         if not isinstance(visibility_items, list):
             issues.append(
@@ -218,9 +258,14 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
             {selector.id: selector for selector in selectors},
             _screen_intent_target_ids(app_payload),
             issues,
+            bounded_expressions=bounded_expressions,
+            gated_ids=gated_ids,
         )
-        visibility_ids = {rule.id for rule in visibility_rules}
+        # A rule that only failed the schema_version 5 gate keeps its id for replay checks, so the
+        # bundle fails with that one actionable code instead of a cascade of missing-rule codes.
+        visibility_ids = {rule.id for rule in visibility_rules} | gated_ids
         _validate_unique([rule.id for rule in visibility_rules], "$.visibility", "APP_VISIBILITY_DUPLICATE_ID", issues)
+        gated_text_ids: set[str] = set()
         state_text_items = app_payload.get("state_text", [])
         if not isinstance(state_text_items, list):
             issues.append(
@@ -243,8 +288,11 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
             {state.id: state for state in states},
             _screen_intent_binding_contracts(app_payload),
             issues,
+            selectors_by_id={selector.id: selector for selector in selectors},
+            bounded_expressions=bounded_expressions,
+            gated_ids=gated_text_ids,
         )
-        state_text_ids = {rule.id for rule in state_text_rules}
+        state_text_ids = {rule.id for rule in state_text_rules} | gated_text_ids
         _validate_unique([rule.id for rule in state_text_rules], "$.state_text", "APP_STATE_TEXT_DUPLICATE_ID", issues)
     replay_assertions = _parse_replay_assertions(
         replay_items,
@@ -263,6 +311,7 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
         "APP_STATE_DUPLICATE_REPLAY_ID",
         issues,
     )
+    issues.extend(unsafe_integer_issues(app_payload))
 
     if issues:
         return None, issues
@@ -274,12 +323,56 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
         replay_assertions=tuple(replay_assertions),
         visibility=tuple(visibility_rules),
         state_text=tuple(state_text_rules),
+        bounded_expressions=bounded_expressions,
     )
     return state_ir, []
 
 
+# Every AppBundle-owned section whose numbers reach the reducer, the replay, or a formatter.
+_STATE_NUMBER_SECTIONS = ("resources", "state", "mutations", "selectors", "visibility", "state_replay_assertions")
+
+
+def unsafe_integer_issues(
+    app_payload: dict[str, Any], *, sections: tuple[str, ...] = _STATE_NUMBER_SECTIONS
+) -> list[StateValidationIssue]:
+    """Reject integers that a JavaScript double cannot hold exactly, in every schema version.
+
+    Python keeps such an integer exact while the generated runtime reads the nearest double, so
+    text, equality, and replay would disagree. Schema versions 1 and 2 have only ``resources``.
+    """
+    found: list[tuple[str, int]] = []
+    for section in sections:
+        if section in app_payload:
+            _collect_unsafe_integers(app_payload[section], f"$.{section}", found)
+    return [
+        StateValidationIssue(
+            "APP_STATE_INTEGER_OUT_OF_SAFE_RANGE",
+            path,
+            f"Integer {value} exceeds the exactly representable range of +/-{MAX_SAFE_INTEGER} (2^53); "
+            "the generated runtime reads AppBundle numbers as 64-bit doubles.",
+            "Write larger identifiers as JSON strings, or use a smaller number.",
+        )
+        for path, value in found
+    ]
+
+
+def _collect_unsafe_integers(value: Any, path: str, found: list[tuple[str, int]]) -> None:
+    if isinstance(value, bool):
+        return
+    if isinstance(value, int):
+        if abs(value) > MAX_SAFE_INTEGER:
+            found.append((path, value))
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _collect_unsafe_integers(item, f"{path}.{key}", found)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _collect_unsafe_integers(item, f"{path}[{index}]", found)
+
+
 def state_ir_summary(app_payload: dict[str, Any]) -> dict[str, Any] | None:
-    if app_payload.get("schema_version") not in {3, 4}:
+    if not app_has_interactive_state(app_payload):
         return None
     summary = {
         "profile": app_payload.get("interactive_state"),
@@ -296,8 +389,8 @@ def state_ir_summary(app_payload: dict[str, Any]) -> dict[str, Any] | None:
             else 0
         ),
     }
-    if app_payload.get("schema_version") == 4:
-        # v4-only key: the v3 summary shape (5 keys) is pinned by tests and must stay byte-stable.
+    if app_has_visibility(app_payload):
+        # v4+ key: the v3 summary shape (5 keys) is pinned by tests and must stay byte-stable.
         summary["visibility_rule_count"] = (
             len(app_payload.get("visibility", [])) if isinstance(app_payload.get("visibility"), list) else 0
         )
@@ -353,10 +446,10 @@ def normalize_state_ir(app_payload: dict[str, Any], state_ir: StateIR | None = N
                 "events": [copy.deepcopy(event) for event in assertion.events],
                 "expect_state_ids": list(assertion.expect_state),
                 "expect_selector_ids": list(assertion.expect_selectors),
-                # v4-only key: v3 contract bytes are hash-golden-pinned and must not change.
+                # v4+ key: v3 contract bytes are hash-golden-pinned and must not change.
                 **(
                     {"expect_visibility_ids": list(assertion.expect_visibility)}
-                    if app_payload.get("schema_version") == 4
+                    if app_has_visibility(app_payload)
                     else {}
                 ),
                 **({"expect_text_ids": list(assertion.expect_text)} if "state_text" in app_payload else {}),
@@ -364,7 +457,7 @@ def normalize_state_ir(app_payload: dict[str, Any], state_ir: StateIR | None = N
             for assertion in state_ir.replay_assertions
         ],
     }
-    if app_payload.get("schema_version") == 4:
+    if app_has_visibility(app_payload):
         contract["visibility"] = [
             {
                 "id": rule.id,
@@ -375,17 +468,28 @@ def normalize_state_ir(app_payload: dict[str, Any], state_ir: StateIR | None = N
             for rule in state_ir.visibility
         ]
         if "state_text" in app_payload:
-            contract["state_text"] = [
-                {
-                    "id": rule.id,
-                    "screen_id": rule.screen_id,
-                    "target_ref": rule.target_ref,
-                    "state": rule.state,
-                    "template": rule.template,
-                }
-                for rule in state_ir.state_text
-            ]
+            contract["state_text"] = [_state_text_contract(rule) for rule in state_ir.state_text]
     return NormalizedStateIR(contract=contract, contract_hash=_hash_json(contract))
+
+
+def _state_text_contract(rule: StateTextRule) -> dict[str, Any]:
+    """The normalized contract entry; a single-value rule without a format keeps the V4 shape."""
+    if rule.values is not None:
+        return {
+            "id": rule.id,
+            "screen_id": rule.screen_id,
+            "target_ref": rule.target_ref,
+            "template": rule.template,
+            "values": copy.deepcopy(rule.values),
+        }
+    return {
+        "id": rule.id,
+        "screen_id": rule.screen_id,
+        "target_ref": rule.target_ref,
+        "state": rule.state,
+        "template": rule.template,
+        **({"format": copy.deepcopy(rule.format)} if rule.format is not None else {}),
+    }
 
 
 def state_contract_hash(app_payload: dict[str, Any], state_ir: StateIR | None = None) -> str:
@@ -418,7 +522,7 @@ def replay_state_assertions(app_payload: dict[str, Any]) -> dict[str, Any]:
             "assertions": [],
         }
     initial = initial_state(app_payload, state_ir)
-    is_v4 = app_payload.get("schema_version") == 4
+    is_v4 = app_has_visibility(app_payload)
     has_state_text = is_v4 and "state_text" in app_payload
     assertions: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
@@ -527,7 +631,7 @@ def replay_state_assertions(app_payload: dict[str, Any]) -> dict[str, Any]:
             "selector_matches": selector_matches,
         }
         if is_v4:
-            # v4-only key: the v3 replay report shape must stay byte-stable.
+            # v4+ key: the v3 replay report shape must stay byte-stable.
             entry["visibility_matches"] = visibility_matches
         if has_state_text:
             entry["text_matches"] = text_matches
@@ -692,6 +796,14 @@ def _visibility_condition_holds(
     current_state: dict[str, Any],
     selector_values: dict[str, Any],
 ) -> bool:
+    # Composite nodes exist only in validated schema_version 5 rules; V4 leaves never carry
+    # these keys. all/any short-circuit like Array.every/some, and every leaf is pure.
+    if "all" in when:
+        return all(_visibility_condition_holds(item, current_state, selector_values) for item in when["all"])
+    if "any" in when:
+        return any(_visibility_condition_holds(item, current_state, selector_values) for item in when["any"])
+    if "not" in when:
+        return not _visibility_condition_holds(when["not"], current_state, selector_values)
     if isinstance(when.get("selector"), str):
         value = selector_values.get(when["selector"])
         filled = isinstance(value, list) and len(value) > 0
@@ -710,10 +822,58 @@ def initial_visibility(app_payload: dict[str, Any], state_ir: StateIR) -> dict[s
 
 def evaluate_state_text(current_state: dict[str, Any], state_ir: StateIR) -> dict[str, str]:
     """Render each bounded scalar state projection without interpreting markup."""
+    if state_ir.bounded_expressions:
+        return _evaluate_state_text_v5(current_state, state_ir)
     return {
         rule.id: rule.template.replace("{value}", _state_text_scalar(current_state.get(rule.state)))
         for rule in state_ir.state_text
     }
+
+
+def state_text_segments(rule: StateTextRule) -> list[str | dict[str, Any]]:
+    """Split a schema_version 5 rule into literal text and value sources, in template order.
+
+    Both the Python reference and the generated reducer render the same segments, so neither
+    side parses the template at runtime. Empty literals are dropped.
+    """
+    if rule.values is None:
+        source: dict[str, Any] = {"state": rule.state}
+        if rule.format is not None:
+            source["format"] = copy.deepcopy(rule.format)
+        before, _, after = rule.template.partition("{value}")
+        return [segment for segment in (before, source, after) if segment != ""]
+    segments: list[str | dict[str, Any]] = []
+    cursor = 0
+    for match in STATE_TEXT_PLACEHOLDER_RE.finditer(rule.template):
+        if match.start() > cursor:
+            segments.append(rule.template[cursor : match.start()])
+        segments.append(copy.deepcopy(rule.values[match.group(1)]))
+        cursor = match.end()
+    if cursor < len(rule.template):
+        segments.append(rule.template[cursor:])
+    return segments
+
+
+def _evaluate_state_text_v5(current_state: dict[str, Any], state_ir: StateIR) -> dict[str, str]:
+    selector_values = evaluate_selectors(current_state, state_ir)
+    return {
+        rule.id: "".join(
+            segment if isinstance(segment, str) else _state_text_source_text(segment, current_state, selector_values)
+            for segment in state_text_segments(rule)
+        )
+        for rule in state_ir.state_text
+    }
+
+
+def _state_text_source_text(
+    source: dict[str, Any],
+    current_state: dict[str, Any],
+    selector_values: dict[str, Any],
+) -> str:
+    if "selector" in source:
+        value = selector_values.get(str(source["selector"]))
+        return format_state_value(len(value) if isinstance(value, list) else 0, source.get("format"))
+    return format_state_value(current_state.get(str(source.get("state"))), source.get("format"))
 
 
 def initial_state_text(app_payload: dict[str, Any], state_ir: StateIR) -> dict[str, str]:
@@ -722,20 +882,14 @@ def initial_state_text(app_payload: dict[str, Any], state_ir: StateIR) -> dict[s
 
 
 def _state_text_scalar(value: Any) -> str:
-    if value is None:
-        return ""
-    if value is True:
-        return "true"
-    if value is False:
-        return "false"
-    if isinstance(value, str):
-        return value
-    if type(value) is int:
-        return str(value)
-    if type(value) is float and math.isfinite(value):
-        return str(int(value)) if value.is_integer() else repr(value).replace("e+", "e")
-    # Mutation payloads remain total even if a caller violates the declared scalar shape.
-    return ""
+    """Render one V4 state value exactly as the generated ``stateTextScalar`` does.
+
+    The bake and the replay run in Python and the runtime runs the generated reducer, so both use
+    JavaScript ``String()`` semantics: ``1e-05`` renders as ``0.00001``, ``1e21`` as ``1e+21``, and an
+    integer beyond 2^53 as the double JavaScript holds. Values outside the declared scalar shape
+    render as an empty string, so mutation payloads stay total.
+    """
+    return render_state_scalar(value)
 
 
 def state_manifest(
@@ -761,10 +915,10 @@ def state_manifest(
         "state_ids": [item.get("id") for item in app_payload.get("state", []) if isinstance(item, dict)],
         "mutation_ids": [item.get("id") for item in app_payload.get("mutations", []) if isinstance(item, dict)],
         "selector_ids": [item.get("id") for item in app_payload.get("selectors", []) if isinstance(item, dict)],
-        # v4-only key: the v3 manifest shape must stay byte-stable.
+        # v4+ key: the v3 manifest shape must stay byte-stable.
         **(
             {"visibility_rule_ids": [rule.id for rule in state_ir.visibility]}
-            if app_payload.get("schema_version") == 4
+            if app_has_visibility(app_payload)
             else {}
         ),
         **({"state_text_rule_ids": [rule.id for rule in state_ir.state_text]} if "state_text" in app_payload else {}),
@@ -776,9 +930,9 @@ def state_manifest(
 
 
 def state_reducer_exports(app_payload: dict[str, Any]) -> tuple[str, ...]:
-    """The generated artifact's export list — visibility joins only on v4 bundles."""
+    """The generated artifact's export list — visibility joins on v4 and later bundles."""
     exports = STATE_REDUCER_EXPORTS
-    if app_payload.get("schema_version") == 4:
+    if app_has_visibility(app_payload):
         exports = (*exports, STATE_REDUCER_VISIBILITY_EXPORT)
     if "state_text" in app_payload:
         exports = (*exports, STATE_REDUCER_TEXT_EXPORT)
@@ -795,6 +949,9 @@ class _ReducerSourceModel:
     state_text_rules: tuple[dict[str, Any], ...]
     state_text_enabled: bool
     numeric_imports: tuple[str, ...]
+    # schema_version 5 only: composed visibility, segment-based text, and the formatter kernel.
+    bounded_expressions: bool = False
+    formatter_enabled: bool = False
 
 
 def _reducer_source_model(app_payload: dict[str, Any]) -> _ReducerSourceModel:
@@ -802,6 +959,13 @@ def _reducer_source_model(app_payload: dict[str, Any]) -> _ReducerSourceModel:
     if state_ir is None:
         detail = "; ".join(issue.message for issue in issues)
         raise ValueError(f"Cannot generate reducer for invalid state IR: {detail}")
+    bounded = state_ir.bounded_expressions
+    text_rules = tuple(
+        {"id": rule.id, "segments": state_text_segments(rule)}
+        if bounded
+        else {"id": rule.id, "state": rule.state, "template": rule.template}
+        for rule in state_ir.state_text
+    )
     return _ReducerSourceModel(
         app_schema_version=int(app_payload.get("schema_version") or 3),
         initial=initial_state(app_payload, state_ir),
@@ -820,11 +984,14 @@ def _reducer_source_model(app_payload: dict[str, Any]) -> _ReducerSourceModel:
             for mutation in state_ir.mutations
         ),
         visibility_rules=tuple({"id": rule.id, "when": copy.deepcopy(rule.when)} for rule in state_ir.visibility),
-        state_text_rules=tuple(
-            {"id": rule.id, "state": rule.state, "template": rule.template} for rule in state_ir.state_text
-        ),
+        state_text_rules=text_rules,
         state_text_enabled="state_text" in app_payload,
         numeric_imports=numeric_import_names(app_payload),
+        bounded_expressions=bounded,
+        formatter_enabled=bounded
+        and any(
+            isinstance(segment, dict) and "format" in segment for rule in text_rules for segment in rule["segments"]
+        ),
     )
 
 
@@ -847,7 +1014,30 @@ def _function_signature(
     return f"{prefix}function {name}({rendered_parameters}){_type_annotation(return_type, typescript=typescript)} {{"
 
 
-def _reducer_type_declarations() -> list[str]:
+def _reducer_type_declarations(*, bounded_expressions: bool = False) -> list[str]:
+    declarations = _v3_v4_reducer_type_declarations()
+    if not bounded_expressions:
+        return declarations
+    # schema_version 5 replaces only the visibility and state-text types at the end of the block.
+    shared = declarations[: declarations.index("type VisibilityWhen =")]
+    return [
+        *shared,
+        "type VisibilityLeaf =",
+        '  | { selector: string; is: "non_empty" | "empty" }',
+        '  | { state: string; is: "truthy" | "falsy" }',
+        "  | { state: string; equals: unknown };",
+        "type VisibilityWhen = VisibilityLeaf | { all: VisibilityWhen[] } | { any: VisibilityWhen[] } | { not: VisibilityWhen };",
+        "type VisibilityRule = { id: string; when: VisibilityWhen };",
+        *state_text_format_type_declarations(),
+        "type StateTextSource =",
+        "  | { state: string; format?: StateTextFormat }",
+        '  | { selector: string; measure: "count"; format?: StateTextFormat };',
+        "type StateTextRule = { id: string; segments: Array<string | StateTextSource> };",
+        "",
+    ]
+
+
+def _v3_v4_reducer_type_declarations() -> list[str]:
     return [
         "export type ViewSpecState = Record<string, unknown>;",
         "export type ViewSpecStateEvent = {",
@@ -963,13 +1153,17 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
         }
         lines = generate_numeric_javascript(numeric_scope, exports=False).rstrip().splitlines() + [""] + lines
     if typescript:
-        lines.extend(_reducer_type_declarations())
+        lines.extend(_reducer_type_declarations(bounded_expressions=model.bounded_expressions))
+
+    def literal(value: Any) -> str:
+        return _reducer_json_literal(value)
+
     lines.extend(
         [
             f"export const VIEWSPEC_STATE_PROFILE{ann(json.dumps(INTERACTIVE_STATE_PROFILE))} = {json.dumps(INTERACTIVE_STATE_PROFILE)};",
-            f"export const initialState{ann('ViewSpecState')} = {json.dumps(model.initial, indent=2, sort_keys=True)};",
-            f"const mutations{ann('Mutation[]')} = {json.dumps(model.mutations, indent=2, sort_keys=True)};",
-            f"const selectors{ann('Selector[]')} = {json.dumps(model.selectors, indent=2, sort_keys=True)};",
+            f"export const initialState{ann('ViewSpecState')} = {literal(model.initial)};",
+            f"const mutations{ann('Mutation[]')} = {literal(model.mutations)};",
+            f"const selectors{ann('Selector[]')} = {literal(model.selectors)};",
             "",
             _function_signature(
                 "clone<T>" if typescript else "clone",
@@ -1172,11 +1366,14 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
             "}",
         ]
     )
+    if model.bounded_expressions:
+        lines.extend(_bounded_expression_reducer_lines(model, typescript=typescript))
+        return "\n".join(lines) + "\n"
     if model.app_schema_version == 4:
         lines.extend(
             [
                 "",
-                f"const visibilityRules{ann('VisibilityRule[]')} = {json.dumps(model.visibility_rules, indent=2, sort_keys=True)};",
+                f"const visibilityRules{ann('VisibilityRule[]')} = {_reducer_json_literal(model.visibility_rules)};",
                 _function_signature(
                     "evaluateViewSpecVisibility",
                     (("state", "ViewSpecState"),),
@@ -1209,7 +1406,7 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
         lines.extend(
             [
                 "",
-                f"const stateTextRules{ann('StateTextRule[]')} = {json.dumps(model.state_text_rules, indent=2, sort_keys=True)};",
+                f"const stateTextRules{ann('StateTextRule[]')} = {_reducer_json_literal(model.state_text_rules)};",
                 _function_signature(
                     "stateTextScalar",
                     (("value", "unknown"),),
@@ -1230,13 +1427,113 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
                 ),
                 f"  const result{ann('Record<string, string>')} = {{}};",
                 "  for (const rule of stateTextRules) {",
-                '    result[rule.id] = rule.template.replace("{value}", stateTextScalar(state[rule.state]));',
+                # A replacer function inserts the value literally; a replacement string would expand $&.
+                '    result[rule.id] = rule.template.replace("{value}", () => stateTextScalar(state[rule.state]));',
                 "  }",
                 "  return result;",
                 "}",
             ]
         )
     return "\n".join(lines) + "\n"
+
+
+def _reducer_json_literal(value: Any) -> str:
+    """A JSON literal for the generated reducer, safe inside the static shell's inline script.
+
+    The static shell inlines the reducer in a ``<script>`` element, where the HTML parser ends the
+    script at the first ``</script>`` whatever the JavaScript means. So every schema version escapes
+    ``<``, ``>``, and ``&``. JSON puts these characters only inside strings, where the escape keeps
+    the value, so no template, state value, or mutation value can end the script or start another.
+    """
+    text = json.dumps(value, indent=2, sort_keys=True)
+    return text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+
+
+def _bounded_expression_reducer_lines(model: _ReducerSourceModel, *, typescript: bool) -> list[str]:
+    """The schema_version 5 tail: composed visibility and segment-based state text."""
+
+    def ann(annotation: str) -> str:
+        return _type_annotation(annotation, typescript=typescript)
+
+    lines = [
+        "",
+        f"const visibilityRules{ann('VisibilityRule[]')} = {_reducer_json_literal(model.visibility_rules)};",
+        _function_signature(
+            "visibilityHolds",
+            (("w", "VisibilityWhen"), ("state", "ViewSpecState"), ("selectorValues", "Record<string, unknown>")),
+            "boolean",
+            typescript=typescript,
+        ),
+        '  if ("all" in w) return w.all.every((item) => visibilityHolds(item, state, selectorValues));',
+        '  if ("any" in w) return w.any.some((item) => visibilityHolds(item, state, selectorValues));',
+        '  if ("not" in w) return !visibilityHolds(w.not, state, selectorValues);',
+        '  if ("selector" in w) {',
+        "    const v = selectorValues[w.selector];",
+        "    const filled = Array.isArray(v) && v.length > 0;",
+        '    return w.is === "empty" ? !filled : filled;',
+        "  }",
+        '  if ("equals" in w) return state[String(w.state)] === w.equals;',
+        "  const t = pyTruthy(state[String(w.state)]);",
+        '  return w.is === "falsy" ? !t : t;',
+        "}",
+        _function_signature(
+            "evaluateViewSpecVisibility",
+            (("state", "ViewSpecState"),),
+            "Record<string, boolean>",
+            typescript=typescript,
+            exported=True,
+        ),
+        "  const selectorValues = selectViewSpecState(state);",
+        f"  const result{ann('Record<string, boolean>')} = {{}};",
+        "  for (const rule of visibilityRules) result[rule.id] = visibilityHolds(rule.when, state, selectorValues);",
+        "  return result;",
+        "}",
+    ]
+    if not model.state_text_enabled:
+        return lines
+    lines.extend(
+        [
+            "",
+            f"const stateTextRules{ann('StateTextRule[]')} = {_reducer_json_literal(model.state_text_rules)};",
+            *state_text_scalar_source(typescript=typescript),
+            *(
+                state_text_formatter_source(typescript=typescript)
+                if model.formatter_enabled
+                else state_text_passthrough_source(typescript=typescript)
+            ),
+            _function_signature(
+                "stateTextSource",
+                (
+                    ("source", "StateTextSource"),
+                    ("state", "ViewSpecState"),
+                    ("selectorValues", "Record<string, unknown>"),
+                ),
+                "string",
+                typescript=typescript,
+            ),
+            '  if ("selector" in source) {',
+            "    const v = selectorValues[source.selector];",
+            "    return formatStateValue(Array.isArray(v) ? v.length : 0, source.format);",
+            "  }",
+            "  return formatStateValue(state[source.state], source.format);",
+            "}",
+            _function_signature(
+                "evaluateViewSpecText",
+                (("state", "ViewSpecState"),),
+                "Record<string, string>",
+                typescript=typescript,
+                exported=True,
+            ),
+            "  const selectorValues = selectViewSpecState(state);",
+            f"  const result{ann('Record<string, string>')} = {{}};",
+            "  for (const rule of stateTextRules) {",
+            '    result[rule.id] = rule.segments.map((segment) => (typeof segment === "string" ? segment : stateTextSource(segment, state, selectorValues))).join("");',
+            "  }",
+            "  return result;",
+            "}",
+        ]
+    )
+    return lines
 
 
 def generate_typescript_reducer(app_payload: dict[str, Any]) -> str:
@@ -1398,7 +1695,7 @@ def check_reducer_conformance(
                 "event_count": expected["event_count"],
                 "state_matches": state_matches,
                 "selector_matches": selector_matches,
-                # v4-only key: v3 conformance report shape stays byte-stable.
+                # v4+ key: v3 conformance report shape stays byte-stable.
                 **({"visibility_matches": visibility_matches} if visibility_expected else {}),
                 **({"text_matches": text_matches} if text_expected else {}),
                 "event_status_matches": event_ok,
@@ -1984,6 +2281,9 @@ def _parse_visibility_rules(
     selectors_by_id: dict[str, StateSelector],
     screen_target_ids: dict[str, dict[str, set[str]]],
     issues: list[StateValidationIssue],
+    *,
+    bounded_expressions: bool = False,
+    gated_ids: set[str] | None = None,
 ) -> list[VisibilityRule]:
     rules: list[VisibilityRule] = []
     seen_targets: set[tuple[str, str]] = set()
@@ -2060,7 +2360,21 @@ def _parse_visibility_rules(
                 )
             seen_targets.add(pair)
         when = item.get("when")
-        when_ok = _validate_visibility_condition(when, path, states_by_id, selectors_by_id, issues)
+        if bounded_expressions:
+            # A missing when is already APP_VISIBILITY_FIELD_REQUIRED; an explicit null is invalid.
+            when_ok = "when" in item and _validate_composed_visibility_condition(
+                when, f"{path}.when", states_by_id, selectors_by_id, issues
+            )
+        elif _is_composed_visibility_condition(when):
+            issues.append(_v5_feature_issue(f"{path}.when", "Composed visibility conditions (all, any, not)"))
+            if rule_id and gated_ids is not None:
+                gated_ids.add(rule_id)
+            when_ok = False
+        else:
+            # A missing when is already APP_VISIBILITY_FIELD_REQUIRED; an explicit null is invalid.
+            when_ok = "when" in item and _validate_visibility_condition(
+                when, path, states_by_id, selectors_by_id, issues
+            )
         if rule_id and screen_id is not None and target_ok and when_ok:
             rules.append(
                 VisibilityRule(id=rule_id, screen_id=screen_id, target_ref=str(target_ref), when=copy.deepcopy(when))
@@ -2074,6 +2388,10 @@ def _parse_state_text_rules(
     states_by_id: dict[str, StateEntry],
     binding_contracts: dict[str, dict[str, dict[str, str]]],
     issues: list[StateValidationIssue],
+    *,
+    selectors_by_id: dict[str, StateSelector] | None = None,
+    bounded_expressions: bool = False,
+    gated_ids: set[str] | None = None,
 ) -> list[StateTextRule]:
     rules: list[StateTextRule] = []
     seen_targets: set[tuple[str, str]] = set()
@@ -2084,102 +2402,39 @@ def _parse_state_text_rules(
                 StateValidationIssue("APP_STATE_TEXT_RULE_NOT_OBJECT", path, "Each state_text rule must be an object.")
             )
             continue
-        _reject_extra(item, {"id", "screen_id", "target_ref", "state", "template"}, path, issues)
+        if not bounded_expressions and any(field in item for field in STATE_TEXT_V5_ONLY_FIELDS):
+            issues.append(_v5_feature_issue(path, "Multi-value state text (values) and formatters (format)"))
+            if isinstance(item.get("id"), str) and gated_ids is not None:
+                gated_ids.add(item["id"])
+            continue
+        if bounded_expressions and "values" in item:
+            values_rule = _parse_state_text_values_rule(
+                item,
+                path,
+                screen_ids,
+                states_by_id,
+                selectors_by_id or {},
+                binding_contracts,
+                seen_targets,
+                issues,
+            )
+            if values_rule is not None:
+                rules.append(values_rule)
+            continue
+        allowed_fields = {"id", "screen_id", "target_ref", "state", "template"}
+        if bounded_expressions:
+            allowed_fields.add("format")
+        _reject_extra(item, allowed_fields, path, issues)
         rule_id = _required_string(item, "id", path, issues)
         screen_id = _required_string(item, "screen_id", path, issues)
         target_ref = _required_string(item, "target_ref", path, issues)
         state_id = _required_string(item, "state", path, issues)
         template = _required_string(item, "template", path, issues)
         _validate_safe_id(rule_id, f"{path}.id", "state text rule id", issues)
-        if screen_id and screen_id not in screen_ids:
-            issues.append(
-                StateValidationIssue(
-                    "APP_STATE_TEXT_SCREEN_MISSING",
-                    f"{path}.screen_id",
-                    f"State text rule references missing screen {screen_id}.",
-                )
-            )
-        target_ok = isinstance(target_ref, str) and STATE_TEXT_TARGET_REF_RE.fullmatch(target_ref) is not None
-        if target_ref and not target_ok:
-            issues.append(
-                StateValidationIssue(
-                    "APP_STATE_TEXT_TARGET_REF_INVALID",
-                    f"{path}.target_ref",
-                    "state_text target_ref must be binding:<id>.",
-                )
-            )
-        if target_ok and screen_id:
-            binding_id = str(target_ref).partition(":")[2]
-            binding = binding_contracts.get(screen_id, {}).get(binding_id)
-            if binding is None:
-                issues.append(
-                    StateValidationIssue(
-                        "APP_STATE_TEXT_TARGET_MISSING",
-                        f"{path}.target_ref",
-                        f"Screen {screen_id} does not declare binding {binding_id}.",
-                    )
-                )
-            elif binding.get("present_as") not in {"badge", "label", "text", "value"}:
-                issues.append(
-                    StateValidationIssue(
-                        "APP_STATE_TEXT_TARGET_UNSUPPORTED",
-                        f"{path}.target_ref",
-                        f"Binding {binding_id} must present as badge, label, text, or value.",
-                    )
-                )
-            elif binding.get("cardinality") != "exactly_once":
-                issues.append(
-                    StateValidationIssue(
-                        "APP_STATE_TEXT_TARGET_AMBIGUOUS",
-                        f"{path}.target_ref",
-                        f"Binding {binding_id} must have cardinality exactly_once.",
-                    )
-                )
-            pair = (screen_id, str(target_ref))
-            if pair in seen_targets:
-                issues.append(
-                    StateValidationIssue(
-                        "APP_STATE_TEXT_DUPLICATE_TARGET",
-                        f"{path}.target_ref",
-                        f"Screen {screen_id} already has a state_text rule for {target_ref}.",
-                    )
-                )
-            seen_targets.add(pair)
-        state = states_by_id.get(state_id or "")
-        if state_id and state is None:
-            issues.append(
-                StateValidationIssue(
-                    "APP_STATE_TEXT_STATE_MISSING",
-                    f"{path}.state",
-                    f"State text rule references missing state {state_id}.",
-                )
-            )
-        elif state is not None:
-            if state.kind != STATE_KIND_SCALAR:
-                issues.append(
-                    StateValidationIssue(
-                        "APP_STATE_TEXT_STATE_UNSUPPORTED",
-                        f"{path}.state",
-                        f"State text rule requires scalar state; {state.id} is {state.kind}.",
-                    )
-                )
-            if state.scope == "screen" and state.screen_id != screen_id:
-                issues.append(
-                    StateValidationIssue(
-                        "APP_STATE_TEXT_STATE_SCOPE_MISMATCH",
-                        f"{path}.state",
-                        f"Screen-scoped state {state.id} belongs to {state.screen_id}, not {screen_id}.",
-                    )
-                )
-            initial_value = state.initial.get("value") if isinstance(state.initial, dict) else None
-            if isinstance(initial_value, (dict, list)):
-                issues.append(
-                    StateValidationIssue(
-                        "APP_STATE_TEXT_STATE_UNSUPPORTED",
-                        f"{path}.state",
-                        f"State text rule requires a JSON scalar initial value for {state.id}.",
-                    )
-                )
+        target_ok = _check_state_text_target(
+            path, screen_id, target_ref, screen_ids, binding_contracts, seen_targets, issues
+        )
+        state = _check_state_text_state(f"{path}.state", state_id, states_by_id, screen_id, issues)
         if template:
             if len(template) > APP_STATE_TEXT_MAX_TEMPLATE_CHARS:
                 issues.append(
@@ -2201,7 +2456,8 @@ def _parse_state_text_rules(
                         "state_text template must contain exactly one {value} placeholder and no other braces.",
                     )
                 )
-        if rule_id and screen_id and target_ok and state is not None and template:
+        format_ok = "format" not in item or _check_state_text_format(f"{path}.format", item.get("format"), issues)
+        if rule_id and screen_id and target_ok and state is not None and template and format_ok:
             rules.append(
                 StateTextRule(
                     id=rule_id,
@@ -2209,9 +2465,309 @@ def _parse_state_text_rules(
                     target_ref=str(target_ref),
                     state=state.id,
                     template=template,
+                    format=copy.deepcopy(item["format"]) if "format" in item else None,
                 )
             )
     return rules
+
+
+def _check_state_text_target(
+    path: str,
+    screen_id: str | None,
+    target_ref: str | None,
+    screen_ids: set[str],
+    binding_contracts: dict[str, dict[str, dict[str, str]]],
+    seen_targets: set[tuple[str, str]],
+    issues: list[StateValidationIssue],
+) -> bool:
+    """Screen and target checks shared by both state_text forms; returns whether the ref is well formed."""
+    if screen_id and screen_id not in screen_ids:
+        issues.append(
+            StateValidationIssue(
+                "APP_STATE_TEXT_SCREEN_MISSING",
+                f"{path}.screen_id",
+                f"State text rule references missing screen {screen_id}.",
+            )
+        )
+    target_ok = isinstance(target_ref, str) and STATE_TEXT_TARGET_REF_RE.fullmatch(target_ref) is not None
+    if target_ref and not target_ok:
+        issues.append(
+            StateValidationIssue(
+                "APP_STATE_TEXT_TARGET_REF_INVALID",
+                f"{path}.target_ref",
+                "state_text target_ref must be binding:<id>.",
+            )
+        )
+    if target_ok and screen_id:
+        binding_id = str(target_ref).partition(":")[2]
+        binding = binding_contracts.get(screen_id, {}).get(binding_id)
+        if binding is None:
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_TARGET_MISSING",
+                    f"{path}.target_ref",
+                    f"Screen {screen_id} does not declare binding {binding_id}.",
+                )
+            )
+        elif binding.get("present_as") not in {"badge", "label", "text", "value"}:
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_TARGET_UNSUPPORTED",
+                    f"{path}.target_ref",
+                    f"Binding {binding_id} must present as badge, label, text, or value.",
+                )
+            )
+        elif binding.get("cardinality") != "exactly_once":
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_TARGET_AMBIGUOUS",
+                    f"{path}.target_ref",
+                    f"Binding {binding_id} must have cardinality exactly_once.",
+                )
+            )
+        pair = (screen_id, str(target_ref))
+        if pair in seen_targets:
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_DUPLICATE_TARGET",
+                    f"{path}.target_ref",
+                    f"Screen {screen_id} already has a state_text rule for {target_ref}.",
+                )
+            )
+        seen_targets.add(pair)
+    return target_ok
+
+
+def _check_state_text_state(
+    state_path: str,
+    state_id: str | None,
+    states_by_id: dict[str, StateEntry],
+    screen_id: str | None,
+    issues: list[StateValidationIssue],
+) -> StateEntry | None:
+    """A text source must be scalar app state or scalar state scoped to the rule's screen."""
+    state = states_by_id.get(state_id or "")
+    if state_id and state is None:
+        issues.append(
+            StateValidationIssue(
+                "APP_STATE_TEXT_STATE_MISSING",
+                state_path,
+                f"State text rule references missing state {state_id}.",
+            )
+        )
+    elif state is not None:
+        if state.kind != STATE_KIND_SCALAR:
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_STATE_UNSUPPORTED",
+                    state_path,
+                    f"State text rule requires scalar state; {state.id} is {state.kind}.",
+                )
+            )
+        if state.scope == "screen" and state.screen_id != screen_id:
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_STATE_SCOPE_MISMATCH",
+                    state_path,
+                    f"Screen-scoped state {state.id} belongs to {state.screen_id}, not {screen_id}.",
+                )
+            )
+        initial_value = state.initial.get("value") if isinstance(state.initial, dict) else None
+        if isinstance(initial_value, (dict, list)):
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_STATE_UNSUPPORTED",
+                    state_path,
+                    f"State text rule requires a JSON scalar initial value for {state.id}.",
+                )
+            )
+    return state
+
+
+def _check_state_text_format(format_path: str, fmt: Any, issues: list[StateValidationIssue]) -> bool:
+    problem = state_text_format_problem(fmt)
+    if problem is None:
+        return True
+    issues.append(
+        StateValidationIssue(
+            "APP_STATE_TEXT_FORMAT_INVALID",
+            format_path,
+            problem,
+            "Use one closed format: integer, decimal or percent with digits 0 to 6, currency with a listed code, or date_iso.",
+        )
+    )
+    return False
+
+
+def _state_text_placeholder_names(template: str) -> list[str] | None:
+    """Placeholder names in template order, or None when the template breaks the V5 rules."""
+    names = STATE_TEXT_PLACEHOLDER_RE.findall(template)
+    rest = STATE_TEXT_PLACEHOLDER_RE.sub("", template)
+    if "{" in rest or "}" in rest:
+        return None
+    if not 1 <= len(names) <= APP_STATE_TEXT_MAX_PLACEHOLDERS or len(set(names)) != len(names):
+        return None
+    return names
+
+
+def _parse_state_text_values_rule(
+    item: dict[str, Any],
+    path: str,
+    screen_ids: set[str],
+    states_by_id: dict[str, StateEntry],
+    selectors_by_id: dict[str, StateSelector],
+    binding_contracts: dict[str, dict[str, dict[str, str]]],
+    seen_targets: set[tuple[str, str]],
+    issues: list[StateValidationIssue],
+) -> StateTextRule | None:
+    """Parse the schema_version 5 multi-value form {id, screen_id, target_ref, template, values}."""
+    issue_count = len(issues)
+    _reject_extra(item, {"id", "screen_id", "target_ref", "template", "values"}, path, issues)
+    rule_id = _required_string(item, "id", path, issues)
+    screen_id = _required_string(item, "screen_id", path, issues)
+    target_ref = _required_string(item, "target_ref", path, issues)
+    template = _required_string(item, "template", path, issues)
+    _validate_safe_id(rule_id, f"{path}.id", "state text rule id", issues)
+    _check_state_text_target(path, screen_id, target_ref, screen_ids, binding_contracts, seen_targets, issues)
+    names: list[str] | None = None
+    if template:
+        if len(template) > APP_STATE_TEXT_V5_MAX_TEMPLATE_CHARS:
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_TEMPLATE_TOO_LARGE",
+                    f"{path}.template",
+                    f"state_text template exceeds {APP_STATE_TEXT_V5_MAX_TEMPLATE_CHARS} characters.",
+                )
+            )
+        names = _state_text_placeholder_names(template)
+        if names is None:
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_TEMPLATE_INVALID",
+                    f"{path}.template",
+                    f"A multi-value state_text template names 1 to {APP_STATE_TEXT_MAX_PLACEHOLDERS} distinct "
+                    "{name} placeholders, each once, and no other braces.",
+                    "Write each placeholder as {name} with a lowercase name of at most 32 characters.",
+                )
+            )
+    values = item.get("values")
+    if not isinstance(values, dict) or not values or len(values) > APP_STATE_TEXT_MAX_PLACEHOLDERS:
+        issues.append(
+            StateValidationIssue(
+                "APP_STATE_TEXT_VALUES_INVALID",
+                f"{path}.values",
+                f"values must be an object with 1 to {APP_STATE_TEXT_MAX_PLACEHOLDERS} entries, one per placeholder.",
+                'Map each placeholder to {"state": id} or {"selector": id, "measure": "count"}.',
+            )
+        )
+    else:
+        for name, source in values.items():
+            _check_state_text_source(f"{path}.values.{name}", source, states_by_id, selectors_by_id, screen_id, issues)
+        if names is not None and set(names) != set(values):
+            missing = [name for name in names if name not in values]
+            unused = [name for name in values if name not in names]
+            detail = []
+            if missing:
+                detail.append(f"missing {', '.join(missing)}")
+            if unused:
+                detail.append(f"unused {', '.join(unused)}")
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_VALUES_MISMATCH",
+                    f"{path}.values",
+                    f"values must hold exactly one entry per template placeholder ({'; '.join(detail)}).",
+                    "Add an entry for every placeholder and remove entries the template does not use.",
+                )
+            )
+    if len(issues) != issue_count or not (rule_id and screen_id and target_ref and template):
+        return None
+    return StateTextRule(
+        id=rule_id,
+        screen_id=screen_id,
+        target_ref=target_ref,
+        state="",
+        template=template,
+        values=copy.deepcopy(values),
+    )
+
+
+def _check_state_text_source(
+    source_path: str,
+    source: Any,
+    states_by_id: dict[str, StateEntry],
+    selectors_by_id: dict[str, StateSelector],
+    screen_id: str | None,
+    issues: list[StateValidationIssue],
+) -> None:
+    shape_message = (
+        'Each values entry is {"state": id, "format"?: F} or {"selector": id, "measure": "count", "format"?: F}.'
+    )
+    if not isinstance(source, dict):
+        issues.append(StateValidationIssue("APP_STATE_TEXT_VALUES_INVALID", source_path, shape_message))
+        return
+    if "selector" in source and "state" not in source:
+        if set(source) - {"selector", "measure", "format"} or source.get("measure") != "count":
+            issues.append(StateValidationIssue("APP_STATE_TEXT_VALUES_INVALID", source_path, shape_message))
+        else:
+            _check_state_text_selector(
+                f"{source_path}.selector", source.get("selector"), states_by_id, selectors_by_id, screen_id, issues
+            )
+    elif "state" in source and "selector" not in source:
+        if set(source) - {"state", "format"} or not isinstance(source.get("state"), str) or not source.get("state"):
+            issues.append(StateValidationIssue("APP_STATE_TEXT_VALUES_INVALID", source_path, shape_message))
+        else:
+            _check_state_text_state(f"{source_path}.state", source["state"], states_by_id, screen_id, issues)
+    else:
+        issues.append(StateValidationIssue("APP_STATE_TEXT_VALUES_INVALID", source_path, shape_message))
+    if "format" in source:
+        _check_state_text_format(f"{source_path}.format", source.get("format"), issues)
+
+
+def _check_state_text_selector(
+    selector_path: str,
+    selector_id: Any,
+    states_by_id: dict[str, StateEntry],
+    selectors_by_id: dict[str, StateSelector],
+    screen_id: str | None,
+    issues: list[StateValidationIssue],
+) -> None:
+    """A count source reads a selector over collection or selection state on the rule's screen."""
+    selector = selectors_by_id.get(selector_id) if isinstance(selector_id, str) else None
+    if selector is None:
+        issues.append(
+            StateValidationIssue(
+                "APP_STATE_TEXT_SELECTOR_MISSING",
+                selector_path,
+                f"State text rule references missing selector {selector_id!r}.",
+            )
+        )
+        return
+    source = states_by_id.get(selector.source_state)
+    if source is None:
+        return
+    if source.kind not in {STATE_KIND_COLLECTION, STATE_KIND_SELECTION}:
+        issues.append(
+            StateValidationIssue(
+                "APP_STATE_TEXT_SELECTOR_SOURCE_UNSUPPORTED",
+                selector_path,
+                f"Selector {selector.id} sources {source.kind} state; a count needs a collection or selection source.",
+            )
+        )
+    if source.scope == "screen" and source.screen_id != screen_id:
+        issues.append(
+            StateValidationIssue(
+                "APP_STATE_TEXT_STATE_SCOPE_MISMATCH",
+                selector_path,
+                f"Selector {selector.id} reads screen-scoped state {source.id} of {source.screen_id}, not {screen_id}.",
+            )
+        )
+
+
+_V4_CONDITION_SHAPE_MESSAGE = "when must be exactly one of {state, is}, {state, equals}, or {selector, is}."
+_V5_CONDITION_SHAPE_MESSAGE = (
+    "A visibility condition is a leaf ({state, is}, {state, equals}, or {selector, is}) "
+    "or exactly one of {all: [...]}, {any: [...]}, or {not: condition}."
+)
 
 
 def _validate_visibility_condition(
@@ -2221,15 +2777,172 @@ def _validate_visibility_condition(
     selectors_by_id: dict[str, StateSelector],
     issues: list[StateValidationIssue],
 ) -> bool:
-    if not isinstance(when, dict) or frozenset(when) not in _VISIBILITY_CONDITION_FORMS:
-        if when is not None:
+    return _validate_visibility_leaf(
+        when, f"{path}.when", states_by_id, selectors_by_id, issues, shape_message=_V4_CONDITION_SHAPE_MESSAGE
+    )
+
+
+def _is_composed_visibility_condition(when: Any) -> bool:
+    return isinstance(when, dict) and any(key in when for key in VISIBILITY_COMPOSITE_KEYS)
+
+
+def _validate_composed_visibility_condition(
+    when: Any,
+    when_path: str,
+    states_by_id: dict[str, StateEntry],
+    selectors_by_id: dict[str, StateSelector],
+    issues: list[StateValidationIssue],
+) -> bool:
+    """Validate a schema_version 5 condition tree: depth, list arity, leaf count, and every leaf."""
+    leaves: list[str] = []
+    too_deep: list[str] = []
+    ok = _validate_visibility_node(
+        when, when_path, 1, states_by_id, selectors_by_id, issues, leaves=leaves, too_deep=too_deep
+    )
+    if too_deep:
+        issues.append(
+            StateValidationIssue(
+                "APP_VISIBILITY_CONDITION_TOO_DEEP",
+                too_deep[0],
+                f"Visibility conditions nest at most {APP_VISIBILITY_MAX_DEPTH} levels; a leaf directly in when is level 1.",
+                "Flatten the condition, for example by merging nested all or any lists.",
+            )
+        )
+        ok = False
+    if len(leaves) > APP_VISIBILITY_MAX_LEAVES:
+        issues.append(
+            StateValidationIssue(
+                "APP_VISIBILITY_CONDITION_TOO_MANY_LEAVES",
+                when_path,
+                f"A visibility rule holds at most {APP_VISIBILITY_MAX_LEAVES} leaf conditions; this one holds {len(leaves)}.",
+                "Split the rule across targets or derive the condition through a selector.",
+            )
+        )
+        ok = False
+    return ok
+
+
+def _validate_visibility_node(
+    node: Any,
+    node_path: str,
+    depth: int,
+    states_by_id: dict[str, StateEntry],
+    selectors_by_id: dict[str, StateSelector],
+    issues: list[StateValidationIssue],
+    *,
+    leaves: list[str],
+    too_deep: list[str],
+) -> bool:
+    if depth > APP_VISIBILITY_MAX_DEPTH:
+        too_deep.append(node_path)
+        return False
+    if node is None:
+        issues.append(StateValidationIssue("APP_VISIBILITY_CONDITION_INVALID", node_path, _V5_CONDITION_SHAPE_MESSAGE))
+        return False
+    if not _is_composed_visibility_condition(node):
+        leaves.append(node_path)
+        return _validate_visibility_leaf(
+            node, node_path, states_by_id, selectors_by_id, issues, shape_message=_V5_CONDITION_SHAPE_MESSAGE
+        )
+    if len(node) != 1:
+        issues.append(StateValidationIssue("APP_VISIBILITY_CONDITION_INVALID", node_path, _V5_CONDITION_SHAPE_MESSAGE))
+        return False
+    key, child = next(iter(node.items()))
+    if key == "not":
+        if not isinstance(child, dict):
             issues.append(
                 StateValidationIssue(
-                    "APP_VISIBILITY_CONDITION_INVALID",
-                    f"{path}.when",
-                    "when must be exactly one of {state, is}, {state, equals}, or {selector, is}.",
+                    "APP_VISIBILITY_CONDITION_INVALID", f"{node_path}.not", "not takes one condition object."
                 )
             )
+            return False
+        return _validate_visibility_node(
+            child,
+            f"{node_path}.not",
+            depth + 1,
+            states_by_id,
+            selectors_by_id,
+            issues,
+            leaves=leaves,
+            too_deep=too_deep,
+        )
+    if not isinstance(child, list):
+        issues.append(
+            StateValidationIssue(
+                "APP_VISIBILITY_CONDITION_INVALID", f"{node_path}.{key}", f"{key} takes an array of conditions."
+            )
+        )
+        return False
+    if not APP_VISIBILITY_MIN_COMPOSITE_ITEMS <= len(child) <= APP_VISIBILITY_MAX_COMPOSITE_ITEMS:
+        issues.append(
+            StateValidationIssue(
+                "APP_VISIBILITY_CONDITION_ARITY_INVALID",
+                f"{node_path}.{key}",
+                f"{key} holds {APP_VISIBILITY_MIN_COMPOSITE_ITEMS} to {APP_VISIBILITY_MAX_COMPOSITE_ITEMS} conditions; "
+                f"this one holds {len(child)}.",
+                "Use a leaf condition instead of a one-item list, or split a long list.",
+            )
+        )
+        return False
+    ok = True
+    for index, item in enumerate(child):
+        item_ok = _validate_visibility_node(
+            item,
+            f"{node_path}.{key}[{index}]",
+            depth + 1,
+            states_by_id,
+            selectors_by_id,
+            issues,
+            leaves=leaves,
+            too_deep=too_deep,
+        )
+        ok = ok and item_ok
+    return ok
+
+
+def _v5_feature_issue(path: str, feature: str) -> StateValidationIssue:
+    return StateValidationIssue(
+        APP_V5_FEATURE_CODE,
+        path,
+        f"{feature} require AppBundle schema_version 5.",
+        APP_V5_FEATURE_SUGGESTION,
+    )
+
+
+def v5_feature_issues(app_payload: dict[str, Any]) -> list[StateValidationIssue]:
+    """Schema_version 5 constructs in a bundle that declares an earlier version.
+
+    Schema versions 1 to 3 reject visibility and state_text as unknown fields; this names the
+    version that admits the composed or multi-value form, so the fix is one field.
+    """
+    issues: list[StateValidationIssue] = []
+    visibility = app_payload.get("visibility")
+    for index, rule in enumerate(visibility if isinstance(visibility, list) else []):
+        if isinstance(rule, dict) and _is_composed_visibility_condition(rule.get("when")):
+            issues.append(
+                _v5_feature_issue(f"$.visibility[{index}].when", "Composed visibility conditions (all, any, not)")
+            )
+    state_text = app_payload.get("state_text")
+    for index, rule in enumerate(state_text if isinstance(state_text, list) else []):
+        if isinstance(rule, dict) and any(field in rule for field in STATE_TEXT_V5_ONLY_FIELDS):
+            issues.append(
+                _v5_feature_issue(f"$.state_text[{index}]", "Multi-value state text (values) and formatters (format)")
+            )
+    return issues
+
+
+def _validate_visibility_leaf(
+    when: Any,
+    when_path: str,
+    states_by_id: dict[str, StateEntry],
+    selectors_by_id: dict[str, StateSelector],
+    issues: list[StateValidationIssue],
+    *,
+    shape_message: str,
+) -> bool:
+    if not isinstance(when, dict) or frozenset(when) not in _VISIBILITY_CONDITION_FORMS:
+        # null included: a rule must never be dropped without an issue that names its condition.
+        issues.append(StateValidationIssue("APP_VISIBILITY_CONDITION_INVALID", when_path, shape_message))
         return False
     ok = True
     if "selector" in when:
@@ -2239,7 +2952,7 @@ def _validate_visibility_condition(
             issues.append(
                 StateValidationIssue(
                     "APP_VISIBILITY_SELECTOR_MISSING",
-                    f"{path}.when.selector",
+                    f"{when_path}.selector",
                     f"Visibility condition references missing selector {selector_id!r}.",
                 )
             )
@@ -2250,7 +2963,7 @@ def _validate_visibility_condition(
                 issues.append(
                     StateValidationIssue(
                         "APP_VISIBILITY_SELECTOR_SOURCE_UNSUPPORTED",
-                        f"{path}.when.selector",
+                        f"{when_path}.selector",
                         f"Selector {selector_id} sources {source.kind} state; selector conditions need collection or selection sources.",
                     )
                 )
@@ -2259,7 +2972,7 @@ def _validate_visibility_condition(
             issues.append(
                 StateValidationIssue(
                     "APP_VISIBILITY_CONDITION_INVALID",
-                    f"{path}.when.is",
+                    f"{when_path}.is",
                     "Selector conditions require is: non_empty or empty.",
                 )
             )
@@ -2271,7 +2984,7 @@ def _validate_visibility_condition(
         issues.append(
             StateValidationIssue(
                 "APP_VISIBILITY_STATE_MISSING",
-                f"{path}.when.state",
+                f"{when_path}.state",
                 f"Visibility condition references missing state {state_id!r}.",
             )
         )
@@ -2281,7 +2994,7 @@ def _validate_visibility_condition(
             issues.append(
                 StateValidationIssue(
                     "APP_VISIBILITY_STATE_KIND_UNSUPPORTED",
-                    f"{path}.when.state",
+                    f"{when_path}.state",
                     f"equals conditions need scalar state; {state_id} is {state.kind}.",
                 )
             )
@@ -2291,7 +3004,7 @@ def _validate_visibility_condition(
             issues.append(
                 StateValidationIssue(
                     "APP_VISIBILITY_EQUALS_NOT_SCALAR",
-                    f"{path}.when.equals",
+                    f"{when_path}.equals",
                     "equals must be a JSON scalar (string <= 2048 chars, number, boolean, or null).",
                 )
             )
@@ -2301,7 +3014,7 @@ def _validate_visibility_condition(
         issues.append(
             StateValidationIssue(
                 "APP_VISIBILITY_STATE_KIND_UNSUPPORTED",
-                f"{path}.when.state",
+                f"{when_path}.state",
                 f"is conditions need scalar or selection state; {state_id} is {state.kind}.",
             )
         )
@@ -2310,7 +3023,7 @@ def _validate_visibility_condition(
         issues.append(
             StateValidationIssue(
                 "APP_VISIBILITY_CONDITION_INVALID",
-                f"{path}.when.is",
+                f"{when_path}.is",
                 "State conditions require is: truthy or falsy.",
             )
         )
@@ -2652,7 +3365,7 @@ def _project_expected(values: dict[str, Any], expected: dict[str, Any]) -> dict[
 
 def _expected_conformance_replays(app_payload: dict[str, Any], state_ir: StateIR) -> list[dict[str, Any]]:
     initial = initial_state(app_payload, state_ir)
-    is_v4 = app_payload.get("schema_version") == 4
+    is_v4 = app_has_visibility(app_payload)
     replays: list[dict[str, Any]] = []
     for assertion in state_ir.replay_assertions:
         current = copy.deepcopy(initial)
@@ -2764,8 +3477,8 @@ console.log(JSON.stringify({
                     {
                         "code": "APP_STATE_REDUCER_NODE_UNAVAILABLE",
                         "path": "$.interactive_state",
-                        "message": f"Node.js runtime {node_command!r} was not found; V3/V4 reducer conformance requires Node.js.",
-                        "fix": "Install Node.js (>=18) on PATH for V3/V4 reducer conformance, or use a V1/V2 AppBundle (no Node required).",
+                        "message": f"Node.js runtime {node_command!r} was not found; V3 to V5 reducer conformance requires Node.js.",
+                        "fix": "Install Node.js (>=18) on PATH for V3 to V5 reducer conformance, or use a V1/V2 AppBundle (no Node required).",
                     }
                 ],
             }
@@ -2889,8 +3602,10 @@ _stable_json = canonical_json_utf8
 
 
 __all__ = [
+    "APP_STATE_TEXT_MAX_PLACEHOLDERS",
     "APP_STATE_TEXT_MAX_RULES",
     "APP_STATE_TEXT_MAX_TEMPLATE_CHARS",
+    "APP_STATE_TEXT_V5_MAX_TEMPLATE_CHARS",
     "APP_STATE_MAX_ENTRIES",
     "APP_STATE_MAX_EVENTS_PER_REPLAY",
     "APP_STATE_MAX_MANIFEST_BYTES",
@@ -2900,6 +3615,10 @@ __all__ = [
     "APP_STATE_MAX_REPLAY_ASSERTIONS",
     "APP_STATE_MAX_SELECTOR_OPS",
     "APP_STATE_MAX_SELECTORS",
+    "APP_VISIBILITY_MAX_COMPOSITE_ITEMS",
+    "APP_VISIBILITY_MAX_DEPTH",
+    "APP_VISIBILITY_MAX_LEAVES",
+    "APP_VISIBILITY_MIN_COMPOSITE_ITEMS",
     "INTERACTIVE_STATE_PROFILE",
     "NormalizedStateIR",
     "STATE_MANIFEST_SCHEMA_VERSION",
@@ -2924,5 +3643,8 @@ __all__ = [
     "state_event_schemas",
     "state_ir_summary",
     "state_manifest",
+    "state_text_segments",
+    "unsafe_integer_issues",
+    "v5_feature_issues",
     "validate_state_ir",
 ]

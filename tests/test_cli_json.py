@@ -109,6 +109,7 @@ def test_compile_json_reports_the_emitted_paths_in_the_envelope(tmp_path, capsys
     }
     assert payload["metadata"]["target"] == "html-tailwind"
     assert payload["metadata"]["emitter"] == "html_tailwind"
+    assert payload["fixes"] == []
     assert cli_main(["check", str(out_dir)]) == 0
 
 

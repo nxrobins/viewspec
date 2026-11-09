@@ -12,7 +12,7 @@ def test_primary_docs_are_intent_first():
         root / "demos/llms.txt",
         root / "demos/llms-full.txt",
         root / "demos/agent-system-prompt.txt",
-        root / "integrations/claude-code/SKILL.md",
+        root / "skills/viewspec/SKILL.md",
     ]
 
     for path in docs:
@@ -44,7 +44,7 @@ def test_primary_docs_treat_compiled_outputs_as_artifacts():
         root / "docs/agent-integration.md",
         root / "demos/llms.txt",
         root / "demos/llms-full.txt",
-        root / "integrations/claude-code/SKILL.md",
+        root / "skills/viewspec/SKILL.md",
     ]
 
     for path in docs:
@@ -54,9 +54,9 @@ def test_primary_docs_treat_compiled_outputs_as_artifacts():
         assert "viewspec.intent.json" in text, path
 
 
-def test_claude_code_skill_matches_native_agent_workflow():
+def test_viewspec_skill_matches_native_agent_workflow():
     root = Path(__file__).resolve().parents[1]
-    text = root.joinpath("integrations/claude-code/SKILL.md").read_text(encoding="utf-8")
+    text = root.joinpath("skills/viewspec/SKILL.md").read_text(encoding="utf-8")
 
     assert "Do not write HTML, CSS, React, SwiftUI, Flutter, or CompositionIR as source." in text
     assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/" in text
@@ -84,7 +84,7 @@ def test_first_proof_is_public_and_bounded():
         root / "demos/llms-full.txt",
         root / "demos/agent-system-prompt.txt",
         root / "demos/proof-bundle/index.html",
-        root / "integrations/claude-code/SKILL.md",
+        root / "skills/viewspec/SKILL.md",
     ]
 
     for path in docs:
@@ -132,7 +132,7 @@ def test_public_docs_include_app_bundle_v0_contract():
         root / "docs/app-bundle-v0.md",
         root / "demos/llms.txt",
         root / "demos/llms-full.txt",
-        root / "integrations/claude-code/SKILL.md",
+        root / "skills/viewspec/SKILL.md",
     ]
 
     for path in docs:

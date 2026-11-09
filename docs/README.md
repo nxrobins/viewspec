@@ -5,17 +5,39 @@ are reference material for when a command, contract, or proof points you there.
 
 ## Start here
 
-- [Getting Started](getting-started.md): Install, the first `viewspec prove` bundle, Studio, and the
-  intent lifecycle in five minutes.
-- [Agent Integration](agent-integration.md): The agent contract: emit `IntentBundle` JSON, then
-  check, compile, and prove.
+- [Getting Started](getting-started.md): Install, the first `viewspec prove` bundle, Studio and its
+  inspector, and the intent lifecycle in five minutes.
+- [Agent Integration](agent-integration.md): The agent contract. An agent writes the compact form by
+  default and runs the repair loop: lossless `fixes` first, then `correction_prompt` or an RFC 6902
+  `--patch` for what remains. Then it compiles and proves. `viewspec mcp` serves six tools: `init`,
+  `compile`, `check`, `patch`, `prove`, and `studio`.
 - [Proof Bundle](proof-bundle.md): How to read `.viewspec-proof/`: `PROOF.md`, `proof_report.json`,
   the redacted support bundle, and failure codes.
 
+## Concepts
+
+One short page for each idea behind the JSON. Each page has one complete example that passes
+`viewspec check`.
+
+- [Substrate](concepts/substrate.md): The data: nodes, attributes, slots, and edges.
+- [Binding](concepts/binding.md): How one substrate value reaches the screen, exactly once.
+- [Motif](concepts/motif.md): The eleven UI patterns and what each one needs.
+- [Region](concepts/region.md): The layout tree that holds bindings and motifs.
+- [Compact form](concepts/compact-form.md): The default authoring form and how ViewSpec checks it.
+- [Proof](concepts/proof.md): What `check` and `prove` verify, and what they do not.
+
+## For agents
+
+- [Agent skill](../skills/viewspec/SKILL.md): The authoring rules as an agent skill. Install it with
+  `npx skills add nxrobins/viewspec --skill viewspec`.
+- [ViewSpec next to json-render, A2UI, and MCP Apps](comparison.md): Where each runs, who writes the
+  spec, and what each checks.
+
 ## Source contracts
 
-- [AppBundle V1/V2/V3/V4](app-bundle-v0.md): Multi-screen internal tools: fixtures, bounded state,
-  visibility, the Static Shell V0 proof target, and the runnable `react-tailwind-app` target.
+- [AppBundle V1 to V5](app-bundle-v0.md): Multi-screen internal tools: fixtures, bounded state,
+  visibility, bounded expressions, the Static Shell V0 proof target, and the runnable
+  `react-tailwind-app` target.
 - [Custom Motif Authoring](custom-motif-authoring.md): Trusted local motif plugins that lower into
   `CompositionIR`.
 - [Local HTML Wedge](local-html-wedge.md): Importing existing HTML as a fallback path.
@@ -27,6 +49,9 @@ are reference material for when a command, contract, or proof points you there.
 
 - [Emitter Matrix](emitter-matrix.md): Capability matrix across HTML/Tailwind, React TSX, and React
   Tailwind TSX.
+- [React Host Component Registry](react-registry.md): `--registry` for the React targets, the
+  primitive contract, the manifest section, and the `REGISTRY_*` codes. The registry is host input:
+  agents never write it.
 - [Known Limits: HTML/Tailwind](known-limits-html-tailwind.md)
 - [Known Limits: React TSX](known-limits-react-tsx.md)
 - [Known Limits: React Tailwind TSX](known-limits-react-tailwind-tsx.md)

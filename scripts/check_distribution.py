@@ -15,7 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 # The sdist carries the library tests, the conformance corpus and the schema source (audit
-# R-8). It does not carry scripts/, demos/, docs/, examples/, integrations/, .github/ or
+# R-8). It does not carry scripts/, demos/, docs/, examples/, integrations/, skills/, .github/ or
 # requirements-ci.txt, which some tests import or read, so the full suite still needs a git checkout. The caps
 # leave headroom for the shipped tests without admitting build output or dependency trees.
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +34,8 @@ RELEASE_FILES = {
     "html_verify_template/package-lock.json",
     "html_verify_template/host.ts",
     "html_verify_template/verify.mjs",
+    # The default React component module `viewspec init registry` writes.
+    "emitters/react_registry/viewspec-registry.default.tsx",
 }
 # The package ships py.typed, so the generated protobuf module must travel with its stub.
 SCHEMA_RELEASE_FILES = {

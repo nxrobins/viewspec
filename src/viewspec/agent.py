@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+import shlex
+from collections.abc import Mapping
+from copy import deepcopy
+from dataclasses import dataclass, field
+from pathlib import PurePath
 from typing import Any
 
 from viewspec.aesthetics import (
@@ -62,6 +66,167 @@ VIEW_SPEC_ALLOWED_FIELDS = {
     "motifs",
     "styles",
     "actions",
+}
+# Fields with exactly one legal position one level away from the root: a root key legal only in
+# substrate or only in view_spec moves down, and schema_version found in either container moves up.
+# "id" is legal in both containers, so it is never moved.
+SUBSTRATE_ONLY_FIELDS = frozenset(SUBSTRATE_ALLOWED_FIELDS - VIEW_SPEC_ALLOWED_FIELDS - ROOT_ALLOWED_FIELDS)
+VIEW_SPEC_ONLY_FIELDS = frozenset(VIEW_SPEC_ALLOWED_FIELDS - SUBSTRATE_ALLOWED_FIELDS - ROOT_ALLOWED_FIELDS)
+ROOT_ONLY_FIELDS = frozenset({"schema_version"})
+# Closed table of present_as spellings whose canonical value has identical semantics. metric and
+# number are the compiler's own value-like set; every other alias names the same primitive by
+# another common word. An alias that would change what the compiler emits is not listed: it is lossy.
+PRESENT_AS_ALIASES: dict[str, str] = {
+    "chip": "badge",
+    "divider": "rule",
+    "image": "image_slot",
+    "metric": "value",
+    "number": "value",
+    "separator": "rule",
+    "tag": "badge",
+    "text_input": "input",
+    "textbox": "input",
+}
+FIX_EMPTY_RELATIONS_ADDED = "FIX_EMPTY_RELATIONS_ADDED"
+FIX_FIELD_RELOCATED = "FIX_FIELD_RELOCATED"
+FIX_PRESENT_AS_ALIAS = "FIX_PRESENT_AS_ALIAS"
+FIX_ROOT_PARENT_REGION_SET = "FIX_ROOT_PARENT_REGION_SET"
+FIX_SCHEMA_VERSION_ADDED = "FIX_SCHEMA_VERSION_ADDED"
+AGENT_FIX_CODES = (
+    FIX_EMPTY_RELATIONS_ADDED,
+    FIX_FIELD_RELOCATED,
+    FIX_PRESENT_AS_ALIAS,
+    FIX_ROOT_PARENT_REGION_SET,
+    FIX_SCHEMA_VERSION_ADDED,
+)
+LOSSLESS_FIXABLE_ISSUE = "lossless_fixable"
+LOSSY_ISSUE = "lossy"
+# Every code validate_agent_intent_bundle can report, and whether a lossless fix can resolve some
+# of its instances. lossless_fixable means apply_lossless_fixes removes the instances it can prove
+# harmless before validation; an instance that is still reported after fixing is lossy. Every other
+# code is lossy: resolving it would add, remove, or re-target a node, binding, member, style, or
+# action, or guess at a value, so ViewSpec never fixes it. classify_issue_code treats an unknown code
+# as lossy.
+ISSUE_CODE_CLASSIFICATION: dict[str, str] = {
+    "MISSING_FIELD": LOSSLESS_FIXABLE_ISSUE,
+    "UNKNOWN_FIELD": LOSSLESS_FIXABLE_ISSUE,
+    "UNKNOWN_PRESENT_AS": LOSSLESS_FIXABLE_ISSUE,
+    **dict.fromkeys(
+        (
+            # The agent contract validator.
+            "AESTHETIC_PROFILE_MULTIPLE",
+            "AESTHETIC_PROFILE_TARGET_INVALID",
+            "AESTHETIC_PROFILE_UNKNOWN",
+            "AMBIGUOUS_STYLE_TARGET",
+            "COLLECTION_ACTION_PAYLOAD_REQUIRED",
+            "COLLECTION_ACTION_TARGET_INVALID",
+            "COLLECTION_BULK_SELECTION_AMBIGUOUS",
+            "COLLECTION_BULK_SELECTION_REQUIRED",
+            "COLLECTION_STATE_CONFLICT",
+            "COMPILER_INPUT_ERROR",
+            "COMPOSITION_IR_INPUT",
+            "DETACHED_REGION",
+            "DUPLICATE_ACTION_ID",
+            "DUPLICATE_BINDING_ID",
+            "DUPLICATE_EXACTLY_ONCE_ADDRESS",
+            "DUPLICATE_GROUP_ID",
+            "DUPLICATE_MOTIF_ID",
+            "DUPLICATE_REGION_ID",
+            "DUPLICATE_STYLE_ID",
+            "EDGE_VALUES_SHAPE",
+            "EMPTY_MOTIF",
+            "INTEGER_OUT_OF_SAFE_RANGE",
+            "INTENT_BUNDLE_PARSE_ERROR",
+            "INTENT_TOO_LARGE",
+            "INVALID_ACTION",
+            "INVALID_ACTION_TARGET_REF",
+            "INVALID_ADDRESS",
+            "INVALID_BINDING",
+            "INVALID_COMPLEXITY_TIER",
+            "INVALID_GROUP",
+            "INVALID_ID",
+            "INVALID_JSON",
+            "INVALID_JSON_VALUE",
+            "INVALID_MOTIF",
+            "INVALID_NODE",
+            "INVALID_PAYLOAD",
+            "INVALID_REGION",
+            "INVALID_REGION_CHILD_BOUNDS",
+            "INVALID_STYLE",
+            "MISSING_GROUP_MEMBER",
+            "MISSING_MOTIF_MEMBER",
+            "MISSING_ROOT_REGION",
+            "MISSING_SUBSTRATE_ROOT",
+            "MOTIF_MISSING_INPUT",
+            "MOTIF_MISSING_LABEL",
+            "MOTIF_MISSING_TITLE",
+            "MOTIF_MISSING_VALUE",
+            "MOTIF_TOO_FEW_ITEMS",
+            "NODES_MUST_BE_OBJECT",
+            "NODE_KEY_MISMATCH",
+            "REGION_PARENT_CYCLE",
+            "ROOT_REGION_HAS_PARENT",
+            "SLOT_VALUES_SHAPE",
+            "STATE_MOTIF_TITLE_REQUIRED",
+            "STATE_MOTIF_TOO_MANY_DESCRIPTIONS",
+            "SUBSTRATE_ID_MISMATCH",
+            "TOO_MANY_ACTIONS",
+            "TOO_MANY_ACTION_PAYLOAD_BINDINGS",
+            "TOO_MANY_BINDINGS",
+            "TOO_MANY_COLLECTION_ACTIONS",
+            "TOO_MANY_GROUPS",
+            "TOO_MANY_GROUP_MEMBERS",
+            "TOO_MANY_MOTIFS",
+            "TOO_MANY_MOTIF_MEMBERS",
+            "TOO_MANY_NODES",
+            "TOO_MANY_NODE_ATTRS",
+            "TOO_MANY_NODE_EDGES",
+            "TOO_MANY_NODE_SLOTS",
+            "TOO_MANY_REGIONS",
+            "TOO_MANY_RELATION_VALUES",
+            "TOO_MANY_STATE_MOTIFS",
+            "TOO_MANY_STYLES",
+            "UNKNOWN_ACTION_PAYLOAD_BINDING",
+            "UNKNOWN_ACTION_TARGET",
+            "UNKNOWN_EDGE_TARGET",
+            "UNKNOWN_REGION",
+            "UNKNOWN_STYLE_TARGET",
+            "UNSUPPORTED_ACTION_KIND",
+            "UNSUPPORTED_CARDINALITY",
+            "UNSUPPORTED_GROUP_KIND",
+            "UNSUPPORTED_MOTIF",
+            "UNSUPPORTED_REGION_LAYOUT",
+            "UNSUPPORTED_SCHEMA_VERSION",
+            "UNSUPPORTED_STYLE_TOKEN",
+            # Reference compiler diagnostics that reach the agent through compile_check.
+            "AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT",
+            "AESTHETIC_PROFILE_NOOP",
+            "COLLECTION_ACTION_BAR_DUPLICATE",
+            "COLLECTION_ACTION_PAYLOAD_TOO_LARGE",
+            "COLLECTION_BULK_SELECTION_TOO_LARGE",
+            "DUPLICATE_ACTION_PLACEMENT",
+            "DUPLICATE_MOTIF_MEMBER",
+            "MISSING_ACTION_MOTIF_WRAPPER",
+            "PLANNER_ROLE_METADATA_ONLY",
+            "SEMANTIC_GRAPH_CYCLE",
+            "SEMANTIC_GRAPH_SHARED_NODE",
+            "SEMANTIC_GRAPH_TOO_DEEP",
+            "SEMANTIC_GRAPH_UNREACHED_MEMBER",
+            "SEMANTIC_MOTIF_MEMBERS_UNPLACED",
+            "UNKNOWN_STYLE_TOKEN",
+            "UNSAFE_ACTION_PLACEMENT",
+            # The check command's file and patch failures.
+            "INTENT_FILE_NOT_FOUND",
+            "INTENT_FILE_READ_ERROR",
+            "PATCH_APPLY_FAILED",
+            "PATCH_INVALID",
+            "PATCH_RESULT_TOO_LARGE",
+            "PATCH_TARGET_FORBIDDEN",
+            "PATCH_TEST_FAILED",
+            "PATCH_TOO_MANY_OPERATIONS",
+        ),
+        LOSSY_ISSUE,
+    ),
 }
 SUPPORTED_AGENT_STYLE_TOKENS = tuple(
     token
@@ -125,6 +290,14 @@ MAX_AGENT_ACTION_PAYLOAD_BINDINGS = 64
 MAX_AGENT_CORRECTION_PROMPT_ISSUES = 20
 MAX_AGENT_REPAIR_CHECKLIST_ITEMS = 8
 DEFAULT_AGENT_REPAIR_SUGGESTION = "Regenerate the full IntentBundle using only the local V1 agent contract."
+# The two source forms, and the file a correction prompt names when the caller does not say which file
+# it checked. viewspec.compact_form and viewspec.intent_tools use the same two names.
+CANONICAL_SOURCE_FORMAT = "canonical"
+COMPACT_SOURCE_FORMAT = "compact"
+DEFAULT_AGENT_SOURCE_FILES: dict[str, str] = {
+    CANONICAL_SOURCE_FORMAT: "viewspec.intent.json",
+    COMPACT_SOURCE_FORMAT: "viewspec.compact.json",
+}
 SAFE_AGENT_ID_PATTERN = r"^[A-Za-z0-9_.-]+$"
 SAFE_AGENT_ID_RE = re.compile(SAFE_AGENT_ID_PATTERN)
 SAFE_AGENT_EXPLICIT_TARGET_PATTERN = r"^(region|binding|motif|view):[A-Za-z0-9_.-]+$"
@@ -134,97 +307,13 @@ SAFE_AGENT_ADDRESS_PATTERN = (
     r"(?:#attr:[A-Za-z0-9_.-]+|#slot:[A-Za-z0-9_.-]+(?:\[\d+])?|#edge:[A-Za-z0-9_.-]+)?$"
 )
 
-AGENT_SYSTEM_PROMPT = """You are a ViewSpec IntentBundle compiler.
+# AGENT_SYSTEM_PROMPT is generated by viewspec.agent_prompt from the registries in this module, the
+# compact form, and the AppBundle sections. Those modules import this one, so the module-level
+# __getattr__ at the end of this file resolves the name on first access.
 
-Your job is to translate user intent into ViewSpec IntentBundle JSON. You do not output HTML, CSS, React, or CompositionIR. CompositionIR is compiler output only.
-
-Output strict JSON only. Do not wrap it in markdown. Do not explain it.
-
-Use stable ids and object keys matching this pattern only: A-Z, a-z, 0-9, underscore, dot, and dash. Do not use spaces, colons, slashes, markup, or path-like ids.
-
-The JSON object must contain:
-- substrate.id
-- substrate.root_id
-- substrate.nodes as an object keyed by node ID, never an array
-- every substrate node with id, kind, attrs, slots, and edges
-- view_spec.id
-- view_spec.substrate_id
-- view_spec.complexity_tier
-- view_spec.root_region
-- view_spec.regions
-- view_spec.bindings
-- view_spec.groups
-- view_spec.motifs
-- view_spec.styles
-- view_spec.actions
-
-Include the optional root field schema_version with integer value 1. Documents without schema_version are treated as schema version 1; any other value is rejected.
-
-Use only these v1 motif kinds: table, dashboard, outline, comparison, list, form, detail, empty_state, loading_state, error_state, hero.
-
-Use only these binding present_as values: text, label, value, badge, input, rich_text, image_slot, rule.
-
-Use only these action kinds: select, submit, navigate, search, filter, sort, paginate, bulk_action.
-
-Use only this v1 binding cardinality: exactly_once.
-
-Use only these v1 region layouts: stack, grid, cluster.
-
-Use only this v1 group kind: ordered.
-
-Do not add custom or extension fields to local v1 objects. Unknown fields are rejected instead of silently ignored.
-
-Use style tokens only from this v1 set: emphasis.low, emphasis.medium, emphasis.high, density.compact, density.regular, density.airy, palette.temperature, tone.neutral, tone.muted, tone.accent, tone.warning, tone.positive, action.accent, surface.none, surface.subtle, surface.strong, rhythm.hierarchy, narrative.flow, align.start, align.center, align.end, aesthetic.calm_ops, aesthetic.premium_saas, aesthetic.data_dense, aesthetic.editorial_product, aesthetic.executive_review, aesthetic.brutalist, aesthetic.neon_cyber, aesthetic.warm_organic.
-
-Aesthetic profile tokens are deterministic art-direction handles, not CSS. At most one style may use an aesthetic.* token, it must target exactly view:{view_spec.id}, and it must be one of aesthetic.calm_ops, aesthetic.premium_saas, aesthetic.data_dense, aesthetic.editorial_product, aesthetic.executive_review, aesthetic.brutalist, aesthetic.neon_cyber, or aesthetic.warm_organic. The compiler may derive governed style projection and bounded layout metadata from that token.
-
-Use canonical binding addresses:
-- node:{node_id}
-- node:{node_id}#attr:{attr_name}
-- node:{node_id}#slot:{slot_name}
-- node:{node_id}#slot:{slot_name}[{index}]
-- node:{node_id}#edge:{edge_name}
-
-For JSON wire compatibility, slots and edges are maps whose values contain a values array:
-{
-  "slots": {"items": {"values": ["item_1", "item_2"]}},
-  "edges": {"next": {"values": ["item_2"]}}
-}
-
-All binding IDs must be unique. Any binding with cardinality exactly_once must use an address that appears only once. Semantic edges must reference declared substrate node IDs. Style targets must use region:id, binding:id, motif:id, view:id, or an unambiguous bare id. Action target_ref must be empty/null or use region:id, binding:id, motif:id, or view:id. Region, group, motif, style, and action references must resolve to declared IDs. Region parent links must form one acyclic tree rooted at view_spec.root_region.
-
-Motifs must be semantically complete. Every motif must have at least one declared member. Hero and empty_state motifs need a title, heading, headline, or label binding. Loading_state and error_state motifs need exactly one title, heading, headline, or label binding and at most one description, body, or message binding. Form motifs need at least one input binding. Table, dashboard, and detail motifs need both label and value/text-style bindings. Comparison motifs need at least two distinct semantic items.
-
-Stateful collection actions are bounded. Search, filter, sort, paginate, and bulk_action must use target_ref motif:{id} for a declared table or list motif. Search, filter, sort, and paginate need 1-8 payload_bindings. Bulk_action needs exactly one payload binding whose id ends with _selection or _selected_ids. A table or list may have at most 8 collection actions, and a region may not mix loading_state or error_state with a table or list.
-
-Use complexity_tier >= 1. Region min_children must be >= 0. Region max_children must be null or >= min_children.
-
-Stay inside the v1 local contract caps: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action. Split larger products into smaller IntentBundles.
-
-Generated JSON is not a finished ViewSpec proof. After saving it as viewspec.intent.json, the host workflow must run viewspec prove viewspec.intent.json --out .viewspec-proof or run viewspec check viewspec.intent.json --json, viewspec compile, and viewspec check on the output directory before claiming the UI artifact is valid. Read .viewspec-proof/PROOF.md first when a proof bundle exists; use proof_report.json for machine-readable status and support_bundle.json for redacted failure triage. Do not describe ViewSpec proof as pixel-perfect visual regression, accessibility certification, or arbitrary host-app certification.
-
-To revise existing source, regenerate the bundle or apply a standard JSON Patch to it, then run viewspec check on the file. Never hand-edit generated DOM, CSS, or framework output: change the semantic source and recompile.
-
-For a multi-screen internal tool, emit AppBundle JSON as viewspec.app.json instead of inventing a router or app scaffold. Use schema_version 1 for unbound fixture context, schema_version 2 with resource_binding "fixture_readonly_v0" and per-screen resource_views when the proof must verify exact fixture scalar visibility inside declared target motifs, schema_version 3 for bounded interactive_state_v0 reducers, or schema_version 4 for visibility, scalar state text, and the runnable React app path. Generate a contract starter with viewspec init app or viewspec init app --resource-binding fixture-readonly-v0 --out viewspec.app.json. Validate with viewspec check viewspec.app.json --json, compile the Static Shell V0 proof with viewspec compile viewspec.app.json --out app-dist --target html-tailwind-app --json, and prove it with viewspec prove viewspec.app.json --out .viewspec-app-proof --with-shell --json. For a runnable React internal tool, run viewspec init app --template react-app --out viewspec.app.json, replace the sample intent, then run viewspec compile viewspec.app.json --target react-tailwind-app --out app-dist. Edit viewspec.app.json and regenerate with --force; do not edit generated React. Before handoff, run viewspec prove viewspec.app.json --target react-tailwind-app --install when npm installation and local Chromium execution are allowed. The generated ViewSpecApp owns browser-history routes, host resource props with fixture fallback, state mutation dispatch, resource-backed text rebinding, scalar state text, selectors, and visibility. Authentication, persistence, arbitrary API clients, optimistic updates, backend behavior, and deployment infrastructure stay host-owned.
-
-For any reference-sensitive or composition-sensitive AppBundle screen, declare screen.presentation instead of relying on inferred presentation. Choose a bounded profile and add rules targeting stable region:, motif:, or binding: IDs. Put shared properties in base and breakpoint-specific areas, columns, ordering, spans, spacing, sizing, visibility, and text wrapping in compact, medium, or wide variants. A motif rule styles its semantic container; use its optional items.base and items.variants to lay out each stable direct record/group inside that motif without target-specific CSS. A grid's areas matrix may name child regions directly or names claimed by a child rule's area property. For an operations_workspace with sibling sidebar and main regions, keep both visible, use a stacked compact/medium shell plus a rail_lg/fluid wide shell, and give main compact lg, medium 2xl, and wide xl padding as the reference-friendly starting geometry. Use a hero motif for the page's primary eyebrow/title so both targets emit a native header and h1; keep the title's inferred intrinsic width unless the reference demonstrably requires another bounded width. Declare relational anchors on the same semantic IDs when geometry must survive later content or state edits, but scope each anchor to viewports where its relation is actually true; for example, a sidebar/main same_row anchor is normally wide-only when smaller widths stack. Compilation emits one hash-bound presentation_plan.json consumed by static and React; inferred presentation remains deterministic but emits APP_PRESENTATION_INFERRED and has no declared anchor proof. Generated React proof checks declared anchors at 390, 768, and 1440 pixels and reports the first divergent semantic node and geometric property.
-
-For a list resource_view, use repeat when the same fields should be rendered for every declared record without hand-authoring record nodes and bindings. repeat owns every repeated record-field inside target_motif_id: keep headings or controls there if needed, but do not retain a hand-authored prototype record or bindings for any repeated record-field. repeat.field_presentations must cover resource_view.fields exactly once using badge, label, text, or value, and optional repeat.group_id may add generated members to an existing ordered group. ViewSpec generates stable rvn_ semantic nodes and rvb_ bindings, keeps each resource/resource-view/record/field identity in emitted provenance, and proves repeated visible scalar values by identity rather than text. For ordinary safe-length IDs, a generated binding is rvb_{resource_view_id}__{record_id}__{field}; use that stable binding ID in action payload_bindings, visibility targets, and presentation targets when needed.
-
-State replay events may name mutation_id directly or use compact action_id plus optional screen_id and repeat. Action events normalize to the same deterministic mutation sequence used by generated runtimes; repeat is bounded to 1-32. Prefer action shorthand for reveal, increment, derived visibility, and independent-transition scenarios. A failed replay reports assertion, event, mutation, state path, expected and actual values, post-event state, selectors, visibility, and projected text; repair the named declaration instead of interpreting a generic APP_STATE_REPLAY_ASSERTION_FAILED.
-
-Use schema_version 4 when a screen region, motif, or binding must be conditionally visible. Add a root visibility array of at most 64 rules, each {id, screen_id, target_ref, when}: target_ref is region:<id>, motif:<id>, or binding:<id> declared in that screen's embedded intent, and when is exactly one of {"state": id, "is": "truthy"|"falsy"}, {"state": id, "equals": <JSON scalar>}, or {"selector": id, "is": "non_empty"|"empty"}. Declare at most one visibility rule per (screen_id, target_ref) pair; duplicate targets are rejected. Compiled screens bake initial visibility as data-visibility-rule markers with hidden attributes, the V4 static shell applies declared mutations on action clicks and toggles those markers live via the generated reducer, and the generated reducer exports evaluateViewSpecVisibility(state) so hosts derive show/hide from proven code instead of interpreting rules. Whenever you declare visibility rules, add expect_visibility maps to state_replay_assertions so the proof replays the visibility flips. Visibility V0 is bounded conditional show/hide only: no boolean condition composition, no animation, and no focus management.
-
-When a scalar state change must be visible as text in both targets, add a root state_text array of at most 64 rules. Each rule is exactly {id, screen_id, target_ref, state, template}; target_ref must be one exactly-once text-like binding in that screen, state must be scalar and app-scoped or scoped to that screen, and template must contain exactly one {value} placeholder with no other braces. Add expect_text to the relevant replay assertion. ViewSpec bakes truthful initial text, exports evaluateViewSpecText(state), updates textContent in the static shell, passes the same derived string into React, and verifies the declared final string in the generated browser proof. State Text V0 has no expressions, paths, HTML, localization, or formatter functions.
-
-The default html-tailwind-app Static Shell V0 remains a local proof artifact, not a deployable framework app: it performs bounded visibility and scalar state-text updates, but does not prove live resource rebinding. The additive react-tailwind-app target emits a complete Vite/React/Tailwind package and generated Playwright proof. Its exact-artifact verifier checks every generated hash, runs the Vite production build, and exercises routes, browser history, unknown-route fallback, declared mutations, live resource-field rebinding, selector replay, visibility, and scalar state text in Chromium.
-
-
-Optional reference grounding
-
-Do not call remote reference libraries by default. Use external or hosted reference sources only when the user explicitly asks for research or the repository instructions explicitly configure an approved source.
-
-If reference grounding is explicitly enabled, use it only to inform semantic intent: sections, hierarchy, typical fields, and motif choices. Do not copy pixel layouts, hardcoded copy, design tokens, screenshot URLs, image bytes, or external references into IntentBundle output. If the approved reference source is unavailable, proceed without it.
+# Prompt text for the repair loop. viewspec.agent_prompt splices it into the system prompt; it stays
+# under 800 bytes so that it fits beside the authoring rules.
+REPAIR_LOOP_PROMPT_SECTION = """Repair loop. viewspec check and viewspec compile apply lossless fixes before validation and list each one under fixes with lossy false. A lossless fix adds schema_version 1, adds an empty slots or edges map to a node, sets the root region parent_region to "", moves a field to its one legal position, or replaces a present_as alias with its canonical value. ViewSpec never fixes a lossy problem: it never adds, removes, or re-targets a node, binding, group member, motif member, style, or action. Fix the remaining issues by regenerating the full IntentBundle, or by passing a JSON Patch (RFC 6902) with viewspec check FILE --patch OPS.json. --patched-out and --fixed-out write the patched and the fixed source. --no-fix reports the fixable problems as issues instead.
 """
 
 AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
@@ -465,15 +554,37 @@ class AgentValidationIssue:
 
 
 @dataclass(frozen=True)
+class AgentFix:
+    """One lossless fix that apply_lossless_fixes made before validation.
+
+    ``lossy`` is always False: ViewSpec never applies a lossy fix. The field is part of the wire
+    shape so that an agent can filter on it without knowing the code table.
+    """
+
+    code: str
+    path: str
+    message: str
+    lossy: bool = False
+
+    def to_json(self) -> dict[str, Any]:
+        return {"code": self.code, "path": self.path, "message": self.message, "lossy": self.lossy}
+
+
+@dataclass(frozen=True)
 class AgentValidationResult:
     valid: bool
     bundle: IntentBundle | None
     issues: list[AgentValidationIssue]
+    # The lossless fixes applied before validation, in application order.
+    fixes: list[AgentFix] = field(default_factory=list)
+    # The document that was validated, after fixes; None when the payload was not a JSON object.
+    document: dict[str, Any] | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
             "valid": self.valid,
             "issues": [issue.to_json() for issue in self.issues],
+            "fixes": [fix.to_json() for fix in self.fixes],
             "repair_checklist": [] if self.valid else agent_repair_checklist(self),
         }
 
@@ -482,15 +593,24 @@ def validate_agent_intent_bundle(
     payload: str | dict[str, Any],
     *,
     require_reference_compiler_support: bool = True,
+    fix: bool = True,
 ) -> AgentValidationResult:
-    """Validate an agent-authored IntentBundle and optionally compile it locally."""
+    """Validate an agent-authored IntentBundle and optionally compile it locally.
+
+    With ``fix`` (the default) the lossless fixes of :func:`apply_lossless_fixes` run first and are
+    reported in ``result.fixes``; the validated document is ``result.document``. With ``fix=False``
+    the same problems surface as issues. Lossy problems are never fixed either way.
+    """
     data, issues = _coerce_payload(payload)
     if data is None:
         return AgentValidationResult(valid=False, bundle=None, issues=issues)
 
+    fixes: list[AgentFix] = []
+    if fix:
+        data, fixes = apply_lossless_fixes(data)
     issues.extend(_validate_intent_bundle_shape(data))
     if issues:
-        return AgentValidationResult(valid=False, bundle=None, issues=issues)
+        return AgentValidationResult(valid=False, bundle=None, issues=issues, fixes=fixes, document=data)
 
     try:
         bundle = IntentBundle.from_json(data)
@@ -504,7 +624,7 @@ def validate_agent_intent_bundle(
                 "Regenerate the full IntentBundle using the published JSON schema.",
             )
         )
-        return AgentValidationResult(valid=False, bundle=None, issues=issues)
+        return AgentValidationResult(valid=False, bundle=None, issues=issues, fixes=fixes, document=data)
 
     if require_reference_compiler_support:
         try:
@@ -541,28 +661,221 @@ def validate_agent_intent_bundle(
                     )
                 )
 
-    return AgentValidationResult(valid=not issues, bundle=bundle if not issues else None, issues=issues)
+    return AgentValidationResult(
+        valid=not issues,
+        bundle=bundle if not issues else None,
+        issues=issues,
+        fixes=fixes,
+        document=data,
+    )
 
 
-def agent_correction_prompt(result: AgentValidationResult) -> str:
-    """Return a compact correction prompt for an agent repair loop."""
+def agent_correction_prompt(
+    result: AgentValidationResult,
+    *,
+    source_format: str = CANONICAL_SOURCE_FORMAT,
+    source_path: str | None = None,
+) -> str:
+    """Return a compact correction prompt for an agent repair loop.
+
+    The report lists only the issues that remain after the lossless fixes, and names those fixes
+    under ``applied_fixes`` so that the agent does not redo them. ``source_format`` is the form of the
+    checked source, ``canonical`` or ``compact``. For a compact source the prompt asks for the full
+    compact document and says that ``$.view_spec`` and ``$.substrate`` paths name the canonical
+    document that ``--canonical-out`` writes. ``retry_command`` and ``patch_command`` name
+    ``source_path``, the file that was checked, when the caller knows it, and otherwise the default
+    file of the form: viewspec.intent.json or viewspec.compact.json. The agent returns the whole
+    document unless the host asks for an RFC 6902 JSON Patch, which ``patch_command`` checks.
+    """
+    if source_format not in DEFAULT_AGENT_SOURCE_FILES:
+        raise ValueError(f"source_format must be one of {', '.join(DEFAULT_AGENT_SOURCE_FILES)}, not {source_format!r}")
+    compact = source_format == COMPACT_SOURCE_FORMAT
+    source = _shell_word(source_path) if source_path else DEFAULT_AGENT_SOURCE_FILES[source_format]
     shown_issues = [issue.to_json() for issue in result.issues[:MAX_AGENT_CORRECTION_PROMPT_ISSUES]]
+    shown_fixes = [{"code": fix.code, "path": fix.path} for fix in result.fixes[:MAX_AGENT_CORRECTION_PROMPT_ISSUES]]
     report = {
         "issue_count": len(result.issues),
         "shown_issue_count": len(shown_issues),
         "truncated": len(result.issues) > len(shown_issues),
         "issue_codes": sorted({issue.code for issue in result.issues}),
         "affected_paths": _bounded_issue_paths(result.issues),
-        "repair_mode": "regenerate_full_intent_bundle",
-        "retry_command": "viewspec check viewspec.intent.json --json",
+        "applied_fix_count": len(result.fixes),
+        "applied_fixes": shown_fixes,
+        "source_format": source_format,
+        "repair_mode": "regenerate_full_compact_document" if compact else "regenerate_full_intent_bundle",
+        "retry_command": f"viewspec check {source} --json",
+        "patch_command": f"viewspec check {source} --patch OPS.json --json",
         "repair_checklist": agent_repair_checklist(result),
         "issues": shown_issues,
     }
+    applied = (
+        "Lossless fixes listed under applied_fixes are already applied; fix only the remaining issues. "
+        if result.fixes
+        else ""
+    )
+    if compact:
+        instructions = (
+            'Regenerate the full ViewSpec compact document, with "format": "compact". Output strict JSON only. '
+            "Return the whole document, not a fragment. Return an RFC 6902 JSON Patch instead only when the "
+            "host asks for one. Its pointers name the compact document, and patch_command checks it. Paths "
+            "under $.view_spec and $.substrate name the canonical document that viewspec check --canonical-out "
+            "writes. Fix the compact entries that produce them. "
+        )
+    else:
+        instructions = (
+            "Regenerate the full ViewSpec IntentBundle JSON. Output strict JSON only. "
+            "Return the whole document, not a fragment. Return an RFC 6902 JSON Patch instead only when the "
+            "host asks for one. patch_command checks it. "
+        )
     return (
-        "Regenerate the full ViewSpec IntentBundle JSON. Output strict JSON only. "
-        "Do not patch fragments. Fix this bounded validation report:\n"
+        f"{instructions}{applied}Fix this bounded validation report:\n"
         f"{json.dumps(report, separators=(',', ':'), sort_keys=True)}"
     )
+
+
+def _shell_word(path: str) -> str:
+    """``path`` as one shell word: forward slashes, and quotes only when the path needs them."""
+    return shlex.quote(PurePath(path).as_posix())
+
+
+def classify_issue_code(code: str) -> str:
+    """Return ``lossless_fixable`` or ``lossy`` for an issue code; an unknown code is lossy."""
+    return ISSUE_CODE_CLASSIFICATION.get(code, LOSSY_ISSUE)
+
+
+def apply_lossless_fixes(payload: Mapping[str, Any]) -> tuple[dict[str, Any], list[AgentFix]]:
+    """Return a deep copy of ``payload`` with every lossless fix applied, and the fixes in order.
+
+    A fix is lossless when it cannot change what the compiler emits for a document the compiler
+    accepts: it adds a value the contract already implies (``schema_version`` 1, an empty ``slots``
+    or ``edges`` map, ``""`` for the root region's parent), moves a field to the one position where
+    it is legal, or spells a ``present_as`` alias canonically. Nothing is added to, removed from, or
+    re-targeted in the semantic graph, the bindings, the members, the styles, or the actions.
+
+    The function is pure and idempotent: ``apply_lossless_fixes(fixed)`` returns ``fixed`` and no
+    fixes. The same input always yields the same output and the same fix list.
+    """
+    document: dict[str, Any] = deepcopy(dict(payload))
+    fixes: list[AgentFix] = []
+    _relocate_misplaced_fields(document, fixes)
+    _add_schema_version(document, fixes)
+    substrate = document.get("substrate")
+    if isinstance(substrate, dict):
+        _add_empty_relations(substrate, fixes)
+    view_spec = document.get("view_spec")
+    if isinstance(view_spec, dict):
+        _set_root_parent_region(view_spec, fixes)
+        _canonicalize_present_as(view_spec, fixes)
+    return document, fixes
+
+
+def _relocate_misplaced_fields(document: dict[str, Any], fixes: list[AgentFix]) -> None:
+    substrate = document.get("substrate")
+    view_spec = document.get("view_spec")
+    for key in [key for key in document if key not in ROOT_ALLOWED_FIELDS]:
+        if key in SUBSTRATE_ONLY_FIELDS and isinstance(substrate, dict) and key not in substrate:
+            substrate[key] = document.pop(key)
+            fixes.append(_relocation_fix(key, "$", "$.substrate"))
+        elif key in VIEW_SPEC_ONLY_FIELDS and isinstance(view_spec, dict) and key not in view_spec:
+            view_spec[key] = document.pop(key)
+            fixes.append(_relocation_fix(key, "$", "$.view_spec"))
+    for container_name, allowed in (("substrate", SUBSTRATE_ALLOWED_FIELDS), ("view_spec", VIEW_SPEC_ALLOWED_FIELDS)):
+        container = document.get(container_name)
+        if not isinstance(container, dict):
+            continue
+        for key in [key for key in container if key not in allowed]:
+            if key in ROOT_ONLY_FIELDS and key not in document:
+                document[key] = container.pop(key)
+                fixes.append(_relocation_fix(key, f"$.{container_name}", "$"))
+
+
+def _relocation_fix(key: str, source: str, destination: str) -> AgentFix:
+    return AgentFix(
+        FIX_FIELD_RELOCATED,
+        f"{destination}.{key}" if destination != "$" else f"$.{key}",
+        f"Moved {key} from {source} to {destination}, its only legal position.",
+    )
+
+
+def _add_schema_version(document: dict[str, Any], fixes: list[AgentFix]) -> None:
+    if "schema_version" in document:
+        return
+    if not (isinstance(document.get("substrate"), dict) and isinstance(document.get("view_spec"), dict)):
+        return
+    document["schema_version"] = INTENT_BUNDLE_SCHEMA_VERSION
+    fixes.append(
+        AgentFix(
+            FIX_SCHEMA_VERSION_ADDED,
+            "$.schema_version",
+            f"Added schema_version {INTENT_BUNDLE_SCHEMA_VERSION}; a document without it is schema version "
+            f"{INTENT_BUNDLE_SCHEMA_VERSION} already.",
+        )
+    )
+
+
+def _add_empty_relations(substrate: dict[str, Any], fixes: list[AgentFix]) -> None:
+    nodes = substrate.get("nodes")
+    if not isinstance(nodes, dict):
+        return
+    for node_key, node in nodes.items():
+        if not isinstance(node, dict):
+            continue
+        for relation in ("slots", "edges"):
+            if relation not in node:
+                node[relation] = {}
+                fixes.append(
+                    AgentFix(
+                        FIX_EMPTY_RELATIONS_ADDED,
+                        f"$.substrate.nodes.{node_key}.{relation}",
+                        f"Added an empty {relation} map to substrate node {node_key}; a node without {relation} "
+                        f"has none.",
+                    )
+                )
+
+
+def _set_root_parent_region(view_spec: dict[str, Any], fixes: list[AgentFix]) -> None:
+    root_region = view_spec.get("root_region")
+    regions = view_spec.get("regions")
+    if not isinstance(root_region, str) or not root_region or not isinstance(regions, list):
+        return
+    matches = [
+        index for index, region in enumerate(regions) if isinstance(region, dict) and region.get("id") == root_region
+    ]
+    if len(matches) != 1:
+        return
+    index = matches[0]
+    region = regions[index]
+    if region.get("parent_region") is not None:
+        return
+    was = "null" if "parent_region" in region else "missing"
+    region["parent_region"] = ""
+    fixes.append(
+        AgentFix(
+            FIX_ROOT_PARENT_REGION_SET,
+            f"$.view_spec.regions[{index}].parent_region",
+            f'Set root region {root_region} parent_region to "" (it was {was}); the root region has no parent.',
+        )
+    )
+
+
+def _canonicalize_present_as(view_spec: dict[str, Any], fixes: list[AgentFix]) -> None:
+    bindings = view_spec.get("bindings")
+    if not isinstance(bindings, list):
+        return
+    for index, binding in enumerate(bindings):
+        if not isinstance(binding, dict):
+            continue
+        present_as = binding.get("present_as")
+        if isinstance(present_as, str) and present_as in PRESENT_AS_ALIASES:
+            canonical = PRESENT_AS_ALIASES[present_as]
+            binding["present_as"] = canonical
+            fixes.append(
+                AgentFix(
+                    FIX_PRESENT_AS_ALIAS,
+                    f"$.view_spec.bindings[{index}].present_as",
+                    f"Replaced present_as alias {present_as} with its canonical value {canonical}.",
+                )
+            )
 
 
 def _bounded_issue_paths(issues: list[AgentValidationIssue]) -> list[str]:
@@ -2155,3 +2468,21 @@ def _issue(
     suggestion: str | None = None,
 ) -> AgentValidationIssue:
     return AgentValidationIssue("error", code, path, message, suggestion)
+
+
+# Declared for type checkers; __getattr__ binds the value on first access.
+AGENT_SYSTEM_PROMPT: str
+
+
+def __getattr__(name: str) -> str:
+    """Resolve ``AGENT_SYSTEM_PROMPT`` from viewspec.agent_prompt, which generates it, and cache it here."""
+    if name == "AGENT_SYSTEM_PROMPT":
+        from viewspec.agent_prompt import AGENT_SYSTEM_PROMPT as prompt
+
+        globals()[name] = prompt
+        return prompt
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), "AGENT_SYSTEM_PROMPT"})

@@ -1,0 +1,42 @@
+{
+  "format": "compact",
+  "id": "sales_dashboard",
+  "motifs": [
+    {
+      "cards": [
+        {
+          "label": "Revenue",
+          "value": "$2.4M"
+        },
+        {
+          "label": "Customers",
+          "value": "1,847"
+        },
+        {
+          "label": "Churn",
+          "value": "3.2%"
+        },
+        {
+          "label": "MRR Growth",
+          "value": "+18%"
+        }
+      ],
+      "group": "metrics",
+      "id": "kpis",
+      "kind": "dashboard"
+    }
+  ],
+  "schema_version": 1,
+  "styles": [
+    {
+      "id": "s1",
+      "target": "kpis_card_1_value",
+      "token": "emphasis.high"
+    },
+    {
+      "id": "s2",
+      "target": "kpis_card_4_value",
+      "token": "tone.accent"
+    }
+  ]
+}

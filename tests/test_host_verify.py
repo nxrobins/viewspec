@@ -112,8 +112,10 @@ def test_verify_host_artifact_mode_writes_stable_report(tmp_path, monkeypatch):
         "aesthetic_profile_assertion_count": 1,
         "dom_count": 1,
         "grid_span_assertion_count": 0,
+        "registry_primitive_assertion_count": 0,
         "style_assertion_count": 4,
     }
+    assert report["registry"] is None
     assert report["manifest_summary"]["available"] is True
     assert report["manifest_summary"]["emitter"] == "react_tailwind_tsx"
     assert report["manifest_summary"]["aesthetic_profile"] == "aesthetic.data_dense"

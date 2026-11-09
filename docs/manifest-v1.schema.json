@@ -29,12 +29,18 @@
     "source_name": { "type": ["string", "null"] },
     "raw_source_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "source_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "source_format": {
+      "enum": ["canonical", "compact"],
+      "description": "The authoring form of the IntentBundle source. Absent means canonical. For compact, source_hash is the sha256 of the normalized canonical bundle and compact_source_sha256 is the sha256 of the compact file."
+    },
+    "compact_source_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "design_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
     "design": { "$ref": "#/$defs/designMetadata" },
     "emitter": { "enum": ["html_tailwind", "react_tailwind_tsx", "react_tsx"] },
     "artifact_file": { "type": "string", "minLength": 1 },
     "target": { "enum": ["mcp-app"] },
     "tailwind_recipe_inventory": { "$ref": "#/$defs/tailwindRecipeInventory" },
+    "registry": { "$ref": "#/$defs/reactComponentRegistry" },
     "artifact_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "command": { "enum": ["compile_html", "compile"] },
     "command_args": {
@@ -278,6 +284,22 @@
           }
         }
       ]
+    },
+    "reactComponentRegistry": {
+      "description": "The host component registry a React artifact was compiled with (viewspec compile --registry). sha256 is the SHA-256 of the canonical registry JSON.",
+      "type": "object",
+      "required": ["sha256", "module", "primitive_count", "primitives"],
+      "additionalProperties": false,
+      "properties": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "module": { "type": "string", "pattern": "^\\./[A-Za-z0-9_./-]+$" },
+        "primitive_count": { "$ref": "#/$defs/nonNegativeInt" },
+        "primitives": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/safeId" },
+          "additionalProperties": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9_$]*$" }
+        }
+      }
     },
     "tailwindRecipeInventory": {
       "type": "object",
