@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from viewspec.raw_html import HtmlLiftResult
 
 ACTION_OPS = ("click", "fill", "check", "uncheck", "select", "submit")
+ARIA_CHOICE = frozenset({"combobox", "listbox"})
 NOT_FILLABLE = frozenset(
     {
         "button",
@@ -67,7 +68,9 @@ class ActionStep:
     """One thing for a browser driver to do.
 
     ``op`` is ``click``, ``fill``, ``check``, ``uncheck``, ``select`` (``values`` holds option values),
-    or ``submit`` (submit the form ``node_id`` without a submit button). ``secret`` marks a value that
+    ``choose`` (pick the option named ``value`` from an ARIA combobox or listbox: open its list if
+    needed, find the option, click it), or ``submit`` (submit the form ``node_id`` without a submit
+    button). ``secret`` marks a value that
     must not be logged; ``to_json()`` redacts it unless asked not to.
     """
 
@@ -179,7 +182,7 @@ def _field_steps(item: FormField, value: Any) -> tuple[ActionStep, ...]:
             raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"Expected a number, not {value!r}.") from None
         text = str(int(number)) if number.is_integer() else str(number)
         return plan_control_action(control, "fill", text)
-    if item.kind in {"select", "multi"}:
+    if item.kind in {"select", "multi", "choose"}:
         return plan_control_action(control, "select", value)
     return plan_control_action(control, "fill", value)
 
@@ -221,6 +224,8 @@ def _set_checked(control: HtmlControl, checked: bool) -> tuple[ActionStep, ...]:
 
 
 def _select(control: HtmlControl, value: Any) -> ActionStep:
+    if control.control in ARIA_CHOICE and control.tag != "select":
+        return _choose(control, value)
     if control.control not in {"select", "select-multiple"}:
         raise AgentActionError("AGENT_ACTION_UNSUPPORTED", f"{_label(control)} ({control.control}) has no options.")
     wanted = list(value) if isinstance(value, (list, tuple)) else [value]
@@ -237,6 +242,27 @@ def _select(control: HtmlControl, value: Any) -> ActionStep:
             raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{item!r} is not one of {allowed}.")
         chosen.append(match.value)
     return _step("select", control, values=tuple(chosen))
+
+
+def _choose(control: HtmlControl, value: Any) -> ActionStep:
+    """Pick one option of an ARIA combobox or listbox by its name.
+
+    A listbox shows all its options, so the name must be one of them. A combobox may show none until
+    it is opened or typed into, so its options are checked in the browser, when they show.
+    """
+
+    if isinstance(value, (list, tuple)) and len(value) == 1:
+        value = value[0]
+    if not isinstance(value, str) or not value.strip():
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{_label(control)} takes the name of one option.")
+    if control.readonly:
+        raise AgentActionError("AGENT_ACTION_READONLY", f"{_label(control)} is read-only.")
+    wanted = value.strip()
+    if control.control == "listbox":
+        allowed = [option.label for option in control.options if not option.disabled]
+        if wanted.casefold() not in {label.casefold() for label in allowed}:
+            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{wanted!r} is not one of {allowed}.")
+    return _step("choose", control, value=wanted)
 
 
 def _submit_step(form: HtmlForm, controls: Mapping[str, HtmlControl]) -> ActionStep:

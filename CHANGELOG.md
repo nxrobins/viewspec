@@ -29,6 +29,11 @@ All notable changes to ViewSpec are documented in this file. The format follows
   change, a new message, a new page, text shown or gone, a control enabled) and checks it on two
   lifts; a bad condition is `AGENT_WAIT_INVALID`. `viewspec.raw_html_agent.visible_text()` returns all
   the text a user can see on a lifted page.
+- Custom ARIA comboboxes own the list they control: its visible options become the combobox's
+  options, with refs, and the list is no longer a field of its own. ARIA listboxes have options and a
+  selected value, and listbox, combobox, textbox, slider, and spin button names come from labels, not
+  content. Controls carry `expanded`. `select` on a custom combobox or listbox, and a combobox field in
+  a form tool call, plan a `choose` step that picks an option by name.
 
 ## [0.4.0] - 2026-11-01
 

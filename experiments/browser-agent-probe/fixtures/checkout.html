@@ -26,13 +26,20 @@
       <label><input type="radio" name="ship" value="express"> Express ($9)</label>
     </div>
 
-    <!-- A custom ARIA combobox whose list is closed. -->
+    <!-- A custom ARIA combobox: typing asks a (simulated) server for countries; the list comes later. -->
     <span id="country-label">Country</span>
     <input role="combobox" name="country" aria-labelledby="country-label" aria-expanded="false"
-           aria-controls="country-list">
-    <ul role="listbox" id="country-list" hidden>
-      <li role="option">France</li><li role="option">Japan</li>
+           aria-controls="country-list" aria-autocomplete="list" autocomplete="off">
+    <ul role="listbox" id="country-list" hidden></ul>
+
+    <!-- A select-only combobox: click it to open its list. -->
+    <span id="wrap-label">Gift wrap</span>
+    <div role="combobox" tabindex="0" aria-labelledby="wrap-label" aria-controls="wrap-list"
+         aria-expanded="false" id="wrap">None</div>
+    <ul role="listbox" id="wrap-list" hidden>
+      <li role="option">None</li><li role="option">Paper</li><li role="option">Box</li>
     </ul>
+    <input type="hidden" name="wrap" value="None">
 
     <label>Create a password <input type="password" name="new_password" autocomplete="new-password"></label>
 
@@ -94,6 +101,47 @@
       apply.textContent = "Apply";
       apply.disabled = false;
     }, 700);
+  });
+
+  // The country combobox: 300 ms after each keystroke, the matching countries show as options.
+  const countries = ["France", "Germany", "Jamaica", "Japan", "Jordan", "Kenya", "Mexico", "Spain",
+    "Sweden", "Switzerland", "Thailand", "Uruguay"];
+  const country = document.querySelector("[name=country]");
+  const countryList = document.getElementById("country-list");
+  let pending = null;
+  country.addEventListener("input", () => {
+    clearTimeout(pending);
+    const typed = country.value.trim().toLowerCase();
+    pending = setTimeout(() => {
+      const found = countries.filter((name) => typed && name.toLowerCase().includes(typed));
+      countryList.innerHTML = found.map((name) => `<li role="option">${name}</li>`).join("");
+      countryList.hidden = found.length === 0;
+      country.setAttribute("aria-expanded", String(found.length > 0));
+    }, 300);
+  });
+  countryList.addEventListener("click", (event) => {
+    const option = event.target.closest("[role=option]");
+    if (!option) return;
+    country.value = option.textContent;
+    countryList.hidden = true;
+    country.setAttribute("aria-expanded", "false");
+  });
+
+  // The gift wrap combobox: a click opens the list; a click on an option chooses it.
+  const wrap = document.getElementById("wrap");
+  const wrapList = document.getElementById("wrap-list");
+  const toggleWrap = (open) => {
+    wrapList.hidden = !open;
+    wrap.setAttribute("aria-expanded", String(open));
+  };
+  wrap.addEventListener("click", () => toggleWrap(wrapList.hidden));
+  wrapList.addEventListener("click", (event) => {
+    const option = event.target.closest("[role=option]");
+    if (!option) return;
+    wrapList.querySelectorAll("[role=option]").forEach((item) => item.setAttribute("aria-selected", String(item === option)));
+    wrap.textContent = option.textContent;
+    document.querySelector("[name=wrap]").value = option.textContent;
+    toggleWrap(false);
   });
 
   const frame = document.querySelector("iframe");

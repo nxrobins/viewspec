@@ -184,7 +184,10 @@ class BrowserTools:
         """Do one thing to the control with this handle, then read the page again.
 
         ``fill`` takes text in ``value``. ``select`` takes an option value or label (a list for a
-        multiple select). ``check`` and ``uncheck`` take no value. The handle comes from the latest
+        multiple select). On a custom combobox or listbox, ``select`` chooses from its list: it opens
+        the list (typing the value into an editable combobox), waits for the option, and clicks the one
+        whose name is the value, or starts with it; ``steps[0].chosen`` names it. ``check`` and
+        ``uncheck`` take no value. The handle comes from the latest
         observation unless ``observation_id`` names an earlier one.
 
         A page that answers after a delay shows nothing at first. ``wait_for`` waits, up to
@@ -473,6 +476,10 @@ def _bridge_code(error: BridgeError) -> str:
     message = str(error)
     if message.startswith("stale-view:"):
         return "BROWSER_OBSERVATION_STALE"
+    if message.startswith("choose: more than one"):
+        return "BROWSER_OPTION_AMBIGUOUS"
+    if message.startswith("choose: no option"):
+        return "BROWSER_OPTION_NOT_FOUND"
     if message.startswith("drift:"):
         return "BROWSER_TARGET_DRIFT"
     if message.startswith("stale:"):

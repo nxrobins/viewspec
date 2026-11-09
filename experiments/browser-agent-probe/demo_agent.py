@@ -11,6 +11,7 @@ It serves the fixtures on 127.0.0.1, then:
 4. shop: checks what each action changed: a status message, a changed button, a new product.
 5. waiting: pages that answer after a delay. Without a wait the agent sees no change; with
    ``BrowserSession.wait`` it sees the answer, without polling on a timer.
+6. choosing: custom comboboxes. One fetches its options as you type; one opens on a click.
 
 After each action in checkout and shop, the script also checks the diff between the reading before
 and the reading after (``agent_session.changes``).
@@ -284,6 +285,48 @@ def viewspec_page(session: BrowserSession, base: str) -> None:
     check(results[0].resolved_by == "ref", "the click used the exact element")
 
 
+def choosing(session: BrowserSession, base: str) -> None:
+    print("\n== choosing: custom comboboxes ==")
+    session.open(f"{base}/checkout.html")
+    before = session.observe()
+    country = handle_named(session, "Country")
+    picked = session.act(country, "select", "Jap")
+    show(picked)
+    check(picked[0].step.op == "choose" and picked[0].chosen == "Japan", "'Jap' chose Japan from the list")
+    check(picked[0].verified is True, "and the combobox shows it")
+    after = session.observe()
+    check(
+        changes(before, after)["lines"] == [f"changed [{country}] combobox 'Country': value '' -> 'Japan'"],
+        "the diff shows the new value",
+    )
+
+    for value, words in (("S", "more than one option matches"), ("Atlantis", "no option named")):
+        try:
+            session.act(country, "select", value)
+            check(False, f"{value!r} is refused")
+        except BridgeError as error:
+            print(f"  !!  {error}")
+            check(words in str(error), f"{value!r} is refused: {words}")
+        check(session.observe().handles[country].value == "Japan", "and the field still holds Japan")
+
+    wrap = handle_named(session, "Gift wrap")
+    before = session.observe()
+    boxed = session.act(wrap, "select", "box")
+    show(boxed)
+    check(boxed[0].chosen == "Box" and boxed[0].verified, "a click-to-open combobox chose Box")
+    check(
+        changes(before, session.observe())["lines"]
+        == [f"changed [{wrap}] combobox 'Gift wrap': value 'None' -> 'Box'"],
+        "the diff shows Box",
+    )
+
+    results = session.call("checkout", {"country": "Kenya", "gift_wrap": "Paper", "terms": True})
+    show(results)
+    [write] = session.blocked_writes()
+    body = {key: values[0] for key, values in parse_qs(write["post_data"] or "").items()}
+    check(body.get("country") == "Kenya" and body.get("wrap") == "Paper", "a form call chose both and sent them")
+
+
 def main() -> int:
     server, base = serve()
     try:
@@ -293,6 +336,7 @@ def main() -> int:
             viewspec_page(session, base)
             shop(session, base)
             waiting(session, base)
+            choosing(session, base)
     except AssertionError as error:
         print(f"\nFAILED: {error}")
         return 1

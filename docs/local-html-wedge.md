@@ -120,6 +120,22 @@ for step in steps:
 
 The planner is pure Python: it makes no network calls and drives no browser.
 
+### Comboboxes and listboxes
+
+A custom combobox (`role="combobox"`) owns the list its `aria-controls` or `aria-owns` names, or the
+list inside it. The list is not a field of its own: its visible `role="option"` items are the
+combobox's `options`, each with its `ref`, and the control's `expanded` says whether the list is
+open (from `aria-expanded`, or from the list's visibility). A closed list has no options. An ARIA
+`role="listbox"` has its options too, and its `value` is the names of the selected ones. Listboxes,
+comboboxes, textboxes, sliders, and spin buttons are named by their labels, never by their content.
+
+`plan_control_action(control, "select", "Japan")` on a custom combobox or listbox plans a `choose`
+step: a driver opens the list if needed (typing the value into an editable combobox, or clicking the
+control), waits for the option, and clicks the one whose name is the value, or else the one whose
+name starts with it. A listbox shows all its options, so its value must name one of them. In a form
+tool, a combobox field is a string described as "pick an option from its list", with the options
+the page shows as `examples`; a listbox field is an `enum`.
+
 ### Messages and changes
 
 `lift.messages` holds the text of each visible region where the page reports what happened: a

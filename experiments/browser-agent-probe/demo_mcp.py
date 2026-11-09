@@ -180,6 +180,27 @@ async def run(base: str) -> None:
         check(late["ok"] and not late["wait"]["met"], "a wait that is not met is not an error")
         check("did not show" in late["summary"], "the summary says the change did not show")
 
+        print("\n== choosing ==")
+        shop = await tool(session, "observe", url=f"{base}/checkout.html")
+        tools = {item["name"]: item for item in shop["form_tools"]}
+        check(
+            "pick an option" in tools["checkout"]["input_schema"]["properties"]["country"]["description"],
+            "the form tool says country is picked from a list",
+        )
+        swe = await tool(session, "act", handle=handle(shop, "Country"), action="select", value="Swe")
+        check(swe["ok"] and swe["steps"][0]["chosen"] == "Sweden", "select chose Sweden from the delayed list")
+        check("'Country' = 'Sweden'" in swe["view"], "and the new view shows it")
+        many = await tool(session, "act", handle=handle(swe, "Country"), action="select", value="S")
+        check(
+            not many["ok"]
+            and many["errors"][0]["code"] == "BROWSER_OPTION_AMBIGUOUS"
+            and "Switzerland" in many["summary"],
+            "an ambiguous choice is refused, with the options it matched",
+        )
+        check("'Country' = 'Sweden'" in many["view"], "and the field keeps its value")
+        wrap = await tool(session, "act", handle=handle(swe, "Gift wrap"), action="select", value="Paper")
+        check(wrap["ok"] and "'Gift wrap' = 'Paper'" in wrap["view"], "a click-to-open combobox chose Paper")
+
         print("\n== long pages ==")
         catalog = await tool(session, "observe", url=f"{base}/catalog.html")
         reading = catalog["observation_id"]

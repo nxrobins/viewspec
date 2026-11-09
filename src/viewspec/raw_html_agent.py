@@ -37,6 +37,11 @@ FIELD_ROLES = frozenset(
     {"checkbox", "combobox", "listbox", "radio", "searchbox", "slider", "spinbutton", "switch", "textbox"}
 )
 INPUT_ACTION_TYPES = frozenset({"button", "image", "reset", "submit"})
+# Field roles whose accessible name comes only from the author (a label, aria-label), never from the
+# field's own content: a listbox is not named after its options.
+NAME_FROM_AUTHOR = frozenset({"combobox", "listbox", "searchbox", "slider", "spinbutton", "textbox"})
+# Controls that hold a list of ARIA options to choose from.
+ARIA_CHOICE = frozenset({"combobox", "listbox"})
 # Regions where a page tells the user what happened: an error, a confirmation, a log line.
 MESSAGE_ROLES = frozenset({"alert", "alertdialog", "log", "status"})
 MESSAGE_LIVE = frozenset({"assertive", "polite"})
@@ -83,13 +88,28 @@ def is_sensitive_control(tag: str, attrs: Mapping[str, str]) -> bool:
 
 @dataclass(frozen=True)
 class HtmlOption:
+    """An option of a select, or a ``role="option"`` item of an ARIA listbox or combobox list.
+
+    ``node_id`` and ``ref`` name the option's element, so a driver can click an ARIA option.
+    """
+
     value: str
     label: str
     selected: bool
     disabled: bool
+    node_id: str | None = None
+    ref: str | None = None
 
     def to_json(self) -> dict[str, Any]:
-        return {"value": self.value, "label": self.label, "selected": self.selected, "disabled": self.disabled}
+        payload: dict[str, Any] = {
+            "value": self.value,
+            "label": self.label,
+            "selected": self.selected,
+            "disabled": self.disabled,
+        }
+        if self.ref is not None:
+            payload["ref"] = self.ref
+        return payload
 
 
 @dataclass(frozen=True)
@@ -115,6 +135,7 @@ class HtmlControl:
     secret: bool = False
     ref: str | None = None
     tag: str = ""
+    expanded: bool | None = None
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -136,6 +157,7 @@ class HtmlControl:
             "group": self.group,
             "readonly": self.readonly,
             "secret": self.secret,
+            "expanded": self.expanded,
         }
         if self.options:
             payload["options"] = [option.to_json() for option in self.options]
@@ -205,6 +227,19 @@ class _Page:
                 self.by_html_id[html_id] = node
             if node.tag == "label" and node.attrs.get("for"):
                 self.labels_for.setdefault(node.attrs["for"], []).append(node)
+        # The list a combobox controls (aria-controls, or aria-owns) belongs to that combobox: it is
+        # not a field of its own, and its options are the combobox's options.
+        self.popup_owner: dict[str, str] = {}
+        self.popup_of: dict[str, str] = {}
+        for node in nodes:
+            if _role(node) != "combobox":
+                continue
+            for attr in ("aria-controls", "aria-owns"):
+                for html_id in node.attrs.get(attr, "").split():
+                    target = self.by_html_id.get(html_id)
+                    if target is not None and target.id != node.id and target.id not in self.popup_owner:
+                        self.popup_owner[target.id] = node.id
+                        self.popup_of.setdefault(node.id, target.id)
         self.hidden = self._hidden_ids()
         self._text: dict[tuple[str, bool], str] = {}
 
@@ -249,6 +284,10 @@ class _Page:
             if found:
                 return found
         return ""
+
+
+def _role(node: LiftNode) -> str:
+    return node.attrs.get("role", "").strip().lower().split(" ")[0]
 
 
 def _classify(node: LiftNode) -> tuple[str, str, float] | None:
@@ -316,7 +355,7 @@ def _accessible_name(page: _Page, node: LiftNode, kind: str, control: str) -> st
         if control == "image" and attrs.get("alt"):
             return attrs["alt"]
         return attrs.get("value") or DEFAULT_INPUT_ACTION_NAMES.get(control, "")
-    if node.tag not in {"input", "select", "textarea"}:
+    if node.tag not in {"input", "select", "textarea"} and control not in NAME_FROM_AUTHOR:
         text = page.text(node) if kind == "action" else page.text(node, skip_controls=True)
         if text:
             return text
@@ -377,11 +416,60 @@ def _options(page: _Page, node: LiftNode) -> tuple[HtmlOption, ...]:
                         label=label,
                         selected="selected" in child.attrs,
                         disabled=group_disabled or "disabled" in child.attrs,
+                        node_id=child.id,
+                        ref=child.attrs.get(HINT_REF) or None,
                     )
                 )
 
     visit(node, False)
     return tuple(options)
+
+
+def _aria_options(page: _Page, root: LiftNode) -> tuple[HtmlOption, ...]:
+    """The visible ``role="option"`` items under ``root``, in document order."""
+
+    if root.id in page.hidden:
+        return ()
+    options: list[HtmlOption] = []
+
+    def visit(current: LiftNode) -> None:
+        for child_id in current.child_ids:
+            child = page.by_id[child_id]
+            if child.id in page.hidden:
+                continue
+            if _role(child) == "option":
+                label = child.attrs.get("aria-label") or page.text(child)
+                options.append(
+                    HtmlOption(
+                        value=label,
+                        label=label,
+                        selected=child.attrs.get("aria-selected", "").lower() == "true",
+                        disabled=child.attrs.get("aria-disabled", "").lower() == "true",
+                        node_id=child.id,
+                        ref=child.attrs.get(HINT_REF) or None,
+                    )
+                )
+            else:
+                visit(child)
+
+    visit(root)
+    return tuple(options)
+
+
+def _choice_state(page: _Page, node: LiftNode, control: str) -> tuple[tuple[HtmlOption, ...], bool | None]:
+    """Options and expanded state of an ARIA combobox or listbox."""
+
+    if control == "listbox":
+        return _aria_options(page, node), None
+    popup_id = page.popup_of.get(node.id)
+    popup = page.by_id[popup_id] if popup_id else node
+    options = _aria_options(page, popup)
+    expanded_attr = node.attrs.get("aria-expanded", "").lower()
+    if expanded_attr in {"true", "false"}:
+        expanded = expanded_attr == "true"
+    else:
+        expanded = popup_id is not None and popup_id not in page.hidden
+    return options, expanded
 
 
 def _field_value(
@@ -403,7 +491,23 @@ def _field_value(
         return node.text, None
     if node.tag == "input":
         return attrs.get("value", ""), None
-    return page.text(node) or attrs.get("aria-valuenow"), None
+    if control == "listbox":
+        return ", ".join(option.label for option in options if option.selected), None
+    if control == "combobox":
+        return _text_outside_lists(page, node), None
+    return page.text(node, skip_controls=True) or attrs.get("aria-valuenow"), None
+
+
+def _text_outside_lists(page: _Page, node: LiftNode) -> str:
+    """What a combobox shows as its value: its text, without the list of options it may wrap."""
+
+    parts = [node.text]
+    for child_id in node.child_ids:
+        child = page.by_id[child_id]
+        if child.id in page.hidden or _role(child) in {"listbox", "option"}:
+            continue
+        parts.append(_text_outside_lists(page, child))
+    return " ".join(part for part in parts if part).strip()
 
 
 def _submits(node: LiftNode, kind: str, control: str, form: LiftNode | None) -> bool:
@@ -467,6 +571,11 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
             inside_control.add(node.id)
             excluded.add(node.id)
             continue
+        if node.id in page.popup_owner:
+            # A combobox's list: its options belong to the combobox, not to the page or a field.
+            inside_control.add(node.id)
+            excluded.add(node.id)
+            continue
         if node.tag in {"label", "legend"}:
             excluded.add(node.id)  # Its text names a control or a group; it is not page content.
         classified = _classify(node)
@@ -476,7 +585,13 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
         inside_control.add(node.id)
         excluded.add(node.id)
         form = _form_of(page, node)
-        options = _options(page, node) if node.tag == "select" else ()
+        expanded: bool | None = None
+        if node.tag == "select":
+            options = _options(page, node)
+        elif control in ARIA_CHOICE:
+            options, expanded = _choice_state(page, node, control)
+        else:
+            options = ()
         value, checked = (None, None) if kind == "action" else _field_value(page, node, control, options)
         name = _accessible_name(page, node, kind, control)
         controls.append(
@@ -500,6 +615,7 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 secret=is_sensitive_control(node.tag, node.attrs),
                 ref=node.attrs.get(HINT_REF) or None,
                 tag=node.tag,
+                expanded=expanded,
             )
         )
         roles.append((node.id, kind, name, confidence))
@@ -579,6 +695,8 @@ class FormField:
 
 
 def _field_kind(control: HtmlControl) -> str:
+    if control.control in ARIA_CHOICE and control.tag != "select":
+        return "choose"
     if control.control in BOOLEAN_CONTROLS:
         return "boolean"
     if control.control in NUMBER_CONTROLS:
@@ -657,6 +775,15 @@ def _field_schema(field: FormField) -> dict[str, Any]:
             prop["default"] = control.checked
     elif field.kind == "number":
         prop["type"] = "number"
+    elif field.kind == "choose":
+        prop["type"] = "string"
+        labels = [option.label for option in control.options if not option.disabled]
+        if control.control == "listbox" and labels:
+            prop["enum"] = labels
+        else:
+            prop["description"] = f"{prop['description']}: pick an option from its list"
+            if labels:
+                prop["examples"] = labels[:10]
     elif field.kind in {"select", "multi"}:
         values = [option.value for option in control.options if not option.disabled]
         if field.kind == "multi":

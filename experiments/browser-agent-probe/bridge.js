@@ -326,11 +326,64 @@ async function resolveTarget(ref, spec) {
   throw new Error(`stale: neither ref ${ref} nor its locator finds the element`);
 }
 
+// Choose the option named ``value`` from a custom combobox or listbox. If the option is not in the
+// list yet, open the list: type the value into an editable combobox (most filter as you type), or
+// click the control. Then wait for the option, waking on DOM changes, and click the one match.
+async function choose(target, value) {
+  const ref = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
+  const find = () => page.evaluate(([r, v]) => window.__viewspecLift.findOption(r, v), [ref, value]);
+  const deadline = Date.now() + ACTION_TIMEOUT;
+  let found = await find();
+  let typedOver = null; // The field's text before this step typed into it.
+  if (found.state === "missing") {
+    const editable = await target.evaluate(
+      (el) => el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable,
+    );
+    if (editable) {
+      typedOver = await target.evaluate((el) => ("value" in el ? el.value : el.textContent));
+      await target.fill(value, { timeout: ACTION_TIMEOUT });
+    } else {
+      await target.click({ timeout: ACTION_TIMEOUT });
+    }
+    found = await find();
+    while (found.state === "missing" && Date.now() < deadline) {
+      const left = Math.max(0, deadline - Date.now());
+      await page.evaluate((ms) => window.__viewspecLift.nextChange(ms), left).catch(() => false);
+      found = await find();
+    }
+  }
+  if (found.state !== "found") {
+    // Leave the control as it was: put back the text this step typed over, and close the list.
+    let undo = "";
+    if (typedOver !== null) {
+      await target.fill(typedOver, { timeout: ACTION_TIMEOUT }).catch(() => {});
+      undo = "; the typed text was removed";
+    }
+    await target.press("Escape", { timeout: ACTION_TIMEOUT }).catch(() => {});
+    if (found.state === "ambiguous") {
+      const names = found.names.slice(0, 10).join(", ");
+      throw new Error(`choose: more than one option matches ${JSON.stringify(value)}: ${names}${undo}`);
+    }
+    const names = (found.names || []).slice(0, 10);
+    const seen = names.length ? `; the list shows: ${names.join(", ")}` : found.open ? "; the list is empty" : "; no list opened";
+    throw new Error(`choose: no option named ${JSON.stringify(value)}${seen}${undo}`);
+  }
+  const option = (await page.evaluateHandle((r) => window.__viewspecLift.get(r), found.ref)).asElement();
+  await option.click({ timeout: ACTION_TIMEOUT });
+  await settle();
+  const verified = await page.evaluate(
+    ([r, o, label]) => window.__viewspecLift.showsChoice(r, o, label),
+    [ref, found.ref, found.label],
+  );
+  return { verified, chosen: found.label };
+}
+
 async function act({ op, ref, locator: spec, value, values }) {
   const { target, resolvedBy } = await resolveTarget(ref, spec);
   const navigationsBefore = mainNavigations;
   const urlBefore = page.url();
   let verified = null;
+  let chosen = null;
   const options = { timeout: ACTION_TIMEOUT };
   if (op === "click") {
     await target.click(options);
@@ -343,6 +396,8 @@ async function act({ op, ref, locator: spec, value, values }) {
   } else if (op === "select") {
     await target.selectOption(values, options);
     verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasSelected(el, v), values);
+  } else if (op === "choose") {
+    ({ verified, chosen } = await choose(target, value));
   } else if (op === "submit") {
     await target.evaluate((form) => form.requestSubmit());
   } else {
@@ -352,6 +407,7 @@ async function act({ op, ref, locator: spec, value, values }) {
   return {
     resolved_by: resolvedBy,
     verified,
+    chosen,
     navigated: mainNavigations !== navigationsBefore,
     url_before: urlBefore,
     url: page.url(),

@@ -69,15 +69,19 @@ class StepResult:
     verified: bool | None
     navigated: bool
     url: str
+    chosen: str | None = None  # For a choose step: the name of the option that was clicked.
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        payload = {
             "step": self.step.to_json(),
             "resolved_by": self.resolved_by,
             "verified": self.verified,
             "navigated": self.navigated,
             "url": self.url,
         }
+        if self.chosen is not None:
+            payload["chosen"] = self.chosen
+        return payload
 
 
 @dataclass
@@ -318,6 +322,7 @@ class BrowserSession:
                     verified=reply["verified"],
                     navigated=reply["navigated"],
                     url=reply["url"],
+                    chosen=reply.get("chosen"),
                 )
             )
             if reply["navigated"] and len(results) < len(steps):

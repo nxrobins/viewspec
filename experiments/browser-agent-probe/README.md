@@ -29,8 +29,8 @@ See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile
 | `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
-| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 39 checks on the fixtures. |
-| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 49 checks. |
+| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 49 checks on the fixtures. |
+| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 55 checks. |
 
 ### Locators
 
@@ -54,7 +54,7 @@ only the rest (role and name, exact text, a path that crosses a shadow root), on
 675-control catalog this takes a reading from 9.7 s to 0.9 s. A locator is used only when a ref has
 gone stale, and then Playwright must find exactly one element with the same tag and name, so a
 locator that Playwright reads differently fails safely. The probe asks Playwright to confirm every
-page-checked locator; on the fixtures it confirms 713 of 713.
+page-checked locator; on the fixtures it confirms 714 of 714.
 
 ### Acting
 
@@ -75,6 +75,24 @@ Each document gets a random id when the in-page library is installed. A step pla
 an earlier document (the page has navigated since) is refused (`stale-view`): a control with the same
 name on the new page is a different control. A hash change or a `pushState` route change keeps the
 document, so steps from a single-page app's earlier view still run.
+
+### Choosing from a custom list
+
+A custom combobox shows its options only when it is open, often only after you type, and often only
+after a server answers. `act(handle, "select", "Japan")` on a custom combobox or ARIA listbox plans a
+`choose` step, and the bridge:
+
+1. clicks the option at once if the list already shows it;
+2. otherwise opens the list: it types the value into an editable combobox (most filter as you type),
+   or clicks a select-only one;
+3. waits for the option, waking on DOM changes, up to 5 s;
+4. clicks the option whose name is the value (ignoring case), or else the one option whose name starts
+   with it, and checks that the combobox now shows it. `chosen` names the option.
+
+If two or more options match, or none shows, the step is refused with the names the list showed, the
+typed text is put back, and the list is closed with Escape:
+`choose: more than one option matches "S": Spain, Sweden, Switzerland; the typed text was removed`.
+In a form tool call, a combobox field is chosen the same way.
 
 ### Changes
 
@@ -153,7 +171,7 @@ in one slice, so nothing changes for it.
 
 Every result uses the `viewspec mcp` result format: `ok`, `summary`, `errors` (each with `code`,
 `message`, and `fix`), and `next_actions`. `act` and `call` also return `steps` (with secret values
-as `[redacted]`), `navigated`, the new view, and `changes` (see [Changes](#changes)), so the agent
+as `[redacted]`, and `chosen` for a choice from a list), `navigated`, the new view, and `changes` (see [Changes](#changes)), so the agent
 needs no extra `observe`. With `wait_for`, the result also has `wait`: what it waited for, `met`,
 and `waited_ms`. A wait that is not met is not an error: the action is done, `ok` stays true, and the
 summary says the change did not show, so the agent does not repeat an action that may have worked.
@@ -163,7 +181,8 @@ are blocked, `blocked_writes` lists each stopped request with its form fields; s
 
 A request that the page cannot take is refused before the browser does anything, and the result
 says so. A refused form call names each problem: `{"argument": "ship", "problem": "invalid", ...}`.
-Other codes: `BROWSER_NO_PAGE`, `BROWSER_INVALID_REQUEST`, `BROWSER_HANDLE_UNKNOWN`, `BROWSER_OBSERVATION_UNKNOWN` (the server
+Other codes: `BROWSER_NO_PAGE`, `BROWSER_INVALID_REQUEST`, `BROWSER_HANDLE_UNKNOWN`,
+`BROWSER_OPTION_AMBIGUOUS`, `BROWSER_OPTION_NOT_FOUND`, `BROWSER_OBSERVATION_UNKNOWN` (the server
 keeps the last 8 observations), `BROWSER_OBSERVATION_STALE`, `BROWSER_TARGET_DRIFT`,
 `BROWSER_TARGET_STALE`, `BROWSER_PLAN_INTERRUPTED`, `BROWSER_ORIGIN_NOT_ALLOWED`, `BROWSER_TIMEOUT`,
 and `BROWSER_ERROR`.
@@ -261,15 +280,15 @@ with BrowserSession() as session:  # block_writes=True by default
 | page | aria tok | view tok | interactive | compile cov | agent cov | same name | located | confirmed | forms | fp stable | leaks |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
 | catalog | 13544 | 7824 | 675 | 649/675 | 675/675 | 675/675 | 675/675 | 675/675 | 2 | True | 0 |
-| checkout | 208 | 142 | 14 | 1/14 | 14/14 | 14/14 | 15/15 | 15/15 | 1 | True | 0 |
+| checkout | 222 | 154 | 15 | 1/15 | 15/15 | 15/15 | 16/16 | 16/16 | 1 | True | 0 |
 | shop | 255 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
 | spa | 138 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 6/6 | 0 | True | 0 |
 | viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
 
-- **agent cov** matches by element (ref), not by name: 711 of 711 visible controls. **same name**: the
-  lift names all 711 as the browser does.
+- **agent cov** matches by element (ref), not by name: 712 of 712 visible controls. **same name**: the
+  lift names all 712 as the browser does.
 - **located**: every control has a locator (the agent lift also finds 2 pointer-only clickables).
-  Kinds on the four small fixtures, for 38 controls and 2 forms: 27 stable attribute, 4 content
+  Kinds on the four small fixtures, for 39 controls and 2 forms: 28 stable attribute, 4 content
   anchor, 4 role and name, 4 exact text, and 1 structural path (a form with no name). On the catalog:
   375 stable attribute, 300 content anchor (`li:has-text("Arc desk lamp 001") button`), and 2 role and
   name.
@@ -280,7 +299,7 @@ with BrowserSession() as session:  # block_writes=True by default
 - **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
   schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
-`demo_agent.py` (39 checks, all pass):
+`demo_agent.py` (49 checks, all pass):
 
 - **checkout:** a click inside the web component's shadow DOM changes the quantity from 2 to 3. Fills
   inside the payment iframe are verified, and the next snapshot does not contain the card number. A
@@ -299,8 +318,12 @@ with BrowserSession() as session:  # block_writes=True by default
   is not met ends at its timeout. On the checkout promo code, a wait for a message shows "Code not
   valid", and a wait for the Apply button to be enabled again shows "Code SAVE10 applied". A wait for
   a new page after the submit is met at once.
+- **choosing:** on the country combobox, whose options come 300 ms after each keystroke, "Jap"
+  chooses Japan and the diff shows the new value; "S" (Spain, Sweden, Switzerland) and "Atlantis" are
+  refused, and the field still holds Japan. On the click-to-open gift wrap combobox, "box" chooses Box.
+  A form call that chooses Kenya and Paper sends both.
 
-`demo_mcp.py` (49 checks, all pass) runs the same kind of tasks through the MCP server, as a host
+`demo_mcp.py` (55 checks, all pass) runs the same kind of tasks through the MCP server, as a host
 would, with `--allow-origin` set to the local fixture server and without `NODE_PATH`. It also checks
 that the tool schemas carry no internal node ids, that a blocked post shows the password field as
 `[redacted]` and no result contains the password or the card number, that acting from a view of a
@@ -312,7 +335,9 @@ returns the delayed link, that a bad `wait_for` is refused before anything is do
 200-line slices, that paging a kept reading does not read the page again, that a later slice opens
 with its headings, that all slices together hold each handle once, that `find="lamp 250"` returns the
 product and its button (handle 534), that a click on that handle works and its changes name it, and
-that a slice is at most 1000 lines.
+that a slice is at most 1000 lines. On checkout it checks that the form tool says country is
+picked from a list, that `select` chooses Sweden from "Swe", that "S" is refused as ambiguous and the
+field keeps Sweden, and that the gift wrap combobox chooses Paper.
 
 The fixtures are small and hand-made. Run the probe on real sites before you draw conclusions.
 
@@ -325,7 +350,9 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 - The drift guard checks the tag and the name. Two items with the same name (two "Add to cart"
   buttons) can still swap places after a re-render; content-anchored locators make this less likely,
   not impossible.
-- A custom ARIA combobox is filled as text. Choosing from its popup list takes `click` steps.
+- `choose` types with `fill`, which sends an `input` event. A combobox that reacts only to key
+  presses needs a click to open instead. Options must have `role="option"`; a list that renders only
+  the options in view (a virtual list) shows only those.
 - `block_writes` stops HTTP requests that are not GET, HEAD, or OPTIONS. A page that changes data with
   a GET request, or over a WebSocket, is not stopped.
 - The origin allowlist checks top-level navigations. Requests for scripts, images, and data from
@@ -341,5 +368,5 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 ## Next steps
 
 1. Add the MCP server to an agent host, and try it on real sites.
-2. Let an agent choose an option from a custom ARIA combobox's pop-up list in one step.
-3. Let `act` scroll a page that loads more items as it scrolls (infinite scroll).
+2. Let `act` scroll a page that loads more items as it scrolls (infinite scroll).
+3. Let `choose` work with date pickers.

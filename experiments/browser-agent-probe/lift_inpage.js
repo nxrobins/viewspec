@@ -424,6 +424,54 @@
     });
   }
 
+  // ---- Choosing from a custom list --------------------------------------------------------------
+  const norm = (text) => (text || "").replace(/\s+/g, " ").trim().toLowerCase();
+  function shown(el) {
+    if (typeof el.checkVisibility === "function" && !el.checkVisibility({ visibilityProperty: true })) return false;
+    const box = el.getBoundingClientRect();
+    return box.width > 0 && box.height > 0;
+  }
+  // The list of a combobox (aria-controls, aria-owns, or a list inside it), or a listbox itself.
+  function listOf(el) {
+    for (const attr of ["aria-controls", "aria-owns"]) {
+      for (const id of (el.getAttribute(attr) || "").split(/\s+/).filter(Boolean)) {
+        const list = byId(el, id);
+        if (list) return list;
+      }
+    }
+    if ((el.getAttribute("role") || "").split(" ")[0] === "listbox") return el;
+    return el.querySelector("[role=listbox]");
+  }
+  // The option named ``value`` in the list of the control ``ref``: the one with exactly that name
+  // (ignoring case and runs of whitespace), or else the one whose name starts with it.
+  function findOption(ref, value) {
+    const el = get(ref);
+    if (!el) return { state: "stale" };
+    const list = listOf(el);
+    const options = list
+      ? [...list.querySelectorAll("[role=option]")].filter((o) => shown(o) && o.getAttribute("aria-disabled") !== "true")
+      : [];
+    const names = options.map((o) => clean(o.getAttribute("aria-label") || o.textContent));
+    const want = norm(value);
+    let hits = names.map((name, i) => [name, i]).filter(([name]) => norm(name) === want);
+    if (hits.length === 0) hits = names.map((name, i) => [name, i]).filter(([name]) => norm(name).startsWith(want));
+    if (hits.length === 1) return { state: "found", ref: refOf(options[hits[0][1]]), label: hits[0][0] };
+    if (hits.length > 1) return { state: "ambiguous", names: hits.map(([name]) => name) };
+    return { state: "missing", names, open: Boolean(list && shown(list)) };
+  }
+  // After a choice: does the control show the option, or mark it selected?
+  function showsChoice(ref, optionRef, label) {
+    const el = get(ref);
+    const option = get(optionRef);
+    const want = norm(label);
+    if (option && option.getAttribute("aria-selected") === "true") return true;
+    if (!el) return false;
+    if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") return norm(el.value) === want;
+    const copy = el.cloneNode(true);
+    copy.querySelectorAll("[role=listbox],[role=option]").forEach((item) => item.remove());
+    return norm(copy.textContent) === want;
+  }
+
   // ---- Checks after an action -------------------------------------------------------------------
   // Each returns true or false and never returns the element's value, so a secret stays in the page.
   function hasValue(el, value) {
@@ -449,6 +497,8 @@
     get,
     nameOf,
     nextChange,
+    findOption,
+    showsChoice,
     hasValue,
     hasSelected,
     isChecked,

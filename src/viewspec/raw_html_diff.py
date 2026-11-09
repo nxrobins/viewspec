@@ -41,6 +41,7 @@ COMPARED_FIELDS = (
     "options",
     "href",
     "submits",
+    "expanded",
 )
 TEXT_PREVIEW = 80
 
