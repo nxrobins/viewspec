@@ -71,8 +71,18 @@ What the agent profile adds:
 - It keeps `id`, `role`, `tabindex`, `hidden`, `contenteditable`, `aria-*`, and the ViewSpec
   provenance attributes `data-action-id`, `data-action-kind`, `data-action-target-ref`,
   `data-binding-id`, and `data-ir-id`.
-- It adds `action` and `field` roles. Names follow `aria-labelledby`, `aria-label`, `<label for>`,
-  a wrapping `<label>`, the content, `alt`, `title`, and `placeholder`, in that order.
+- It adds `action` and `field` roles. Names follow `aria-labelledby` (each element it names gives
+  its own `aria-label`, or else its text), `aria-label`, `<label for>`, a wrapping `<label>`, the
+  content (without `aria-hidden` parts), `alt`, `title`, and `placeholder`, in that order. A field
+  that nothing labels takes the short phrase written beside it (`Date: <input>`).
+- Text keeps its page order around inline elements, in names, messages, values, and table rows, and
+  is joined as the browser's `innerText` joins it: an inline element's text runs into the text
+  around it, and a block's text is set apart. A browser snapshot may mark an element whose layout
+  differs from its tag's default (`data-lift-display`).
+- A control inside another control is counted unless the outer one owns its content: a native link
+  or button, or an ARIA role whose content is part of it (`button`, `tab`, `checkbox`, `combobox`, and
+  the like). A guessed clickable or focusable wrapper gives way to the controls inside it, and a tree
+  item or menu item keeps the link inside it.
 - It closes an open `<option>` when the next `<option>` or `<optgroup>` starts, as HTML does.
 - It reads two hints that a browser-side snapshot can add: `data-lift-hidden` (the user cannot
   see this subtree) and `data-lift-clickable` (this element looks clickable but has no role).
@@ -91,8 +101,10 @@ What it never keeps:
 
 Each control and form carries `ref`, the `data-lift-ref` attribute that a browser-side snapshot
 gave its element, so a browser driver can find that exact element again. Controls also carry
-`tag`, `readonly`, and `secret`, and `viewspec.raw_html_agent.control_aria_role(control)` gives the
-role for a role-and-name locator.
+`tag`, `readonly`, and `secret`; the ARIA state a click toggles (`pressed`, `selected`, `expanded`,
+and `sort`, the `aria-sort` of the column header a sort button sits in); and what the browser checks
+when a form is sent (`pattern`, `min_length`, `max_length`, `step`, with `minimum` and `maximum`).
+`viewspec.raw_html_agent.control_aria_role(control)` gives the role for a role-and-name locator.
 
 `viewspec.raw_html_actions` plans actions before anything touches a browser:
 
@@ -107,16 +119,21 @@ for step in steps:
 
 - `plan_control_action(control, op, value)` takes `click`, `fill`, `check`, `uncheck`, `select`,
   `upload` (see [File uploads](#file-uploads)), or `download` (see [Downloads](#downloads)).
-  It refuses a disabled control (`AGENT_ACTION_DISABLED`), a read-only one (`AGENT_ACTION_READONLY`),
-  an action the control cannot take, such as filling a link (`AGENT_ACTION_UNSUPPORTED`), and a value
-  it cannot hold, such as an option that is not in the list (`AGENT_ACTION_VALUE_INVALID`). On an ARIA
+  It refuses a disabled control (`AGENT_ACTION_DISABLED`), a `fill` or `check` on a read-only one
+  (`AGENT_ACTION_READONLY`), an action the control cannot take, such as filling a link or a
+  select-only `div` combobox (`AGENT_ACTION_UNSUPPORTED`), and a value it cannot hold, such as an
+  option that is not in the list (`AGENT_ACTION_VALUE_INVALID`). A read-only combobox still takes
+  `select`: ARIA defines `aria-readonly` there as "not editable, but otherwise operable". On an ARIA
   checkbox or switch, `check` and `uncheck` become a `click` only when the state must change.
 - `plan_form_call(lift, tool_name, arguments)` checks a call of a tool from `form_tool_schemas()`. It
   reports every problem at once in `AgentActionError.details` (`AGENT_FORM_ARGUMENTS_INVALID`):
-  unknown arguments, values outside the schema, and required fields that the call leaves out while
-  the page shows them empty. Its steps fill the arguments in document order, then click the first
-  enabled submit control, or submit the form when it has none. Tool names are unique per page
-  (`find`, `find_2`); an unknown name is `AGENT_FORM_UNKNOWN`.
+  unknown arguments, values outside the schema, required fields that the call leaves out while
+  the page shows them empty, and any value the browser's own form validation would refuse when the
+  form is sent: an email or URL format, `minlength`, `maxlength`, `pattern`, `min`, `max`, `step`, or
+  an empty required field. A secret field's value is never shown in the reason, and a `pattern` with
+  a quantified group is left to the browser. Its steps fill the arguments in document order, then
+  click the first enabled submit control, or submit the form when it has none. Tool names are
+  unique per page (`find`, `find_2`); an unknown name is `AGENT_FORM_UNKNOWN`.
 - `plan_scroll(direction, control=None)` plans a scroll of the page, or of the scrollable area that
   holds `control`: `end` (where an infinite list loads more), `down`, `up`, or `top`. Any other
   direction is `AGENT_ACTION_VALUE_INVALID`.
@@ -136,9 +153,13 @@ comboboxes, textboxes, sliders, and spin buttons are named by their labels, neve
 `plan_control_action(control, "select", "Japan")` on a custom combobox or listbox plans a `choose`
 step: a driver opens the list if needed (typing the value into an editable combobox, or clicking the
 control), waits for the option, and clicks the one whose name is the value, or else the one whose
-name starts with it. A listbox shows all its options, so its value must name one of them. In a form
-tool, a combobox field is a string described as "pick an option from its list", with the options
-the page shows as `examples`; a listbox field is an `enum`.
+name starts with it. An option that shows a description under its title is named by its title (the
+first line of its text with a letter or a digit). A combobox `<input>` whose value is empty takes the
+value its widget shows beside it, as react-select and Ant Design do. `select` on a plain text or
+search field plans a `choose` too, since a search box may become a combobox when it has focus; the
+driver refuses it if no list opens. A listbox shows all its options, so its value must name one of
+them. In a form tool, a combobox field is a string described as "pick an option from its list", with
+the options the page shows as `examples`; a listbox field is an `enum`.
 
 ### Date fields
 
