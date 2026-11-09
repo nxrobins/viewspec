@@ -162,6 +162,7 @@ AGENT_UNWRAP_TAGS = UNWRAP_TAGS - AGENT_FORM_TAGS
 AGENT_GLOBAL_ATTRS = SAFE_GLOBAL_ATTRS | {"contenteditable", "hidden", "id", "role", "tabindex"}
 AGENT_ATTRS_BY_TAG = {
     **SAFE_ATTRS_BY_TAG,
+    "a": SAFE_ATTRS_BY_TAG["a"] | {"download"},
     "button": {"disabled", "form", "name", "type", "value"},
     "fieldset": {"disabled", "name"},
     "form": {"action", "method", "name"},

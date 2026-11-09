@@ -19,6 +19,8 @@ It serves the fixtures on 127.0.0.1, then:
    too many files are refused; the blocked form post holds the file names and sizes.
 10. ranges: a range picker that shows two months and fills check-in and check-out, one field that
     holds a whole range, and two native date fields, each set by one range.
+11. downloads: links and a script-built export, saved in a temporary download folder under safe
+    names, never over another file; a plain click that starts a download saves nothing.
 
 After each action in checkout and shop, the script also checks the diff between the reading before
 and the reading after (``agent_session.changes``).
@@ -33,8 +35,10 @@ Usage:
 from __future__ import annotations
 
 import functools
+import hashlib
 import http.server
 import sys
+import tempfile
 import threading
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -582,10 +586,74 @@ def ranges(session: BrowserSession, base: str) -> None:
     check(body == {"checkin": "4 Dec 2026", "checkout": "6 Dec 2026", "guests": "3"}, "and the post holds both dates")
 
 
+def downloads(session: BrowserSession, base: str) -> None:
+    print("\n== downloads: links, a script-built export, and a plain click ==")
+    folder = session.download_dir
+    assert folder is not None
+    session.open(f"{base}/downloads.html")
+    view = session.observe()
+    check(
+        "[1] link 'Invoice INV-1042' -> files/invoice-1042.pdf download" in view.view
+        and "download '../../.profile'" in view.view,
+        "the view marks the links that download",
+    )
+
+    def fetch(name: str) -> dict[str, object]:
+        [result] = session.act(handle_named(session, name), "download")
+        saved = result.download or {}
+        print(f"  ->  download {name!r}: { ({k: v for k, v in saved.items() if k != 'path'}) }")
+        return saved
+
+    invoice = fetch("Invoice INV-1042")
+    original = (FIXTURES / "files" / "invoice-1042.pdf").read_bytes()
+    check(
+        invoice["file"] == "invoice-1042.pdf"
+        and invoice["bytes"] == len(original)
+        and invoice["sha256"] == hashlib.sha256(original).hexdigest()
+        and invoice["type"] == "application/pdf",
+        "the invoice is saved, with its size, SHA-256, and type",
+    )
+    check((folder / "invoice-1042.pdf").read_bytes() == original, "the saved file is the file the server sent")
+    again = fetch("Invoice INV-1042")
+    check(
+        again["file"] == "invoice-1042 (1).pdf" and (folder / "invoice-1042.pdf").read_bytes() == original,
+        "a second copy gets a new name; the first is not overwritten",
+    )
+    prices = fetch("Price list (CSV)")
+    check(
+        prices["file"] == "price-list.csv" and session.observe().url.endswith("/downloads.html"),
+        "a plain link to a file is saved, and the page stays where it was",
+    )
+    notes = fetch("Setup notes")
+    saved = Path(str(notes["path"]))
+    check(
+        saved.parent == folder and not saved.name.startswith(".") and "/" not in str(notes["file"]),
+        f"a suggested name with a path ('../../.profile') is saved inside the folder as {notes['file']!r}",
+    )
+    export = fetch("Export orders")
+    check(
+        export["file"] == "orders-2026-11.csv"
+        and (folder / "orders-2026-11.csv").read_text().startswith("Order,Date,Total\n1042,2026-11-02,49.00"),
+        "a file the page builds by script is saved, with the table's rows",
+    )
+    before = sorted(path.name for path in folder.iterdir())
+    [clicked] = session.act(handle_named(session, "Export orders"), "click")
+    check(
+        clicked.unsaved_downloads == ("orders-2026-11.csv",) and sorted(p.name for p in folder.iterdir()) == before,
+        "a plain click that starts a download names it and saves nothing",
+    )
+    try:
+        session.act(handle_named(session, "Terms of service"), "download")
+        check(False, "a link that downloads nothing is reported")
+    except BridgeError as error:
+        print(f"  !!  {error}")
+        check("no download started" in str(error), "a link that downloads nothing is reported")
+
+
 def main() -> int:
     server, base = serve()
     try:
-        with BrowserSession() as session:
+        with tempfile.TemporaryDirectory() as folder, BrowserSession(download_dir=folder) as session:
             checkout(session, base)
             spa(session, base)
             viewspec_page(session, base)
@@ -596,6 +664,7 @@ def main() -> int:
             dates(session, base)
             uploads(session, base)
             ranges(session, base)
+            downloads(session, base)
     except AssertionError as error:
         print(f"\nFAILED: {error}")
         return 1

@@ -105,8 +105,8 @@ for step in steps:
     print(step.to_json())  # {"op": "fill", "node_id": ..., "ref": "e20", "name": "Email", "value": ...}
 ```
 
-- `plan_control_action(control, op, value)` takes `click`, `fill`, `check`, `uncheck`, `select`, or
-  `upload` (see [File uploads](#file-uploads)).
+- `plan_control_action(control, op, value)` takes `click`, `fill`, `check`, `uncheck`, `select`,
+  `upload` (see [File uploads](#file-uploads)), or `download` (see [Downloads](#downloads)).
   It refuses a disabled control (`AGENT_ACTION_DISABLED`), a read-only one (`AGENT_ACTION_READONLY`),
   an action the control cannot take, such as filling a link (`AGENT_ACTION_UNSUPPORTED`), and a value
   it cannot hold, such as an option that is not in the list (`AGENT_ACTION_VALUE_INVALID`). On an ARIA
@@ -213,6 +213,17 @@ and `multiple`. Its value is the names of the files it holds, which a snapshot g
 `plan_control_action(control, "upload", files)` does the same. In a form tool, a file field is an
 array of file objects (`maxItems: 1` unless the input takes several), and its description says which
 types it accepts. A form call plans its upload in the field's place among the other steps.
+
+### Downloads
+
+The agent profile keeps a link's `download` attribute, and a link control carries it as `download`:
+the file name it suggests, `""` when the attribute has no value, or `None` when there is none.
+
+`viewspec.raw_html_actions.plan_download(control)` plans a `download` step: click the link or button,
+and save the file the click downloads. The step names no folder and no file name. Whoever runs the
+browser chooses the folder, and the driver makes a safe file name from the one the page suggests. A
+field is `AGENT_ACTION_UNSUPPORTED`, and a disabled control is `AGENT_ACTION_DISABLED`.
+`plan_control_action(control, "download")` does the same.
 
 ### Messages and changes
 

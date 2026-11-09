@@ -32,7 +32,7 @@ from viewspec.raw_html_agent import (
 if TYPE_CHECKING:
     from viewspec.raw_html import HtmlLiftResult
 
-ACTION_OPS = ("click", "fill", "check", "uncheck", "select", "upload", "submit")
+ACTION_OPS = ("click", "fill", "check", "uncheck", "select", "upload", "download", "submit")
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # One file.
 MAX_UPLOAD_TOTAL_BYTES = 25 * 1024 * 1024  # All files of one step.
 SCROLL_DIRECTIONS = ("end", "down", "up", "top")
@@ -191,7 +191,8 @@ class ActionStep:
     needed, find the option, click it), ``choose_date`` (pick the date ``value``, as YYYY-MM-DD, from
     the calendar of a custom date field), ``choose_date_range`` (pick the range ``value``, as
     YYYY-MM-DD/YYYY-MM-DD, in the calendar of one field that holds a range, or of a pair of fields
-    whose end field is ``end_node_id``), ``scroll`` (scroll the page, or the scrollable area that holds
+    whose end field is ``end_node_id``), ``download`` (click a link or button and save the file it
+    downloads, in a folder that whoever runs the browser chose), ``scroll`` (scroll the page, or the scrollable area that holds
     the control ``node_id``, in the direction ``value``), ``upload`` (give ``files`` to a file input, or
     to the file chooser a button opens), or ``submit`` (submit the form ``node_id`` without a submit
     button). ``secret`` marks a value that must not be logged; ``to_json()`` redacts it unless asked
@@ -249,6 +250,8 @@ def plan_control_action(
         return _set_checked(control, op == "check")
     if op == "upload":
         return (plan_upload(control, value),)
+    if op == "download":
+        return (plan_download(control),)
     if control.date_range == "range":
         return plan_date_range(control, None, value)
     if control.date_range in {"start", "end"} and control.range_with and _is_range(value):
@@ -283,6 +286,23 @@ def plan_date_range(start: HtmlControl, end: HtmlControl | None, value: Any) -> 
         return (_date(start, begins), _date(end, ends))
     step = _step("choose_date_range", start, value=f"{begins}/{ends}")
     return (replace(step, end_node_id=end.node_id, end_ref=end.ref, end_name=_name(end)),)
+
+
+def plan_download(control: HtmlControl) -> ActionStep:
+    """Plan a ``download`` step: click a link or button, and save the file that the click downloads.
+
+    The step names no folder and no file name: whoever runs the browser chooses the folder, and the
+    driver makes a safe file name from the one the page suggests.
+    """
+
+    if control.disabled:
+        raise AgentActionError("AGENT_ACTION_DISABLED", f"{_label(control)} is disabled.")
+    if control.kind != "action":
+        raise AgentActionError(
+            "AGENT_ACTION_UNSUPPORTED",
+            f"{_label(control)} ({control.control}) downloads nothing; use the link or button that downloads.",
+        )
+    return _step("download", control)
 
 
 def plan_upload(control: HtmlControl, files: Any) -> ActionStep:
@@ -741,6 +761,7 @@ __all__ = [
     "plan_control_action",
     "plan_form_call",
     "plan_scroll",
+    "plan_download",
     "plan_upload",
     "UploadFile",
     "accepts",

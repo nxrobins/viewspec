@@ -54,6 +54,9 @@ All notable changes to ViewSpec are documented in this file. The format follows
   field for a pair with a native date field. `select` with a range on a range field, or on a pair field
   (with `lift=`), plans a range. Form tools describe range fields and pairs, and a form call that sets
   both fields of a pair checks their order and plans them as one range.
+- The agent profile keeps a link's `download` attribute, and link controls carry it as `download`.
+  `viewspec.raw_html_actions.plan_download()` plans a `download` step (click a link or button and
+  save the file it downloads); `plan_control_action(control, "download")` does the same.
 
 ## [0.4.0] - 2026-11-01
 

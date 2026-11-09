@@ -25,12 +25,12 @@ See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile
 |---|---|
 | `lift_inpage.js` | In-page library. Gives every element a ref (`e17`) that stays the same while the element is in the page. Snapshots the composed tree (open shadow roots, slots, same-origin iframes) with live form state, and never copies a secret value. Lists the visible controls (the ground truth). Proposes CSS candidates for an element. |
 | `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and by default **blocks writes**: a form post or any other non-GET request is recorded and answered with a stub page. With an origin allowlist, it also stops navigations to other origins. |
-| `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `wait(condition, since, timeout_ms)`, `scroll(step, until, timeout_ms)`, `blocked_writes()`, `blocked_navigations()`. `changes(before, after)`: what changed between two observations. |
+| `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `wait(condition, since, timeout_ms)`, `scroll(step, until, timeout_ms)`, `blocked_writes()`, `blocked_navigations()`. `BrowserSession(download_dir=...)` names the folder for downloads. `changes(before, after)`: what changed between two observations. |
 | `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
-| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 91 checks on the fixtures. |
-| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 92 checks. |
+| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 100 checks on the fixtures. |
+| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 98 checks. |
 
 ### Locators
 
@@ -151,6 +151,24 @@ place in the form. Each file is at most 10 MB, and the files of one step at most
 File contents are never in a step, a log, or a result: a step shows each file's name, media type, and
 size. A blocked form post shows a file as `{"file": "cv.pdf", "bytes": 24, "type": "application/pdf"}`.
 
+### Downloads
+
+`act(handle, "download")` clicks a link or button and saves the file that the click downloads. The
+view marks a link with a `download` attribute: `[1] link 'Invoice INV-1042' -> files/invoice-1042.pdf
+download`. A plain link to a file the browser does not show, and a button whose script builds the
+file (a CSV export), download too.
+
+- Files are saved only in the folder that whoever runs the browser names (`BrowserSession(download_dir=...)`,
+  or `--download-dir` for the MCP server). Without one, a download step is refused.
+- The file name is the one the page suggests, made safe: no folders, no control characters, and no
+  leading dot (`../../.profile` is saved as `_.._.profile`, in the folder). A name that is already
+  there gets ` (1)`, ` (2)`, ...; no file is overwritten. A file over 50 MB is not kept.
+- The step result gives `file`, `path`, `bytes`, `sha256`, `type`, the name the page suggested, and
+  the URL. It never holds the contents.
+- A download that any other step starts (a `click` on "Export orders") is not saved. The step result
+  names it in `unsaved_downloads`, so the agent can do it again with `download`.
+- A download step on a control that starts no download within 4 seconds is refused.
+
 ### Scrolling
 
 A feed or a catalog with infinite scroll loads more items only when you scroll to its end, often
@@ -235,7 +253,7 @@ view: a handle from any slice, or from `find`, works with `act`.
 | Tool | Arguments | Does |
 |---|---|---|
 | `observe` | `url` or `since` (both optional), `wait_for`, `timeout_ms`, `offset`, `limit`, `find`; or `observation_id` with `offset`, `limit`, `find` | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, and control; each control has a handle such as `[7]`), `view_page` (which lines these are), `form_tools` (one typed tool per form), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. With `observation_id`, it pages through that kept reading without reading the page again. |
-| `act` | `action` (`click`, `fill`, `check`, `uncheck`, `select`, `scroll`, `upload`), `handle`, `value`, `files`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. `upload` gives `files` to a file input, or to the file chooser a button opens. `select` on a date range field, or on either field of a pair, takes a range and picks both days. `scroll` needs no handle: it scrolls the page, or the pane of the control with the handle; `value` is the direction, and `wait_for` means "keep scrolling until it shows". The result has `scroll`: `scrolls`, `moved`, `loaded`, `at_end`, `end_reached`, `met`. |
+| `act` | `action` (`click`, `fill`, `check`, `uncheck`, `select`, `scroll`, `upload`, `download`), `handle`, `value`, `files`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. `upload` gives `files` to a file input, or to the file chooser a button opens. `download` clicks and saves the file it downloads. `select` on a date range field, or on either field of a pair, takes a range and picks both days. `scroll` needs no handle: it scrolls the page, or the pane of the control with the handle; `value` is the direction, and `wait_for` means "keep scrolling until it shows". The result has `scroll`: `scrolls`, `moved`, `loaded`, `at_end`, `end_reached`, `met`. |
 | `call` | `tool`, `arguments`, `submit`, `observation_id`, `wait_for`, `timeout_ms` | Fills in a form with typed arguments (files too) and submits it, waits for `wait_for` if given, then reads the page again. |
 
 The view in every result is a slice: 200 lines by default, at most 1000 (`limit`). `view_page` gives
@@ -261,7 +279,9 @@ Other codes: `BROWSER_NO_PAGE`, `BROWSER_INVALID_REQUEST`, `BROWSER_HANDLE_REQUI
 `BROWSER_OPTION_AMBIGUOUS`, `BROWSER_OPTION_NOT_FOUND`, `BROWSER_DATE_UNAVAILABLE`, `BROWSER_DATE_NOT_PICKED`,
 `BROWSER_UPLOAD_NOT_ALLOWED` (a path outside the upload folder, or no folder), `BROWSER_UPLOAD_NOT_FOUND`,
 `BROWSER_UPLOAD_TOO_LARGE`, `BROWSER_UPLOAD_REFUSED` (the chooser refused the files, or no chooser
-opened), `BROWSER_OBSERVATION_UNKNOWN` (the server
+opened), `BROWSER_DOWNLOAD_NOT_ALLOWED` (no download folder), `BROWSER_DOWNLOAD_NONE` (the click
+started no download), `BROWSER_DOWNLOAD_TOO_LARGE`, `BROWSER_DOWNLOAD_FAILED`,
+`BROWSER_OBSERVATION_UNKNOWN` (the server
 keeps the last 8 observations), `BROWSER_OBSERVATION_STALE`, `BROWSER_TARGET_DRIFT`,
 `BROWSER_TARGET_STALE`, `BROWSER_PLAN_INTERRUPTED`, `BROWSER_ORIGIN_NOT_ALLOWED`, `BROWSER_TIMEOUT`,
 and `BROWSER_ERROR`.
@@ -276,6 +296,8 @@ and `BROWSER_ERROR`.
 - `--upload-dir DIR` is the only folder the agent may upload files from by path. Without it, the agent
   can send file contents only. A path that leads out of the folder (`../`, an absolute path, or a
   link) is refused.
+- `--download-dir DIR` is the only folder the agent may save downloads in. Without it, the agent saves
+  no files. In it, downloads only add files; they never overwrite one.
 - No result contains a secret value or the contents of a file.
 
 This is not `viewspec mcp`. The package's server makes no network calls; this one drives a browser
@@ -364,6 +386,7 @@ with BrowserSession() as session:  # block_writes=True by default
 | booking | 99 | 66 | 6 | 1/6 | 6/6 | 6/6 | 6/6 | 6/6 | 1 | True | 0 |
 | catalog | 13544 | 7819 | 675 | 649/675 | 675/675 | 675/675 | 675/675 | 675/675 | 2 | True | 0 |
 | checkout | 222 | 151 | 15 | 1/15 | 15/15 | 15/15 | 16/16 | 16/16 | 1 | True | 0 |
+| downloads | 296 | 110 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 0 | True | 0 |
 | feed | 860 | 310 | 41 | 40/41 | 41/41 | 41/41 | 41/41 | 41/41 | 0 | True | 0 |
 | shop | 255 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
 | spa | 138 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 6/6 | 0 | True | 0 |
@@ -371,8 +394,8 @@ with BrowserSession() as session:  # block_writes=True by default
 | upload | 57 | 49 | 4 | 2/4 | 4/4 | 4/4 | 4/4 | 4/4 | 1 | True | 0 |
 | viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
 
-- **agent cov** matches by element (ref), not by name: 772 of 772 visible controls. **same name**: the
-  lift names all 772 as the browser does.
+- **agent cov** matches by element (ref), not by name: 777 of 777 visible controls. **same name**: the
+  lift names all 777 as the browser does.
 - **located**: every control has a locator (the agent lift also finds 2 pointer-only clickables).
   Kinds on the four small fixtures, for 39 controls and 2 forms: 28 stable attribute, 4 content
   anchor, 4 role and name, 4 exact text, and 1 structural path (a form with no name). On the catalog:
@@ -385,7 +408,7 @@ with BrowserSession() as session:  # block_writes=True by default
 - **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
   schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
-`demo_agent.py` (91 checks, all pass):
+`demo_agent.py` (100 checks, all pass):
 
 - **checkout:** a click inside the web component's shadow DOM changes the quantity from 2 to 3. Fills
   inside the payment iframe are verified, and the next snapshot does not contain the card number. A
@@ -429,8 +452,14 @@ with BrowserSession() as session:  # block_writes=True by default
   one-field "Rental dates" range shows `20/11/2026 – 02/12/2026`, and one date is refused for it. A
   range on the native From and To fields fills both. A form call with check-out before check-in is
   refused and names check-out; a good call picks the pair in one step, and the post holds both dates.
+- **downloads:** the invoice is saved in a temporary download folder with its size, SHA-256, and type,
+  and the saved bytes are the bytes the server sent. A second copy is saved as `invoice-1042 (1).pdf`,
+  and the first is not overwritten. A plain link to a CSV is saved and the page stays where it was. A
+  suggested name with a path (`../../.profile`) is saved inside the folder. The "Export orders" file,
+  which the page builds by script, is saved with the table's rows. A plain click on "Export orders"
+  names the download and saves nothing. A link that downloads nothing is reported.
 
-`demo_mcp.py` (92 checks, all pass) runs the same kind of tasks through the MCP server, as a host
+`demo_mcp.py` (98 checks, all pass) runs the same kind of tasks through the MCP server, as a host
 would, with `--allow-origin` set to the local fixture server and without `NODE_PATH`. It also checks
 that the tool schemas carry no internal node ids, that a blocked post shows the password field as
 `[redacted]` and no result contains the password or the card number, that acting from a view of a
@@ -458,7 +487,10 @@ the chooser, a form call that uploads by path, and that no result holds the byte
 stay page it checks that the form tools describe the pair and the one-field range, that one `act` with
 `{"start", "end"}` picks both days and its changes name both fields, that a range that ends before it
 starts is refused, that a range from a past day is `BROWSER_DATE_UNAVAILABLE`, and a form call that
-picks a one-field range.
+picks a one-field range. With `--download-dir` set to a temporary folder, it checks that a download
+is saved there, that the summary names the file and its size and no result holds its contents, that a
+plain click that starts a download says it was not saved, that a link that downloads nothing is
+`BROWSER_DOWNLOAD_NONE`, and that the folder holds only the file the agent asked for.
 
 The fixtures are small and hand-made. Run the probe on real sites before you draw conclusions.
 
@@ -499,12 +531,17 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
   is not either.
 - Many pages send a file as soon as it is chosen, before the form is sent. With writes blocked, that
   request is stopped and listed in `blocked_writes`, so the page may show an upload error.
+- With writes blocked, a download that a form post starts (an export form sent by POST) is stopped
+  like any other write. A download from another origin is stopped by the origin allowlist.
+- A download must start within 4 seconds of the click. A page that prepares a file for longer (a
+  "your export is being prepared" message) needs a `wait_for` first, then a download of the link it
+  shows.
 - A wait wakes on DOM changes and navigations. A change that only sets a property (text typed into a
   field by script) does not wake it; the next DOM change or the timeout does.
 
 ## Next steps
 
 1. Add the MCP server to an agent host, and try it on real sites.
-2. Let the agent download a file a page offers, into a folder the operator names.
-3. Let `observe` list the days a calendar offers (the free nights of a hotel), so the agent can choose
+2. Let `observe` list the days a calendar offers (the free nights of a hotel), so the agent can choose
    among them.
+3. Let the agent read a downloaded text file (a CSV export) in slices, as it pages through a view.

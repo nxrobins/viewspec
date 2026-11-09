@@ -24,6 +24,7 @@ import contextlib
 import email
 import email.policy
 import json
+import mimetypes
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -76,6 +77,9 @@ class StepResult:
     navigated: bool
     url: str
     chosen: str | None = None  # The option, day, or range that was picked, or the names of the files set.
+    # A saved download: {file, path, bytes, sha256, type, suggested, url}. Never its contents.
+    download: dict[str, Any] | None = None
+    unsaved_downloads: tuple[str, ...] = ()  # Downloads this step started but did not save.
 
     def to_json(self) -> dict[str, Any]:
         payload = {
@@ -87,6 +91,10 @@ class StepResult:
         }
         if self.chosen is not None:
             payload["chosen"] = self.chosen
+        if self.download is not None:
+            payload["download"] = self.download
+        if self.unsaved_downloads:
+            payload["unsaved_downloads"] = list(self.unsaved_downloads)
         return payload
 
 
@@ -182,6 +190,12 @@ def request_fields(write: dict[str, Any]) -> dict[str, Any] | None:
     return fields
 
 
+def _with_type(download: dict[str, Any] | None) -> dict[str, Any] | None:
+    if download is None:
+        return None
+    return {**download, "type": mimetypes.guess_type(download["file"])[0] or "application/octet-stream"}
+
+
 def condition_met(condition: ChangeCondition, since: Observation, current: Observation) -> bool:
     """Whether ``current`` shows the change, compared with ``since``.
 
@@ -213,9 +227,17 @@ def changes(before: Observation, after: Observation) -> dict[str, Any]:
 
 
 class BrowserSession:
-    def __init__(self, *, block_writes: bool = True, allowed_origins: tuple[str, ...] = ()) -> None:
+    def __init__(
+        self,
+        *,
+        block_writes: bool = True,
+        allowed_origins: tuple[str, ...] = (),
+        download_dir: str | Path | None = None,
+    ) -> None:
         self.block_writes = block_writes
         self.allowed_origins = tuple(allowed_origins)
+        # The only folder a download step saves files in. None: download steps are refused.
+        self.download_dir = Path(download_dir).resolve() if download_dir is not None else None
         self.observation: Observation | None = None
         self._next_id = 0
         self._proc = subprocess.Popen(
@@ -263,7 +285,11 @@ class BrowserSession:
 
         self.observation = None
         return self._call(
-            "open", url=url, block_writes=self.block_writes, allowed_origins=list(self.allowed_origins) or None
+            "open",
+            url=url,
+            block_writes=self.block_writes,
+            allowed_origins=list(self.allowed_origins) or None,
+            download_dir=str(self.download_dir) if self.download_dir is not None else None,
         )
 
     def observe(self, *, locate: bool = True, collect_secrets: bool = False) -> Observation:
@@ -469,6 +495,8 @@ class BrowserSession:
                     navigated=reply["navigated"],
                     url=reply["url"],
                     chosen=reply.get("chosen"),
+                    download=_with_type(reply.get("download")),
+                    unsaved_downloads=tuple(reply.get("unsaved_downloads") or ()),
                 )
             )
             if reply["navigated"] and len(results) < len(steps):

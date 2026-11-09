@@ -116,10 +116,16 @@ class BrowserTools:
     """The three tools, over one browser session that starts on the first ``observe``."""
 
     def __init__(
-        self, *, block_writes: bool = True, allowed_origins: tuple[str, ...] = (), upload_dir: Path | None = None
+        self,
+        *,
+        block_writes: bool = True,
+        allowed_origins: tuple[str, ...] = (),
+        upload_dir: Path | None = None,
+        download_dir: Path | None = None,
     ) -> None:
         self.block_writes = block_writes
         self.upload_dir = upload_dir.resolve() if upload_dir is not None else None
+        self.download_dir = download_dir.resolve() if download_dir is not None else None
         self.allowed_origins = tuple(origin.rstrip("/") for origin in allowed_origins)
         self._session: BrowserSession | None = None
         self._history: dict[int, Observation] = {}
@@ -214,7 +220,7 @@ class BrowserTools:
 
     def act(
         self,
-        action: Literal["click", "fill", "check", "uncheck", "select", "scroll", "upload"],
+        action: Literal["click", "fill", "check", "uncheck", "select", "scroll", "upload", "download"],
         handle: int | None = None,
         value: str | list[str] | dict[str, str] | None = None,
         observation_id: int | None = None,
@@ -229,6 +235,12 @@ class BrowserTools:
         with ``"encoding": "base64"``), or ``{"path"}`` inside the server's upload folder. The input's
         accepted types and whether it takes several files are checked. Results show file names and
         sizes, never contents.
+
+        ``download`` clicks a link or button and saves the file it downloads in the server's download
+        folder, under the name the page suggests (made safe; a name already there gets " (1)").
+        ``steps[0].download`` gives ``file``, ``path``, ``bytes``, ``sha256``, and ``type``, never
+        the contents. A link that downloads shows ``download`` in the view. A click with any other
+        action that starts a download does not save it; ``steps[0].unsaved_downloads`` names it.
 
         ``scroll`` scrolls the page (no handle), or the scrollable area that holds the control with
         this handle (a side pane, a feed in a box). ``value`` is ``end`` (the default; where an infinite
@@ -275,6 +287,12 @@ class BrowserTools:
                     "BROWSER_HANDLE_UNKNOWN",
                     f"Observation {self._id_of(observation)} has no control [{handle}].",
                     "Use a handle from the view of that observation.",
+                )
+            if action == "download" and self.download_dir is None:
+                return _error(
+                    "BROWSER_DOWNLOAD_NOT_ALLOWED",
+                    "This server has no download folder, so it saves no files.",
+                    "Start the server with --download-dir to let the agent download files.",
                 )
             try:
                 if action == "upload":
@@ -380,7 +398,9 @@ class BrowserTools:
     # ---- internals --------------------------------------------------------------------------------
     def _browser(self) -> BrowserSession:
         if self._session is None:
-            self._session = BrowserSession(block_writes=self.block_writes, allowed_origins=self.allowed_origins)
+            self._session = BrowserSession(
+                block_writes=self.block_writes, allowed_origins=self.allowed_origins, download_dir=self.download_dir
+            )
         return self._session
 
     def _refuse_origin(self, url: str) -> dict[str, Any] | None:
@@ -599,6 +619,13 @@ def _summary(results: list[StepResult]) -> str:
         for item in results
     ]
     tail = " The page navigated." if any(item.navigated for item in results) else ""
+    for item in results:
+        if item.download is not None:
+            saved = item.download
+            tail += f" Saved {saved['file']} ({saved['bytes']} bytes, {saved['type']}) in the download folder."
+        if item.unsaved_downloads:
+            names = ", ".join(item.unsaved_downloads)
+            tail += f" It started a download ({names}) that was not saved; use action='download' to save it."
     return f"Did {len(results)} step(s): {'; '.join(parts)}.{tail}"
 
 
@@ -667,6 +694,14 @@ def _bridge_code(error: BridgeError) -> str:
         return "BROWSER_DATE_NOT_PICKED"
     if message.startswith("upload:"):
         return "BROWSER_UPLOAD_REFUSED"
+    if message.startswith("download: no download started"):
+        return "BROWSER_DOWNLOAD_NONE"
+    if message.startswith("download:") and "larger than" in message:
+        return "BROWSER_DOWNLOAD_TOO_LARGE"
+    if message.startswith("download: this session has no download folder"):
+        return "BROWSER_DOWNLOAD_NOT_ALLOWED"
+    if message.startswith("download:"):
+        return "BROWSER_DOWNLOAD_FAILED"
     if message.startswith("drift:"):
         return "BROWSER_TARGET_DRIFT"
     if message.startswith("stale:"):
@@ -719,9 +754,20 @@ def main(argv: list[str] | None = None) -> int:
         metavar="DIR",
         help="the only folder the agent may upload files from by path (by default it may send contents only)",
     )
+    parser.add_argument(
+        "--download-dir",
+        type=Path,
+        metavar="DIR",
+        help="the folder the agent may save downloaded files in (by default it saves none)",
+    )
     args = parser.parse_args(argv)
+    if args.download_dir is not None and not args.download_dir.is_dir():
+        parser.error(f"--download-dir {args.download_dir} is not a folder")
     tools = BrowserTools(
-        block_writes=not args.allow_writes, allowed_origins=tuple(args.allow_origin), upload_dir=args.upload_dir
+        block_writes=not args.allow_writes,
+        allowed_origins=tuple(args.allow_origin),
+        upload_dir=args.upload_dir,
+        download_dir=args.download_dir,
     )
     app = build_server(tools)
 

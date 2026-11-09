@@ -177,6 +177,7 @@ class HtmlControl:
     multiple: bool = False
     date_range: str | None = None  # "start" or "end" of a pair of date fields, or "range" for one field.
     range_with: str | None = None  # The node id of the other field of a pair.
+    download: str | None = None  # A link's download attribute: the file name it suggests, or "".
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -207,6 +208,7 @@ class HtmlControl:
             "multiple": self.multiple,
             "date_range": self.date_range,
             "range_with": self.range_with,
+            "download": self.download,
         }
         if self.options:
             payload["options"] = [option.to_json() for option in self.options]
@@ -727,6 +729,7 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 date=_is_date_field(node, control, name),
                 accept=node.attrs.get("accept") or None if node.tag == "input" else None,
                 multiple="multiple" in node.attrs,
+                download=node.attrs.get("download") if node.tag in {"a", "area"} and "download" in node.attrs else None,
             )
         )
         roles.append((node.id, kind, name, confidence))

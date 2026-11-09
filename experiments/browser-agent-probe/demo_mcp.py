@@ -1,7 +1,8 @@
 """Drive mcp_browser_server.py as an MCP client over stdio, the way an agent host does, with checks.
 
 It serves the fixtures on 127.0.0.1, starts the server with ``--allow-origin`` set to that server
-and ``--upload-dir`` set to a temporary folder, and then uses only the three MCP tools: observe,
+and ``--upload-dir`` and ``--download-dir`` set to temporary folders, and then uses only the three
+MCP tools: observe,
 act, and call. Every check is an assertion; the script exits 1 on the first failure. Secret values
 and file contents are never printed.
 
@@ -25,6 +26,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 SERVER = Path(__file__).resolve().parent / "mcp_browser_server.py"
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 PASSWORD = "S3cret-Pass-99"
 CARD = "4242424242424242"
 CV = b"%PDF-1.4 CV-CONTENT-7781"  # These bytes must never come back in a result.
@@ -59,11 +61,13 @@ async def run(base: str, folder: Path) -> None:
     env = {key: os.environ[key] for key in ("PLAYWRIGHT_BROWSERS_PATH",) if key in os.environ}
     uploads = folder / "uploads"
     uploads.mkdir()
+    downloads = folder / "downloads"
+    downloads.mkdir()
     (uploads / "cv.pdf").write_bytes(CV)
     (folder / "private.txt").write_text("outside the upload folder")
     params = StdioServerParameters(
         command=sys.executable,
-        args=[str(SERVER), "--allow-origin", base, "--upload-dir", str(uploads)],
+        args=[str(SERVER), "--allow-origin", base, "--upload-dir", str(uploads), "--download-dir", str(downloads)],
         env=env,
     )
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
@@ -479,6 +483,39 @@ async def run(base: str, folder: Path) -> None:
         fields = hired["blocked_writes"][0]["form_fields"]
         print(f"  ..  {fields}")
         check(fields == {"rental": "20/11/2026 \u2013 22/11/2026"}, "a form call picks a one-field range")
+
+        print("\n== downloads ==")
+        account = await tool(session, "observe", url=f"{base}/downloads.html")
+        check("-> files/invoice-1042.pdf download" in account["view"], "the view marks a link that downloads")
+        invoice = await tool(session, "act", handle=handle(account, "Invoice INV-1042"), action="download")
+        saved = invoice["steps"][0]["download"]
+        print(f"  ..  { ({key: value for key, value in saved.items() if key != 'path'}) }")
+        check(
+            invoice["ok"]
+            and saved["file"] == "invoice-1042.pdf"
+            and (downloads / "invoice-1042.pdf").read_bytes() == (FIXTURES / "files" / "invoice-1042.pdf").read_bytes(),
+            "a download is saved in the download folder",
+        )
+        check(
+            "Saved invoice-1042.pdf (104 bytes, application/pdf)" in invoice["summary"]
+            and "Fixture invoice" not in json.dumps(invoice),
+            "the summary names the file and its size; no result holds its contents",
+        )
+        clicked = await tool(session, "act", handle=handle(account, "Export orders"), action="click")
+        check(
+            clicked["steps"][0]["unsaved_downloads"] == ["orders-2026-11.csv"]
+            and "was not saved" in clicked["summary"],
+            "a plain click that starts a download says it was not saved",
+        )
+        nothing = await tool(session, "act", handle=handle(account, "Terms of service"), action="download")
+        check(
+            not nothing["ok"] and nothing["errors"][0]["code"] == "BROWSER_DOWNLOAD_NONE",
+            "a link that downloads nothing is BROWSER_DOWNLOAD_NONE",
+        )
+        check(
+            sorted(path.name for path in downloads.iterdir()) == ["invoice-1042.pdf"],
+            "the download folder holds only the file the agent asked to download",
+        )
 
 
 def first_failure(error: BaseException) -> BaseException:

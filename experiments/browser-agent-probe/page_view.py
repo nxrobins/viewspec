@@ -47,6 +47,8 @@ def control_line(handle: int, control: HtmlControl) -> str:
             line += f" accepts {control.accept}" if control.accept else ""
     if control.href:
         line += f" -> {control.href}"
+    if control.download is not None:
+        line += f" download {control.download!r}" if control.download else " download"
     if control.submits:
         line += " (submits)"
     if control.action_id:

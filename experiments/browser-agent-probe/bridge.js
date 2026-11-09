@@ -4,14 +4,14 @@
 //   response: {"id": 1, "ok": true, "result": {...}}  or  {"id": 1, "ok": false, "error": "..."}
 //
 // Commands:
-//   open      {url, block_writes, allowed_origins}
+//   open      {url, block_writes, allowed_origins, download_dir}
 //                                          load a page; returns its status and server HTML
 //   snapshot  {collect_secrets}            the composed-tree snapshot (see lift_inpage.js)
 //   aria      {}                           Playwright's ARIA snapshot of the body
 //   reload    {}                           reload the page
 //   locate    {requests: [{key, ref, role, name}]}
 //                                          a verified locator for each ref (see below)
-//   act       {op, ref, locator, value, values}
+//   act       {op, ref, locator, end_ref, end_locator, value, values, files}
 //                                          run one planned step (see below)
 //   writes    {}                           the writes and navigations that were stopped
 //   document  {}                           the id of the current document (see lift_inpage.js)
@@ -27,7 +27,12 @@
 //
 // With allowed_origins (for example ["https://shop.example"]), a top-level navigation to any other
 // origin is stopped and recorded, so a click cannot take the agent off the sites it may use.
+//
+// With download_dir, a "download" step saves the file a click downloads in that folder, under a
+// safe name the page cannot turn into a path, and never over another file. Without it, nothing is
+// saved. A download that any other step starts is not saved either; the step reports its name.
 
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
@@ -78,6 +83,8 @@ const INTERACTIVE_SELECTOR = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 const ACTION_TIMEOUT = 5000;
+const DOWNLOAD_START_TIMEOUT = 4000;
+const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 let browser = null;
@@ -85,6 +92,10 @@ let page = null;
 let writes = [];
 let navigations = [];
 let mainNavigations = 0;
+let downloadDir = null;
+let expectingDownload = false;
+let strayDownloads = [];
+let navigationRequests = 0;
 
 const escapeHtml = (text) =>
   String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -113,12 +124,20 @@ async function launch() {
   }
 }
 
-async function open({ url, block_writes: blockWrites = true, allowed_origins: allowedOrigins = null }) {
+async function open({ url, block_writes: blockWrites = true, allowed_origins: allowedOrigins = null, download_dir: dir = null }) {
   if (!browser) browser = await launch();
   if (page) await page.close();
-  page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page = await browser.newPage({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
   writes = [];
   navigations = [];
+  downloadDir = dir ? path.resolve(dir) : null;
+  strayDownloads = [];
+  page.on("download", (item) => {
+    if (!expectingDownload) strayDownloads.push(item);
+  });
+  page.on("request", (request) => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigationRequests += 1;
+  });
   page.on("framenavigated", (frame) => {
     if (frame === page.mainFrame()) mainNavigations += 1;
   });
@@ -517,6 +536,74 @@ async function chooseDateRange(target, end, value) {
   return { verified, chosen: value };
 }
 
+// A file name the page cannot turn into a path: no folders, no control characters, no leading dot.
+function safeFileName(suggested) {
+  const base = String(suggested || "").split(/[\\/]/).pop() || "";
+  const clean = base.replace(/[\u0000-\u001f\u007f<>:"|?*]/g, "_").replace(/^[.\s]+/, "").trim();
+  if (!clean) return "download";
+  if (clean.length <= 200) return clean;
+  const ext = path.extname(clean).slice(0, 20);
+  return clean.slice(0, 200 - ext.length) + ext;
+}
+
+// A path in the download folder that holds no file yet: "name.pdf", then "name (1).pdf", ...
+function freePath(dir, name) {
+  const ext = path.extname(name);
+  const stem = name.slice(0, name.length - ext.length);
+  for (let n = 0; n < 1000; n++) {
+    const candidate = path.join(dir, n === 0 ? name : `${stem} (${n})${ext}`);
+    if (!path.resolve(candidate).startsWith(dir + path.sep)) break;
+    if (!fs.existsSync(candidate)) return candidate;
+  }
+  throw new Error(`download: no free file name for ${name} in the download folder`);
+}
+
+// Click the control, wait for the download it starts, and save it in the download folder.
+async function download(target) {
+  if (!downloadDir) throw new Error("download: this session has no download folder");
+  expectingDownload = true;
+  let item;
+  try {
+    [item] = await Promise.all([
+      page.waitForEvent("download", { timeout: DOWNLOAD_START_TIMEOUT }),
+      target.click({ timeout: ACTION_TIMEOUT }),
+    ]);
+  } catch (error) {
+    throw new Error("download: no download started when the control was clicked");
+  } finally {
+    expectingDownload = false;
+  }
+  const failure = await item.failure();
+  if (failure) throw new Error(`download: the download failed (${failure})`);
+  const file = freePath(downloadDir, safeFileName(item.suggestedFilename()));
+  await item.saveAs(file);
+  await item.delete().catch(() => {});
+  const bytes = fs.statSync(file).size;
+  if (bytes > MAX_DOWNLOAD_BYTES) {
+    fs.unlinkSync(file);
+    throw new Error(`download: ${path.basename(file)} is larger than 50 MB, so it was not kept`);
+  }
+  const sha256 = crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+  const name = path.basename(file);
+  return {
+    verified: true, // Saved, whole, in the download folder.
+    chosen: name,
+    download: { file: name, path: file, bytes, sha256, suggested: item.suggestedFilename(), url: item.url() },
+  };
+}
+
+// The downloads that steps other than "download" started: not saved, only named.
+async function dropStrayDownloads() {
+  const names = [];
+  for (const item of strayDownloads) {
+    names.push(item.suggestedFilename());
+    await item.cancel().catch(() => {});
+    await item.delete().catch(() => {});
+  }
+  strayDownloads = [];
+  return names;
+}
+
 // Give files to a file input, or to the file chooser that a button opens (its file input is often
 // hidden). A chooser's accept and multiple are checked here; a file input's were checked when the
 // step was planned. Returns the names the input holds afterwards.
@@ -565,6 +652,9 @@ async function act({ op, ref, locator: spec, end_ref: endRef, end_locator: endSp
   const urlBefore = page.url();
   let verified = null;
   let chosen = null;
+  let saved = null;
+  strayDownloads = [];
+  const requestsBefore = navigationRequests;
   const options = { timeout: ACTION_TIMEOUT };
   if (op === "click") {
     await target.click(options);
@@ -581,6 +671,8 @@ async function act({ op, ref, locator: spec, end_ref: endRef, end_locator: endSp
     ({ verified, chosen } = await choose(target, value));
   } else if (op === "upload") {
     ({ verified, chosen } = await upload(target, files));
+  } else if (op === "download") {
+    ({ verified, chosen, download: saved } = await download(target));
   } else if (op === "choose_date") {
     ({ verified, chosen } = await chooseDate(target, value));
   } else if (op === "choose_date_range") {
@@ -596,10 +688,18 @@ async function act({ op, ref, locator: spec, end_ref: endRef, end_locator: endSp
     throw new Error(`unknown op ${op}`);
   }
   await settle();
+  const noPage = navigationRequests !== requestsBefore && mainNavigations === navigationsBefore;
+  if (op !== "download" && noPage && !strayDownloads.length) {
+    // The step asked for a page that never loaded: often a file that downloads instead. Its
+    // download event comes a moment after the page went idle, so wait for it, briefly.
+    await page.waitForEvent("download", { timeout: 1500 }).catch(() => {});
+  }
   return {
     resolved_by: resolvedBy,
     verified,
     chosen,
+    download: saved,
+    unsaved_downloads: await dropStrayDownloads(),
     navigated: mainNavigations !== navigationsBefore,
     url_before: urlBefore,
     url: page.url(),

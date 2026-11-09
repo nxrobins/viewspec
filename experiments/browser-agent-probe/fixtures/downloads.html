@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture downloads</title></head>
+<body>
+<main>
+  <h1>Your account</h1>
+
+  <section aria-labelledby="docs">
+    <h2 id="docs">Documents</h2>
+    <ul>
+      <!-- A link that downloads, with the name the server gives. -->
+      <li><a href="files/invoice-1042.pdf" download>Invoice INV-1042</a></li>
+      <!-- A plain link to a file the browser does not show: it downloads too. -->
+      <li><a href="files/price-list.csv">Price list (CSV)</a></li>
+      <!-- A link that suggests a file name with a path in it. -->
+      <li><a href="files/notes.txt" download="../../.profile">Setup notes</a></li>
+      <!-- A link that downloads nothing. -->
+      <li><a href="#terms">Terms of service</a></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="orders">
+    <h2 id="orders">Orders</h2>
+    <table>
+      <thead><tr><th>Order</th><th>Date</th><th>Total</th></tr></thead>
+      <tbody>
+        <tr><td>1042</td><td>2026-11-02</td><td>49.00</td></tr>
+        <tr><td>1043</td><td>2026-11-05</td><td>108.00</td></tr>
+        <tr><td>1044</td><td>2026-11-08</td><td>19.00</td></tr>
+      </tbody>
+    </table>
+    <!-- The page builds the file and starts the download by script, as many export buttons do. -->
+    <button type="button" id="export">Export orders</button>
+    <p role="status" id="export-status"></p>
+  </section>
+
+  <section id="terms" aria-labelledby="terms-title">
+    <h2 id="terms-title">Terms</h2>
+    <p>Fixture terms.</p>
+  </section>
+</main>
+<script>
+  document.getElementById("export").addEventListener("click", () => {
+    const rows = [...document.querySelectorAll("table tr")].map((tr) =>
+      [...tr.children].map((cell) => cell.textContent.trim()).join(","));
+    const blob = new Blob([rows.join("\n") + "\n"], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "orders-2026-11.csv";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    document.getElementById("export-status").textContent = "Export started";
+  });
+</script>
+</body>
+</html>
