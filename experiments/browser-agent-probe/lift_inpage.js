@@ -510,6 +510,172 @@
     return norm(copy.textContent) === want;
   }
 
+  // ---- Date pickers -----------------------------------------------------------------------------
+  const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "august",
+    "september", "october", "november", "december"];
+  function monthOf(word) {
+    const w = (word || "").toLowerCase().replace(/\.$/, "");
+    if (w.length < 3) return 0;
+    const index = MONTH_NAMES.findIndex((name) => name.startsWith(w));
+    return index + 1;
+  }
+  // A full date in a label ("Friday, March 7, 1990", "7 March 1990", "1990-03-07"): {y, m, d} or null.
+  function fullDate(text) {
+    const t = (text || "").replace(/\s+/g, " ");
+    let match = t.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return { y: +match[1], m: +match[2], d: +match[3] };
+    match = t.match(/([A-Za-z]+)\.? (\d{1,2})(?:st|nd|rd|th)?,? (\d{4})/);
+    if (match && monthOf(match[1])) return { y: +match[3], m: monthOf(match[1]), d: +match[2] };
+    match = t.match(/(\d{1,2})(?:st|nd|rd|th)? ([A-Za-z]+)\.?,? (\d{4})/);
+    if (match && monthOf(match[2])) return { y: +match[3], m: monthOf(match[2]), d: +match[1] };
+    return null;
+  }
+  // A month and year in a calendar's title ("November 2026"): {y, m} or null.
+  function monthTitle(text) {
+    const match = (text || "").match(/([A-Za-z]+)\.?,? (\d{4})/);
+    return match && monthOf(match[1]) ? { y: +match[2], m: monthOf(match[1]) } : null;
+  }
+  const dayLabel = (el) => el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("data-date") ||
+    el.getAttribute("datetime") || "";
+  const OUTSIDE = /outside|other-?month|adjacent|prev-?month|next-?month|not-?current|muted/i;
+
+  // The day cells of a calendar: the innermost visible elements that show a day number (1-31) or carry
+  // a full date in their label.
+  function dayCells(root) {
+    const found = [];
+    for (const el of root.querySelectorAll("button, td, a, [role=gridcell], [role=button], [role=option], span, div")) {
+      if (!shown(el)) continue;
+      const text = (el.textContent || "").trim();
+      const labelled = fullDate(dayLabel(el));
+      if (!labelled && !/^\d{1,2}$/.test(text)) continue;
+      if (!labelled && (+text < 1 || +text > 31)) continue;
+      found.push(el);
+    }
+    return found.filter((el) => !found.some((other) => other !== el && el.contains(other)));
+  }
+  function lowerScore(a, b) {
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i];
+    return false;
+  }
+  // How far apart two elements are in the tree: steps up from ``a`` to the nearest element that
+  // also holds ``b``.
+  function treeDistance(a, b) {
+    let steps = 0;
+    for (let node = a; node; node = node.parentElement || node.getRootNode().host || null, steps++) {
+      if (node.contains(b)) return steps;
+    }
+    return Infinity;
+  }
+  // The open calendar of a field: a visible dialog, grid, or calendar-like block with a month of day
+  // cells. The one the field names in aria-controls wins; then the one nearest the field in the tree
+  // (another field's calendar may still be open); then the one with the most day cells.
+  function calendarFor(el) {
+    const named = (el.getAttribute("aria-controls") || "").split(/\s+/).filter(Boolean).map((id) => byId(el, id));
+    let best = null;
+    let bestScore = null;
+    const selector = "[role=dialog], [role=grid], [role=application], table, [class*=calendar i], [class*=picker i]";
+    for (const root of rootsOf(el.ownerDocument)) {
+      for (const candidate of root.querySelectorAll(selector)) {
+        if (!shown(candidate)) continue;
+        const count = dayCells(candidate).length;
+        if (count < 28) continue;
+        // Lower is better, field by field: named by the field, nearer in the tree, more day cells.
+        const score = [
+          named.some((n) => n && (n === candidate || n.contains(candidate))) ? 0 : 1,
+          treeDistance(el, candidate),
+          -count,
+        ];
+        if (!bestScore || lowerScore(score, bestScore)) {
+          best = candidate;
+          bestScore = score;
+        }
+      }
+    }
+    // Move up to the dialog around a grid, where the month title and buttons are.
+    const outer = best && best.closest("[role=dialog], [class*=calendar i], [class*=picker i]");
+    return outer && dayCells(outer).length >= dayCells(best).length ? outer : best;
+  }
+  // Read the open calendar of the field ``ref`` for the date ``iso`` (YYYY-MM-DD).
+  function readCalendar(ref, iso) {
+    const el = get(ref);
+    if (!el) return { state: "stale" };
+    const cal = calendarFor(el);
+    if (!cal) return { state: "closed" };
+    const [ty, tm, td] = iso.split("-").map(Number);
+    const cells = dayCells(cal).map((cell) => {
+      const date = fullDate(dayLabel(cell));
+      const outside = OUTSIDE.test(`${cell.className} ${cell.parentElement ? cell.parentElement.className : ""}`);
+      const disabled = cell.disabled || cell.getAttribute("aria-disabled") === "true" || /disabled|unavailable/i.test(cell.className);
+      return { cell, date, day: date ? date.d : +cell.textContent.trim(), outside, disabled };
+    });
+    // Which month is shown: its month and year lists, its title, or the dates of its days.
+    const lists = [...cal.querySelectorAll("select")];
+    const monthList = lists.find((s) => s.options.length === 12 && [...s.options].every((o) => monthOf(o.textContent)));
+    const yearList = lists.find((s) => s.options.length > 1 && [...s.options].every((o) => /^\d{4}$/.test(o.textContent.trim())));
+    let shownMonth = null;
+    if (monthList && yearList) {
+      shownMonth = { y: +yearList.selectedOptions[0].textContent, m: monthOf(monthList.selectedOptions[0].textContent) };
+    }
+    if (!shownMonth) {
+      for (const title of cal.querySelectorAll("h1, h2, h3, h4, h5, h6, caption, [aria-live], [class*=title i], [class*=caption i], [class*=header i]")) {
+        shownMonth = monthTitle(title.textContent);
+        if (shownMonth) break;
+      }
+    }
+    if (!shownMonth) {
+      const dated = cells.filter((c) => c.date && !c.outside);
+      if (dated.length) shownMonth = { y: dated[Math.floor(dated.length / 2)].date.y, m: dated[Math.floor(dated.length / 2)].date.m };
+    }
+    // The day to click: by its full date, or by its number in the month shown (skipping the days of
+    // the months around it, which repeat numbers at the start and end of the grid).
+    let target = cells.find((c) => c.date && c.date.y === ty && c.date.m === tm && c.date.d === td) || null;
+    if (!target && shownMonth && shownMonth.y === ty && shownMonth.m === tm) {
+      const inMonth = cells.filter((c) => !c.date && !c.outside);
+      const days = inMonth.map((c) => c.day);
+      const start = days.findIndex((day, i) => day === 1 && days.slice(i, i + 28).every((d, k) => d === k + 1));
+      const run = start >= 0 ? inMonth.slice(start) : inMonth;
+      target = run.find((c, k) => c.day === td && (start < 0 || k === td - 1)) || null;
+    }
+    const nameOfButton = (b) => `${b.getAttribute("aria-label") || ""} ${b.getAttribute("title") || ""} ${b.textContent || ""}`;
+    const buttons = [...cal.querySelectorAll("button, [role=button], a")].filter((b) => shown(b) && !cells.some((c) => c.cell === b));
+    const next = buttons.find((b) => /next|›|»|→|forward/i.test(nameOfButton(b)) || nameOfButton(b).trim() === ">");
+    const prev = buttons.find((b) => /prev|‹|«|←|back/i.test(nameOfButton(b)) || nameOfButton(b).trim() === "<");
+    return {
+      state: "open",
+      shown: shownMonth,
+      target: target ? { ref: refOf(target.cell), disabled: target.disabled } : null,
+      next: next ? refOf(next) : null,
+      prev: prev ? refOf(prev) : null,
+      monthList: monthList ? refOf(monthList) : null,
+      yearList: yearList ? { ref: refOf(yearList), years: [...yearList.options].map((o) => +o.textContent) } : null,
+    };
+  }
+  // A button beside the field that opens its calendar: named for a date, a calendar, or choosing.
+  function calendarOpener(ref) {
+    const el = get(ref);
+    let scope = el ? el.parentElement : null;
+    for (let depth = 0; scope && depth < 3; depth++, scope = scope.parentElement) {
+      const found = [...scope.querySelectorAll("button, [role=button]")].find(
+        (b) => b !== el && shown(b) && /date|calendar|choose|pick/i.test(nameOf(b)),
+      );
+      if (found) return refOf(found);
+    }
+    return null;
+  }
+  // Does the field show the date ``iso``, in any common order of day, month, and year?
+  function showsDate(ref, iso) {
+    const el = get(ref);
+    if (!el) return false;
+    const [y, m, d] = iso.split("-").map(Number);
+    const text = "value" in el && el.tagName !== "BUTTON" ? el.value : el.textContent;
+    const named = fullDate(text);
+    if (named) return named.y === y && named.m === m && named.d === d;
+    const numbers = (text.match(/\d+/g) || []).map(Number);
+    if (numbers.length !== 3) return false;
+    const [a, b, c] = numbers;
+    return (a === y && b === m && c === d) || (c === y && ((a === m && b === d) || (a === d && b === m)));
+  }
+
   // ---- Checks after an action -------------------------------------------------------------------
   // Each returns true or false and never returns the element's value, so a secret stays in the page.
   function hasValue(el, value) {
@@ -539,6 +705,9 @@
     showsChoice,
     scrollStep,
     scrollNow,
+    readCalendar,
+    calendarOpener,
+    showsDate,
     hasValue,
     hasSelected,
     isChecked,

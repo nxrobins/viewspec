@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from viewspec.raw_html import HtmlLiftResult, LiftNode
-from viewspec.raw_html_agent import HtmlControl
+from viewspec.raw_html_agent import HtmlControl, hidden_ids
 
 VIEW_GROUP_MIN = 3
 TEXT_PREVIEW = 70
@@ -36,6 +36,8 @@ def control_line(handle: int, control: HtmlControl) -> str:
             line += " secret"
         if control.readonly:
             line += " read-only"
+        if control.date and control.control == "text":
+            line += " date"  # A custom date field: select a date, and its calendar is used.
     if control.href:
         line += f" -> {control.href}"
     if control.submits:
@@ -130,6 +132,7 @@ def view_lines(lift: HtmlLiftResult) -> tuple[list[ViewLine], dict[int, HtmlCont
     roles = {role.node_id: role for role in lift.roles}
     by_id = {node.id: node for node in lift.nodes}
     sections = _Sections(lift)
+    hidden = hidden_ids(lift.nodes)
     lines: list[ViewLine] = []
     handles: dict[int, HtmlControl] = {}
     in_row: set[str] = set()
@@ -138,11 +141,13 @@ def view_lines(lift: HtmlLiftResult) -> tuple[list[ViewLine], dict[int, HtmlCont
         lines.append(ViewLine(text, kind, node_id, sections.heading_for(node_id), **extra))
 
     for node in lift.nodes:
+        if node.id in hidden:
+            continue  # A closed dialog's rows and lists are not on the page the user sees.
         if node.parent_id in in_row and node.id not in controls:
             in_row.add(node.id)
             continue
         group = group_of.get(node.id)
-        if group and group[0] == node.id:
+        if group and group[0] == node.id and node.tag not in {"option", "optgroup"}:
             add(f"group {len(group)}x <{node.tag}>", "group", node.id)
         if node.id in messages:
             message = messages[node.id]

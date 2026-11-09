@@ -243,6 +243,36 @@ async def run(base: str) -> None:
         nothing = await tool(session, "act", action="click")
         check(not nothing["ok"] and nothing["errors"][0]["code"] == "BROWSER_HANDLE_REQUIRED", "click needs a handle")
 
+        print("\n== dates ==")
+        booking = await tool(session, "observe", url=f"{base}/booking.html")
+        [book] = booking["form_tools"]
+        checkout = book["input_schema"]["properties"]["checkout"]
+        check(
+            checkout["format"] == "date" and "picked from its calendar" in checkout["description"],
+            "the form tool says check-out is a date picked from a calendar",
+        )
+        later = await tool(session, "act", handle=handle(booking, "Check-out"), action="select", value="2027-02-14")
+        check(later["ok"] and later["steps"][0]["chosen"] == "2027-02-14", "select picks a date from the calendar")
+        check("'Check-out' = '14/02/2027'" in later["view"], "and the field shows it in its own format")
+        past = await tool(session, "act", handle=handle(later, "Check-out"), action="select", value="2026-11-05")
+        check(not past["ok"] and past["errors"][0]["code"] == "BROWSER_DATE_UNAVAILABLE", "a disabled day is refused")
+        unclear = await tool(session, "act", handle=handle(later, "Check-in"), action="select", value="11/12/2026")
+        check(
+            not unclear["ok"] and "two dates" in unclear["summary"] and "Nothing was done" in unclear["summary"],
+            "an ambiguous date is refused before the browser acts",
+        )
+        booked = await tool(
+            session,
+            "call",
+            tool="book_a_stay",
+            arguments={"checkin": "Dec 1, 2026", "checkout": "2026-12-05", "dob": "15 June 1985", "guests": 3},
+        )
+        fields = booked["blocked_writes"][0]["form_fields"]
+        check(
+            fields == {"checkin": "2026-12-01", "checkout": "05/12/2026", "dob": "06/15/1985", "guests": "3"},
+            "a form call fills and picks every date",
+        )
+
         print("\n== long pages ==")
         catalog = await tool(session, "observe", url=f"{base}/catalog.html")
         reading = catalog["observation_id"]

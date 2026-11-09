@@ -13,6 +13,8 @@ It serves the fixtures on 127.0.0.1, then:
    ``BrowserSession.wait`` it sees the answer, without polling on a timer.
 6. choosing: custom comboboxes. One fetches its options as you type; one opens on a click.
 7. scrolling: an infinite feed and a pane that each load more as they are scrolled.
+8. dates: a native date field, and two custom date pickers (one with month buttons and plain day
+   numbers, one with month and year lists).
 
 After each action in checkout and shop, the script also checks the diff between the reading before
 and the reading after (``agent_session.changes``).
@@ -359,6 +361,70 @@ def scrolling(session: BrowserSession, base: str) -> None:
     check(top.moved and not top.loaded, "scrolling to the top moves the page and loads nothing")
 
 
+def dates(session: BrowserSession, base: str) -> None:
+    print("\n== dates: native fields and custom date pickers ==")
+    session.open(f"{base}/booking.html")
+    view = session.observe()
+    check("[2] text 'Check-out' read-only date" in view.view, "the view marks the custom date field")
+
+    def pick(name: str, value: str) -> list[StepResult]:
+        before = session.observe()
+        results = session.act(handle_named(session, name), "select", value)
+        show(results)
+        print("\n".join(f"  ~~  {line}" for line in changes(before, session.observe())["lines"]))
+        return results
+
+    native = pick("Check-in", "Nov 20, 2026")
+    check(native[0].step.op == "fill" and native[0].step.value == "2026-11-20", "a native date field is filled as ISO")
+    for name, value, words in (
+        ("Check-in", "2026-11-01", "before the earliest"),
+        ("Check-in", "11/12/2026", "two dates"),
+    ):
+        try:
+            session.act(handle_named(session, name), "select", value)
+            check(False, f"{value!r} is refused")
+        except AgentActionError as error:
+            check(words in error.message, f"{value!r} is refused before the browser acts: {words}")
+
+    soon = pick("Check-out", "2026-11-23")
+    check(
+        soon[0].step.op == "choose_date" and soon[0].verified,
+        "the check-out calendar, opened by its button, picks a day",
+    )
+    check(
+        session.observe().handles[handle_named(session, "Check-out")].value == "23/11/2026",
+        "the field shows 23/11/2026",
+    )
+    later = pick("Check-out", "2027-02-14")
+    check(later[0].verified, "it moves three months ahead and picks 14 February")
+    try:
+        session.act(handle_named(session, "Check-out"), "select", "2026-11-05")
+        check(False, "a past day is refused")
+    except BridgeError as error:
+        print(f"  !!  {error}")
+        check("not available" in str(error), "a past (disabled) day is refused")
+    open_days = [c.name for c in session.observe().lift.controls if c.name.isdigit()]
+    check(open_days == [], "and the calendar it opened is closed again")
+    born = pick("Date of birth", "March 7, 1990")
+    check(born[0].verified, "the birth date calendar uses its month and year lists")
+    check(
+        session.observe().handles[handle_named(session, "Date of birth")].value == "03/07/1990",
+        "the field shows 03/07/1990",
+    )
+
+    results = session.call(
+        "book_a_stay", {"checkin": "2026-12-01", "checkout": "December 5, 2026", "dob": "1985-06-15", "guests": 3}
+    )
+    show(results)
+    [write] = session.blocked_writes()
+    body = {key: values[0] for key, values in parse_qs(write["post_data"] or "").items()}
+    print(f"  ..  blocked {write['method']} {write['url']}: {body}")
+    check(
+        body == {"checkin": "2026-12-01", "checkout": "05/12/2026", "dob": "06/15/1985", "guests": "3"},
+        "a form call fills the native date and picks both calendar dates",
+    )
+
+
 def main() -> int:
     server, base = serve()
     try:
@@ -370,6 +436,7 @@ def main() -> int:
             waiting(session, base)
             choosing(session, base)
             scrolling(session, base)
+            dates(session, base)
     except AssertionError as error:
         print(f"\nFAILED: {error}")
         return 1

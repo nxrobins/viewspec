@@ -401,6 +401,82 @@ async function scroll(ref, direction, waitMs) {
   };
 }
 
+// Pick the date ``iso`` (YYYY-MM-DD) from the calendar of a custom date field: open the calendar (by
+// a click on the field, or on a calendar button beside it), go to the right month (with the
+// calendar's month and year lists, or its next and previous buttons), and click the day.
+async function chooseDate(target, iso) {
+  const ref = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
+  const read = () => page.evaluate(([r, d]) => window.__viewspecLift.readCalendar(r, d), [ref, iso]);
+  const changed = (ms = 1500) => page.evaluate((t) => window.__viewspecLift.nextChange(t), ms).catch(() => true);
+  const clickRef = async (r) => {
+    const handle = (await page.evaluateHandle((x) => window.__viewspecLift.get(x), r)).asElement();
+    await handle.click({ timeout: ACTION_TIMEOUT });
+  };
+  let info = await read();
+  let openedBy = null; // What this step clicked to open the calendar, to close it again on failure.
+  if (info.state === "closed") {
+    await target.click({ timeout: ACTION_TIMEOUT });
+    await changed();
+    info = await read();
+    if (info.state === "open") openedBy = "field";
+  }
+  if (info.state === "closed") {
+    const opener = await page.evaluate((r) => window.__viewspecLift.calendarOpener(r), ref);
+    if (opener) {
+      await clickRef(opener);
+      await changed();
+      info = await read();
+      if (info.state === "open") openedBy = opener;
+    }
+  }
+  if (info.state !== "open") throw new Error(`choose_date: no calendar opened for ${iso}`);
+  try {
+    return await pickDay(info, read, changed, clickRef, target, ref, iso);
+  } catch (error) {
+    // Leave the page as it was: close the calendar this step opened, so another field's calendar
+    // is not mistaken for it later.
+    await target.press("Escape", { timeout: ACTION_TIMEOUT }).catch(() => {});
+    if (openedBy && openedBy !== "field" && (await read()).state === "open") await clickRef(openedBy).catch(() => {});
+    throw error;
+  }
+}
+
+async function pickDay(info, read, changed, clickRef, target, ref, iso) {
+  const [year, month] = iso.split("-").map(Number);
+  let usedLists = false;
+  for (let step = 0; step < 240 && !info.target; step++) {
+    if (info.monthList && info.yearList && !usedLists) {
+      if (!info.yearList.years.includes(year)) throw new Error(`choose_date: the calendar offers no year ${year}`);
+      const yearHandle = (await page.evaluateHandle((x) => window.__viewspecLift.get(x), info.yearList.ref)).asElement();
+      await yearHandle.selectOption({ label: String(year) });
+      const monthHandle = (await page.evaluateHandle((x) => window.__viewspecLift.get(x), info.monthList)).asElement();
+      await monthHandle.selectOption({ index: month - 1 });
+      usedLists = true;
+      await changed();
+      info = await read();
+      continue;
+    }
+    if (!info.shown) throw new Error("choose_date: cannot tell which month the calendar shows");
+    const ahead = (year - info.shown.y) * 12 + (month - info.shown.m);
+    if (ahead === 0) throw new Error(`choose_date: the calendar shows the month, but no day for ${iso}`);
+    const button = ahead > 0 ? info.next : info.prev;
+    if (!button) throw new Error(`choose_date: the calendar has no ${ahead > 0 ? "next" : "previous"} month button`);
+    const before = info.shown;
+    await clickRef(button);
+    await changed();
+    info = await read();
+    if (info.state !== "open" || !info.shown || (info.shown.y === before.y && info.shown.m === before.m)) {
+      throw new Error("choose_date: the calendar did not move to another month");
+    }
+  }
+  if (!info.target) throw new Error(`choose_date: could not reach ${iso} in the calendar`);
+  if (info.target.disabled) throw new Error(`choose_date: ${iso} is not available in the calendar`);
+  await clickRef(info.target.ref);
+  await settle();
+  const verified = await page.evaluate(([r, d]) => window.__viewspecLift.showsDate(r, d), [ref, iso]);
+  return { verified, chosen: iso };
+}
+
 async function act({ op, ref, locator: spec, value, values, wait_ms: waitMs = 2500 }) {
   if (op === "scroll" && !ref && !spec) {
     const result = await scroll(null, value, waitMs);
@@ -425,6 +501,8 @@ async function act({ op, ref, locator: spec, value, values, wait_ms: waitMs = 25
     verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasSelected(el, v), values);
   } else if (op === "choose") {
     ({ verified, chosen } = await choose(target, value));
+  } else if (op === "choose_date") {
+    ({ verified, chosen } = await chooseDate(target, value));
   } else if (op === "scroll") {
     const liveRef = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
     const result = await scroll(liveRef, value, waitMs);

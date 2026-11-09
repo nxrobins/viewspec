@@ -546,6 +546,10 @@ def _bridge_code(error: BridgeError) -> str:
         return "BROWSER_OPTION_AMBIGUOUS"
     if message.startswith("choose: no option"):
         return "BROWSER_OPTION_NOT_FOUND"
+    if message.startswith("choose_date:") and "not available" in message:
+        return "BROWSER_DATE_UNAVAILABLE"
+    if message.startswith("choose_date:"):
+        return "BROWSER_DATE_NOT_PICKED"
     if message.startswith("drift:"):
         return "BROWSER_TARGET_DRIFT"
     if message.startswith("stale:"):

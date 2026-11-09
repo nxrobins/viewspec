@@ -71,6 +71,20 @@ STRING_FORMATS = {
     "url": "uri",
 }
 SLUG_RE = re.compile(r"[^a-z0-9]+")
+# Native inputs that hold a date or a time, and the shape their value has.
+DATE_INPUT_TYPES = {
+    "date": "YYYY-MM-DD",
+    "datetime-local": "YYYY-MM-DDTHH:MM",
+    "month": "YYYY-MM",
+    "time": "HH:MM",
+    "week": "YYYY-Www",
+}
+# A text field that holds a date, by its name, id, or label ("Check-in", "date_of_birth"), or by a
+# placeholder that shows a date's shape ("DD/MM/YYYY"). Such a field often opens a calendar.
+DATE_HINT_RE = re.compile(
+    r"(?<![a-z])(?:dates?|dob|birth\w*|check.?in|check.?out|arrival|departure|deadline|due)(?![a-z])", re.IGNORECASE
+)
+DATE_PLACEHOLDER_RE = re.compile(r"(?<![a-z])(?:dd|mm|yy|yyyy)\s*[/.\-]\s*(?:dd|mm|yy|yyyy)(?![a-z])", re.IGNORECASE)
 
 
 def is_sensitive_control(tag: str, attrs: Mapping[str, str]) -> bool:
@@ -136,6 +150,10 @@ class HtmlControl:
     ref: str | None = None
     tag: str = ""
     expanded: bool | None = None
+    minimum: str | None = None
+    maximum: str | None = None
+    popup: str | None = None
+    date: bool = False
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -158,6 +176,10 @@ class HtmlControl:
             "readonly": self.readonly,
             "secret": self.secret,
             "expanded": self.expanded,
+            "minimum": self.minimum,
+            "maximum": self.maximum,
+            "popup": self.popup,
+            "date": self.date,
         }
         if self.options:
             payload["options"] = [option.to_json() for option in self.options]
@@ -284,6 +306,17 @@ class _Page:
             if found:
                 return found
         return ""
+
+
+def _is_date_field(node: LiftNode, control: str, name: str) -> bool:
+    if node.tag == "input" and control in DATE_INPUT_TYPES:
+        return True
+    if node.tag != "input" or control not in {"text", "search", "textbox"}:
+        return False
+    hints = (node.attrs.get("name", ""), node.attrs.get("id", ""), name)
+    return any(DATE_HINT_RE.search(hint) for hint in hints) or bool(
+        DATE_PLACEHOLDER_RE.search(node.attrs.get("placeholder", ""))
+    )
 
 
 def _role(node: LiftNode) -> str:
@@ -616,6 +649,10 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 ref=node.attrs.get(HINT_REF) or None,
                 tag=node.tag,
                 expanded=expanded,
+                minimum=node.attrs.get("min") or None,
+                maximum=node.attrs.get("max") or None,
+                popup=(node.attrs.get("aria-haspopup") or "").lower() or None,
+                date=_is_date_field(node, control, name),
             )
         )
         roles.append((node.id, kind, name, confidence))
@@ -643,6 +680,12 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
         roles=tuple(roles),
         excluded_ids=frozenset(excluded),
     )
+
+
+def hidden_ids(nodes: Sequence[LiftNode]) -> frozenset[str]:
+    """The nodes the user cannot see: under ``hidden``, ``aria-hidden="true"``, or ``data-lift-hidden``."""
+
+    return frozenset(_Page(nodes).hidden)
 
 
 def visible_text(nodes: Sequence[LiftNode]) -> str:
@@ -695,6 +738,8 @@ class FormField:
 
 
 def _field_kind(control: HtmlControl) -> str:
+    if control.date:
+        return "date"
     if control.control in ARIA_CHOICE and control.tag != "select":
         return "choose"
     if control.control in BOOLEAN_CONTROLS:
@@ -746,6 +791,16 @@ def form_fields(form: HtmlForm, controls: Mapping[str, HtmlControl]) -> tuple[Fo
     return tuple(fields)
 
 
+def _number(value: str | None) -> int | float | None:
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except ValueError:
+        return None
+    return int(number) if number.is_integer() else number
+
+
 def _unique_key(base: str, used: Mapping[str, int]) -> str:
     key = base
     suffix = 2
@@ -775,6 +830,24 @@ def _field_schema(field: FormField) -> dict[str, Any]:
             prop["default"] = control.checked
     elif field.kind == "number":
         prop["type"] = "number"
+        for key, limit in (("minimum", control.minimum), ("maximum", control.maximum)):
+            number = _number(limit)
+            if number is not None:
+                prop[key] = number
+    elif field.kind == "date":
+        native = control.tag == "input" and control.control in DATE_INPUT_TYPES
+        kind = control.control if native else "date"
+        prop["type"] = "string"
+        if kind in STRING_FORMATS:
+            prop["format"] = STRING_FORMATS[kind]
+        detail = DATE_INPUT_TYPES[kind]
+        if control.minimum:
+            detail += f", from {control.minimum}"
+        if control.maximum:
+            detail += f", to {control.maximum}"
+        if not native:
+            detail += "; picked from its calendar"
+        prop["description"] = f"{prop['description']} ({detail})"
     elif field.kind == "choose":
         prop["type"] = "string"
         labels = [option.label for option in control.options if not option.disabled]
@@ -796,8 +869,9 @@ def _field_schema(field: FormField) -> dict[str, Any]:
         prop["type"] = "string"
         if control.control in STRING_FORMATS:
             prop["format"] = STRING_FORMATS[control.control]
-    if control.value not in {None, "", "[redacted]"} and field.kind != "boolean":
-        prop["default"] = control.value
+    custom_date = field.kind == "date" and control.control not in DATE_INPUT_TYPES
+    if control.value not in {None, "", "[redacted]"} and field.kind != "boolean" and not custom_date:
+        prop["default"] = control.value  # A calendar's own display format is not the tool's format.
     if control.secret:
         prop["writeOnly"] = True
     if control.readonly:
@@ -887,6 +961,7 @@ __all__ = [
     "form_tool_name",
     "form_tool_names",
     "form_tool_schema",
+    "hidden_ids",
     "is_sensitive_control",
     "visible_text",
 ]

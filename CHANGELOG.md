@@ -36,6 +36,12 @@ All notable changes to ViewSpec are documented in this file. The format follows
   a form tool call, plan a `choose` step that picks an option by name.
 - `viewspec.raw_html_actions.plan_scroll(direction, control=None)` plans a scroll of the page or of
   the area that holds a control (`end`, `down`, `up`, `top`), for lists that load more as they scroll.
+- Agent lift controls carry `date`, `minimum`, `maximum`, and `popup`; native date and time inputs
+  and text fields named or shaped like dates are date fields. `parse_date()` reads common date forms
+  and refuses ambiguous numeric dates; `date_value()` puts a value in a field's format and checks
+  `min` and `max`. `select` on a native date field plans a `fill` in that format, and on a custom
+  date field a `choose_date` step. Form tools give date fields a `format`, and number fields `minimum`
+  and `maximum`. `hidden_ids()` returns the nodes a user cannot see.
 
 ## [0.4.0] - 2026-11-01
 

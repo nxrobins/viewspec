@@ -139,6 +139,27 @@ name starts with it. A listbox shows all its options, so its value must name one
 tool, a combobox field is a string described as "pick an option from its list", with the options
 the page shows as `examples`; a listbox field is an `enum`.
 
+### Date fields
+
+A control has `date: true` when it holds a date: a native `date`, `datetime-local`, `month`, `time`,
+or `week` input, or a text field whose name, id, or label says so (`date`, `dob`, `birth…`,
+`check-in`, `check-out`, `arrival`, `departure`, `deadline`, `due`), or whose placeholder shows a
+date's shape (`DD/MM/YYYY`). Controls also carry `minimum` and `maximum` (from `min` and `max`) and
+`popup` (from `aria-haspopup`).
+
+`viewspec.raw_html_actions.parse_date()` reads `YYYY-MM-DD` (or with `/` or `.`), "20 November
+2026", "Nov 20, 2026", and "Friday, November 20, 2026". It reads a numeric day-month-year date only
+when there is one way to read it: "20/11/2026" is 20 November, and "11/12/2026" is refused as
+ambiguous. `date_value(control, value)` puts a value in the field's own format (`YYYY-MM-DD`,
+`YYYY-MM`, `HH:MM`, `YYYY-MM-DDTHH:MM`, or `YYYY-Www`) and checks `min` and `max`.
+
+`select` (or `fill`) on a native date field plans a `fill` in that format. `select` on a custom date
+field plans a `choose_date` step with a `YYYY-MM-DD` value, for a driver to pick from the field's
+calendar; a read-only custom date field takes `select` but not `fill`. In a form tool, a date field
+is a string with `format: date` (or `date-time`, `time`), a description that gives its shape and its
+limits, and for a custom field, "picked from its calendar". Number fields get `minimum` and
+`maximum`. `viewspec.raw_html_agent.hidden_ids(nodes)` returns the nodes the user cannot see.
+
 ### Messages and changes
 
 `lift.messages` holds the text of each visible region where the page reports what happened: a

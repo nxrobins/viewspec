@@ -11,11 +11,14 @@ the snapshot set one, so the driver can find the exact element again.
 
 from __future__ import annotations
 
+import datetime
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from viewspec.raw_html_agent import (
+    DATE_INPUT_TYPES,
     FormField,
     HtmlControl,
     HtmlForm,
@@ -29,6 +32,37 @@ if TYPE_CHECKING:
 ACTION_OPS = ("click", "fill", "check", "uncheck", "select", "submit")
 SCROLL_DIRECTIONS = ("end", "down", "up", "top")
 ARIA_CHOICE = frozenset({"combobox", "listbox"})
+MONTHS = {
+    name: number
+    for number, names in enumerate(
+        [
+            ("january", "jan"),
+            ("february", "feb"),
+            ("march", "mar"),
+            ("april", "apr"),
+            ("may",),
+            ("june", "jun"),
+            ("july", "jul"),
+            ("august", "aug"),
+            ("september", "sep", "sept"),
+            ("october", "oct"),
+            ("november", "nov"),
+            ("december", "dec"),
+        ],
+        start=1,
+    )
+    for name in names
+}
+_WEEKDAY = r"(?:[a-z]+,?\s+)?"
+_ORDINAL = r"(?:st|nd|rd|th)?"
+ISO_DATE_RE = re.compile(r"(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})")
+NUMERIC_DATE_RE = re.compile(r"(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})")
+DAY_MONTH_RE = re.compile(_WEEKDAY + r"(\d{1,2})" + _ORDINAL + r"\s+([a-z]+)\.?,?\s+(\d{4})")
+MONTH_DAY_RE = re.compile(_WEEKDAY + r"([a-z]+)\.?\s+(\d{1,2})" + _ORDINAL + r",?\s+(\d{4})")
+TIME_RE = re.compile(r"(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap])?\.?m?\.?")
+MONTH_RE = re.compile(r"(\d{4})-(\d{1,2})")
+MONTH_NAME_RE = re.compile(r"([a-z]+)\.?,?\s+(\d{4})")
+WEEK_RE = re.compile(r"(\d{4})-w(\d{1,2})")
 NOT_FILLABLE = frozenset(
     {
         "button",
@@ -70,7 +104,8 @@ class ActionStep:
 
     ``op`` is ``click``, ``fill``, ``check``, ``uncheck``, ``select`` (``values`` holds option values),
     ``choose`` (pick the option named ``value`` from an ARIA combobox or listbox: open its list if
-    needed, find the option, click it), ``scroll`` (scroll the page, or the scrollable area that holds
+    needed, find the option, click it), ``choose_date`` (pick the date ``value``, as YYYY-MM-DD, from
+    the calendar of a custom date field), ``scroll`` (scroll the page, or the scrollable area that holds
     the control ``node_id``, in the direction ``value``), or ``submit`` (submit the form ``node_id``
     without a submit button). ``secret`` marks a value that
     must not be logged; ``to_json()`` redacts it unless asked not to.
@@ -206,12 +241,14 @@ def _field_steps(item: FormField, value: Any) -> tuple[ActionStep, ...]:
             raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"Expected a number, not {value!r}.") from None
         text = str(int(number)) if number.is_integer() else str(number)
         return plan_control_action(control, "fill", text)
-    if item.kind in {"select", "multi", "choose"}:
+    if item.kind in {"select", "multi", "choose", "date"}:
         return plan_control_action(control, "select", value)
     return plan_control_action(control, "fill", value)
 
 
 def _empty(item: FormField) -> bool:
+    if item.kind == "date":
+        return not item.control.value
     if item.kind == "choice":
         return not any(member.checked for _, member in item.choices)
     if item.kind == "boolean":
@@ -228,7 +265,118 @@ def _fill(control: HtmlControl, value: Any) -> ActionStep:
         raise AgentActionError("AGENT_ACTION_READONLY", f"{_label(control)} is read-only.")
     if not isinstance(value, str):
         raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"Expected text, not {value!r}.")
+    if _native_date(control):
+        value = date_value(control, value)  # A native date input takes only its own format.
     return _step("fill", control, value=value)
+
+
+def _native_date(control: HtmlControl) -> bool:
+    return control.tag == "input" and control.control in DATE_INPUT_TYPES
+
+
+def _date(control: HtmlControl, value: Any) -> ActionStep:
+    """A date for a date field: fill a native one; pick a custom one's date from its calendar."""
+
+    if _native_date(control):
+        return _fill(control, value)
+    return _step("choose_date", control, value=date_value(control, value))
+
+
+def parse_date(value: Any) -> datetime.date:
+    """Read a date written as YYYY-MM-DD (or with / or .), "20 November 2026", "Nov 20, 2026", or
+    "Friday, November 20, 2026". A numeric day-month-year date is read only when it cannot be read
+    two ways: "20/11/2026" is 20 November, but "11/12/2026" is refused as ambiguous.
+    """
+
+    if not isinstance(value, str) or not value.strip():
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"Expected a date, not {value!r}.")
+    text = " ".join(value.split()).lower()
+    year = month = day = None
+    if match := ISO_DATE_RE.fullmatch(text):
+        year, month, day = (int(part) for part in match.groups())
+    elif match := NUMERIC_DATE_RE.fullmatch(text):
+        first, second, year = (int(part) for part in match.groups())
+        if first == second or (first > 12) != (second > 12):
+            day, month = (first, second) if first > 12 or first == second else (second, first)
+        else:
+            raise AgentActionError(
+                "AGENT_ACTION_VALUE_INVALID", f"{value!r} can be read as two dates; write it as YYYY-MM-DD."
+            )
+    elif (match := DAY_MONTH_RE.fullmatch(text)) and match.group(2) in MONTHS:
+        day, month, year = int(match.group(1)), MONTHS[match.group(2)], int(match.group(3))
+    elif (match := MONTH_DAY_RE.fullmatch(text)) and match.group(1) in MONTHS:
+        month, day, year = MONTHS[match.group(1)], int(match.group(2)), int(match.group(3))
+    if year is None or month is None or day is None:
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{value!r} is not a date; write it as YYYY-MM-DD.")
+    try:
+        return datetime.date(year, month, day)
+    except ValueError:
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{value!r} is not a real date.") from None
+
+
+def date_value(control: HtmlControl, value: Any) -> str:
+    """The value a date field takes, in its own format, checked against its ``min`` and ``max``.
+
+    A custom date field takes YYYY-MM-DD. Native fields take YYYY-MM-DD (date), YYYY-MM (month),
+    HH:MM (time), YYYY-MM-DDTHH:MM (datetime-local), or YYYY-Www (week).
+    """
+
+    kind = control.control if _native_date(control) else "date"
+    if not isinstance(value, str) or not value.strip():
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{_label(control)} takes a {kind}, not {value!r}.")
+    text = " ".join(value.split())
+    if kind == "date":
+        result = parse_date(text).isoformat()
+    elif kind == "time":
+        result = _time(text)
+    elif kind == "datetime-local":
+        date_part, _, time_part = text.replace("T", " ").replace("t", " ").partition(" ")
+        if not time_part:
+            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{value!r} has no time; write YYYY-MM-DDTHH:MM.")
+        result = f"{parse_date(date_part).isoformat()}T{_time(time_part)}"
+    elif kind == "month":
+        result = _month(text)
+    else:
+        match = WEEK_RE.fullmatch(text.lower())
+        if not match or not 1 <= int(match.group(2)) <= 53:
+            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{value!r} is not a week; write YYYY-Www.")
+        result = f"{int(match.group(1)):04d}-W{int(match.group(2)):02d}"
+    if control.minimum and len(control.minimum) == len(result) and result < control.minimum:
+        raise AgentActionError(
+            "AGENT_ACTION_VALUE_INVALID", f"{result} is before the earliest allowed, {control.minimum}."
+        )
+    if control.maximum and len(control.maximum) == len(result) and result > control.maximum:
+        raise AgentActionError(
+            "AGENT_ACTION_VALUE_INVALID", f"{result} is after the latest allowed, {control.maximum}."
+        )
+    return result
+
+
+def _time(text: str) -> str:
+    match = TIME_RE.fullmatch(text.strip().lower())
+    if not match:
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{text!r} is not a time; write HH:MM.")
+    hour, minute = int(match.group(1)), int(match.group(2))
+    if match.group(4):
+        if not 1 <= hour <= 12:
+            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{text!r} is not a time.")
+        hour = hour % 12 + (12 if match.group(4) == "p" else 0)
+    if hour > 23 or minute > 59 or (match.group(3) and int(match.group(3)) > 59):
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{text!r} is not a time.")
+    return f"{hour:02d}:{minute:02d}" + (f":{int(match.group(3)):02d}" if match.group(3) else "")
+
+
+def _month(text: str) -> str:
+    lowered = text.lower()
+    if match := MONTH_RE.fullmatch(lowered):
+        year, month = int(match.group(1)), int(match.group(2))
+    elif (match := MONTH_NAME_RE.fullmatch(lowered)) and match.group(1) in MONTHS:
+        year, month = int(match.group(2)), MONTHS[match.group(1)]
+    else:
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{text!r} is not a month; write YYYY-MM.")
+    if not 1 <= month <= 12:
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{text!r} is not a month.")
+    return f"{year:04d}-{month:02d}"
 
 
 def _set_checked(control: HtmlControl, checked: bool) -> tuple[ActionStep, ...]:
@@ -248,6 +396,8 @@ def _set_checked(control: HtmlControl, checked: bool) -> tuple[ActionStep, ...]:
 
 
 def _select(control: HtmlControl, value: Any) -> ActionStep:
+    if control.date:
+        return _date(control, value)
     if control.control in ARIA_CHOICE and control.tag != "select":
         return _choose(control, value)
     if control.control not in {"select", "select-multiple"}:
@@ -322,4 +472,6 @@ __all__ = [
     "plan_control_action",
     "plan_form_call",
     "plan_scroll",
+    "date_value",
+    "parse_date",
 ]

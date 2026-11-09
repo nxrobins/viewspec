@@ -255,3 +255,14 @@ def test_conditions_describe_themselves():
         "'Loading' gone from the page",
         "control 'Pay' enabled",
     ]
+
+
+def test_hidden_ids_cover_every_way_to_hide():
+    from viewspec.raw_html_agent import hidden_ids
+
+    lift = _lift(
+        '<div hidden><p>a</p></div><div aria-hidden="true"><p>b</p></div>'
+        '<div data-lift-hidden="true"><p>c</p></div><p>d</p>'
+    )
+    hidden_text = {node.text for node in lift.nodes if node.id in hidden_ids(lift.nodes)}
+    assert hidden_text >= {"a", "b", "c"} and "d" not in hidden_text

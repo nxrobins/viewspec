@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture booking</title>
+<style>
+  .field { margin: 8px 0; }
+  [role=dialog] { border: 1px solid #999; padding: 8px; width: 300px; }
+  .outside { color: #aaa; }
+  table td button { width: 32px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Book a stay</h1>
+  <form aria-label="Book a stay" action="/book" method="post">
+    <div class="field"><label>Check-in <input type="date" name="checkin" min="2026-11-09" max="2027-12-31"></label></div>
+
+    <!-- A read-only field; only the button beside it opens its calendar. Days show plain numbers. -->
+    <div class="field">
+      <label for="checkout">Check-out</label>
+      <input id="checkout" name="checkout" readonly placeholder="DD/MM/YYYY">
+      <button type="button" id="checkout-open" aria-label="Choose check-out date">&#128197;</button>
+      <div role="dialog" aria-label="Check-out calendar" id="checkout-cal" hidden>
+        <button type="button" class="prev" aria-label="Previous month">&lsaquo;</button>
+        <h2 class="title" aria-live="polite"></h2>
+        <button type="button" class="next" aria-label="Next month">&rsaquo;</button>
+        <table role="grid"><thead><tr><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th><th>Su</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <!-- A field that opens its calendar when clicked. Month and year are chosen from lists. -->
+    <div class="field">
+      <label for="dob">Date of birth</label>
+      <input id="dob" name="dob" placeholder="MM/DD/YYYY" aria-haspopup="dialog" autocomplete="off">
+      <div role="dialog" aria-label="Birth date calendar" id="dob-cal" hidden>
+        <select aria-label="Month" class="month"></select>
+        <select aria-label="Year" class="year"></select>
+        <div role="grid" class="days"></div>
+      </div>
+    </div>
+
+    <div class="field"><label>Guests <input type="number" name="guests" min="1" max="8" value="2"></label></div>
+    <button type="submit">Book</button>
+  </form>
+</main>
+<script>
+  // "Today" is fixed so the page is the same on every run.
+  const TODAY = new Date(2026, 10, 9);
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+    "October", "November", "December"];
+  const pad = (n) => String(n).padStart(2, "0");
+
+  // Check-out: a month grid that starts on Monday, with the days of the months around it.
+  const out = { input: document.getElementById("checkout"), cal: document.getElementById("checkout-cal"),
+    year: TODAY.getFullYear(), month: TODAY.getMonth() };
+  function renderCheckout() {
+    out.cal.querySelector(".title").textContent = `${MONTHS[out.month]} ${out.year}`;
+    const first = new Date(out.year, out.month, 1);
+    const start = new Date(out.year, out.month, 1 - ((first.getDay() + 6) % 7));
+    const rows = [];
+    for (let week = 0; week < 6; week++) {
+      const cells = [];
+      for (let day = 0; day < 7; day++) {
+        const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + week * 7 + day);
+        const outside = date.getMonth() !== out.month;
+        const past = date < TODAY;
+        cells.push(`<td class="${outside ? "outside" : ""}"><button type="button" tabindex="-1"` +
+          `${past ? ' disabled aria-disabled="true"' : ""} data-iso="${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}">` +
+          `${date.getDate()}</button></td>`);
+      }
+      rows.push(`<tr>${cells.join("")}</tr>`);
+    }
+    out.cal.querySelector("tbody").innerHTML = rows.join("");
+  }
+  document.getElementById("checkout-open").addEventListener("click", () => {
+    out.cal.hidden = !out.cal.hidden;
+    if (!out.cal.hidden) renderCheckout();
+  });
+  out.cal.querySelector(".prev").addEventListener("click", () => {
+    out.month -= 1;
+    if (out.month < 0) { out.month = 11; out.year -= 1; }
+    renderCheckout();
+  });
+  out.cal.querySelector(".next").addEventListener("click", () => {
+    out.month += 1;
+    if (out.month > 11) { out.month = 0; out.year += 1; }
+    renderCheckout();
+  });
+  out.cal.querySelector("tbody").addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button || button.disabled) return;
+    const [y, m, d] = button.dataset.iso.split("-");
+    out.input.value = `${d}/${m}/${y}`;
+    out.cal.hidden = true;
+  });
+
+  // Date of birth: month and year lists, and days named in full ("March 7, 1990").
+  const dob = { input: document.getElementById("dob"), cal: document.getElementById("dob-cal") };
+  const monthList = dob.cal.querySelector(".month");
+  const yearList = dob.cal.querySelector(".year");
+  monthList.innerHTML = MONTHS.map((name, i) => `<option value="${i}">${name}</option>`).join("");
+  const years = [];
+  for (let y = TODAY.getFullYear(); y >= 1920; y--) years.push(`<option>${y}</option>`);
+  yearList.innerHTML = years.join("");
+  monthList.value = "0";
+  yearList.value = "2000";
+  function renderDob() {
+    const year = Number(yearList.value);
+    const month = Number(monthList.value);
+    const days = new Date(year, month + 1, 0).getDate();
+    const buttons = [];
+    for (let d = 1; d <= days; d++) {
+      buttons.push(`<button type="button" aria-label="${MONTHS[month]} ${d}, ${year}">${d}</button>`);
+    }
+    dob.cal.querySelector(".days").innerHTML = buttons.join("");
+  }
+  dob.input.addEventListener("click", () => {
+    dob.cal.hidden = false;
+    renderDob();
+  });
+  monthList.addEventListener("change", renderDob);
+  yearList.addEventListener("change", renderDob);
+  dob.cal.querySelector(".days").addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    dob.input.value = `${pad(Number(monthList.value) + 1)}/${pad(Number(button.textContent))}/${yearList.value}`;
+    dob.cal.hidden = true;
+  });
+</script>
+</body>
+</html>

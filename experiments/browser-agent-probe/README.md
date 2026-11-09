@@ -29,8 +29,8 @@ See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile
 | `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
-| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 57 checks on the fixtures. |
-| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 67 checks. |
+| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 69 checks on the fixtures. |
+| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 73 checks. |
 
 ### Locators
 
@@ -54,7 +54,7 @@ only the rest (role and name, exact text, a path that crosses a shadow root), on
 675-control catalog this takes a reading from 9.7 s to 0.9 s. A locator is used only when a ref has
 gone stale, and then Playwright must find exactly one element with the same tag and name, so a
 locator that Playwright reads differently fails safely. The probe asks Playwright to confirm every
-page-checked locator; on the fixtures it confirms 755 of 755.
+page-checked locator; on the fixtures it confirms 761 of 761.
 
 ### Acting
 
@@ -93,6 +93,25 @@ If two or more options match, or none shows, the step is refused with the names 
 typed text is put back, and the list is closed with Escape:
 `choose: more than one option matches "S": Spain, Sweden, Switzerland; the typed text was removed`.
 In a form tool call, a combobox field is chosen the same way.
+
+### Dates
+
+`act(handle, "select", "Nov 20, 2026")` on a date field:
+
+- **Native** `<input type="date">` (and `month`, `time`, `datetime-local`, `week`): the package puts the
+  value in the input's format and checks `min` and `max`, then the bridge fills it.
+- **Custom** (a text field named or shaped like a date, often read-only): a `choose_date` step. The
+  bridge opens the calendar (a click on the field, or on a button beside it named for a date, a
+  calendar, or choosing), finds its day cells, reads which month it shows (from its month and year
+  lists, its title, or its days' full-date labels), goes to the right month (with the lists, or with its
+  next and previous buttons), and clicks the day. Days of the months around it, which repeat numbers
+  at the start and end of the grid, are skipped. A disabled day is refused. The step checks that the
+  field shows the date, in whatever order of day, month, and year it uses.
+
+If the calendar cannot reach the date, or the day is disabled, the step is refused and the calendar it
+opened is closed again. A numeric date that can be read two ways ("11/12/2026") is refused before the
+browser acts. When more than one calendar is open, the one the field names in `aria-controls`, or else
+the one nearest the field, is used.
 
 ### Scrolling
 
@@ -200,7 +219,7 @@ are blocked, `blocked_writes` lists each stopped request with its form fields; s
 A request that the page cannot take is refused before the browser does anything, and the result
 says so. A refused form call names each problem: `{"argument": "ship", "problem": "invalid", ...}`.
 Other codes: `BROWSER_NO_PAGE`, `BROWSER_INVALID_REQUEST`, `BROWSER_HANDLE_REQUIRED`, `BROWSER_HANDLE_UNKNOWN`,
-`BROWSER_OPTION_AMBIGUOUS`, `BROWSER_OPTION_NOT_FOUND`, `BROWSER_OBSERVATION_UNKNOWN` (the server
+`BROWSER_OPTION_AMBIGUOUS`, `BROWSER_OPTION_NOT_FOUND`, `BROWSER_DATE_UNAVAILABLE`, `BROWSER_DATE_NOT_PICKED`, `BROWSER_OBSERVATION_UNKNOWN` (the server
 keeps the last 8 observations), `BROWSER_OBSERVATION_STALE`, `BROWSER_TARGET_DRIFT`,
 `BROWSER_TARGET_STALE`, `BROWSER_PLAN_INTERRUPTED`, `BROWSER_ORIGIN_NOT_ALLOWED`, `BROWSER_TIMEOUT`,
 and `BROWSER_ERROR`.
@@ -297,15 +316,16 @@ with BrowserSession() as session:  # block_writes=True by default
 
 | page | aria tok | view tok | interactive | compile cov | agent cov | same name | located | confirmed | forms | fp stable | leaks |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
-| catalog | 13544 | 7824 | 675 | 649/675 | 675/675 | 675/675 | 675/675 | 675/675 | 2 | True | 0 |
-| checkout | 222 | 154 | 15 | 1/15 | 15/15 | 15/15 | 16/16 | 16/16 | 1 | True | 0 |
+| booking | 99 | 59 | 6 | 1/6 | 6/6 | 6/6 | 6/6 | 6/6 | 1 | True | 0 |
+| catalog | 13544 | 7819 | 675 | 649/675 | 675/675 | 675/675 | 675/675 | 675/675 | 2 | True | 0 |
+| checkout | 222 | 151 | 15 | 1/15 | 15/15 | 15/15 | 16/16 | 16/16 | 1 | True | 0 |
 | feed | 860 | 310 | 41 | 40/41 | 41/41 | 41/41 | 41/41 | 41/41 | 0 | True | 0 |
 | shop | 255 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
 | spa | 138 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 6/6 | 0 | True | 0 |
 | viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
 
-- **agent cov** matches by element (ref), not by name: 753 of 753 visible controls. **same name**: the
-  lift names all 753 as the browser does.
+- **agent cov** matches by element (ref), not by name: 759 of 759 visible controls. **same name**: the
+  lift names all 759 as the browser does.
 - **located**: every control has a locator (the agent lift also finds 2 pointer-only clickables).
   Kinds on the four small fixtures, for 39 controls and 2 forms: 28 stable attribute, 4 content
   anchor, 4 role and name, 4 exact text, and 1 structural path (a form with no name). On the catalog:
@@ -318,7 +338,7 @@ with BrowserSession() as session:  # block_writes=True by default
 - **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
   schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
-`demo_agent.py` (57 checks, all pass):
+`demo_agent.py` (69 checks, all pass):
 
 - **checkout:** a click inside the web component's shadow DOM changes the quantity from 2 to 3. Fills
   inside the payment iframe are verified, and the next snapshot does not contain the card number. A
@@ -345,8 +365,13 @@ with BrowserSession() as session:  # block_writes=True by default
   scroll until "Post 75" stops once it shows; a scroll for "Post 999" stops at the end of the feed
   (100 posts, "You have reached the end"); the comments pane scrolls on its own until "Comment 35"
   shows; a scroll to the top moves the page and loads nothing.
+- **dates:** "Nov 20, 2026" fills the native check-in field as 2026-11-20; a day before its `min` and
+  "11/12/2026" are refused before the browser acts. The check-out calendar, opened by its button,
+  picks 23 November, then moves three months ahead for 14 February; a past (disabled) day is refused
+  and its calendar is closed again. The birth date calendar uses its month and year lists for
+  7 March 1990. A form call fills the native date and picks both calendar dates.
 
-`demo_mcp.py` (67 checks, all pass) runs the same kind of tasks through the MCP server, as a host
+`demo_mcp.py` (73 checks, all pass) runs the same kind of tasks through the MCP server, as a host
 would, with `--allow-origin` set to the local fixture server and without `NODE_PATH`. It also checks
 that the tool schemas carry no internal node ids, that a blocked post shows the password field as
 `[redacted]` and no result contains the password or the card number, that acting from a view of a
@@ -365,7 +390,9 @@ field keeps Sweden, and that the gift wrap combobox chooses Paper. On the feed i
 that post's Like button can then be clicked, that a scroll for a post that does not exist stops at the
 end, that `find` reaches the comments pane past the first slice and its handle scrolls that pane, that
 no scroll happens when the text already shows, and that a bad direction and a click without a handle
-are refused.
+are refused. On the booking page it checks the date field's form tool, a date picked three months
+ahead, a disabled day refused, an ambiguous date refused, and a form call that fills and picks every
+date.
 
 The fixtures are small and hand-made. Run the probe on real sites before you draw conclusions.
 
@@ -391,6 +418,8 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
   that loads more only on wheel or touch events needs another way.
 - A list that removes the items it scrolls past (a virtual list) changes the handles of the items
   after them; the diff shows the removed and added controls.
+- `choose_date` reads month names in English. A calendar that shows only day numbers needs a month
+  title or month and year lists; one that shows several months at once uses the first it reads.
 - A diff matches controls by ref, then by unique name, then by place. A control that the page
   re-rendered and also renamed and moved is reported as removed and added.
 - A message that the page shows again with the same text is not reported as new.
@@ -400,5 +429,5 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 ## Next steps
 
 1. Add the MCP server to an agent host, and try it on real sites.
-2. Let `choose` work with date pickers.
-3. Let the agent upload a file to a file input.
+2. Let the agent upload a file to a file input.
+3. Let `choose_date` pick a date range in one step (check-in and check-out in one calendar).
