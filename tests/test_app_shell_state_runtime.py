@@ -278,7 +278,28 @@ def _hostile_v4_bundle() -> dict[str, Any]:
     return payload
 
 
-@pytest.mark.parametrize("bundle", [_hostile_v3_bundle, _hostile_v4_bundle], ids=["v3", "v4"])
+def _hostile_record_v4_bundle() -> dict[str, Any]:
+    # Resource records reach the reducer as initial state through from_resource_view, and the
+    # screens as substrate text. Every place that repeats the record must agree, or replay fails.
+    payload = _state_text_app_bundle()
+    payload["resources"][0]["records"][0]["severity"] = _HOSTILE_TEXT
+    for screen in payload["screens"]:
+        nodes = screen["intent_bundle"]["substrate"]["nodes"]
+        if "inc_1042" in nodes:
+            nodes["inc_1042"]["attrs"]["severity"] = _HOSTILE_TEXT
+    assertion = payload["state_replay_assertions"][0]
+    for expected in (assertion["expect_state"], assertion["expect_selectors"]):
+        for rows in expected.values():
+            for row in rows if isinstance(rows, list) else []:
+                if isinstance(row, dict) and row.get("id") == "inc_1042":
+                    row["severity"] = _HOSTILE_TEXT
+    return payload
+
+
+_HOSTILE_BUNDLES = [_hostile_v3_bundle, _hostile_v4_bundle, _hostile_record_v4_bundle]
+
+
+@pytest.mark.parametrize("bundle", _HOSTILE_BUNDLES, ids=["v3", "v4", "v4-record"])
 @pytest.mark.parametrize("generate", [generate_javascript_reducer, generate_typescript_reducer], ids=["js", "ts"])
 def test_reducer_json_is_script_safe_in_every_schema_version(bundle, generate):
     source = generate(bundle())
@@ -288,11 +309,13 @@ def test_reducer_json_is_script_safe_in_every_schema_version(bundle, generate):
 
 
 @pytest.mark.skipif(not _NODE_AVAILABLE, reason="AppBundle V4 proof requires Node.js for conformance")
-def test_hostile_strings_stay_inside_the_inline_reducer(tmp_path):
+@pytest.mark.parametrize("bundle", [_hostile_v4_bundle, _hostile_record_v4_bundle], ids=["state-text", "record"])
+def test_hostile_strings_stay_inside_the_inline_reducer(tmp_path, bundle):
     # A V4 shell inlines the reducer; a V3 shell has no state runtime to inline. The proof replays
     # the bundle and checks the Node reducer against Python, so the escaped JSON must decode to the
     # same state and text.
-    shell = (_prove_shell(tmp_path, _hostile_v4_bundle(), "hostile") / "index.html").read_text(encoding="utf-8")
+    shell = (_prove_shell(tmp_path, bundle(), "hostile") / "index.html").read_text(encoding="utf-8")
+    assert "\\u003c/script\\u003e" in shell, "the hostile text never reached the inline reducer"
     plain = (_prove_shell(tmp_path, _state_text_app_bundle(), "plain") / "index.html").read_text(encoding="utf-8")
 
     assert "</script><script>window.__injected" not in shell

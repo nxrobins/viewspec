@@ -221,6 +221,10 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- `viewspec studio` reloads the preview after an edit made right after the page loads. The page
+  learned which build it showed from its first status poll, half a second after load, so an edit
+  that rebuilt before that poll left the old build on screen until the next edit. Each page now
+  carries the generation of its build.
 - The `react-tailwind-app` browser proof clicks once for each replay event and each `repeat`, as
   Python replay applies them. The generated test used to skip every `action_id` event and to click
   a repeated event once, so the proof of a valid bundle failed or checked fewer clicks than the
