@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture SPA</title></head>
+<body>
+<div id="root"></div>
+<script>
+  // Everything the user sees is built by script, as in a client-rendered app. "Refresh" builds it
+  // again from scratch, so every element is replaced, as a framework re-render can do.
+  const rows = [["Signups", "1,204"], ["Churn", "2.1%"], ["Revenue", "$48K"]];
+  const root = document.getElementById("root");
+  let refreshes = 0;
+  function render() {
+    root.innerHTML = `
+    <nav><a href="#overview">Overview</a><a href="#reports">Reports</a></nav>
+    <main>
+      <h1>Metrics</h1>
+      <table><tbody>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}</tbody></table>
+      <div class="toolbar">
+        <div class="btn" tabindex="0">Export</div>
+        <span class="chip" style="cursor: pointer">Last 30 days</span>
+        <button>Refresh</button>
+        <input type="text" aria-label="Filter metrics">
+      </div>
+      <p role="status" class="export-status"></p>
+      <p style="display: none"><button>Debug panel</button></p>
+      <p>Updated <span id="clock">${new Date().toISOString()} (refresh ${refreshes})</span></p>
+    </main>`;
+    // "Export" prepares a file on a (simulated) server; the link comes 600 ms later.
+    document.querySelector(".btn").addEventListener("click", () => {
+      setTimeout(() => {
+        document.querySelector(".export-status").textContent = "Export ready";
+        document.querySelector(".toolbar").insertAdjacentHTML("beforeend", '<a href="#download">Download CSV</a>');
+      }, 600);
+    });
+    document.querySelector(".toolbar button").addEventListener("click", () => {
+      refreshes += 1;
+      render();
+    });
+  }
+  render();
+  // State the user would have typed: it lives in properties, not in the markup.
+  document.querySelector("[aria-label='Filter metrics']").value = "churn";
+</script>
+</body>
+</html>

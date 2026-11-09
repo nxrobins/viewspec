@@ -18,6 +18,17 @@ from urllib.parse import urlparse
 from viewspec._version import __version__
 from viewspec.design_md import DesignSystemContext, load_design_system
 from viewspec.emitters._write import write_artifact_set
+from viewspec.raw_html_agent import (
+    AGENT_HINT_ATTR_PREFIX,
+    AGENT_VIEWSPEC_DATA_ATTRS,
+    HtmlControl,
+    HtmlForm,
+    HtmlMessage,
+    extract_controls,
+    form_tool_names,
+    form_tool_schema,
+    is_sensitive_control,
+)
 
 MAX_HTML_INPUT_BYTES = 5_000_000
 # Maximum kept-element nesting depth. The parser is stack-based, but the
@@ -137,7 +148,64 @@ URL_ATTRS = {"href", "src"}
 SAFE_SCHEMES_BY_ATTR = {
     "href": {"http", "https", "mailto"},
     "src": {"data", "http", "https"},
+    "action": {"http", "https"},
 }
+
+# The "agent" lift profile keeps what a browser agent needs to read and operate a page: form
+# controls, labels, ARIA roles, tab stops, and ViewSpec action ids. It is a lift-only profile;
+# compile_html() always uses the "compile" profile, so compiled artifacts and their hashes do not
+# change. Script, style, event handlers, and unsafe URLs are still removed.
+LIFT_PROFILES = ("compile", "agent")
+AGENT_FORM_TAGS = {"fieldset", "form", "input", "label", "legend", "optgroup", "option", "output", "select", "textarea"}
+AGENT_ALLOWED_TAGS = ALLOWED_TAGS | AGENT_FORM_TAGS
+AGENT_UNWRAP_TAGS = UNWRAP_TAGS - AGENT_FORM_TAGS
+AGENT_GLOBAL_ATTRS = SAFE_GLOBAL_ATTRS | {"contenteditable", "hidden", "id", "role", "tabindex"}
+AGENT_ATTRS_BY_TAG = {
+    **SAFE_ATTRS_BY_TAG,
+    "a": SAFE_ATTRS_BY_TAG["a"] | {"download"},
+    "button": {"disabled", "form", "name", "type", "value"},
+    "fieldset": {"disabled", "name"},
+    "form": {"action", "method", "name"},
+    "input": {
+        "accept",
+        "autocomplete",
+        "checked",
+        "disabled",
+        "form",
+        "inputmode",
+        "max",
+        "maxlength",
+        "min",
+        "minlength",
+        "multiple",
+        "name",
+        "pattern",
+        "placeholder",
+        "readonly",
+        "required",
+        "step",
+        "type",
+        "value",
+    },
+    "label": {"for"},
+    "optgroup": {"disabled", "label"},
+    "option": {"disabled", "label", "selected", "value"},
+    "output": {"for", "form", "name"},
+    "select": {"disabled", "form", "multiple", "name", "required"},
+    "textarea": {
+        "autocomplete",
+        "disabled",
+        "form",
+        "maxlength",
+        "minlength",
+        "name",
+        "placeholder",
+        "readonly",
+        "required",
+    },
+}
+AGENT_URL_ATTRS = URL_ATTRS | {"action"}
+REDACTED_VALUE = "[redacted]"
 # The only data: URLs the sanitizer keeps (inline raster images on <img src>). Shared with the
 # `check` URL-scheme gate so the two cannot drift on which data: payloads count as inert.
 DATA_IMAGE_SRC_PREFIXES = ("data:image/png", "data:image/jpeg", "data:image/gif", "data:image/webp", "data:image/avif")
@@ -164,6 +232,7 @@ class _HTMLNode:
     attrs: dict[str, str] = field(default_factory=dict)
     children: list[_HTMLNode] = field(default_factory=list)
     text_chunks: list[str] = field(default_factory=list)
+    redact_text: bool = False
 
 
 @dataclass(frozen=True)
@@ -230,9 +299,13 @@ class HtmlLiftResult:
     group_candidates: tuple[tuple[str, ...], ...]
     topology_fingerprint: HtmlTopologyFingerprint
     diagnostics: tuple[dict[str, str], ...]
+    profile: str = "compile"
+    controls: tuple[HtmlControl, ...] = ()
+    forms: tuple[HtmlForm, ...] = ()
+    messages: tuple[HtmlMessage, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "source_name": self.source_name,
             "source_hash": self.source_hash,
             "nodes": [node.to_json() for node in self.nodes],
@@ -242,6 +315,33 @@ class HtmlLiftResult:
             "topology_fingerprint": self.topology_fingerprint.to_json(),
             "diagnostics": [dict(item) for item in self.diagnostics],
         }
+        if self.profile != "compile":
+            payload["profile"] = self.profile
+            payload["controls"] = [control.to_json() for control in self.controls]
+            payload["forms"] = [form.to_json() for form in self.forms]
+            payload["messages"] = [message.to_json() for message in self.messages]
+        return payload
+
+    def form_tool_schemas(self) -> list[dict[str, Any]]:
+        """Describe each form as a tool an agent can call: typed inputs plus the submit controls.
+
+        Tool names are unique within the page. Only the "agent" profile finds forms; for the
+        "compile" profile this is empty.
+        """
+
+        controls = {control.node_id: control for control in self.controls}
+        return [
+            form_tool_schema(form, controls, name=name)
+            for form, name in zip(self.forms, form_tool_names(self.forms), strict=True)
+        ]
+
+    def control(self, node_id: str) -> HtmlControl:
+        """The control with this node id. Raises ``KeyError`` when there is none."""
+
+        for control in self.controls:
+            if control.node_id == node_id:
+                return control
+        raise KeyError(node_id)
 
 
 @dataclass(frozen=True)
@@ -253,8 +353,11 @@ class HtmlCompileResult:
 
 
 class _SanitizingHTMLParser(HTMLParser):
-    def __init__(self) -> None:
+    def __init__(self, profile: str = "compile") -> None:
         super().__init__(convert_charrefs=True)
+        self.agent = profile == "agent"
+        self.allowed_tags = AGENT_ALLOWED_TAGS if self.agent else ALLOWED_TAGS
+        self.unwrap_tags = AGENT_UNWRAP_TAGS if self.agent else UNWRAP_TAGS
         self.root = _HTMLNode("document")
         self.stack: list[_HTMLNode] = [self.root]
         self.skipped_tags: list[str] = []
@@ -284,7 +387,12 @@ class _SanitizingHTMLParser(HTMLParser):
 
     def handle_data(self, data: str) -> None:
         if not self.skipped_tags and data:
-            self.stack[-1].text_chunks.append(data)
+            node = self.stack[-1]
+            if node.redact_text:
+                if data.strip() and not node.text_chunks:
+                    node.text_chunks.append(REDACTED_VALUE)
+                return
+            node.text_chunks.append(data)
 
     def handle_comment(self, data: str) -> None:
         return
@@ -302,43 +410,98 @@ class _SanitizingHTMLParser(HTMLParser):
             self.skipped_tags.append(tag)
             self._diagnostic("warning", "HTML_TAG_STRIPPED", f"Removed <{tag}> and its contents.")
             return
-        if tag in TRANSPARENT_TAGS or tag in UNWRAP_TAGS:
+        if self.agent and tag not in TRANSPARENT_TAGS and tag not in self.allowed_tags and _marks_hidden(attrs):
+            # An unwrapped element keeps no attributes, so its hidden mark would be lost and its
+            # content would look visible. The user cannot see it, so drop it with its content.
+            if not self_closing and tag not in VOID_TAGS:
+                self.skipped_tags.append(tag)
             return
-        if tag not in ALLOWED_TAGS:
+        if tag in TRANSPARENT_TAGS or tag in self.unwrap_tags:
+            return
+        if tag not in self.allowed_tags:
             self._diagnostic(
                 "warning", "HTML_TAG_UNWRAPPED", f"Removed unsupported <{tag}> wrapper but kept text children."
             )
             return
+        if self.agent:
+            if tag == "input" and any(
+                name.lower() == "type" and (value or "").strip().lower() == "hidden" for name, value in attrs
+            ):
+                self._diagnostic("info", "HTML_HIDDEN_INPUT_DROPPED", "Removed a hidden <input> and its value.")
+                return
+            self._close_implied_option(tag)
 
         if len(self.stack) >= MAX_DOM_DEPTH:
             raise HtmlInputError(
                 "HTML_DOM_DEPTH_EXCEEDED",
                 f"HTML nesting depth exceeds the {MAX_DOM_DEPTH} level local limit.",
             )
-        node = _HTMLNode(tag, _sanitize_attrs(tag, attrs, self.diagnostics, self.external_refs))
+        if self.agent:
+            node = _HTMLNode(tag, _sanitize_agent_attrs(tag, attrs, self.diagnostics, self.external_refs))
+            node.redact_text = tag == "textarea" and is_sensitive_control(tag, node.attrs)
+            if node.redact_text:
+                self._diagnostic("info", "HTML_VALUE_REDACTED", "Redacted the text of a secret <textarea> field.")
+        else:
+            node = _HTMLNode(tag, _sanitize_attrs(tag, attrs, self.diagnostics, self.external_refs))
         self.stack[-1].children.append(node)
         if not self_closing and tag not in VOID_TAGS:
             self.stack.append(node)
+
+    def _close_implied_option(self, tag: str) -> None:
+        # HTML closes an open <option> when the next <option> or <optgroup> starts, and an open
+        # <optgroup> when the next <optgroup> starts. The stack parser has no implied end tags,
+        # so close them here; otherwise each option would nest inside the one before it.
+        if tag not in {"option", "optgroup"}:
+            return
+        closes = {"option"} if tag == "option" else {"option", "optgroup"}
+        while len(self.stack) > 1 and self.stack[-1].tag in closes:
+            self.stack.pop()
 
     def _diagnostic(self, severity: str, code: str, message: str) -> None:
         self.diagnostics.append({"severity": severity, "code": code, "message": message})
 
 
-def lift_html(html: str, source_name: str | None = None, *, ngram_length: int = 4) -> HtmlLiftResult:
+def lift_html(
+    html: str, source_name: str | None = None, *, ngram_length: int = 4, profile: str = "compile"
+) -> HtmlLiftResult:
     """Lift raw HTML into deterministic local signals.
 
     This is not ViewSpec decompilation. It returns canonical DOM, roles,
     repeated groups, and topology signals that the local compiler and diff
     command can use without any network or model calls.
+
+    ``profile="compile"`` (the default) is the sanitizer policy of ``compile_html()``.
+    ``profile="agent"`` is for agents that read and operate a rendered page. It also keeps form
+    controls, labels, ARIA roles, tab stops, and ViewSpec ``data-action-*`` attributes; it adds
+    ``action`` and ``field`` roles, ``controls``, and ``forms``; and it never keeps a password,
+    a one-time code, a card number, or a hidden input value. A browser-side snapshot can add
+    ``data-lift-hidden`` and ``data-lift-clickable`` hints, which this profile reads.
     """
 
+    if profile not in LIFT_PROFILES:
+        raise ValueError(f"profile must be one of {', '.join(LIFT_PROFILES)}")
     _check_html_size(html)
-    parser = _SanitizingHTMLParser()
+    parser = _SanitizingHTMLParser(profile)
     parser.feed(html)
     parser.close()
     nodes = _freeze_nodes(parser.root)
     source_hash = hashlib.sha256("\n".join(_source_token(node) for node in nodes).encode("utf-8")).hexdigest()
-    roles = _infer_roles(nodes)
+    controls: tuple[HtmlControl, ...] = ()
+    forms: tuple[HtmlForm, ...] = ()
+    messages: tuple[HtmlMessage, ...] = ()
+    if profile == "agent":
+        extraction = extract_controls(nodes)
+        controls, forms, messages = extraction.controls, extraction.forms, extraction.messages
+        content_roles = [
+            role
+            for role in _infer_roles([node for node in nodes if node.id not in extraction.excluded_ids])
+            if role.role != "action"
+        ]
+        control_roles = [HtmlRole(*role) for role in extraction.roles]
+        order = {node.id: index for index, node in enumerate(nodes)}
+        roles = tuple(sorted([*content_roles, *control_roles], key=lambda role: order[role.node_id]))
+    else:
+        roles = _infer_roles(nodes)
     groups = _detect_group_candidates(nodes)
     regions = tuple(node.id for node in nodes if _is_region(node))
     fingerprint = _fingerprint(nodes, ngram_length=ngram_length)
@@ -351,6 +514,10 @@ def lift_html(html: str, source_name: str | None = None, *, ngram_length: int = 
         group_candidates=groups,
         topology_fingerprint=fingerprint,
         diagnostics=_dedupe_diagnostics(parser.diagnostics),
+        profile=profile,
+        controls=controls,
+        forms=forms,
+        messages=messages,
     )
 
 
@@ -512,6 +679,82 @@ def _sanitize_attrs(
         sanitized[name] = value
     if tag == "button":
         sanitized["type"] = "button"
+    return sanitized
+
+
+def _marks_hidden(attrs: list[tuple[str, str | None]]) -> bool:
+    for raw_name, raw_value in attrs:
+        name = raw_name.lower()
+        value = (raw_value or "").strip().lower()
+        if name == "hidden" or (name == "aria-hidden" and value == "true"):
+            return True
+        if name == "data-lift-hidden" and value != "false":
+            return True
+    return False
+
+
+def _sanitize_agent_attrs(
+    tag: str,
+    attrs: list[tuple[str, str | None]],
+    diagnostics: list[dict[str, str]],
+    external_refs: list[dict[str, str]],
+) -> dict[str, str]:
+    """Attribute policy of the "agent" lift profile.
+
+    The URL, event-handler, and style rules match the compile profile. On top of that it keeps form
+    state and ARIA, keeps the real ``type`` of a button (a submit button must stay one), keeps
+    ViewSpec action ids and ``data-lift-*`` snapshot hints, and redacts secret values.
+    """
+
+    allowed = AGENT_GLOBAL_ATTRS | AGENT_ATTRS_BY_TAG.get(tag, set())
+    sanitized: dict[str, str] = {}
+    for raw_name, raw_value in attrs:
+        name = raw_name.lower()
+        value = (raw_value or "").strip()
+        if name.startswith("on") or name in {"style", "srcdoc", "formaction", "srcset"}:
+            diagnostics.append(
+                {
+                    "severity": "warning",
+                    "code": "HTML_ATTR_STRIPPED",
+                    "message": f"Removed unsafe attribute {name} from <{tag}>.",
+                }
+            )
+            continue
+        kept = (
+            name in allowed
+            or name.startswith("aria-")
+            or name in AGENT_VIEWSPEC_DATA_ATTRS
+            or name.startswith(AGENT_HINT_ATTR_PREFIX)
+        )
+        if not kept:
+            continue
+        if name in AGENT_URL_ATTRS:
+            if name == "action" and not value:
+                continue  # An empty action submits to the page itself; leaving it out says the same.
+            normalized = _normalize_url_for_policy(value)
+            if not _safe_url(normalized, attr=name):
+                diagnostics.append(
+                    {
+                        "severity": "warning",
+                        "code": "HTML_URL_STRIPPED",
+                        "message": f"Removed unsafe {name} URL from <{tag}>.",
+                    }
+                )
+                continue
+            if _is_external_http_url(normalized):
+                kind = {"href": "link", "src": "image", "action": "form"}[name]
+                external_refs.append({"kind": kind, "attr": name, "url": normalized, "behavior": "agent_read"})
+            value = normalized
+        sanitized[name] = value
+    if "value" in sanitized and sanitized["value"] and is_sensitive_control(tag, sanitized):
+        sanitized["value"] = REDACTED_VALUE
+        diagnostics.append(
+            {
+                "severity": "info",
+                "code": "HTML_VALUE_REDACTED",
+                "message": f"Redacted the value of a secret <{tag}> field.",
+            }
+        )
     return sanitized
 
 

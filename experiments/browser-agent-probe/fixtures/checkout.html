@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture checkout</title>
+<style>
+  .chip { cursor: pointer; }
+</style>
+</head>
+<body>
+<header><a href="/"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Lamp Co home" width="40" height="20"></a></header>
+<main>
+  <h1>Checkout</h1>
+
+  <!-- A web component: its controls live in an open shadow root, and a slot shows light DOM. -->
+  <h2>Arc lamp</h2>
+  <qty-stepper><span slot="note">Max 5 per order</span></qty-stepper>
+
+  <form id="checkout" aria-label="Checkout" action="/orders" method="post">
+    <input type="hidden" name="csrf" value="csrf-token-123456">
+    <label>Email <input type="email" name="email" required autocomplete="email"></label>
+
+    <div role="radiogroup" aria-labelledby="ship-label">
+      <span id="ship-label">Shipping speed</span>
+      <label><input type="radio" name="ship" value="standard" checked> Standard (free)</label>
+      <label><input type="radio" name="ship" value="express"> Express ($9)</label>
+    </div>
+
+    <!-- A custom ARIA combobox: typing asks a (simulated) server for countries; the list comes later. -->
+    <span id="country-label">Country</span>
+    <input role="combobox" name="country" aria-labelledby="country-label" aria-expanded="false"
+           aria-controls="country-list" aria-autocomplete="list" autocomplete="off">
+    <ul role="listbox" id="country-list" hidden></ul>
+
+    <!-- A select-only combobox: click it to open its list. -->
+    <span id="wrap-label">Gift wrap</span>
+    <div role="combobox" tabindex="0" aria-labelledby="wrap-label" aria-controls="wrap-list"
+         aria-expanded="false" id="wrap">None</div>
+    <ul role="listbox" id="wrap-list" hidden>
+      <li role="option">None</li><li role="option">Paper</li><li role="option">Box</li>
+    </ul>
+    <input type="hidden" name="wrap" value="None">
+
+    <label>Create a password <input type="password" name="new_password" autocomplete="new-password"></label>
+
+    <details>
+      <summary>Have a promo code?</summary>
+      <label>Promo code <input name="promo"></label>
+      <button type="button" id="apply-promo">Apply</button>
+      <p role="status" id="promo-status"></p>
+      <p role="alert" id="promo-error"></p>
+    </details>
+
+    <button type="submit">Place order</button>
+  </form>
+
+  <label><input type="checkbox" name="terms" form="checkout" required> I accept the terms</label>
+
+  <!-- A same-origin payment frame, as payment providers embed them. -->
+  <iframe title="Card details" srcdoc='<label>Card number <input autocomplete="cc-number" name="card"></label>
+    <label>CVC <input name="cvc"></label>' width="400" height="80"></iframe>
+
+  <span class="chip">Save cart for later</span>
+</main>
+
+<dialog id="confirm"><p>Leave checkout?</p><button>Leave</button><button>Stay</button></dialog>
+
+<script>
+  class QtyStepper extends HTMLElement {
+    constructor() {
+      super();
+      const root = this.attachShadow({ mode: "open" });
+      root.innerHTML = `
+        <button aria-label="Decrease quantity">-</button>
+        <input aria-label="Quantity" inputmode="numeric" value="1" size="2">
+        <button aria-label="Increase quantity">+</button>
+        <small><slot name="note"></slot></small>`;
+      const input = root.querySelector("input");
+      const step = (by) => () => { input.value = String(Math.max(1, Math.min(5, Number(input.value) + by))); };
+      root.querySelector("[aria-label='Decrease quantity']").addEventListener("click", step(-1));
+      root.querySelector("[aria-label='Increase quantity']").addEventListener("click", step(1));
+    }
+  }
+  customElements.define("qty-stepper", QtyStepper);
+
+  // State a user would have typed. It lives in properties, not in the markup.
+  document.querySelector("qty-stepper").shadowRoot.querySelector("input").value = "2";
+  document.querySelector("[name=email]").value = "ana@example.com";
+  document.querySelector("[name=new_password]").value = "TOPSECRET-pw-4242";
+  // "Apply" checks the code with a (simulated) server: the answer comes 700 ms later.
+  const apply = document.getElementById("apply-promo");
+  apply.addEventListener("click", () => {
+    apply.textContent = "Checking…";
+    apply.disabled = true;
+    document.getElementById("promo-status").textContent = "";
+    document.getElementById("promo-error").textContent = "";
+    setTimeout(() => {
+      const code = document.querySelector("[name=promo]").value.trim().toUpperCase();
+      if (code === "SAVE10") document.getElementById("promo-status").textContent = "Code SAVE10 applied: 10% off";
+      else document.getElementById("promo-error").textContent = "Code not valid";
+      apply.textContent = "Apply";
+      apply.disabled = false;
+    }, 700);
+  });
+
+  // The country combobox: 300 ms after each keystroke, the matching countries show as options.
+  const countries = ["France", "Germany", "Jamaica", "Japan", "Jordan", "Kenya", "Mexico", "Spain",
+    "Sweden", "Switzerland", "Thailand", "Uruguay"];
+  const country = document.querySelector("[name=country]");
+  const countryList = document.getElementById("country-list");
+  let pending = null;
+  country.addEventListener("input", () => {
+    clearTimeout(pending);
+    const typed = country.value.trim().toLowerCase();
+    pending = setTimeout(() => {
+      const found = countries.filter((name) => typed && name.toLowerCase().includes(typed));
+      countryList.innerHTML = found.map((name) => `<li role="option">${name}</li>`).join("");
+      countryList.hidden = found.length === 0;
+      country.setAttribute("aria-expanded", String(found.length > 0));
+    }, 300);
+  });
+  countryList.addEventListener("click", (event) => {
+    const option = event.target.closest("[role=option]");
+    if (!option) return;
+    country.value = option.textContent;
+    countryList.hidden = true;
+    country.setAttribute("aria-expanded", "false");
+  });
+
+  // The gift wrap combobox: a click opens the list; a click on an option chooses it.
+  const wrap = document.getElementById("wrap");
+  const wrapList = document.getElementById("wrap-list");
+  const toggleWrap = (open) => {
+    wrapList.hidden = !open;
+    wrap.setAttribute("aria-expanded", String(open));
+  };
+  wrap.addEventListener("click", () => toggleWrap(wrapList.hidden));
+  wrapList.addEventListener("click", (event) => {
+    const option = event.target.closest("[role=option]");
+    if (!option) return;
+    wrapList.querySelectorAll("[role=option]").forEach((item) => item.setAttribute("aria-selected", String(item === option)));
+    wrap.textContent = option.textContent;
+    document.querySelector("[name=wrap]").value = option.textContent;
+    toggleWrap(false);
+  });
+
+  const frame = document.querySelector("iframe");
+  frame.addEventListener("load", () => {
+    frame.contentDocument.querySelector("[name=card]").value = "4242424242424242";
+    frame.contentDocument.querySelector("[name=cvc]").value = "9876";
+  });
+</script>
+</body>
+</html>

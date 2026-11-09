@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture upload</title></head>
+<body>
+<main>
+  <h1>Apply for a job</h1>
+  <form aria-label="Apply" action="/apply" method="post" enctype="multipart/form-data">
+    <label>Name <input name="name" required></label>
+    <label>Résumé <input type="file" name="resume" accept=".pdf,.doc,.docx" required></label>
+
+    <!-- The real file input is hidden; a button opens it, as many sites do. -->
+    <input type="file" id="photos" name="photos" accept="image/*" multiple hidden>
+    <button type="button" id="add-photos">Add photos</button>
+    <ul id="photo-list"></ul>
+    <p role="status" id="photo-status"></p>
+
+    <button type="submit">Send application</button>
+  </form>
+</main>
+<script>
+  const photos = document.getElementById("photos");
+  document.getElementById("add-photos").addEventListener("click", () => photos.click());
+  photos.addEventListener("change", () => {
+    const names = [...photos.files].map((file) => file.name);
+    document.getElementById("photo-list").innerHTML = names.map((name) => `<li>${name}</li>`).join("");
+    document.getElementById("photo-status").textContent =
+      `${names.length} photo${names.length === 1 ? "" : "s"} added`;
+  });
+</script>
+</body>
+</html>

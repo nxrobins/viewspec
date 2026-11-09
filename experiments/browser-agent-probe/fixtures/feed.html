@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture feed</title>
+<style>
+  main { margin-right: 340px; }
+  article { min-height: 120px; border-bottom: 1px solid #ddd; }
+  aside { position: fixed; top: 0; right: 0; width: 320px; }
+  #comments { height: 240px; overflow-y: auto; border: 1px solid #ccc; }
+  #comments p { margin: 0 0 40px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>News feed</h1>
+  <div id="posts"></div>
+  <div id="sentinel" style="height: 1px"></div>
+  <p role="status" id="feed-status"></p>
+</main>
+<aside>
+  <h2>Comments</h2>
+  <div id="comments" tabindex="0" aria-label="Comments"></div>
+  <p role="status" id="comment-status"></p>
+</aside>
+<script>
+  // The feed loads 20 posts at a time when its end comes into view, after a (simulated) 400 ms
+  // server call, up to 100 posts. The comments pane loads 10 more when it is scrolled to its own end,
+  // after 300 ms, up to 50.
+  const postList = document.getElementById("posts");
+  const feedStatus = document.getElementById("feed-status");
+  let posts = 0;
+  let loadingPosts = false;
+  function addPosts(count) {
+    for (let i = 0; i < count; i++) {
+      posts += 1;
+      postList.insertAdjacentHTML(
+        "beforeend",
+        `<article><h3>Post ${posts}</h3><p>Body text of post ${posts}.</p>` +
+          `<button type="button">Like</button> <a href="/post/${posts}">Open</a></article>`,
+      );
+    }
+  }
+  addPosts(20);
+  new IntersectionObserver((entries) => {
+    if (!entries[0].isIntersecting || loadingPosts || posts >= 100) return;
+    loadingPosts = true;
+    feedStatus.textContent = "Loading more posts…";
+    setTimeout(() => {
+      addPosts(20);
+      loadingPosts = false;
+      feedStatus.textContent = posts >= 100 ? "You have reached the end" : "";
+    }, 400);
+  }).observe(document.getElementById("sentinel"));
+
+  const pane = document.getElementById("comments");
+  const commentStatus = document.getElementById("comment-status");
+  let comments = 0;
+  let loadingComments = false;
+  function addComments(count) {
+    for (let i = 0; i < count; i++) {
+      comments += 1;
+      pane.insertAdjacentHTML("beforeend", `<p>Comment ${comments}: well said.</p>`);
+    }
+  }
+  addComments(10);
+  pane.addEventListener("scroll", () => {
+    const nearEnd = pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 20;
+    if (!nearEnd || loadingComments || comments >= 50) return;
+    loadingComments = true;
+    setTimeout(() => {
+      addComments(10);
+      loadingComments = false;
+      commentStatus.textContent = comments >= 50 ? "No more comments" : "";
+    }, 300);
+  });
+</script>
+</body>
+</html>

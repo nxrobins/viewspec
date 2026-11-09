@@ -9,6 +9,54 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Added
 
+- `lift_html(..., profile="agent")` lifts a rendered page for an agent that reads and operates it.
+  It keeps form controls, labels, ARIA roles, tab stops, and ViewSpec `data-action-*` attributes;
+  returns `controls` and `forms` with accessible names and live state; and describes each form as
+  a typed tool through `HtmlLiftResult.form_tool_schemas()`. It never keeps hidden input values or
+  secret field values (`HTML_HIDDEN_INPUT_DROPPED`, `HTML_VALUE_REDACTED`). The default `"compile"`
+  profile and `compile_html()` output do not change. See
+  [docs/local-html-wedge.md](docs/local-html-wedge.md#agent-lift-profile).
+- Agent lift controls and forms carry the snapshot `ref` (`data-lift-ref`) that names their element
+  in the browser, and controls carry `tag`, `readonly`, and `secret`. `viewspec.raw_html_actions`
+  plans browser steps from a single control action (`plan_control_action`) or a form tool call
+  (`plan_form_call`), and refuses requests the page cannot take with `AGENT_ACTION_*` and
+  `AGENT_FORM_*` codes. Form tool names are unique per page.
+- Agent lifts carry `messages`: the text of visible alert, status, log, and `aria-live` regions.
+  `viewspec.raw_html_diff.diff_lifts(before, after)` reports what changed between two agent lifts of
+  the same page: new messages, changed controls field by field, added and removed controls and
+  forms, and page text that appeared or went away. Secret values never appear in a diff.
+- `viewspec.raw_html_diff.ChangeCondition` describes a change to wait for after an action (any
+  change, a new message, a new page, text shown or gone, a control enabled) and checks it on two
+  lifts; a bad condition is `AGENT_WAIT_INVALID`. `viewspec.raw_html_agent.visible_text()` returns all
+  the text a user can see on a lifted page.
+- Custom ARIA comboboxes own the list they control: its visible options become the combobox's
+  options, with refs, and the list is no longer a field of its own. ARIA listboxes have options and a
+  selected value, and listbox, combobox, textbox, slider, and spin button names come from labels, not
+  content. Controls carry `expanded`. `select` on a custom combobox or listbox, and a combobox field in
+  a form tool call, plan a `choose` step that picks an option by name.
+- `viewspec.raw_html_actions.plan_scroll(direction, control=None)` plans a scroll of the page or of
+  the area that holds a control (`end`, `down`, `up`, `top`), for lists that load more as they scroll.
+- Agent lift controls carry `date`, `minimum`, `maximum`, and `popup`; native date and time inputs
+  and text fields named or shaped like dates are date fields. `parse_date()` reads common date forms
+  and refuses ambiguous numeric dates; `date_value()` puts a value in a field's format and checks
+  `min` and `max`. `select` on a native date field plans a `fill` in that format, and on a custom
+  date field a `choose_date` step. Form tools give date fields a `format`, and number fields `minimum`
+  and `maximum`. `hidden_ids()` returns the nodes a user cannot see.
+- File inputs in the agent lift carry `accept` and `multiple`, and show the names of the files they
+  hold. `viewspec.raw_html_actions.UploadFile` is a file to upload (its bytes are never shown), and
+  `plan_upload()` plans an `upload` step to a file input, or to a button that opens a file chooser.
+  It checks the input's `accept` and `multiple`, the file names, and size limits (10 MB a file, 25 MB a
+  step). `act` with `upload` and file fields in form tool calls plan upload steps; steps show each
+  file's name, media type, and size, never its contents.
+- Agent lift date fields carry `date_range` and `range_with`: a field that holds a whole range, or the
+  start and end fields of a pair (paired names, or one calendar named by both). `parse_date_range()`
+  reads a range, and `plan_date_range()` plans it as one `choose_date_range` step, or as one step per
+  field for a pair with a native date field. `select` with a range on a range field, or on a pair field
+  (with `lift=`), plans a range. Form tools describe range fields and pairs, and a form call that sets
+  both fields of a pair checks their order and plans them as one range.
+- The agent profile keeps a link's `download` attribute, and link controls carry it as `download`.
+  `viewspec.raw_html_actions.plan_download()` plans a `download` step (click a link or button and
+  save the file it downloads); `plan_control_action(control, "download")` does the same.
 - `viewspec studio` lays an inspector over the preview. Hovering an element shows its `data-ir-id`,
   binding or action id, motif, region, and the JSON path of its source, such as
   `$.view_spec.bindings[3]` or `$.substrate.nodes.revenue.attrs.value`; a click copies the path,
