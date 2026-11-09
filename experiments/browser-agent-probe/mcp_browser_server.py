@@ -38,6 +38,7 @@ from typing import Any, Literal, TypedDict
 from urllib.parse import parse_qs, urlsplit
 
 from agent_session import BridgeError, BrowserSession, Observation, StepResult, WaitResult, changes
+from page_view import view_page
 
 from viewspec.local_tools_response import tool_error_response, tool_response
 from viewspec.raw_html_actions import ActionStep, AgentActionError, plan_control_action, plan_form_call
@@ -60,6 +61,8 @@ INSTRUCTIONS = (
     "form then shows 'Write blocked', and blocked_writes lists what would have been sent."
 )
 DEFAULT_TIMEOUT_MS = 5000
+DEFAULT_VIEW_LIMIT = 200
+MAX_VIEW_LIMIT = 1000
 
 
 class WaitFor(TypedDict, total=False):
@@ -92,8 +95,18 @@ class BrowserTools:
         since: int | None = None,
         wait_for: WaitFor | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
+        observation_id: int | None = None,
+        offset: int = 0,
+        limit: int = DEFAULT_VIEW_LIMIT,
+        find: str | None = None,
     ) -> dict[str, Any]:
         """Read the current page, or open ``url`` first and read it.
+
+        A long view comes in slices of ``limit`` lines (200 by default, at most 1000). ``view_page``
+        says which lines you have and ``next_offset``. To read more of a reading without reading the
+        page again, pass its ``observation_id`` and an ``offset``. ``find`` keeps only the lines that
+        contain some text, each with the heading it sits under; a matching heading brings its section,
+        so ``find="lamp 250"`` shows that product and its buttons. Handles are those of the whole view.
 
         Returns ``view``: the page as text, one line per message, heading, value, table row, or
         control. Each control line starts with a handle such as [7], then its kind, name, and state
@@ -109,6 +122,20 @@ class BrowserTools:
         """
 
         with self._lock:
+            paging = {"offset": offset, "limit": limit, "find": find}
+            if observation_id is not None:
+                if url is not None or since is not None or wait_for is not None:
+                    return _error(
+                        "BROWSER_INVALID_REQUEST",
+                        "observation_id pages through a kept reading; it cannot be used with url, since, or wait_for.",
+                        "Pass observation_id with offset, limit, or find; or leave it out to read the page again.",
+                    )
+                kept = self._observation(observation_id)
+                if isinstance(kept, dict):
+                    return kept
+                data, note = self._view_data(kept, observation_id, **paging)
+                data |= {"url": kept.url, "title": kept.title}
+                return tool_response(True, _join(f"Reading {observation_id}, not read again.", note), data=data)
             try:
                 condition = _condition(wait_for)
             except AgentActionError as error:
@@ -128,20 +155,20 @@ class BrowserTools:
                     session.open(url)
                     self._reported = {"writes": 0, "navigations": 0}
                     if condition is None:
-                        return self._observe_result("Observed the page.")
+                        return self._observe_result("Observed the page.", paging=paging)
                     base = session.observe(locate=False)
                     waited = session.wait(condition, base, timeout_ms=timeout_ms)
-                    return self._waited_result("Observed the page.", waited, since=base)
+                    return self._waited_result("Observed the page.", waited, since=base, paging=paging)
                 earlier = self._observation(since) if since is not None else None
                 if isinstance(earlier, dict):
                     return earlier
                 if self._session is None:
                     return _error("BROWSER_NO_PAGE", "No page is open.", "Call observe with a url first.")
                 if condition is None:
-                    return self._observe_result("Observed the page.", since=earlier)
+                    return self._observe_result("Observed the page.", since=earlier, paging=paging)
                 base = earlier or self._history[self._latest]
                 waited = self._session.wait(condition, base, timeout_ms=timeout_ms)
-                return self._waited_result("Observed the page.", waited, since=base)
+                return self._waited_result("Observed the page.", waited, since=base, paging=paging)
             except BridgeError as error:
                 return _error(_bridge_code(error), str(error), "Check the url, or observe again.")
 
@@ -268,6 +295,7 @@ class BrowserTools:
             # Some steps may have run; show the agent the page as it is now, if it can be read.
             try:
                 current: dict[str, Any] | None = self._observe_data(since=observation)
+                current.pop("_note")
             except BridgeError:
                 current = None
             return tool_error_response(
@@ -289,11 +317,42 @@ class BrowserTools:
         result["navigated"] = any(item.navigated for item in results)
         return result
 
-    def _observe_result(self, summary: str, *, since: Observation | None = None) -> dict[str, Any]:
-        return tool_response(True, summary, data=self._observe_data(since=since))
+    def _observe_result(
+        self, summary: str, *, since: Observation | None = None, paging: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        data = self._observe_data(since=since, paging=paging)
+        return tool_response(True, _join(summary, data.pop("_note")), data=data)
+
+    def _view_data(
+        self,
+        observation: Observation,
+        observation_id: int,
+        *,
+        offset: int = 0,
+        limit: int = DEFAULT_VIEW_LIMIT,
+        find: str | None = None,
+    ) -> tuple[dict[str, Any], str]:
+        """A slice of a reading's view, and one sentence on how to get more."""
+
+        page = view_page(
+            observation.lines, offset=offset, limit=max(1, min(int(limit), MAX_VIEW_LIMIT)), find=find or None
+        )
+        data = {
+            "observation_id": observation_id,
+            "view": page.text,
+            "view_page": page.to_json(),
+            "form_tools": [_public_schema(schema) for schema in observation.lift.form_tool_schemas()],
+        }
+        return data, page.describe(observation_id)
 
     def _waited_result(
-        self, summary: str, waited: WaitResult, *, since: Observation, acted: bool = False
+        self,
+        summary: str,
+        waited: WaitResult,
+        *,
+        since: Observation,
+        acted: bool = False,
+        paging: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """A result after a wait: the view, the changes since ``since``, and whether the change showed."""
 
@@ -302,12 +361,18 @@ class BrowserTools:
         else:
             advice = "The action is done; read the view before you act again." if acted else "Read the view."
             note = f" Waited {waited.timeout_ms} ms for {waited.condition.describe()}: it did not show. {advice}"
-        result = tool_response(True, summary + note, data=self._observe_data(since=since))
+        data = self._observe_data(since=since, paging=paging)
+        result = tool_response(True, _join(summary + note, data.pop("_note")), data=data)
         result["wait"] = waited.to_json()
         return result
 
-    def _observe_data(self, *, since: Observation | None = None) -> dict[str, Any]:
-        """Read the page, keep the reading, and describe it. ``since`` adds what changed from it."""
+    def _observe_data(
+        self, *, since: Observation | None = None, paging: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Read the page, keep the reading, and describe it. ``since`` adds what changed from it.
+
+        The view is a slice (``paging``: offset, limit, find); ``_note`` says how to get more.
+        """
 
         session = self._browser()
         observation = session.observe()
@@ -316,13 +381,8 @@ class BrowserTools:
         for key in sorted(self._history)[:-HISTORY]:
             del self._history[key]
         self._secret_fields |= {c.field_name for c in observation.lift.controls if c.secret and c.field_name}
-        data: dict[str, Any] = {
-            "observation_id": self._latest,
-            "url": observation.url,
-            "title": observation.title,
-            "view": observation.view,
-            "form_tools": [_public_schema(schema) for schema in observation.lift.form_tool_schemas()],
-        }
+        view, note = self._view_data(observation, self._latest, **(paging or {}))
+        data: dict[str, Any] = {"url": observation.url, "title": observation.title, **view, "_note": note}
         if since is not None:
             data["changes"] = changes(since, observation)
         writes = session.blocked_writes()
@@ -369,6 +429,10 @@ def _public_schema(schema: dict[str, Any]) -> dict[str, Any]:
         return value
 
     return {key: strip(schema[key]) for key in ("name", "description", "input_schema")}
+
+
+def _join(*parts: str) -> str:
+    return " ".join(part for part in parts if part)
 
 
 def _condition(wait_for: WaitFor | dict[str, Any] | None) -> ChangeCondition | None:

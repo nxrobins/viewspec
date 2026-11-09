@@ -26,17 +26,16 @@ See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile
 | `lift_inpage.js` | In-page library. Gives every element a ref (`e17`) that stays the same while the element is in the page. Snapshots the composed tree (open shadow roots, slots, same-origin iframes) with live form state, and never copies a secret value. Lists the visible controls (the ground truth). Proposes CSS candidates for an element. |
 | `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and by default **blocks writes**: a form post or any other non-GET request is recorded and answered with a stub page. With an origin allowlist, it also stops navigations to other origins. |
 | `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `wait(condition, since, timeout_ms)`, `blocked_writes()`, `blocked_navigations()`. `changes(before, after)`: what changed between two observations. |
-| `page_view.py` | The compact text view, with a numbered handle for each control. |
+| `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
 | `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 39 checks on the fixtures. |
-| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 37 checks. |
+| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 49 checks. |
 
 ### Locators
 
-At each observation, the bridge finds a locator for every control and checks it with Playwright:
-it must match exactly one element, and that element must be the one the ref names. It tries, in
-order:
+At each observation, the bridge finds a locator for every control: it must match exactly one
+element, and that element must be the one the ref names. It tries, in order:
 
 1. a stable attribute: `#id` (not a generated-looking id), `data-testid` and its kin,
    `data-action-id`, `name` (with `value` for a radio), `aria-label`, `title`, `placeholder`, `href`;
@@ -48,6 +47,14 @@ order:
 Each part runs inside its frame chain, for example
 `page.frameLocator("iframe[title=\"Card details\"]").locator("input[name=\"card\"]")`. Playwright CSS
 crosses open shadow roots, so a control in a web component needs no special path.
+
+The page checks kinds 1 and 2 itself, for all controls in one call: it queries the document and every
+open shadow root as Playwright CSS does, and counts `:has-text()` matches by text. Playwright checks
+only the rest (role and name, exact text, a path that crosses a shadow root), one by one. On the
+675-control catalog this takes a reading from 9.7 s to 0.9 s. A locator is used only when a ref has
+gone stale, and then Playwright must find exactly one element with the same tag and name, so a
+locator that Playwright reads differently fails safely. The probe asks Playwright to confirm every
+page-checked locator; on the fixtures it confirms 713 of 713.
 
 ### Acting
 
@@ -110,15 +117,39 @@ same-origin iframe, and wakes on the first change (once the DOM is quiet for 100
 the first change) or on a navigation. Then the page is read again. On the fixtures, a link that
 shows 600 ms after a click is found in about 700 ms with 2 readings. The longest wait is 30 s.
 
+### Long pages
+
+A long page gives a long view: the 300-product catalog fixture has 1308 lines and 675 controls, about
+7800 tokens (its ARIA snapshot is about 13500). `view_page(lines, offset, limit, find)` returns a
+slice:
+
+- **By offset.** `limit` lines from `offset`. A slice that starts in the middle of the page opens with
+  `context`: the headings it sits under, outermost first, and the form of its first control:
+  `["H1 Lamps and lighting", "H2 Floor lamps", "H3 Prism floor lamp 039"]`.
+- **By text.** `find` keeps the lines that contain some text (ignoring case and runs of whitespace).
+  A matching heading brings the lines of its section (up to 30), so `find="lamp 250"` returns the
+  product with its price, link, and Add to cart button. Any other matching line comes after the
+  heading it sits under. Lines that are not next to each other are split by `…`.
+
+Each line knows the heading of its own section (`section`, `article`, `li`, `main`, `form`, and the
+like), so a heading does not claim the content of a section next to it. Handles are those of the whole
+view: a handle from any slice, or from `find`, works with `act`.
+
 ## MCP tools
 
 `mcp_browser_server.py` serves three tools over stdio:
 
 | Tool | Arguments | Does |
 |---|---|---|
-| `observe` | `url` or `since` (both optional), `wait_for`, `timeout_ms` | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, and control; each control has a handle such as `[7]`), `form_tools` (one typed tool per form), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. |
+| `observe` | `url` or `since` (both optional), `wait_for`, `timeout_ms`, `offset`, `limit`, `find`; or `observation_id` with `offset`, `limit`, `find` | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, and control; each control has a handle such as `[7]`), `view_page` (which lines these are), `form_tools` (one typed tool per form), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. With `observation_id`, it pages through that kept reading without reading the page again. |
 | `act` | `handle`, `action` (`click`, `fill`, `check`, `uncheck`, `select`), `value`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. |
 | `call` | `tool`, `arguments`, `submit`, `observation_id`, `wait_for`, `timeout_ms` | Fills in a form with typed arguments and submits it, waits for `wait_for` if given, then reads the page again. |
+
+The view in every result is a slice: 200 lines by default, at most 1000 (`limit`). `view_page` gives
+`offset`, `returned`, `total`, `next_offset`, and for a slice in the middle of the page, `context`.
+The summary says how to get more: `Showing lines 1-200 of 1308. More: observe(observation_id=14,
+offset=200).` `observe(observation_id=14, find="lamp 250")` searches that reading. A small page fits
+in one slice, so nothing changes for it.
 
 Every result uses the `viewspec mcp` result format: `ok`, `summary`, `errors` (each with `code`,
 `message`, and `fix`), and `next_actions`. `act` and `call` also return `steps` (with secret values
@@ -227,18 +258,25 @@ with BrowserSession() as session:  # block_writes=True by default
 
 `probe.py`:
 
-| page | aria tok | view tok | interactive | compile cov | agent cov | same name | located | forms | fp stable | leaks |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
-| checkout | 208 | 142 | 14 | 1/14 | 14/14 | 14/14 | 15/15 | 1 | True | 0 |
-| shop | 255 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
-| spa | 138 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 0 | True | 0 |
-| viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
+| page | aria tok | view tok | interactive | compile cov | agent cov | same name | located | confirmed | forms | fp stable | leaks |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
+| catalog | 13544 | 7824 | 675 | 649/675 | 675/675 | 675/675 | 675/675 | 675/675 | 2 | True | 0 |
+| checkout | 208 | 142 | 14 | 1/14 | 14/14 | 14/14 | 15/15 | 15/15 | 1 | True | 0 |
+| shop | 255 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
+| spa | 138 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 6/6 | 0 | True | 0 |
+| viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
 
-- **agent cov** matches by element (ref), not by name: 36 of 36 visible controls. **same name**: the
-  lift names all 36 as the browser does.
-- **located**: 38 of 38 controls have a verified locator (the agent lift also finds 2 pointer-only
-  clickables). Kinds, for the 38 controls and the 2 forms: 27 stable attribute, 4 content anchor,
-  4 role and name, 4 exact text, and 1 structural path (a form with no name).
+- **agent cov** matches by element (ref), not by name: 711 of 711 visible controls. **same name**: the
+  lift names all 711 as the browser does.
+- **located**: every control has a locator (the agent lift also finds 2 pointer-only clickables).
+  Kinds on the four small fixtures, for 38 controls and 2 forms: 27 stable attribute, 4 content
+  anchor, 4 role and name, 4 exact text, and 1 structural path (a form with no name). On the catalog:
+  375 stable attribute, 300 content anchor (`li:has-text("Arc desk lamp 001") button`), and 2 role and
+  name.
+- **confirmed**: Playwright finds exactly the right element with every locator, including the ones the
+  page checked by itself.
+- **view tok** is the whole view. The MCP tools send it in slices: the first 200 lines of the catalog
+  are about 1200 tokens.
 - **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
   schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
@@ -262,7 +300,7 @@ with BrowserSession() as session:  # block_writes=True by default
   valid", and a wait for the Apply button to be enabled again shows "Code SAVE10 applied". A wait for
   a new page after the submit is met at once.
 
-`demo_mcp.py` (37 checks, all pass) runs the same kind of tasks through the MCP server, as a host
+`demo_mcp.py` (49 checks, all pass) runs the same kind of tasks through the MCP server, as a host
 would, with `--allow-origin` set to the local fixture server and without `NODE_PATH`. It also checks
 that the tool schemas carry no internal node ids, that a blocked post shows the password field as
 `[redacted]` and no result contains the password or the card number, that acting from a view of a
@@ -270,7 +308,11 @@ page that has navigated away is refused, that opening another origin is refused,
 another origin leaves the agent on the page it was on. It checks `changes` in `act` and `call`
 results, that `observe(since=...)` combines the changes of two actions, that `act` with `wait_for`
 returns the delayed link, that a bad `wait_for` is refused before anything is done, and that an
-`observe` wait that is not met still returns `ok`.
+`observe` wait that is not met still returns `ok`. On the catalog it checks that the view comes in
+200-line slices, that paging a kept reading does not read the page again, that a later slice opens
+with its headings, that all slices together hold each handle once, that `find="lamp 250"` returns the
+product and its button (handle 534), that a click on that handle works and its changes name it, and
+that a slice is at most 1000 lines.
 
 The fixtures are small and hand-made. Run the probe on real sites before you draw conclusions.
 
@@ -288,7 +330,8 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
   a GET request, or over a WebSocket, is not stopped.
 - The origin allowlist checks top-level navigations. Requests for scripts, images, and data from
   other origins still load, as the page needs them.
-- The view is not cut to a size limit. A very large page gives a long view.
+- `find` matches the text of view lines, which shorten long text to 70 characters.
+- A kept reading is a snapshot. Paging through it does not show changes made since; observe again.
 - A diff matches controls by ref, then by unique name, then by place. A control that the page
   re-rendered and also renamed and moved is reported as removed and added.
 - A message that the page shows again with the same text is not reported as new.
@@ -298,5 +341,5 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 ## Next steps
 
 1. Add the MCP server to an agent host, and try it on real sites.
-2. Let `observe` page through a long view.
-3. Let an agent choose an option from a custom ARIA combobox's pop-up list in one step.
+2. Let an agent choose an option from a custom ARIA combobox's pop-up list in one step.
+3. Let `act` scroll a page that loads more items as it scrolls (infinite scroll).

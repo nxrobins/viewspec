@@ -16,6 +16,9 @@
 //   writes    {}                           the writes and navigations that were stopped
 //   document  {}                           the id of the current document (see lift_inpage.js)
 //   wait_change {timeout_ms}               wait until the DOM changes or the page navigates
+//   confirm   {items: [{key, ref, locator}]}
+//                                          ask Playwright whether each locator finds exactly the
+//                                          element its ref names (the probe checks page-checked ones)
 //   close     {}
 //
 // With block_writes, every request that is not GET, HEAD, or OPTIONS (a form post, a fetch that
@@ -201,8 +204,7 @@ function buildLocator(spec) {
   return null;
 }
 
-async function locateOne(request, frameCache) {
-  const info = await page.evaluate((ref) => window.__viewspecLift.describe(ref), request.ref);
+async function locateOne(request, frameCache, info) {
   if (!info.connected) return { strategy: null, reason: "not in the page" };
   // The frame chain: one verified selector per iframe, outermost first.
   const frames = [];
@@ -267,11 +269,28 @@ async function locateOne(request, frameCache) {
   return { strategy: null, reason: "no selector finds exactly this element" };
 }
 
+// Most locators are checked in the page, in one call: a stable attribute or a content anchor that
+// matches only this element there. Playwright checks the rest (role and name, exact text, a path
+// across a shadow root), one by one. A locator is used only when a ref has gone stale, and then
+// Playwright must find exactly one element with the same tag and name, so a page-checked locator
+// that Playwright reads differently fails safely.
 async function locate({ requests }) {
   await ensureLibrary();
+  const infos = await page.evaluate(
+    (refs) => window.__viewspecLift.locateAll(refs),
+    requests.map((request) => request.ref),
+  );
   const frameCache = new Map();
   const results = {};
-  for (const request of requests) results[request.key] = await locateOne(request, frameCache);
+  for (const request of requests) {
+    const info = infos[request.ref];
+    if (info && info.chosen) {
+      const { css, kind, frames } = info.chosen;
+      results[request.key] = { strategy: "css", kind, frames, css, checked: "page", playwright: playwrightCode(frames, { css }) };
+    } else {
+      results[request.key] = await locateOne(request, frameCache, info || { connected: false });
+    }
+  }
   return results;
 }
 
@@ -358,7 +377,18 @@ async function waitChange({ timeout_ms: timeoutMs = 5000 }) {
   return { reason };
 }
 
+async function confirm({ items }) {
+  await ensureLibrary();
+  const results = {};
+  for (const item of items) {
+    const locator = buildLocator(item.locator);
+    results[item.key] = locator ? await uniqueAndSame(locator, item.ref) : false;
+  }
+  return results;
+}
+
 const COMMANDS = {
+  confirm,
   wait_change: waitChange,
   open,
   snapshot,

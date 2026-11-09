@@ -127,6 +127,7 @@ def analyze(session: BrowserSession, target: str, out_dir: Path | None, index: i
     try:
         opened = session.open(target)
         observation = session.observe(collect_secrets=True)
+        confirmed = session.confirm_locators(observation)
         aria = session.aria_snapshot()
         session.reload()
         reload_lift = session.observe(locate=False).lift
@@ -157,7 +158,11 @@ def analyze(session: BrowserSession, target: str, out_dir: Path | None, index: i
         "interactive_kinds": dict(Counter(item["kind"] for item in interactive).most_common()),
         "coverage_compile_profile": coverage(interactive, compile_actions),
         "coverage_agent_profile": ref_coverage(interactive, observation),
-        "locators": locator_stats(observation),
+        "locators": {
+            **locator_stats(observation),
+            "confirmed_by_playwright": sum(confirmed.values()),
+            "not_confirmed": [key for key, ok in confirmed.items() if not ok][:10],
+        },
         "controls": dict(Counter(control.control for control in lift.controls).most_common()),
         "forms": [schema["name"] for schema in schemas],
         "fingerprint": {
@@ -194,13 +199,13 @@ def slug(target: str) -> str:
 def summary_table(reports: list[dict[str, Any]]) -> str:
     header = (
         "| page | aria tok | view tok | interactive | compile cov | agent cov | same name | located "
-        "| forms | fp stable | leaks |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|"
+        "| confirmed | forms | fp stable | leaks |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|"
     )
     rows = [header]
     for report in reports:
         name = slug(report["target"])
         if not report["ok"]:
-            rows.append(f"| {name} | error: {report['error'][:60]} |||||||||")
+            rows.append(f"| {name} | error: {report['error'][:60]} ||||||||||")
             continue
         tokens = report["approx_tokens"]
         compiled = report["coverage_compile_profile"]
@@ -211,6 +216,7 @@ def summary_table(reports: list[dict[str, Any]]) -> str:
             f"| {name} | {tokens['aria_snapshot']} | {tokens['page_view']} | {report['visible_interactive']} "
             f"| {compiled['found']}/{compiled['total']} | {agent['found']}/{agent['total']} "
             f"| {agent['same_name']}/{agent['found']} | {located['located']}/{located['total']} "
+            f"| {located['confirmed_by_playwright']}/{located['located']} "
             f"| {len(report['forms'])} | {report['fingerprint']['stable_across_reload']} | {leaks} |"
         )
     return "\n".join(rows)

@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from page_view import page_view
+from page_view import ViewLine, view_lines
 
 from viewspec.raw_html import HtmlLiftResult, lift_html
 from viewspec.raw_html_actions import ActionStep, plan_control_action, plan_form_call
@@ -50,6 +50,7 @@ class Observation:
     html: str
     lift: HtmlLiftResult
     view: str
+    lines: list[ViewLine]
     handles: dict[int, HtmlControl]
     locators: dict[str, dict[str, Any]]
     interactive: list[dict[str, str]]
@@ -186,7 +187,8 @@ class BrowserSession:
 
         snap = self._call("snapshot", collect_secrets=collect_secrets)
         lift = lift_html(snap["html"], profile="agent")
-        view, handles = page_view(lift)
+        lines, handles = view_lines(lift)
+        view = "\n".join(line.text for line in lines)
         locators: dict[str, dict[str, Any]] = {}
         if locate:
             requests = [
@@ -208,6 +210,7 @@ class BrowserSession:
             html=snap["html"],
             lift=lift,
             view=view,
+            lines=lines,
             handles=handles,
             locators=locators,
             interactive=snap["interactive"],
@@ -216,6 +219,17 @@ class BrowserSession:
             secrets=snap.get("secrets", []),
         )
         return self.observation
+
+    def confirm_locators(self, observation: Observation) -> dict[str, bool]:
+        """Ask Playwright whether each saved locator finds exactly its control (by node id)."""
+
+        refs = {control.node_id: control.ref for control in observation.lift.controls}
+        items = [
+            {"key": key, "ref": refs[key], "locator": locator}
+            for key, locator in observation.locators.items()
+            if locator.get("strategy") and refs.get(key)
+        ]
+        return self._call("confirm", items=items) if items else {}
 
     def aria_snapshot(self) -> str:
         return self._call("aria")["aria"]

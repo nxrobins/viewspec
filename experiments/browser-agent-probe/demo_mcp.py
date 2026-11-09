@@ -180,6 +180,65 @@ async def run(base: str) -> None:
         check(late["ok"] and not late["wait"]["met"], "a wait that is not met is not an error")
         check("did not show" in late["summary"], "the summary says the change did not show")
 
+        print("\n== long pages ==")
+        catalog = await tool(session, "observe", url=f"{base}/catalog.html")
+        reading = catalog["observation_id"]
+        page = catalog["view_page"]
+        print(f"  ..  {page}")
+        check(page["total"] > 1000 and page["returned"] == 200, "a long view comes as its first 200 lines")
+        check(len(catalog["view"].splitlines()) == 200, "and the view holds exactly those lines")
+        check(
+            f"observe(observation_id={reading}, offset=200)" in catalog["summary"], "the summary says how to get more"
+        )
+
+        second = await tool(session, "observe", observation_id=reading, offset=200)
+        check(second["observation_id"] == reading, "paging a kept reading does not read the page again")
+        print(f"  ..  context: {second['view_page'].get('context')}")
+        check(
+            second["view_page"]["context"][:2] == ["H1 Lamps and lighting", "H2 Floor lamps"],
+            "the next slice starts with the headings it sits under",
+        )
+
+        handles: list[int] = []
+        offset: int | None = 0
+        while offset is not None:
+            part = await tool(session, "observe", observation_id=reading, offset=offset, limit=1000)
+            handles += [int(found) for found in re.findall(r"^\[(\d+)\]", part["view"], re.MULTILINE)]
+            offset = part["view_page"]["next_offset"]
+        check(
+            handles == list(range(1, len(handles) + 1)),
+            f"all slices together hold handles 1 to {len(handles)}, once each",
+        )
+
+        found = await tool(session, "observe", observation_id=reading, find="lamp 250")
+        print("\n".join(f"     {line}" for line in found["view"].splitlines()))
+        add = handle(found, "Add to cart")
+        check(
+            add > 200 and found["view_page"]["matches"] == 1,
+            "find shows one product, deep in the page, with its button",
+        )
+        bought = await tool(
+            session, "act", handle=add, action="click", observation_id=reading, wait_for={"change": "message"}
+        )
+        print("\n".join(f"  ~~  {line}" for line in bought["changes"]["lines"]))
+        check(
+            bought["changes"]["lines"][0] == "message status 'Kindle vintage lamp 250 added to cart'"
+            and f"changed [{add}] button 'Added': name 'Add to cart' -> 'Added'; disabled false -> true"
+            in bought["changes"]["lines"],
+            "acting on a handle from a found line works, and the changes name it",
+        )
+        check(bought["view_page"]["returned"] == 200, "the view in an act result is a slice too")
+
+        none = await tool(session, "observe", observation_id=reading, find="no such lamp")
+        check(none["view"] == "" and "No line contains" in none["summary"], "find with no match says so")
+        wide = await tool(session, "observe", observation_id=reading, limit=5000)
+        check(wide["view_page"]["returned"] == 1000, "a slice is at most 1000 lines")
+        mixed = await tool(session, "observe", observation_id=reading, url=f"{base}/catalog.html")
+        check(
+            not mixed["ok"] and mixed["errors"][0]["code"] == "BROWSER_INVALID_REQUEST",
+            "observation_id with url is refused",
+        )
+
         print("\n== viewspec_orders ==")
         orders = await tool(session, "observe", url=f"{base}/viewspec_orders.html")
         check("#refund" in orders["view"], "the view shows the ViewSpec action id")

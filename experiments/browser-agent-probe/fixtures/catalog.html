@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture catalog</title></head>
+<body>
+<header>
+  <nav aria-label="Main">
+    <a href="/">Home</a> <a href="/deals">Deals</a> <a href="/brands">Brands</a>
+    <a href="/orders">Orders</a> <a href="/account">Account</a> <a href="/help">Help</a>
+  </nav>
+  <form action="/search" aria-label="Search">
+    <input type="search" name="q" aria-label="Search the catalog">
+    <button type="submit">Search</button>
+  </form>
+</header>
+<aside>
+  <form aria-label="Filters" id="filters">
+    <fieldset id="brands"><legend>Brand</legend></fieldset>
+    <label>Price <select name="price"><option>Any</option><option>Under $50</option><option>$50 to $100</option><option>Over $100</option></select></label>
+    <button type="button">Apply filters</button>
+  </form>
+</aside>
+<main>
+  <h1>Lamps and lighting</h1>
+  <p role="status" id="cart-status"></p>
+  <div id="categories"></div>
+  <nav aria-label="Pages" id="pages"></nav>
+  <button type="button" id="checkout">Proceed to checkout</button>
+</main>
+<footer id="footer"></footer>
+<script>
+  // A long page: 12 categories of 25 products, 24 brand filters, 10 page links, 30 footer links.
+  const categories = ["Desk", "Floor", "Wall", "Ceiling", "Table", "Reading", "Outdoor", "Kids",
+    "Smart", "Vintage", "Studio", "Garden"];
+  const brands = ["Arc", "Beam", "Clarity", "Dawn", "Ember", "Flux", "Glow", "Halo", "Iris", "Jet",
+    "Kindle", "Lumen", "Mira", "Nova", "Opal", "Prism", "Quartz", "Ray", "Sol", "Tor", "Umbra",
+    "Vega", "Wick", "Zen"];
+  const brandBox = document.getElementById("brands");
+  for (const brand of brands) {
+    brandBox.insertAdjacentHTML("beforeend", `<label><input type="checkbox" name="brand" value="${brand}"> ${brand}</label>`);
+  }
+  let n = 0;
+  const parts = categories.map((category) => {
+    const items = [];
+    for (let i = 0; i < 25; i++) {
+      n += 1;
+      const id = String(n).padStart(3, "0");
+      const brand = brands[n % brands.length];
+      const price = (19 + ((n * 37) % 180)).toFixed(2);
+      items.push(`<li><h3>${brand} ${category.toLowerCase()} lamp ${id}</h3><p>$${price}</p>` +
+        `<a href="/p/${id}">Details</a> <button type="button" class="add">Add to cart</button></li>`);
+    }
+    return `<section><h2>${category} lamps</h2><ul>${items.join("")}</ul></section>`;
+  });
+  document.getElementById("categories").innerHTML = parts.join("");
+  document.getElementById("pages").innerHTML =
+    Array.from({ length: 10 }, (_, i) => `<a href="?page=${i + 1}">${i + 1}</a>`).join(" ");
+  document.getElementById("footer").innerHTML =
+    Array.from({ length: 30 }, (_, i) => `<a href="/info/${i + 1}">Info ${i + 1}</a>`).join(" ");
+  document.querySelectorAll("button.add").forEach((button) => {
+    button.addEventListener("click", () => {
+      button.textContent = "Added";
+      button.disabled = true;
+      document.getElementById("cart-status").textContent =
+        `${button.closest("li").querySelector("h3").textContent} added to cart`;
+    });
+  });
+</script>
+</body>
+</html>

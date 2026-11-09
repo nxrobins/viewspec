@@ -284,10 +284,23 @@
       const repeats = [...parent.children].filter((s) => s.tagName === item.tagName).length > 1;
       if (!repeats) continue;
       const text = anchorText(item, el);
-      if (text) found.push(`${item.tagName.toLowerCase()}:has-text(${quote(text)}) ${tag}`);
+      if (text) found.push({ item: item.tagName.toLowerCase(), text, target: tag });
       if (found.length) break;
     }
     return found;
+  }
+
+  // What Playwright's "item:has-text(text) target" finds, counted in this page: every target inside an
+  // item whose text contains the anchor text (ignoring case and runs of whitespace).
+  function anchoredMatches(roots, anchor) {
+    const needle = anchor.text.replace(/\s+/g, " ").trim().toLowerCase();
+    const items = matchesIn(roots, anchor.item) || [];
+    const found = new Set();
+    for (const item of items) {
+      if (!(item.textContent || "").replace(/\s+/g, " ").toLowerCase().includes(needle)) continue;
+      for (const target of item.querySelectorAll(anchor.target)) found.add(target);
+    }
+    return [...found];
   }
 
   // Candidates for an element, best first. ``kind`` is "attr" (a stable attribute), "anchored"
@@ -299,14 +312,10 @@
     const tag = el.tagName.toLowerCase();
     const list = [];
     const seen = new Set();
-    const add = (css, simple, kind = "attr") => {
+    const add = (css, simple, kind = "attr", anchor = null) => {
       if (!css || seen.has(css)) return;
       seen.add(css);
-      if (kind === "anchored") {
-        list.push({ css, kind, unique: null });
-        return;
-      }
-      const found = matchesIn(roots, css);
+      const found = anchor ? anchoredMatches(roots, anchor) : matchesIn(roots, css);
       if (found === null) return;
       const exact = found.length === 1 && found[0] === el;
       list.push({ css, kind, unique: exact ? true : simple || found.length > 1 ? false : null });
@@ -325,7 +334,9 @@
     }
     if (tag === "a" && el.getAttribute("href")) add(`a[href=${quote(el.getAttribute("href"))}]`, true);
     if (name && el.form && stableId(el.form.id)) add(`#${CSS.escape(el.form.id)} ${tag}[name=${quote(name)}]`, false);
-    for (const css of anchoredCandidates(el, tag)) add(css, false, "anchored");
+    for (const anchor of anchoredCandidates(el, tag)) {
+      add(`${anchor.item}:has-text(${quote(anchor.text)}) ${anchor.target}`, true, "anchored", anchor);
+    }
     add(structuralPath(el, roots), false, "path");
     return list;
   }
@@ -342,6 +353,29 @@
       doc = frame.ownerDocument;
     }
     return { connected: true, tag: el.tagName.toLowerCase(), frames, candidates: candidates(el) };
+  }
+
+  // Describe many elements in one call. For each, ``css`` (and ``frames``) is the first candidate this
+  // page found unique and the same element, by stable attribute or content anchor, in that order.
+  // Where this page cannot tell, ``css`` is null and the caller asks Playwright.
+  function locateAll(refs) {
+    const out = {};
+    for (const ref of refs) {
+      const info = describe(ref);
+      if (!info.connected) {
+        out[ref] = info;
+        continue;
+      }
+      const pick = (candidates, kinds) =>
+        candidates.find((candidate) => candidate.unique === true && kinds.includes(candidate.kind)) || null;
+      const frames = info.frames.map((frame) => pick(frame.candidates, ["attr", "anchored", "path"]));
+      const chosen = pick(info.candidates, ["attr", "anchored"]);
+      out[ref] = {
+        ...info,
+        chosen: chosen && frames.every(Boolean) ? { css: chosen.css, kind: chosen.kind, frames: frames.map((f) => f.css) } : null,
+      };
+    }
+    return out;
   }
 
   // ---- Waiting for the page to change -----------------------------------------------------------
@@ -410,6 +444,7 @@
     docId,
     snapshot,
     describe,
+    locateAll,
     refOf,
     get,
     nameOf,
