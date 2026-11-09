@@ -475,7 +475,7 @@ def test_normalized_contract_keeps_both_rule_forms():
     assert contract["visibility"][1]["when"]["any"][0]["all"][0] == LEAF_ACKED
 
 
-def test_v5_rejects_integers_beyond_two_pow_53_and_v4_does_not_change():
+def test_v5_rejects_integers_beyond_two_pow_53_as_v4_does():
     def big(p):
         _rule(p, "state", "spend")["initial"] = {"value": 2**53 + 1}
 
@@ -484,9 +484,12 @@ def test_v5_rejects_integers_beyond_two_pow_53_and_v4_does_not_change():
         ("APP_STATE_INTEGER_OUT_OF_SAFE_RANGE", "$.state[3].initial.value")
     ]
     assert _codes(_mutated(_v5(), lambda p: _rule(p, "state", "spend").update(initial={"value": 2**53}))) == set()
+    # Every schema version rejects them now: the V4 runtime reads the same doubles.
     v4 = _state_text_app_bundle()
     v4["state"][1]["initial"] = {"value": 2**53 + 1}
-    assert validate_app_text(json.dumps(v4))["ok"] is True
+    assert [(issue["code"], issue["path"]) for issue in validate_app_text(json.dumps(v4))["issues"]] == [
+        ("APP_STATE_INTEGER_OUT_OF_SAFE_RANGE", "$.state[1].initial.value")
+    ]
 
 
 # --- Python equals JavaScript on arbitrary state shapes ------------------------------------------------

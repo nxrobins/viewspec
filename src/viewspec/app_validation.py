@@ -35,6 +35,7 @@ from viewspec.state_ir import (
     APP_VISIBILITY_MAX_RULES,
     INTERACTIVE_STATE_PROFILE,
     state_ir_summary,
+    unsafe_integer_issues,
     v5_feature_issues,
     validate_state_ir,
 )
@@ -258,6 +259,9 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
     if version in APP_BUNDLE_STATEFUL_SCHEMA_VERSIONS:
         _state_ir, state_issues = validate_state_ir(validation_payload)
         issues.extend(issue.to_json() for issue in state_issues)
+    else:
+        # Versions 1 and 2 have no state IR, but their fixture records still reach the runtime.
+        issues.extend(issue.to_json() for issue in unsafe_integer_issues(payload, sections=("resources",)))
     if version in {APP_BUNDLE_SCHEMA_VERSION, APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION}:
         # Versions 4 and 5 report these inside their own rule parsers.
         issues.extend(issue.to_json() for issue in v5_feature_issues(payload))

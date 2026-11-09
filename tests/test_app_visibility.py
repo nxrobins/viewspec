@@ -461,3 +461,57 @@ def test_visibility_replay_ok_is_true_when_asserted(tmp_path):
     assert state_summary["initial_hidden_count"] == sum(
         1 for visible in initial_visibility(payload, validate_state_ir(payload)[0]).values() if not visible
     )
+
+
+# --- a condition that can never hold is reported, never dropped ------------------------------------
+
+
+def _without_replay_of(payload: dict[str, Any], rule_id: str) -> dict[str, Any]:
+    # Without a replay assertion that names the rule, nothing else would notice it went missing.
+    for assertion in payload.get("state_replay_assertions", []):
+        assertion.get("expect_visibility", {}).pop(rule_id, None)
+    return payload
+
+
+def test_v4_rule_with_a_null_condition_fails_instead_of_being_dropped():
+    payload = _without_replay_of(_visibility_app_bundle(), "incidents_when_selected")
+    payload["visibility"][0]["when"] = None
+    result = validate_app_text(json.dumps(payload))
+    assert result["ok"] is False
+    assert [(issue["code"], issue["path"]) for issue in result["issues"]] == [
+        ("APP_VISIBILITY_CONDITION_INVALID", "$.visibility[0].when")
+    ]
+
+
+def test_v4_rule_without_a_condition_is_reported_once():
+    payload = _without_replay_of(_visibility_app_bundle(), "incidents_when_selected")
+    del payload["visibility"][0]["when"]
+    issues = validate_app_text(json.dumps(payload))["issues"]
+    assert [(issue["code"], issue["path"]) for issue in issues] == [
+        ("APP_VISIBILITY_FIELD_REQUIRED", "$.visibility[0]")
+    ]
+
+
+def test_v5_rule_with_a_null_condition_is_reported_once():
+    payload = _without_replay_of(_visibility_app_bundle(), "incidents_when_selected")
+    payload["schema_version"] = 5
+    payload["visibility"][0]["when"] = None
+    issues = validate_app_text(json.dumps(payload))["issues"]
+    assert [(issue["code"], issue["path"]) for issue in issues] == [
+        ("APP_VISIBILITY_CONDITION_INVALID", "$.visibility[0].when")
+    ]
+
+
+def test_v4_rejects_an_equals_integer_a_double_cannot_hold():
+    for unsafe in (2**53 + 1, -(2**53 + 1)):
+        payload = _visibility_app_bundle()
+        payload["visibility"][2]["when"]["equals"] = unsafe
+        issues = validate_app_text(json.dumps(payload))["issues"]
+        assert ("APP_STATE_INTEGER_OUT_OF_SAFE_RANGE", "$.visibility[2].when.equals") in {
+            (issue["code"], issue["path"]) for issue in issues
+        }
+    payload = _visibility_app_bundle()
+    payload["visibility"][2]["when"]["equals"] = 2**53
+    assert "APP_STATE_INTEGER_OUT_OF_SAFE_RANGE" not in {
+        issue["code"] for issue in validate_app_text(json.dumps(payload))["issues"]
+    }

@@ -227,7 +227,7 @@ V2 validates every resource view against existing fixture resources, unique reco
 
 AppBundle V3 adds required root `interactive_state: "interactive_state_v0"`, `state`, `mutations`, and `selectors`, with optional `state_replay_assertions`. Mutation triggers reference declared embedded screen actions by `{ "screen_id": "...", "action_id": "..." }`, and `from_payload` reads must reference that action's declared `payload_bindings`. Supported mutation ops are `set`, `patch`, `toggle`, `append`, `remove`, `move`, and `increment`. Supported selector ops are `filter_eq`, `sort_by`, and `slice`.
 
-AppBundle V4 keeps the full V3 contract and adds an optional root `visibility` array. Each rule is `{ "id", "screen_id", "target_ref", "when" }`: `target_ref` is `region:<id>`, `motif:<id>`, or `binding:<id>` declared in that screen's embedded intent (`view:` is excluded — whole-screen visibility is the router's job), and `when` is exactly one closed condition form: `{"state": id, "is": "truthy"|"falsy"}` (scalar or selection state), `{"state": id, "equals": <JSON scalar>}` (scalar state, JS strict-equality semantics), or `{"selector": id, "is": "non_empty"|"empty"}` (selectors sourcing collection or selection state). At most one rule per `(screen_id, target_ref)`. Replay assertions may declare `expect_visibility` maps of rule id to boolean; replay and Node reducer conformance both verify the verdicts, and compiled screens bake initial visibility that proof cross-checks against `initial_visibility` (`APP_VISIBILITY_BAKE_MISMATCH` fails closed).
+AppBundle V4 keeps the full V3 contract and adds an optional root `visibility` array. Each rule is `{ "id", "screen_id", "target_ref", "when" }`: `target_ref` is `region:<id>`, `motif:<id>`, or `binding:<id>` declared in that screen's embedded intent (`view:` is excluded — whole-screen visibility is the router's job), and `when` is exactly one closed condition form: `{"state": id, "is": "truthy"|"falsy"}` (scalar or selection state), `{"state": id, "equals": <JSON scalar>}` (scalar state, JS strict-equality semantics), or `{"selector": id, "is": "non_empty"|"empty"}` (selectors sourcing collection or selection state). At most one rule per `(screen_id, target_ref)`. A rule whose `when` is missing, `null`, or not one of these forms fails validation with `APP_VISIBILITY_FIELD_REQUIRED` or `APP_VISIBILITY_CONDITION_INVALID`; a rule is never dropped. Replay assertions may declare `expect_visibility` maps of rule id to boolean; replay and Node reducer conformance both verify the verdicts, and compiled screens bake initial visibility that proof cross-checks against `initial_visibility` (`APP_VISIBILITY_BAKE_MISMATCH` fails closed).
 
 V4 may also add optional root `state_text` rules:
 
@@ -426,8 +426,8 @@ exponent-form inputs, negative zero, results that round to zero, every currency,
 dates, booleans, strings, and null. A Python test and a Node test assert every vector.
 
 In a V5 bundle, a number without a format renders as JavaScript `String()` renders it, in Python
-too. V5 also rejects an integer above 2^53 in magnitude anywhere in `resources`, `state`,
-`mutations`, `selectors`, `visibility`, or `state_replay_assertions` with
+too. Every schema version, not only V5, rejects an integer above 2^53 in magnitude anywhere in
+`resources`, `state`, `mutations`, `selectors`, `visibility`, or `state_replay_assertions` with
 `APP_STATE_INTEGER_OUT_OF_SAFE_RANGE`, because the generated reducer reads such a number as the
 nearest 64-bit double. Write larger identifiers as strings.
 
@@ -454,6 +454,8 @@ its 64 KiB cap, and the static shell state runtime uses about 20 KiB of its 96 K
 ## Constraints & Fallbacks
 
 AppBundle V0 is physically bounded: max 1 MiB raw JSON, 16 screens, 32 routes, 8 fixture resources, 100 records per resource, 32 scalar fields per record, 2,048 characters per scalar string, 256 KiB per embedded IntentBundle, 1 MiB aggregate embedded IntentBundle JSON, 256 KiB app proof report, and 16 KiB redacted support bundle. V3 state adds max 32 state entries, 128 mutations, 16 ops per mutation, 64 selectors, 8 selector ops, 32 replay assertions, 32 events per replay assertion, 64 KiB generated reducer, and 64 KiB state manifest. V4 visibility adds max 64 rules, one rule per screen target, and equals values bounded to JSON scalars of at most 2,048 characters. V5 adds 2 to 8 conditions per `all` or `any` list, depth 3, 8 leaves per rule, 512-character multi-value templates, and 8 placeholders per rule. Validation fails closed with stable error codes before writing proof artifacts when any bound is exceeded.
+
+Every schema version rejects an integer above 2^53 in magnitude in `resources`, `state`, `mutations`, `selectors`, `visibility`, and `state_replay_assertions` with `APP_STATE_INTEGER_OUT_OF_SAFE_RANGE`. Python would keep such an integer exact while the generated runtime reads the nearest 64-bit double, so text, equality, and replay would disagree. Write larger identifiers as strings.
 
 Routes are static and canonical only: paths are unique, at most 96 characters, start with `/`, contain only letters, digits, `_`, `.`, `~`, `-`, and `/`, and must not contain `//`, `/../`, `/./`, `%`, `?`, `#`, or `\`. Proof output paths derive only from validated safe ids, never route paths, labels, titles, resource values, or user copy.
 

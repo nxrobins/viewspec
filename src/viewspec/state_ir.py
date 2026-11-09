@@ -311,8 +311,7 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
         "APP_STATE_DUPLICATE_REPLAY_ID",
         issues,
     )
-    if bounded_expressions:
-        issues.extend(_unsafe_integer_issues(app_payload))
+    issues.extend(unsafe_integer_issues(app_payload))
 
     if issues:
         return None, issues
@@ -333,14 +332,16 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
 _STATE_NUMBER_SECTIONS = ("resources", "state", "mutations", "selectors", "visibility", "state_replay_assertions")
 
 
-def _unsafe_integer_issues(app_payload: dict[str, Any]) -> list[StateValidationIssue]:
-    """schema_version 5 rejects integers that a JavaScript double cannot hold exactly.
+def unsafe_integer_issues(
+    app_payload: dict[str, Any], *, sections: tuple[str, ...] = _STATE_NUMBER_SECTIONS
+) -> list[StateValidationIssue]:
+    """Reject integers that a JavaScript double cannot hold exactly, in every schema version.
 
-    Python keeps such an integer exact while the generated reducer reads the nearest double, so
-    text, equality, and replay would disagree. Earlier schema versions keep their behavior.
+    Python keeps such an integer exact while the generated runtime reads the nearest double, so
+    text, equality, and replay would disagree. Schema versions 1 and 2 have only ``resources``.
     """
     found: list[tuple[str, int]] = []
-    for section in _STATE_NUMBER_SECTIONS:
+    for section in sections:
         if section in app_payload:
             _collect_unsafe_integers(app_payload[section], f"$.{section}", found)
     return [
@@ -348,7 +349,7 @@ def _unsafe_integer_issues(app_payload: dict[str, Any]) -> list[StateValidationI
             "APP_STATE_INTEGER_OUT_OF_SAFE_RANGE",
             path,
             f"Integer {value} exceeds the exactly representable range of +/-{MAX_SAFE_INTEGER} (2^53); "
-            "schema_version 5 reads state numbers as 64-bit doubles.",
+            "the generated runtime reads AppBundle numbers as 64-bit doubles.",
             "Write larger identifiers as JSON strings, or use a smaller number.",
         )
         for path, value in found
@@ -2370,7 +2371,10 @@ def _parse_visibility_rules(
                 gated_ids.add(rule_id)
             when_ok = False
         else:
-            when_ok = _validate_visibility_condition(when, path, states_by_id, selectors_by_id, issues)
+            # A missing when is already APP_VISIBILITY_FIELD_REQUIRED; an explicit null is invalid.
+            when_ok = "when" in item and _validate_visibility_condition(
+                when, path, states_by_id, selectors_by_id, issues
+            )
         if rule_id and screen_id is not None and target_ok and when_ok:
             rules.append(
                 VisibilityRule(id=rule_id, screen_id=screen_id, target_ref=str(target_ref), when=copy.deepcopy(when))
@@ -2937,14 +2941,8 @@ def _validate_visibility_leaf(
     shape_message: str,
 ) -> bool:
     if not isinstance(when, dict) or frozenset(when) not in _VISIBILITY_CONDITION_FORMS:
-        if when is not None:
-            issues.append(
-                StateValidationIssue(
-                    "APP_VISIBILITY_CONDITION_INVALID",
-                    when_path,
-                    shape_message,
-                )
-            )
+        # null included: a rule must never be dropped without an issue that names its condition.
+        issues.append(StateValidationIssue("APP_VISIBILITY_CONDITION_INVALID", when_path, shape_message))
         return False
     ok = True
     if "selector" in when:
@@ -3646,6 +3644,7 @@ __all__ = [
     "state_ir_summary",
     "state_manifest",
     "state_text_segments",
+    "unsafe_integer_issues",
     "v5_feature_issues",
     "validate_state_ir",
 ]

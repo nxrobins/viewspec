@@ -132,8 +132,7 @@ All notable changes to ViewSpec are documented in this file. The format follows
   `APP_VISIBILITY_CONDITION_ARITY_INVALID`, `APP_VISIBILITY_CONDITION_TOO_DEEP`,
   `APP_VISIBILITY_CONDITION_TOO_MANY_LEAVES`, `APP_STATE_TEXT_VALUES_INVALID`,
   `APP_STATE_TEXT_VALUES_MISMATCH`, `APP_STATE_TEXT_SELECTOR_MISSING`,
-  `APP_STATE_TEXT_SELECTOR_SOURCE_UNSUPPORTED`, and `APP_STATE_TEXT_FORMAT_INVALID`. V5 also rejects
-  an integer above 2^53 in its state data with `APP_STATE_INTEGER_OUT_OF_SAFE_RANGE`.
+  `APP_STATE_TEXT_SELECTOR_SOURCE_UNSUPPORTED`, and `APP_STATE_TEXT_FORMAT_INVALID`.
 - `agent-app-bundle.schema.json` describes `schema_version` 5, and
   `viewspec.app_agent_schema.APPBUNDLE_V5_PROMPT_SECTION` holds the agent guidance for it.
 - `skills/viewspec/SKILL.md`, an agent skill with `name` and `description` front matter, which
@@ -174,6 +173,14 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- Every AppBundle schema version rejects an integer above 2^53 in magnitude in `resources`,
+  `state`, `mutations`, `selectors`, `visibility`, and `state_replay_assertions` with
+  `APP_STATE_INTEGER_OUT_OF_SAFE_RANGE`. Python kept such an integer exact while the generated
+  runtime read the nearest double, so text, equality, and replay could disagree. A V1 to V4
+  bundle that holds one used to validate and now fails; write larger identifiers as strings.
+- A V4 visibility rule whose `when` is `null` fails with `APP_VISIBILITY_CONDITION_INVALID` at its
+  `when`. It used to be dropped without an issue, so its target never hid. A missing `when` is
+  still reported once, as `APP_VISIBILITY_FIELD_REQUIRED`.
 - The generated reducer escapes `<`, `>`, and `&` in its JSON literals in every AppBundle schema
   version, as V5 already did. A V4 static shell inlines the reducer in a `<script>` element, so a
   template, state value, or mutation value holding `</script>` ended the script there: the shell
