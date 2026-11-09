@@ -161,6 +161,20 @@ def test_select_on_a_search_field_types_and_picks_a_suggestion():
     assert caught.value.code == "AGENT_ACTION_UNSUPPORTED"
 
 
+def test_a_select_only_combobox_cannot_be_typed_into():
+    # The W3C APG select-only combobox is a div: fill is refused before the browser acts.
+    [combo] = [
+        control
+        for control in _lift(
+            '<div role="combobox" aria-label="Fruit" tabindex="0" aria-expanded="false">Choose</div>'
+        ).controls
+        if control.control == "combobox"
+    ]
+    with pytest.raises(AgentActionError) as caught:
+        plan_control_action(combo, "fill", "Ban")
+    assert caught.value.code == "AGENT_ACTION_UNSUPPORTED" and "use select" in caught.value.message
+
+
 def test_a_read_only_combobox_is_still_chosen_from():
     # ARIA: aria-readonly on a combobox means "not editable, but otherwise operable". react-select
     # without search and Ant Design mark their select-only comboboxes this way.

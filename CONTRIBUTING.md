@@ -113,6 +113,13 @@ never calls a model.
 VIEWSPEC_EVAL_MODEL=<model-id> ANTHROPIC_API_KEY=<key> python scripts/eval_agent_contract.py
 ```
 
+`--provider azure-openai` sends the prompts to an Azure OpenAI or Azure AI Foundry deployment
+instead, through its chat completions API. It reads the key from `AZURE_OPENAI_API_KEY`, the
+resource from `AZURE_OPENAI_ENDPOINT` (`https://<resource>.openai.azure.com` or
+`https://<resource>.services.ai.azure.com`), and the API version from `AZURE_OPENAI_API_VERSION`
+(default `2025-04-01-preview`); `VIEWSPEC_EVAL_MODEL` is the deployment name. The request sends
+`max_completion_tokens`, which reasoning deployments require.
+
 `--dry-run` writes the plan and makes no model call. `--temperature T` sends a sampling temperature
 from 0 to 1; without it the request sends none. `--system-prompt PATH` measures another system
 prompt. To measure an older published prompt, save it with

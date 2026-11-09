@@ -26,7 +26,7 @@ See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile
 | `lift_inpage.js` | In-page library. Gives every element a ref (`e17`) that stays the same while the element is in the page. Snapshots the composed tree (open shadow roots, slots, same-origin iframes) with live form state, and never copies a secret value. Lists the visible controls (the ground truth). Proposes CSS candidates for an element. |
 | `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and by default **blocks writes**: a form post or any other non-GET request is recorded and answered with a stub page. With an origin allowlist, it also stops navigations to other origins. |
 | `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `wait(condition, since, timeout_ms)`, `scroll(step, until, timeout_ms)`, `blocked_writes()`, `blocked_navigations()`. `BrowserSession(download_dir=...)` names the folder for downloads. `changes(before, after)`: what changed between two observations. |
-| `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). |
+| `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). An action's ARIA state shows on its line: `pressed`, `selected`, `expanded` or `collapsed`. |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
 | `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 120 checks on the fixtures. |
@@ -552,6 +552,47 @@ plain click that starts a download says it was not saved, that a link that downl
 `BROWSER_DOWNLOAD_NONE`, and that the folder holds only the file the agent asked for.
 
 The fixtures are small and hand-made. Run the probe on real sites before you draw conclusions.
+
+## Results on the W3C ARIA Authoring Practices examples
+
+The ARIA Authoring Practices Guide publishes a reference implementation of each widget pattern:
+tabs, menus and menu bars, trees and tree grids, five comboboxes, listboxes, sliders, switches,
+dialogs, date pickers, disclosures, carousels, grids, and more. Its 61 example pages
+(`https://www.w3.org/WAI/ARIA/apg/example-index/`) are the standard the lift is measured against.
+
+`probe.py` on all 61 pages, 9 November 2026:
+
+| Measure | Result |
+|---|---:|
+| Visible interactive elements | 3,551 |
+| Found by the agent lift, by element | 3,532 (99.5%) |
+| Named as the browser names them | 3,456, plus 61 that differ only in the page template's note, which the browser truncates (99.6%) |
+| Locators found, and confirmed by Playwright | 3,548 of 3,548 |
+| Live secret values leaked | 0 |
+| Fingerprint stable across a reload | 61 of 61 pages |
+| Size of the view against the ARIA snapshot | 107k tokens against 381k (28%) |
+
+The 19 elements not found are of two kinds. Eleven are controls drawn inside inline SVG (the
+seek, temperature, and two-thumb sliders; the five rating radios), which the sanitizer strips with
+the SVG; the lift cannot see them. Eight are elements the probe counts and the lift drops on
+purpose: the feed's focusable articles, a tree grid's row, two radio groups that hold the focus for
+their radios (`aria-activedescendant`), and a hidden "reload needed" link; the controls inside each
+are listed in their place.
+
+One action on one control of each kind inside each example (`apg_eval.py` in the probe's notes),
+re-opening the page before each action: 58 of 64 actions did what they should, and the step
+verified or the diff showed the change. Every tab (4), tree item (3), listbox (4), radio (3), switch
+(3), menu item (2), combobox (2), text box (8), and 26 of 29 buttons. Of the six that did not: two
+were clicks on a grid cell and a tab panel, which focus and change nothing; two were a checkbox and
+a button inside a card collapsed with `overflow: hidden`, which the lift takes for visible and the
+browser cannot click (the step waits 5 s and refuses); two changed only the order of a table's rows
+or a grid's cells, which the diff could not see. The sort button is now seen through the column
+header's `aria-sort`; the grid button is not.
+
+What the run changed in the lift: `aria-labelledby` lets a referenced element contribute its own
+`aria-label`; content that is `aria-hidden` gives no name, so a `title` does; a date combobox is a
+date field; controls carry `pressed`, `selected`, `expanded`, and `sort`; and `fill` on a
+select-only `div` combobox is refused before the browser acts.
 
 ## Known limits
 
