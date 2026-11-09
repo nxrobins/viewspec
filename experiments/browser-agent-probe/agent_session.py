@@ -37,6 +37,8 @@ from viewspec.raw_html_diff import ChangeCondition, diff_lifts
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE / "bridge.js"
 MAX_WAIT_MS = 30000
+SCROLL_WAIT_MS = 2500  # The longest wait for new content after one scroll.
+MAX_SCROLLS = 30
 
 
 class BridgeError(RuntimeError):
@@ -100,6 +102,36 @@ class WaitResult:
             "waited_ms": self.waited_ms,
             "timeout_ms": self.timeout_ms,
         }
+
+
+@dataclass
+class ScrollResult:
+    """What scrolling did. ``scrolls`` is 0 when the ``until`` condition was already true."""
+
+    step: ActionStep
+    scrolls: int
+    moved: bool
+    loaded: bool
+    at_end: bool
+    page: bool
+    met: bool | None
+    end_reached: bool
+    waited_ms: int
+
+    def to_json(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "area": "page" if self.page else self.step.name,
+            "direction": self.step.value,
+            "scrolls": self.scrolls,
+            "moved": self.moved,
+            "loaded": self.loaded,
+            "at_end": self.at_end,
+            "end_reached": self.end_reached,
+            "waited_ms": self.waited_ms,
+        }
+        if self.met is not None:
+            payload["met"] = self.met
+        return payload
 
 
 def condition_met(condition: ChangeCondition, since: Observation, current: Observation) -> bool:
@@ -262,6 +294,65 @@ class BrowserSession:
             self._call("wait_change", timeout_ms=limit - elapsed)
         self.observation = None
         return WaitResult(condition, met, elapsed, limit, readings)
+
+    def scroll(
+        self,
+        step: ActionStep,
+        *,
+        observation: Observation | None = None,
+        until: ChangeCondition | None = None,
+        timeout_ms: int = 5000,
+    ) -> ScrollResult:
+        """Scroll the page, or the area of the step's control, and wait for what loads.
+
+        Without ``until``, scroll once. With it, scroll until the page shows it, the list ends (a scroll
+        at the end loads nothing), or ``timeout_ms`` ends. The view is stale afterwards.
+        """
+
+        observation = observation or self._current()
+        if step.ref is not None and self._call("document")["doc_id"] != observation.doc_id:
+            raise BridgeError(
+                "stale-view: the page has loaded a new document since this view; observe it and plan again"
+            )
+        locator = observation.locators.get(step.node_id) if step.node_id else None
+        limit = max(0, min(int(timeout_ms), MAX_WAIT_MS))
+        start = time.monotonic()
+        scrolls = 0
+        moved = loaded = at_end = end_reached = False
+        page = step.ref is None
+        met: bool | None = None
+        if until is not None and condition_met(until, observation, observation):
+            met = True
+        while met is not True:
+            elapsed = int((time.monotonic() - start) * 1000)
+            wait = max(300, min(SCROLL_WAIT_MS, limit - elapsed))
+            reply = self._call(
+                "act",
+                op="scroll",
+                ref=step.ref,
+                locator=locator if locator and locator.get("strategy") else None,
+                value=step.value,
+                wait_ms=wait,
+            )
+            info = reply["scroll"]
+            scrolls += 1
+            moved = moved or info["moved"]
+            loaded = loaded or info["loaded"]
+            at_end, page = info["at_end"], info["page"]
+            if until is None:
+                break
+            if condition_met(until, observation, self.observe(locate=False)):
+                met = True
+                break
+            stuck = (info["at_start"] if step.value in {"up", "top"} else info["at_end"]) and not info["loaded"]
+            elapsed = int((time.monotonic() - start) * 1000)
+            if stuck or elapsed >= limit or scrolls >= MAX_SCROLLS:
+                end_reached = stuck
+                met = False
+                break
+        self.observation = None
+        waited = int((time.monotonic() - start) * 1000)
+        return ScrollResult(step, scrolls, moved, loaded, at_end, page, met, end_reached, waited)
 
     def blocked_writes(self) -> list[dict[str, Any]]:
         """Requests that ``block_writes`` stopped since the page was opened."""

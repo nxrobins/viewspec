@@ -25,12 +25,12 @@ See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile
 |---|---|
 | `lift_inpage.js` | In-page library. Gives every element a ref (`e17`) that stays the same while the element is in the page. Snapshots the composed tree (open shadow roots, slots, same-origin iframes) with live form state, and never copies a secret value. Lists the visible controls (the ground truth). Proposes CSS candidates for an element. |
 | `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and by default **blocks writes**: a form post or any other non-GET request is recorded and answered with a stub page. With an origin allowlist, it also stops navigations to other origins. |
-| `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `wait(condition, since, timeout_ms)`, `blocked_writes()`, `blocked_navigations()`. `changes(before, after)`: what changed between two observations. |
+| `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `wait(condition, since, timeout_ms)`, `scroll(step, until, timeout_ms)`, `blocked_writes()`, `blocked_navigations()`. `changes(before, after)`: what changed between two observations. |
 | `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
-| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 49 checks on the fixtures. |
-| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 55 checks. |
+| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 57 checks on the fixtures. |
+| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 67 checks. |
 
 ### Locators
 
@@ -54,7 +54,7 @@ only the rest (role and name, exact text, a path that crosses a shadow root), on
 675-control catalog this takes a reading from 9.7 s to 0.9 s. A locator is used only when a ref has
 gone stale, and then Playwright must find exactly one element with the same tag and name, so a
 locator that Playwright reads differently fails safely. The probe asks Playwright to confirm every
-page-checked locator; on the fixtures it confirms 714 of 714.
+page-checked locator; on the fixtures it confirms 755 of 755.
 
 ### Acting
 
@@ -93,6 +93,24 @@ If two or more options match, or none shows, the step is refused with the names 
 typed text is put back, and the list is closed with Escape:
 `choose: more than one option matches "S": Spain, Sweden, Switzerland; the typed text was removed`.
 In a form tool call, a combobox field is chosen the same way.
+
+### Scrolling
+
+A feed or a catalog with infinite scroll loads more items only when you scroll to its end, often
+after a server call. `scroll(plan_scroll(direction, control), until=..., timeout_ms=...)`:
+
+- scrolls the page, or with a control, the area that scrolls for it (the nearest ancestor that can
+  scroll, crossing shadow roots): to the `end`, about one screen `down` or `up`, or to the `top`;
+- waits after each scroll for what loads, waking on DOM changes (up to 2.5 s);
+- without `until`, scrolls once and says whether it `moved`, whether more `loaded`, and whether the area
+  is `at_end`;
+- with `until` (a `ChangeCondition`), scrolls again and again until the page shows it, the list ends
+  (a scroll at the end loads nothing new: `end_reached`), or the timeout ends. If the page already
+  shows it, it does not scroll.
+
+On the feed fixture, one scroll loads 20 more posts in about 0.5 s; `until "Post 75"` takes 2 scrolls;
+a search for a post that does not exist stops at the end of the feed (100 posts) with "You have
+reached the end"; and the comments pane scrolls on its own until "Comment 35" shows.
 
 ### Changes
 
@@ -160,7 +178,7 @@ view: a handle from any slice, or from `find`, works with `act`.
 | Tool | Arguments | Does |
 |---|---|---|
 | `observe` | `url` or `since` (both optional), `wait_for`, `timeout_ms`, `offset`, `limit`, `find`; or `observation_id` with `offset`, `limit`, `find` | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, and control; each control has a handle such as `[7]`), `view_page` (which lines these are), `form_tools` (one typed tool per form), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. With `observation_id`, it pages through that kept reading without reading the page again. |
-| `act` | `handle`, `action` (`click`, `fill`, `check`, `uncheck`, `select`), `value`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. |
+| `act` | `action` (`click`, `fill`, `check`, `uncheck`, `select`, `scroll`), `handle`, `value`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. `scroll` needs no handle: it scrolls the page, or the pane of the control with the handle; `value` is the direction, and `wait_for` means "keep scrolling until it shows". The result has `scroll`: `scrolls`, `moved`, `loaded`, `at_end`, `end_reached`, `met`. |
 | `call` | `tool`, `arguments`, `submit`, `observation_id`, `wait_for`, `timeout_ms` | Fills in a form with typed arguments and submits it, waits for `wait_for` if given, then reads the page again. |
 
 The view in every result is a slice: 200 lines by default, at most 1000 (`limit`). `view_page` gives
@@ -181,7 +199,7 @@ are blocked, `blocked_writes` lists each stopped request with its form fields; s
 
 A request that the page cannot take is refused before the browser does anything, and the result
 says so. A refused form call names each problem: `{"argument": "ship", "problem": "invalid", ...}`.
-Other codes: `BROWSER_NO_PAGE`, `BROWSER_INVALID_REQUEST`, `BROWSER_HANDLE_UNKNOWN`,
+Other codes: `BROWSER_NO_PAGE`, `BROWSER_INVALID_REQUEST`, `BROWSER_HANDLE_REQUIRED`, `BROWSER_HANDLE_UNKNOWN`,
 `BROWSER_OPTION_AMBIGUOUS`, `BROWSER_OPTION_NOT_FOUND`, `BROWSER_OBSERVATION_UNKNOWN` (the server
 keeps the last 8 observations), `BROWSER_OBSERVATION_STALE`, `BROWSER_TARGET_DRIFT`,
 `BROWSER_TARGET_STALE`, `BROWSER_PLAN_INTERRUPTED`, `BROWSER_ORIGIN_NOT_ALLOWED`, `BROWSER_TIMEOUT`,
@@ -281,12 +299,13 @@ with BrowserSession() as session:  # block_writes=True by default
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
 | catalog | 13544 | 7824 | 675 | 649/675 | 675/675 | 675/675 | 675/675 | 675/675 | 2 | True | 0 |
 | checkout | 222 | 154 | 15 | 1/15 | 15/15 | 15/15 | 16/16 | 16/16 | 1 | True | 0 |
+| feed | 860 | 310 | 41 | 40/41 | 41/41 | 41/41 | 41/41 | 41/41 | 0 | True | 0 |
 | shop | 255 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
 | spa | 138 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 6/6 | 0 | True | 0 |
 | viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
 
-- **agent cov** matches by element (ref), not by name: 712 of 712 visible controls. **same name**: the
-  lift names all 712 as the browser does.
+- **agent cov** matches by element (ref), not by name: 753 of 753 visible controls. **same name**: the
+  lift names all 753 as the browser does.
 - **located**: every control has a locator (the agent lift also finds 2 pointer-only clickables).
   Kinds on the four small fixtures, for 39 controls and 2 forms: 28 stable attribute, 4 content
   anchor, 4 role and name, 4 exact text, and 1 structural path (a form with no name). On the catalog:
@@ -299,7 +318,7 @@ with BrowserSession() as session:  # block_writes=True by default
 - **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
   schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
-`demo_agent.py` (49 checks, all pass):
+`demo_agent.py` (57 checks, all pass):
 
 - **checkout:** a click inside the web component's shadow DOM changes the quantity from 2 to 3. Fills
   inside the payment iframe are verified, and the next snapshot does not contain the card number. A
@@ -322,8 +341,12 @@ with BrowserSession() as session:  # block_writes=True by default
   chooses Japan and the diff shows the new value; "S" (Spain, Sweden, Switzerland) and "Atlantis" are
   refused, and the field still holds Japan. On the click-to-open gift wrap combobox, "box" chooses Box.
   A form call that chooses Kenya and Paper sends both.
+- **scrolling:** one scroll of the feed loads 20 more posts, and the diff names the new controls; a
+  scroll until "Post 75" stops once it shows; a scroll for "Post 999" stops at the end of the feed
+  (100 posts, "You have reached the end"); the comments pane scrolls on its own until "Comment 35"
+  shows; a scroll to the top moves the page and loads nothing.
 
-`demo_mcp.py` (55 checks, all pass) runs the same kind of tasks through the MCP server, as a host
+`demo_mcp.py` (67 checks, all pass) runs the same kind of tasks through the MCP server, as a host
 would, with `--allow-origin` set to the local fixture server and without `NODE_PATH`. It also checks
 that the tool schemas carry no internal node ids, that a blocked post shows the password field as
 `[redacted]` and no result contains the password or the card number, that acting from a view of a
@@ -337,7 +360,12 @@ with its headings, that all slices together hold each handle once, that `find="l
 product and its button (handle 534), that a click on that handle works and its changes name it, and
 that a slice is at most 1000 lines. On checkout it checks that the form tool says country is
 picked from a list, that `select` chooses Sweden from "Swe", that "S" is refused as ambiguous and the
-field keeps Sweden, and that the gift wrap combobox chooses Paper.
+field keeps Sweden, and that the gift wrap combobox chooses Paper. On the feed it checks that
+`act(action="scroll")` loads more and names the new controls, that a scroll until "Post 75" works and
+that post's Like button can then be clicked, that a scroll for a post that does not exist stops at the
+end, that `find` reaches the comments pane past the first slice and its handle scrolls that pane, that
+no scroll happens when the text already shows, and that a bad direction and a click without a handle
+are refused.
 
 The fixtures are small and hand-made. Run the probe on real sites before you draw conclusions.
 
@@ -359,6 +387,10 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
   other origins still load, as the page needs them.
 - `find` matches the text of view lines, which shorten long text to 70 characters.
 - A kept reading is a snapshot. Paging through it does not show changes made since; observe again.
+- A scroll uses `scrollTo`, which fires scroll events and moves what `IntersectionObserver` sees. A page
+  that loads more only on wheel or touch events needs another way.
+- A list that removes the items it scrolls past (a virtual list) changes the handles of the items
+  after them; the diff shows the removed and added controls.
 - A diff matches controls by ref, then by unique name, then by place. A control that the page
   re-rendered and also renamed and moved is reported as removed and added.
 - A message that the page shows again with the same text is not reported as new.
@@ -368,5 +400,5 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 ## Next steps
 
 1. Add the MCP server to an agent host, and try it on real sites.
-2. Let `act` scroll a page that loads more items as it scrolls (infinite scroll).
-3. Let `choose` work with date pickers.
+2. Let `choose` work with date pickers.
+3. Let the agent upload a file to a file input.

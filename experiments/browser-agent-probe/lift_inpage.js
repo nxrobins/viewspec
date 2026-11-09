@@ -424,6 +424,44 @@
     });
   }
 
+  // ---- Scrolling --------------------------------------------------------------------------------
+  // The area that scrolls for an element: the nearest ancestor (or the element itself) that can
+  // scroll vertically, crossing shadow roots; or else its document.
+  function scrollArea(el) {
+    let node = el;
+    while (node && node.nodeType === 1) {
+      const style = node.ownerDocument.defaultView.getComputedStyle(node);
+      if (/(auto|scroll|overlay)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 1) return node;
+      node = node.parentElement || node.getRootNode().host || null;
+    }
+    return el.ownerDocument.scrollingElement;
+  }
+  function scrollState(area) {
+    return {
+      top: Math.round(area.scrollTop),
+      height: area.scrollHeight,
+      client: area.clientHeight,
+      atEnd: area.scrollTop + area.clientHeight >= area.scrollHeight - 2,
+      atStart: area.scrollTop <= 0,
+    };
+  }
+  // Scroll the page (ref null) or the area of the element ``ref``: to the ``end``, to the ``top``, or
+  // about one screen ``down`` or ``up``.
+  function scrollStep(ref, direction) {
+    const el = ref ? get(ref) : null;
+    if (ref && !el) return { stale: true };
+    const area = el ? scrollArea(el) : document.scrollingElement;
+    const before = scrollState(area);
+    const screen = area.clientHeight * 0.9;
+    const top = { end: area.scrollHeight, top: 0, down: area.scrollTop + screen, up: area.scrollTop - screen }[direction];
+    area.scrollTo({ top, behavior: "instant" });
+    return { area: refOf(area), page: area === area.ownerDocument.scrollingElement, before, after: scrollState(area) };
+  }
+  function scrollNow(areaRef) {
+    const area = get(areaRef);
+    return area ? scrollState(area) : null;
+  }
+
   // ---- Choosing from a custom list --------------------------------------------------------------
   const norm = (text) => (text || "").replace(/\s+/g, " ").trim().toLowerCase();
   function shown(el) {
@@ -499,6 +537,8 @@
     nextChange,
     findOption,
     showsChoice,
+    scrollStep,
+    scrollNow,
     hasValue,
     hasSelected,
     isChecked,

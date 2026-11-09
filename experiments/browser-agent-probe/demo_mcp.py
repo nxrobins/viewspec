@@ -201,6 +201,48 @@ async def run(base: str) -> None:
         wrap = await tool(session, "act", handle=handle(swe, "Gift wrap"), action="select", value="Paper")
         check(wrap["ok"] and "'Gift wrap' = 'Paper'" in wrap["view"], "a click-to-open combobox chose Paper")
 
+        print("\n== infinite scroll ==")
+        feed = await tool(session, "observe", url=f"{base}/feed.html")
+        check(feed["view"].count("button 'Like'") == 20, "the feed shows 20 posts at first")
+        more = await tool(session, "act", action="scroll")
+        print("\n".join(f"  ~~  {line}" for line in more["changes"]["lines"][:3]))
+        check(more["scroll"]["loaded"] and more["scroll"]["scrolls"] == 1, "one scroll of the page loads more")
+        check("added [41] button 'Like'" in more["changes"]["lines"], "and the changes name the new controls")
+        until = await tool(session, "act", action="scroll", wait_for={"text": "Post 75"}, timeout_ms=15000)
+        check(until["scroll"]["met"] is True, "scrolling until 'Post 75' shows works")
+        found = await tool(session, "observe", observation_id=until["observation_id"], find="Post 75")
+        like = await tool(session, "act", handle=handle(found, "Like"), action="click")
+        check(like["ok"] and like["steps"][0]["resolved_by"] == "ref", "and its Like button can be clicked by handle")
+        end = await tool(session, "act", action="scroll", wait_for={"text": "Post 999"}, timeout_ms=15000)
+        check(
+            end["scroll"]["met"] is False and end["scroll"]["end_reached"] and "end of the list" in end["summary"],
+            "scrolling for a post that does not exist stops at the end of the list",
+        )
+        check("message status 'You have reached the end'" in end["changes"]["lines"], "and the page says so")
+        check("'Comments'" not in end["view"], "after 100 posts, the comments pane is past the first slice")
+        where = await tool(session, "observe", observation_id=end["observation_id"], find="Comments")
+        pane = await tool(
+            session,
+            "act",
+            handle=handle(where, "Comments"),
+            action="scroll",
+            wait_for={"text": "Comment 35"},
+            timeout_ms=15000,
+        )
+        check(pane["scroll"]["met"] and pane["scroll"]["area"] == "Comments", "a handle scrolls its own pane")
+        already = await tool(session, "act", action="scroll", wait_for={"text": "News feed"})
+        check(
+            already["scroll"]["scrolls"] == 0 and "no scroll was needed" in already["summary"],
+            "no scroll when it shows",
+        )
+        sideways = await tool(session, "act", action="scroll", value="sideways")
+        check(
+            not sideways["ok"] and sideways["errors"][0]["code"] == "AGENT_ACTION_VALUE_INVALID",
+            "a bad direction is refused",
+        )
+        nothing = await tool(session, "act", action="click")
+        check(not nothing["ok"] and nothing["errors"][0]["code"] == "BROWSER_HANDLE_REQUIRED", "click needs a handle")
+
         print("\n== long pages ==")
         catalog = await tool(session, "observe", url=f"{base}/catalog.html")
         reading = catalog["observation_id"]

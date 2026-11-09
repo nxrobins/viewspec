@@ -34,6 +34,8 @@ All notable changes to ViewSpec are documented in this file. The format follows
   selected value, and listbox, combobox, textbox, slider, and spin button names come from labels, not
   content. Controls carry `expanded`. `select` on a custom combobox or listbox, and a combobox field in
   a form tool call, plan a `choose` step that picks an option by name.
+- `viewspec.raw_html_actions.plan_scroll(direction, control=None)` plans a scroll of the page or of
+  the area that holds a control (`end`, `down`, `up`, `top`), for lists that load more as they scroll.
 
 ## [0.4.0] - 2026-11-01
 

@@ -7,7 +7,7 @@ import json
 import pytest
 
 from viewspec.raw_html import lift_html
-from viewspec.raw_html_actions import AgentActionError, plan_control_action, plan_form_call
+from viewspec.raw_html_actions import AgentActionError, plan_control_action, plan_form_call, plan_scroll
 from viewspec.raw_html_agent import control_aria_role
 
 CHECKOUT = """
@@ -237,3 +237,22 @@ def test_control_actions_name_their_target():
     [control] = _lift('<button data-lift-ref="e7">Save</button>').controls
     [step] = plan_control_action(control, "click")
     assert step.to_json() == {"op": "click", "node_id": control.node_id, "ref": "e7", "name": "Save"}
+
+
+def test_scrolls_name_the_page_or_the_area_of_a_control():
+    page = plan_scroll()
+    assert page.to_json() == {"op": "scroll", "node_id": "", "ref": None, "name": "page", "value": "end"}
+
+    [control] = _lift('<div style="overflow:auto"><button data-lift-ref="e9">Like</button></div>').controls
+    step = plan_scroll("down", control)
+    assert (step.op, step.node_id, step.ref, step.name, step.value) == ("scroll", control.node_id, "e9", "Like", "down")
+    # A secret field's area scrolls, but the step carries no value of the field.
+    [secret] = _lift('<input type="password" aria-label="Pw" value="hunter2-long" data-lift-ref="e1">').controls
+    assert plan_scroll("up", secret).to_json()["value"] == "up"
+
+
+@pytest.mark.parametrize("direction", ["sideways", "", None, 5, "END"])
+def test_bad_scroll_directions_are_refused(direction):
+    with pytest.raises(AgentActionError) as caught:
+        plan_scroll(direction)
+    assert caught.value.code == "AGENT_ACTION_VALUE_INVALID"

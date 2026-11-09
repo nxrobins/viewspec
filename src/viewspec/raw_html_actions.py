@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from viewspec.raw_html import HtmlLiftResult
 
 ACTION_OPS = ("click", "fill", "check", "uncheck", "select", "submit")
+SCROLL_DIRECTIONS = ("end", "down", "up", "top")
 ARIA_CHOICE = frozenset({"combobox", "listbox"})
 NOT_FILLABLE = frozenset(
     {
@@ -69,8 +70,9 @@ class ActionStep:
 
     ``op`` is ``click``, ``fill``, ``check``, ``uncheck``, ``select`` (``values`` holds option values),
     ``choose`` (pick the option named ``value`` from an ARIA combobox or listbox: open its list if
-    needed, find the option, click it), or ``submit`` (submit the form ``node_id`` without a submit
-    button). ``secret`` marks a value that
+    needed, find the option, click it), ``scroll`` (scroll the page, or the scrollable area that holds
+    the control ``node_id``, in the direction ``value``), or ``submit`` (submit the form ``node_id``
+    without a submit button). ``secret`` marks a value that
     must not be logged; ``to_json()`` redacts it unless asked not to.
     """
 
@@ -155,6 +157,28 @@ def plan_form_call(
     if submit:
         steps.append(_submit_step(form, controls))
     return tuple(steps)
+
+
+def plan_scroll(direction: Any = "end", control: HtmlControl | None = None) -> ActionStep:
+    """Plan a scroll of the page, or of the scrollable area that holds ``control``.
+
+    ``direction`` is ``end`` (to the bottom, where an infinite list loads more), ``down`` or ``up``
+    (about one screen), or ``top``. A scroll step has no ``ref`` and an empty ``node_id`` for the page.
+    """
+
+    if direction not in SCROLL_DIRECTIONS:
+        raise AgentActionError(
+            "AGENT_ACTION_VALUE_INVALID", f"Scroll {direction!r}: use one of {', '.join(SCROLL_DIRECTIONS)}."
+        )
+    if control is None:
+        return ActionStep(op="scroll", node_id="", ref=None, name="page", value=direction)
+    return ActionStep(
+        op="scroll",
+        node_id=control.node_id,
+        ref=control.ref,
+        name=control.name or control.field_name or control.node_id,
+        value=direction,
+    )
 
 
 def _field_steps(item: FormField, value: Any) -> tuple[ActionStep, ...]:
@@ -297,4 +321,5 @@ __all__ = [
     "AgentActionError",
     "plan_control_action",
     "plan_form_call",
+    "plan_scroll",
 ]

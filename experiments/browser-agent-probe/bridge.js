@@ -378,7 +378,34 @@ async function choose(target, value) {
   return { verified, chosen: found.label };
 }
 
-async function act({ op, ref, locator: spec, value, values }) {
+// Scroll once, then wait (up to waitMs) for the page to answer: an infinite list loads more items
+// after a scroll, often after a server call. ``loaded`` says whether the area grew.
+async function scroll(ref, direction, waitMs) {
+  await ensureLibrary();
+  const first = await page.evaluate(([r, d]) => window.__viewspecLift.scrollStep(r, d), [ref, direction]);
+  if (first.stale) throw new Error(`stale: the control ${ref} is no longer in the page`);
+  const changed = await page
+    .evaluate((ms) => window.__viewspecLift.nextChange(ms), Math.max(0, Math.min(waitMs, 30000)))
+    .catch(() => true);
+  await settle();
+  const now = (await page.evaluate((r) => window.__viewspecLift.scrollNow(r), first.area)) || first.after;
+  return {
+    page: first.page,
+    moved: first.after.top !== first.before.top,
+    changed,
+    loaded: now.height > first.before.height,
+    at_end: now.atEnd,
+    at_start: now.atStart,
+    top: now.top,
+    height: now.height,
+  };
+}
+
+async function act({ op, ref, locator: spec, value, values, wait_ms: waitMs = 2500 }) {
+  if (op === "scroll" && !ref && !spec) {
+    const result = await scroll(null, value, waitMs);
+    return { resolved_by: "page", verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
+  }
   const { target, resolvedBy } = await resolveTarget(ref, spec);
   const navigationsBefore = mainNavigations;
   const urlBefore = page.url();
@@ -398,6 +425,10 @@ async function act({ op, ref, locator: spec, value, values }) {
     verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasSelected(el, v), values);
   } else if (op === "choose") {
     ({ verified, chosen } = await choose(target, value));
+  } else if (op === "scroll") {
+    const liveRef = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
+    const result = await scroll(liveRef, value, waitMs);
+    return { resolved_by: resolvedBy, verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
   } else if (op === "submit") {
     await target.evaluate((form) => form.requestSubmit());
   } else {

@@ -37,11 +37,11 @@ from types import FrameType
 from typing import Any, Literal, TypedDict
 from urllib.parse import parse_qs, urlsplit
 
-from agent_session import BridgeError, BrowserSession, Observation, StepResult, WaitResult, changes
+from agent_session import BridgeError, BrowserSession, Observation, ScrollResult, StepResult, WaitResult, changes
 from page_view import view_page
 
 from viewspec.local_tools_response import tool_error_response, tool_response
-from viewspec.raw_html_actions import ActionStep, AgentActionError, plan_control_action, plan_form_call
+from viewspec.raw_html_actions import ActionStep, AgentActionError, plan_control_action, plan_form_call, plan_scroll
 from viewspec.raw_html_agent import SENSITIVE_NAME_RE
 from viewspec.raw_html_diff import ChangeCondition
 
@@ -50,7 +50,8 @@ HISTORY = 8  # Observations kept, so an agent can act from a recent one.
 REDACTED = "[redacted]"
 INSTRUCTIONS = (
     "Read and operate web pages through the ViewSpec agent lift. Start with observe(url). Its view lists "
-    "every control as [n]; act(handle=n, action=...) clicks, fills, checks, unchecks, or selects one. Each "
+    "every control as [n]; act(handle=n, action=...) clicks, fills, checks, unchecks, or selects one; "
+    'act(action="scroll") scrolls the page, and loads more of an infinite list. Each '
     "form is also a typed tool in form_tools; call(tool=..., arguments={...}) fills it in and submits it. "
     "Requests are checked against the page first: on ok=false, read errors and fix the request. act and "
     "call return the new view and changes, the lines that say what the action changed (messages first); "
@@ -174,14 +175,21 @@ class BrowserTools:
 
     def act(
         self,
-        handle: int,
-        action: Literal["click", "fill", "check", "uncheck", "select"],
+        action: Literal["click", "fill", "check", "uncheck", "select", "scroll"],
+        handle: int | None = None,
         value: str | list[str] | None = None,
         observation_id: int | None = None,
         wait_for: WaitFor | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
     ) -> dict[str, Any]:
         """Do one thing to the control with this handle, then read the page again.
+
+        ``scroll`` scrolls the page (no handle), or the scrollable area that holds the control with
+        this handle (a side pane, a feed in a box). ``value`` is ``end`` (the default; where an infinite
+        list loads more), ``down``, ``up``, or ``top``. After each scroll it waits for what loads.
+        With ``wait_for``, it keeps scrolling until that shows, the list ends, or ``timeout_ms`` ends:
+        ``act(action="scroll", wait_for={"text": "Post 75"})``. ``scroll`` in the result says how many
+        scrolls it took, whether more loaded, and whether the end was reached.
 
         ``fill`` takes text in ``value``. ``select`` takes an option value or label (a list for a
         multiple select). On a custom combobox or listbox, ``select`` chooses from its list: it opens
@@ -204,6 +212,14 @@ class BrowserTools:
                 condition = _condition(wait_for)
             except AgentActionError as error:
                 return _planning_error(error)
+            if action == "scroll":
+                return self._scroll(observation, handle, value, condition, timeout_ms)
+            if handle is None:
+                return _error(
+                    "BROWSER_HANDLE_REQUIRED",
+                    f"{action} needs the handle of a control.",
+                    "Pass a handle from the view; only scroll works without one.",
+                )
             if handle not in observation.handles:
                 return _error(
                     "BROWSER_HANDLE_UNKNOWN",
@@ -283,6 +299,34 @@ class BrowserTools:
 
     def _id_of(self, observation: Observation) -> int:
         return next(key for key, value in self._history.items() if value is observation)
+
+    def _scroll(
+        self,
+        observation: Observation,
+        handle: int | None,
+        value: Any,
+        condition: ChangeCondition | None,
+        timeout_ms: int,
+    ) -> dict[str, Any]:
+        if handle is not None and handle not in observation.handles:
+            return _error(
+                "BROWSER_HANDLE_UNKNOWN",
+                f"Observation {self._id_of(observation)} has no control [{handle}].",
+                "Use a handle from the view of that observation, or leave it out to scroll the page.",
+            )
+        try:
+            step = plan_scroll("end" if value is None else value, observation.handles[handle] if handle else None)
+        except AgentActionError as error:
+            return _planning_error(error)
+        session = self._browser()
+        try:
+            scrolled = session.scroll(step, observation=observation, until=condition, timeout_ms=timeout_ms)
+        except BridgeError as error:
+            return _error(_bridge_code(error), str(error), "Observe the page, then decide.")
+        data = self._observe_data(since=observation)
+        result = tool_response(True, _join(_scroll_summary(scrolled), data.pop("_note")), data=data)
+        result["scroll"] = scrolled.to_json()
+        return result
 
     def _run(
         self,
@@ -413,6 +457,28 @@ class BrowserTools:
         elif body:
             shown["body_bytes"] = len(body.encode("utf-8"))
         return shown
+
+
+def _scroll_summary(scrolled: ScrollResult) -> str:
+    if scrolled.scrolls == 0:
+        return "It already shows on the page; no scroll was needed."
+    area = "the page" if scrolled.page else repr(scrolled.step.name)
+    times = "once" if scrolled.scrolls == 1 else f"{scrolled.scrolls} times"
+    parts = [f"Scrolled {area} {times} ({scrolled.step.value})."]
+    if not scrolled.moved:
+        tip = " To scroll a pane, pass the handle of a control inside it." if scrolled.page else ""
+        parts.append("It did not move." + tip)
+    elif scrolled.loaded:
+        parts.append("More content loaded.")
+    else:
+        parts.append("Nothing new loaded.")
+    if scrolled.end_reached:
+        parts.append("It is at the end of the list.")
+    if scrolled.met is True:
+        parts.append("The page now shows what you waited for.")
+    elif scrolled.met is False:
+        parts.append("What you waited for did not show.")
+    return " ".join(parts)
 
 
 def _summary(results: list[StepResult]) -> str:

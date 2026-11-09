@@ -116,6 +116,9 @@ for step in steps:
   the page shows them empty. Its steps fill the arguments in document order, then click the first
   enabled submit control, or submit the form when it has none. Tool names are unique per page
   (`find`, `find_2`); an unknown name is `AGENT_FORM_UNKNOWN`.
+- `plan_scroll(direction, control=None)` plans a scroll of the page, or of the scrollable area that
+  holds `control`: `end` (where an infinite list loads more), `down`, `up`, or `top`. Any other
+  direction is `AGENT_ACTION_VALUE_INVALID`.
 - A step of a secret field has `secret: true`, and `step.to_json()` shows its value as `[redacted]`.
 
 The planner is pure Python: it makes no network calls and drives no browser.

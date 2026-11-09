@@ -12,6 +12,7 @@ It serves the fixtures on 127.0.0.1, then:
 5. waiting: pages that answer after a delay. Without a wait the agent sees no change; with
    ``BrowserSession.wait`` it sees the answer, without polling on a timer.
 6. choosing: custom comboboxes. One fetches its options as you type; one opens on a click.
+7. scrolling: an infinite feed and a pane that each load more as they are scrolled.
 
 After each action in checkout and shop, the script also checks the diff between the reading before
 and the reading after (``agent_session.changes``).
@@ -34,7 +35,7 @@ from urllib.parse import parse_qs
 
 from agent_session import BridgeError, BrowserSession, StepResult, changes
 
-from viewspec.raw_html_actions import AgentActionError, plan_control_action
+from viewspec.raw_html_actions import AgentActionError, plan_control_action, plan_scroll
 from viewspec.raw_html_diff import ChangeCondition
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -327,6 +328,37 @@ def choosing(session: BrowserSession, base: str) -> None:
     check(body.get("country") == "Kenya" and body.get("wrap") == "Paper", "a form call chose both and sent them")
 
 
+def scrolling(session: BrowserSession, base: str) -> None:
+    print("\n== scrolling: infinite lists ==")
+    session.open(f"{base}/feed.html")
+    before = session.observe()
+    likes = lambda observation: sum(1 for c in observation.lift.controls if c.name == "Like")  # noqa: E731
+    check(likes(before) == 20, "the feed starts with 20 posts")
+    once = session.scroll(plan_scroll("end"))
+    print(f"  ..  {once.to_json()}")
+    after = session.observe()
+    check(once.loaded and likes(after) == 40, "one scroll to the end loads 20 more posts")
+    check(changes(before, after)["lines"][0].startswith("added [41] button 'Like'"), "and the diff names them")
+
+    until = session.scroll(plan_scroll("end"), until=ChangeCondition.from_json({"text": "Post 75"}), timeout_ms=15000)
+    print(f"  ..  {until.to_json()}")
+    check(until.met is True and until.scrolls >= 1, "scrolling until 'Post 75' stops once it shows")
+    end = session.scroll(plan_scroll("end"), until=ChangeCondition.from_json({"text": "Post 999"}), timeout_ms=15000)
+    print(f"  ..  {end.to_json()}")
+    final = session.observe()
+    check(end.met is False and end.end_reached and likes(final) == 100, "the search stops at the end: 100 posts")
+    check("You have reached the end" in [m.text for m in final.lift.messages], "and the page says so")
+
+    pane = final.handles[handle_named(session, "Comments")]
+    side = session.scroll(
+        plan_scroll("end", pane), until=ChangeCondition.from_json({"text": "Comment 35"}), timeout_ms=15000
+    )
+    print(f"  ..  {side.to_json()}")
+    check(side.met is True and not side.page, "a pane scrolls on its own until 'Comment 35' shows")
+    top = session.scroll(plan_scroll("top"))
+    check(top.moved and not top.loaded, "scrolling to the top moves the page and loads nothing")
+
+
 def main() -> int:
     server, base = serve()
     try:
@@ -337,6 +369,7 @@ def main() -> int:
             shop(session, base)
             waiting(session, base)
             choosing(session, base)
+            scrolling(session, base)
     except AssertionError as error:
         print(f"\nFAILED: {error}")
         return 1
