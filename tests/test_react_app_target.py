@@ -548,6 +548,86 @@ def test_react_proof_clicks_an_action_event_once_for_all_mutations_it_triggers()
     assert _runtime_report(payload)["state_action_count"] == 2
 
 
+def test_react_proof_clicks_once_for_a_run_that_lists_every_mutation_of_an_action():
+    payload = _counter_react_app_bundle(
+        [
+            {"mutation_id": "triage_incident_state", "payload_values": _TRIAGE},
+            {"mutation_id": "count_triage_state", "payload_values": _TRIAGE},
+            {"action_id": "triage_incident", "payload_values": _TRIAGE},
+        ],
+        count=22,
+        second_mutation=True,
+    )
+
+    cases = _proof_cases_replaying_python_events(payload)
+
+    assert cases[0]["events"] == [_TRIAGE_CLICK] * 2
+    assert _runtime_report(payload)["state_action_count"] == 2
+
+
+@pytest.mark.parametrize(
+    ("events", "count", "event_index", "mutation_id"),
+    [
+        # One mutation of the action alone.
+        ([{"mutation_id": "triage_incident_state", "payload_values": _TRIAGE}], 1, 0, "triage_incident_state"),
+        # Every mutation, but not in the declared order.
+        (
+            [
+                {"payload_values": _TRIAGE, "action_id": "triage_incident"},
+                {"mutation_id": "count_triage_state", "payload_values": _TRIAGE},
+                {"mutation_id": "triage_incident_state", "payload_values": _TRIAGE},
+            ],
+            22,
+            1,
+            "count_triage_state",
+        ),
+        # A repeat that applies the first mutation twice before the second.
+        (
+            [
+                {"mutation_id": "triage_incident_state", "payload_values": _TRIAGE, "repeat": 2},
+                {"mutation_id": "count_triage_state", "payload_values": _TRIAGE},
+            ],
+            12,
+            0,
+            "triage_incident_state",
+        ),
+        # The declared order, but payload_values that one click cannot give to both.
+        (
+            [
+                {"mutation_id": "triage_incident_state", "payload_values": _TRIAGE},
+                {"mutation_id": "count_triage_state"},
+            ],
+            11,
+            0,
+            "triage_incident_state",
+        ),
+    ],
+)
+def test_react_compile_rejects_a_replay_event_that_no_click_reproduces(
+    tmp_path, events, count, event_index, mutation_id
+):
+    payload = _counter_react_app_bundle(events, count=count, second_mutation=True)
+    assert replay_state_assertions(payload)["ok"] is True
+    app_path = tmp_path / "viewspec.app.json"
+    out_dir = tmp_path / "react-app"
+    _write_app(app_path, payload)
+
+    result = compile_app(app_path, out_dir=out_dir, target=REACT_APP_TARGET, cwd=tmp_path)
+
+    assert result["ok"] is False
+    error = result["errors"][0]
+    assert error["code"] == "APP_REACT_REPLAY_EVENT_NOT_CLICKABLE"
+    assert error["message"] == (
+        f"Replay triage_replay event {event_index} applies mutation {mutation_id}, but one click on "
+        "queue.triage_incident applies triage_incident_state, count_triage_state in that order."
+    )
+    assert '"action_id": "triage_incident"' in error["fix"]
+    assert not (out_dir / "src" / "ViewSpecApp.tsx").exists()
+    assert not (out_dir / "tests" / "viewspec-app.spec.ts").exists()
+    # The static shell does not replay clicks in a browser, so the same bundle compiles there.
+    assert compile_app(app_path, out_dir=tmp_path / "shell", cwd=tmp_path)["ok"] is True
+
+
 def test_react_proof_checks_a_state_text_target_by_its_text_alone():
     plain = _runtime_proof_cases(_react_app_bundle())[0]
     payload = _counter_react_app_bundle([{"action_id": "triage_incident", "payload_values": _TRIAGE}], count=1)

@@ -178,6 +178,13 @@ All notable changes to ViewSpec are documented in this file. The format follows
   a repeated event once, so the proof of a valid bundle failed or checked fewer clicks than the
   replay applied. An `action_id` event clicks its action on its screen, which applies every
   mutation of that trigger, as replay does, and `state_action_count` counts the clicks.
+- The `react-tailwind-app` browser proof clicks once for consecutive `mutation_id` events that
+  list every mutation of one action in declared order with the same `payload_values`. No click
+  applies only part of an action, so any other `mutation_id` event of an action with more than one
+  mutation now fails the `react-tailwind-app` compile with `APP_REACT_REPLAY_EVENT_NOT_CLICKABLE`,
+  which names the replay, the event, and the mutations of one click. It used to compile, and its
+  browser proof failed on a state that did not match, without the cause. The static shell target
+  is unchanged.
 - The `react-tailwind-app` browser proof no longer checks the resource field text of a binding
   that a `state_text` rule targets. The rule replaces that text, so the proof failed for each
   replay that expected the record. The rule's `expect_text` checks that element.

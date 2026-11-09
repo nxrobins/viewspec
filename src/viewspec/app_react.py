@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import html
 import json
 import re
@@ -78,6 +79,8 @@ def write_react_app(
     freerange: bool = False,
     pretext: bool = False,
 ) -> dict[str, Any]:
+    # A replay event that no click can reproduce fails here, before any React file is written.
+    _runtime_proof_cases(payload)
     react_screens = _compile_react_screens(
         payload,
         output_dir,
@@ -1465,18 +1468,12 @@ def _runtime_proof_cases(payload: dict[str, Any]) -> list[dict[str, Any]]:
         for binding in _resource_bindings(payload)
         if (binding["screenId"], binding["bindingId"]) not in text_targets
     ]
+    triggers = _mutation_triggers(payload)
     cases: list[dict[str, Any]] = []
     for assertion in payload.get("state_replay_assertions", []):
         if not isinstance(assertion, dict):
             continue
-        events: list[dict[str, Any]] = []
-        for event in assertion.get("events", []):
-            click = _runtime_proof_click(event, mutations)
-            if click is None:
-                continue
-            repeat = event.get("repeat", 1)
-            times = repeat if isinstance(repeat, int) and not isinstance(repeat, bool) and repeat >= 1 else 1
-            events.extend(json.loads(json.dumps(click)) for _ in range(times))
+        events = _runtime_proof_clicks(str(assertion.get("id")), assertion.get("events"), mutations, triggers)
         bindings = _runtime_binding_assertions(assertion.get("expect_state"), resource_bindings)
         visibility = [
             {
@@ -1509,42 +1506,105 @@ def _runtime_proof_cases(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return cases
 
 
-def _runtime_proof_click(event: object, mutations: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
-    """The click one replay event stands for, before its repeat.
+def _runtime_proof_clicks(
+    assertion_id: str,
+    events: object,
+    mutations: dict[str, dict[str, Any]],
+    triggers: dict[str, list[str]],
+) -> list[dict[str, Any]]:
+    """The clicks that replay one assertion's events in the browser.
 
-    A mutation event clicks the action that triggers the mutation. A compact action event clicks its
-    action on its screen, or on the one screen whose mutations it triggers. A click applies every
-    mutation of that trigger in declared order, exactly as replay normalizes an action event.
+    One click on an action applies every mutation that the action triggers on its screen, in
+    declared order, as handleAction does. So an action_id event is one click for each repeat, and a
+    run of mutation_id events that lists every mutation of one action in that order, with the same
+    payload_values, is one click. No click applies only part of an action, so any other mutation_id
+    event fails closed.
     """
-    if not isinstance(event, dict):
-        return None
+    steps: list[tuple[int, dict[str, Any]]] = []
+    for index, event in enumerate(events if isinstance(events, list) else []):
+        step = event if isinstance(event, dict) else {}
+        repeat = step.get("repeat", 1)
+        times = repeat if isinstance(repeat, int) and not isinstance(repeat, bool) and repeat >= 1 else 1
+        steps.extend((index, step) for _ in range(times))
+    clicks: list[dict[str, Any]] = []
+    position = 0
+    while position < len(steps):
+        index, event = steps[position]
+        screen_id, action_id = _runtime_proof_action(assertion_id, index, event, mutations)
+        width = 1
+        mutation_id = event.get("mutation_id")
+        if isinstance(mutation_id, str):
+            run = triggers.get(f"{screen_id}::{action_id}", [])
+            width = len(run)
+            window = steps[position : position + width]
+            if (
+                not run
+                or [step.get("mutation_id") for _, step in window] != run
+                or any(_runtime_payload_key(step) != _runtime_payload_key(event) for _, step in window)
+            ):
+                raise AppBundleProofFailure(
+                    "APP_REACT_REPLAY_EVENT_NOT_CLICKABLE",
+                    (
+                        f"Replay {assertion_id} event {index} applies mutation {mutation_id}, but one click on "
+                        f"{screen_id}.{action_id} applies {', '.join(run)} in that order."
+                    ),
+                    (
+                        f'Replace mutation_id with "screen_id": "{screen_id}" and "action_id": "{action_id}", '
+                        "or list every mutation of that action in that order with the same payload_values."
+                    ),
+                )
+        clicks.append(
+            {
+                "screenId": screen_id,
+                "actionId": action_id,
+                "payloadValues": copy.deepcopy(_runtime_payload_values(event)),
+            }
+        )
+        position += width
+    return clicks
+
+
+def _runtime_proof_action(
+    assertion_id: str, index: int, event: dict[str, Any], mutations: dict[str, dict[str, Any]]
+) -> tuple[str, str]:
+    """The screen and action that a click for one replay event targets.
+
+    A mutation event names the action that triggers the mutation. An action event names its action
+    on its screen, or on the one screen where the action triggers a mutation.
+    """
     mutation_id = event.get("mutation_id")
     action_id = event.get("action_id")
+    screen_id = event.get("screen_id")
     if isinstance(mutation_id, str):
         mutation = mutations.get(mutation_id)
         trigger = mutation.get("trigger") if isinstance(mutation, dict) else None
-        if not isinstance(trigger, dict):
-            return None
-        screen_id, action_id = trigger.get("screen_id"), trigger.get("action_id")
-    elif isinstance(action_id, str):
-        screen_id = event.get("screen_id")
-        if screen_id is None:
-            screens = {
-                mutation["trigger"].get("screen_id")
-                for mutation in mutations.values()
-                if isinstance(mutation.get("trigger"), dict) and mutation["trigger"].get("action_id") == action_id
-            }
-            if len(screens) != 1:
-                return None
-            screen_id = next(iter(screens))
-    else:
-        return None
+        screen_id, action_id = (
+            (trigger.get("screen_id"), trigger.get("action_id")) if isinstance(trigger, dict) else (None, None)
+        )
+    elif isinstance(action_id, str) and screen_id is None:
+        screens = {
+            mutation["trigger"].get("screen_id")
+            for mutation in mutations.values()
+            if isinstance(mutation.get("trigger"), dict) and mutation["trigger"].get("action_id") == action_id
+        }
+        screen_id = next(iter(screens)) if len(screens) == 1 else None
+    if not isinstance(screen_id, str) or not isinstance(action_id, str):
+        raise AppBundleProofFailure(
+            "APP_REACT_REPLAY_EVENT_NOT_CLICKABLE",
+            f"Replay {assertion_id} event {index} names no action that the browser proof can click.",
+            "Name a declared mutation_id, or an action_id that triggers a mutation on one screen.",
+        )
+    return screen_id, action_id
+
+
+def _runtime_payload_values(event: dict[str, Any]) -> dict[str, Any]:
     payload_values = event.get("payload_values", {})
-    return {
-        "screenId": str(screen_id),
-        "actionId": str(action_id),
-        "payloadValues": payload_values if isinstance(payload_values, dict) else {},
-    }
+    return payload_values if isinstance(payload_values, dict) else {}
+
+
+def _runtime_payload_key(event: dict[str, Any]) -> str:
+    """A comparison key for payload_values as written: 1, 1.0, and true are three different keys."""
+    return json.dumps(_runtime_payload_values(event), sort_keys=True)
 
 
 def _runtime_binding_assertions(expect_state: object, resource_bindings: list[dict[str, str]]) -> list[dict[str, str]]:

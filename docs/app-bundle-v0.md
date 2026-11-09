@@ -29,10 +29,12 @@ TypeScript checking before the Vite production build, and exercises routes, brow
 unknown-route fallback, state actions, live resource-field rebinding, selector expectations,
 visibility, and declared state text in Chromium. Each replay event, and each `repeat` of it, is one
 click on its action. One click applies every mutation that the action triggers on its screen, in
-declared order, as replay does for an `action_id` event. A `mutation_id` event also clicks the
-action that triggers it, so when an action triggers more than one mutation, write its replay events
-with `action_id`. A binding that a `state_text` rule targets is checked by the rule's text, not by
-its resource field.
+declared order, as replay does for an `action_id` event. Consecutive `mutation_id` events that
+list every mutation of one action in that order, with the same `payload_values`, are also one
+click. No click applies only part of an action, so any other `mutation_id` event of an action that
+triggers more than one mutation fails the `react-tailwind-app` compile with
+`APP_REACT_REPLAY_EVENT_NOT_CLICKABLE`. A binding that a `state_text` rule targets is checked by the
+rule's text, not by its resource field.
 
 The generated `ViewSpecApp` accepts fixture-compatible resource records plus typed navigation, action, state-change, and error callbacks. Network requests, authentication, persistence, optimistic updates, and deployment infrastructure remain host-owned.
 
