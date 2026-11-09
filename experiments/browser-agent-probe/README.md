@@ -29,6 +29,8 @@ See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile
 | `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). An action's ARIA state shows on its line: `pressed`, `selected`, `expanded` or `collapsed`. |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
+| `apg_eval.py` | Opens every W3C ARIA Authoring Practices example page and acts once on one control of each kind inside the example, as an agent would; reports which widget patterns the lift can operate. |
+| `real_sites_eval.py` | Re-runs the real-site tasks that found the lift's bugs (Wikipedia, python.org, gov.uk, react-select, flatpickr, jQuery UI, httpbin, and more), one browser per case. |
 | `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 120 checks on the fixtures. |
 | `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 100 checks. |
 
@@ -401,6 +403,8 @@ You need the package (`pip install -e .`), Node, and Playwright for Node with Ch
 python experiments/browser-agent-probe/demo_agent.py
 python experiments/browser-agent-probe/demo_mcp.py
 python experiments/browser-agent-probe/probe.py experiments/browser-agent-probe/fixtures/*.html https://example.com --out .probe-out
+python experiments/browser-agent-probe/apg_eval.py --out .apg-eval          # the W3C ARIA Authoring Practices examples
+python experiments/browser-agent-probe/real_sites_eval.py --out .real-sites # the real-site tasks that found the bugs
 ```
 
 ```python
@@ -579,7 +583,7 @@ purpose: the feed's focusable articles, a tree grid's row, two radio groups that
 their radios (`aria-activedescendant`), and a hidden "reload needed" link; the controls inside each
 are listed in their place.
 
-One action on one control of each kind inside each example (`apg_eval.py` in the probe's notes),
+One action on one control of each kind inside each example (`apg_eval.py`),
 re-opening the page before each action: 58 of 64 actions did what they should, and the step
 verified or the diff showed the change. Every tab (4), tree item (3), listbox (4), radio (3), switch
 (3), menu item (2), combobox (2), text box (8), and 26 of 29 buttons. Of the six that did not: two
