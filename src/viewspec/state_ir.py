@@ -1155,7 +1155,7 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
         lines.extend(_reducer_type_declarations(bounded_expressions=model.bounded_expressions))
 
     def literal(value: Any) -> str:
-        return _reducer_json_literal(value, script_safe=model.bounded_expressions)
+        return _reducer_json_literal(value)
 
     lines.extend(
         [
@@ -1372,7 +1372,7 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
         lines.extend(
             [
                 "",
-                f"const visibilityRules{ann('VisibilityRule[]')} = {json.dumps(model.visibility_rules, indent=2, sort_keys=True)};",
+                f"const visibilityRules{ann('VisibilityRule[]')} = {_reducer_json_literal(model.visibility_rules)};",
                 _function_signature(
                     "evaluateViewSpecVisibility",
                     (("state", "ViewSpecState"),),
@@ -1405,7 +1405,7 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
         lines.extend(
             [
                 "",
-                f"const stateTextRules{ann('StateTextRule[]')} = {json.dumps(model.state_text_rules, indent=2, sort_keys=True)};",
+                f"const stateTextRules{ann('StateTextRule[]')} = {_reducer_json_literal(model.state_text_rules)};",
                 _function_signature(
                     "stateTextScalar",
                     (("value", "unknown"),),
@@ -1436,15 +1436,15 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
     return "\n".join(lines) + "\n"
 
 
-def _reducer_json_literal(value: Any, *, script_safe: bool) -> str:
-    """A JSON literal for the generated reducer.
+def _reducer_json_literal(value: Any) -> str:
+    """A JSON literal for the generated reducer, safe inside the static shell's inline script.
 
-    schema_version 5 escapes ``<``, ``>``, and ``&`` inside strings, so a template or state value
-    can never close the static shell's inline script. V3 and V4 keep their exact bytes.
+    The static shell inlines the reducer in a ``<script>`` element, where the HTML parser ends the
+    script at the first ``</script>`` whatever the JavaScript means. So every schema version escapes
+    ``<``, ``>``, and ``&``. JSON puts these characters only inside strings, where the escape keeps
+    the value, so no template, state value, or mutation value can end the script or start another.
     """
     text = json.dumps(value, indent=2, sort_keys=True)
-    if not script_safe:
-        return text
     return text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
@@ -1456,7 +1456,7 @@ def _bounded_expression_reducer_lines(model: _ReducerSourceModel, *, typescript:
 
     lines = [
         "",
-        f"const visibilityRules{ann('VisibilityRule[]')} = {_reducer_json_literal(model.visibility_rules, script_safe=True)};",
+        f"const visibilityRules{ann('VisibilityRule[]')} = {_reducer_json_literal(model.visibility_rules)};",
         _function_signature(
             "visibilityHolds",
             (("w", "VisibilityWhen"), ("state", "ViewSpecState"), ("selectorValues", "Record<string, unknown>")),
@@ -1493,7 +1493,7 @@ def _bounded_expression_reducer_lines(model: _ReducerSourceModel, *, typescript:
     lines.extend(
         [
             "",
-            f"const stateTextRules{ann('StateTextRule[]')} = {_reducer_json_literal(model.state_text_rules, script_safe=True)};",
+            f"const stateTextRules{ann('StateTextRule[]')} = {_reducer_json_literal(model.state_text_rules)};",
             *state_text_scalar_source(typescript=typescript),
             *(
                 state_text_formatter_source(typescript=typescript)

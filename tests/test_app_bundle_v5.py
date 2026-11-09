@@ -584,7 +584,8 @@ def test_generated_evaluators_match_python_on_arbitrary_states(tmp_path):
 def test_v4_reducers_carry_no_v5_code():
     for payload in (_visibility_app_bundle(), _state_text_app_bundle(), starter_react_app_bundle("internal_tool")):
         source = generate_typescript_reducer(payload)
-        for token in ("visibilityHolds", "formatStateValue", "vsNumberText", "segments", "\\u003c"):
+        # Escaping <, >, and & in reducer JSON is not V5 code: every schema version does it.
+        for token in ("visibilityHolds", "formatStateValue", "vsNumberText", "segments"):
             assert token not in source
 
 

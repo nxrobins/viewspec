@@ -22,6 +22,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_app_bundle import _stateful_app_bundle  # noqa: E402
+from test_app_state_text import _state_text_app_bundle  # noqa: E402
 from test_app_visibility import _visibility_app_bundle  # noqa: E402
 
 from viewspec.app_shell import (
@@ -35,6 +36,7 @@ from viewspec.state_ir import (
     evaluate_visibility,
     generate_browser_reducer_script,
     generate_javascript_reducer,
+    generate_typescript_reducer,
     initial_state,
     initial_visibility,
     validate_state_ir,
@@ -252,3 +254,55 @@ def test_v4_shell_is_deterministic(tmp_path):
     first = _prove_shell(tmp_path, copy.deepcopy(payload), name="one")
     second = _prove_shell(tmp_path, copy.deepcopy(payload), name="two")
     assert (first / "index.html").read_bytes() == (second / "index.html").read_bytes()
+
+
+# --- the inline reducer is script-safe in every schema version -------------------------------------
+
+# The static shell inlines the reducer in a <script> element, and the HTML parser ends a script at the
+# first </script> whatever the JavaScript means. These strings must stay data inside the reducer.
+_HOSTILE_TEXT = "</script><script>window.__injected = 1</script><!-- & -->"
+
+
+def _hostile_v3_bundle() -> dict[str, Any]:
+    payload = _stateful_app_bundle()
+    payload["state"].append(
+        {"id": "hostile_note", "kind": "scalar", "scope": "app", "initial": {"value": _HOSTILE_TEXT}}
+    )
+    return payload
+
+
+def _hostile_v4_bundle() -> dict[str, Any]:
+    payload = _state_text_app_bundle()
+    payload["state_text"][0]["template"] = _HOSTILE_TEXT + " {value}"
+    payload["state_replay_assertions"][0]["expect_text"] = {"selected_incident_text": _HOSTILE_TEXT + " inc_1043"}
+    return payload
+
+
+@pytest.mark.parametrize("bundle", [_hostile_v3_bundle, _hostile_v4_bundle], ids=["v3", "v4"])
+@pytest.mark.parametrize("generate", [generate_javascript_reducer, generate_typescript_reducer], ids=["js", "ts"])
+def test_reducer_json_is_script_safe_in_every_schema_version(bundle, generate):
+    source = generate(bundle())
+    assert "</script" not in source.lower()
+    assert "<!--" not in source
+    assert "\\u003c/script\\u003e" in source
+
+
+@pytest.mark.skipif(not _NODE_AVAILABLE, reason="AppBundle V4 proof requires Node.js for conformance")
+def test_hostile_strings_stay_inside_the_inline_reducer(tmp_path):
+    # A V4 shell inlines the reducer; a V3 shell has no state runtime to inline. The proof replays
+    # the bundle and checks the Node reducer against Python, so the escaped JSON must decode to the
+    # same state and text.
+    shell = (_prove_shell(tmp_path, _hostile_v4_bundle(), "hostile") / "index.html").read_text(encoding="utf-8")
+    plain = (_prove_shell(tmp_path, _state_text_app_bundle(), "plain") / "index.html").read_text(encoding="utf-8")
+
+    assert "</script><script>window.__injected" not in shell
+    scripts = [body for attrs, body in _inline_scripts(shell) if "application/json" not in attrs]
+    plain_scripts = [body for attrs, body in _inline_scripts(plain) if "application/json" not in attrs]
+    assert len(scripts) == len(plain_scripts)  # no script element was cut short or injected
+    for index, body in enumerate(scripts):
+        script_path = tmp_path / f"hostile-script-{index}.js"
+        script_path.write_text(body, encoding="utf-8")
+        completed = subprocess.run(
+            ["node", "--check", str(script_path)], capture_output=True, text=True, timeout=30, check=False
+        )
+        assert completed.returncode == 0, completed.stderr

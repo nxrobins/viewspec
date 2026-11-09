@@ -174,6 +174,12 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- The generated reducer escapes `<`, `>`, and `&` in its JSON literals in every AppBundle schema
+  version, as V5 already did. A V4 static shell inlines the reducer in a `<script>` element, so a
+  template, state value, or mutation value holding `</script>` ended the script there: the shell
+  failed to compile, or it compiled with the runtime broken and a script element made from the
+  data. The escape keeps every value, and a V3 or V4 reducer whose data has none of the three
+  characters keeps its bytes.
 - AppBundle V4 state text renders the same string in the bake, the replay, and the runtime. The
   generated reducer used to fill `{value}` with a replacement string, so a value holding `$&`,
   `$'`, `` $` ``, or `$$` showed different text at runtime than in the compiled screen and the
