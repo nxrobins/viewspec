@@ -7,6 +7,10 @@ state, and actions as `IntentBundle` or `AppBundle` JSON. ViewSpec compiles that
 React with provenance for every node, then checks and proves the result. There is no hosted
 service: the SDK makes no network calls and is MIT licensed.
 
+It also works in the other direction. The agent lift describes a page that already exists (its
+controls, forms, and messages) to an agent that has to operate it, and checks each request before a
+browser acts. See [Reading and operating live pages](#reading-and-operating-live-pages).
+
 Generated DOM and framework code are compiler output. Change the semantic source and recompile
 instead of patching output by hand.
 
@@ -192,6 +196,69 @@ new bundle and swaps it in. See [MCP Apps](docs/mcp-apps.md) for actions, live u
 limits, and
 [`examples/mcp_app_incident_console.py`](examples/mcp_app_incident_console.py) for a runnable server.
 
+## Reading and operating live pages
+
+ViewSpec also works in the other direction: it describes a page that already exists to an agent
+that has to use it. `lift_html(html, profile="agent")` takes a rendered page and lists every visible
+control with the name the browser gives it and its live state, each form as a typed tool, and the
+messages the page shows. It never keeps a secret value. The planner checks a request before a
+browser does anything, and a diff of two lifts says what an action changed:
+
+```python
+from viewspec.raw_html import lift_html
+from viewspec.raw_html_actions import AgentActionError, plan_form_call
+from viewspec.raw_html_diff import diff_lifts
+
+lift = lift_html(rendered_html, profile="agent")
+[signup] = lift.form_tool_schemas()  # {"name": "sign_up", "input_schema": {...}}
+
+try:
+    plan_form_call(lift, "sign_up", {"email": "bo", "password": "hunter", "terms": True})
+except AgentActionError as error:
+    error.details  # 'bo' is not an email address; the value is shorter than 8 characters
+
+arguments = {"email": "bo@example.com", "password": "correct horse", "terms": True}
+steps = plan_form_call(lift, "sign_up", arguments)  # fill, fill, check, click
+
+after = lift_html(html_after_submit, profile="agent")
+diff_lifts(lift, after).lines()  # ["message alert 'Check your inbox'"]
+```
+
+The planner refuses what the page cannot take, with the reason: a disabled control, a value not in
+the list, and anything the browser's own form validation would refuse when the form is sent (an
+email or URL format, `minlength`, `pattern`, `min`, `max`, `step`). Names follow the accessible-name
+rules, text stays in page order around inline elements, and a control inside a clickable wrapper
+is still found. See the [agent lift profile](docs/local-html-wedge.md#agent-lift-profile).
+This part is pure Python and makes no network calls.
+
+Driving a real browser lives in
+[`experiments/browser-agent-probe`](experiments/browser-agent-probe/README.md): a Playwright bridge
+and an MCP server with three tools, `observe`, `act`, and `call`. It types into comboboxes and picks
+their options, picks dates and ranges from custom calendars, uploads and downloads files within
+folders you name, scrolls infinite lists, waits for a change, and reports which fields the browser
+refused when a form is sent. Whoever starts the server decides whether a form post goes through
+(it is blocked by default) and which origins the browser may open; the agent cannot change either.
+It is an experiment, outside the package and its guarantees, because it drives a browser that
+loads whatever the agent opens.
+
+Measured on all 61 [W3C ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/example-index/)
+examples, the reference implementations of every ARIA widget pattern:
+
+| Measure | Result |
+|---|---:|
+| Visible controls found | 3,532 of 3,551 (99.5%) |
+| Named as the browser names them | 99.6% |
+| Locators confirmed by Playwright | 3,548 of 3,548 |
+| Secret values leaked | 0 |
+| One action on each kind of widget in each example | 58 of 64 |
+
+Of the 19 it misses, 11 are drawn inside inline SVG, which the sanitizer removes; the other 8 are
+wrappers it drops on purpose, listing the controls inside them instead. `apg_eval.py` in the probe
+folder repeats the measurement, and `real_sites_eval.py` re-runs seventeen tasks on public sites
+(Wikipedia, python.org, GOV.UK, react-select, flatpickr, jQuery UI, and others), among them each bug
+those sites found. This is evidence that an agent can operate these patterns, not accessibility
+certification.
+
 ## Agents
 
 An agent writes the compact form by default: `viewspec.compact.json`, an IntentBundle written as the
@@ -234,7 +301,7 @@ names. See [React Host Component Registry](docs/react-registry.md).
 
 [Contributing](CONTRIBUTING.md#opt-in-end-to-end-suites) shows how to run the repository's
 model-in-the-loop eval, which measures how often a model's first and corrected answers pass
-`viewspec check`.
+`viewspec check`, against Anthropic models or an Azure OpenAI deployment.
 
 To give an MCP client the tools `init`, `compile`, `check`, `patch`, `prove`, and `studio`:
 
@@ -300,7 +367,8 @@ IntentBundle JSON -> ViewSpec compiler -> HTML / React / CompositionIR
 
 Existing HTML can be imported as a [fallback path](docs/local-html-wedge.md): `viewspec compile
 page.html --out dist/` sanitizes it and applies `DESIGN.md`. New UI should start from an
-`IntentBundle`.
+`IntentBundle`. The same sanitizer and lift read a live page for an agent; see
+[Reading and operating live pages](#reading-and-operating-live-pages).
 
 The React targets can render through host-owned components. `viewspec compile --target
 react-tailwind-tsx --registry REGISTRY.json` maps each of the fifteen primitive kinds to a named
@@ -314,7 +382,8 @@ Without `--registry` the output is unchanged. See [React Host Component Registry
 ## Requirements
 
 Python 3.11 or newer. AppBundle V3 to V5 reducer conformance also needs Node.js 18 or newer on `PATH`.
-The Freerange proof needs a stable Bun 1.x on `PATH`; ViewSpec never installs it.
+The Freerange proof needs a stable Bun 1.x on `PATH`; ViewSpec never installs it. The browser agent
+probe needs Node.js and Playwright for Node with Chromium.
 
 Linux and macOS are supported. Browser verification uses POSIX process groups and is not supported
 on Windows, while the pure-Python `compile` and `check` path has no POSIX-only dependency. CI runs
@@ -326,6 +395,8 @@ pinned goldens. macOS is supported but not exercised in CI.
 - [Getting started](docs/getting-started.md)
 - [Agent integration](docs/agent-integration.md)
 - [Reading a proof bundle](docs/proof-bundle.md)
+- [Agent lift profile](docs/local-html-wedge.md#agent-lift-profile) and the
+  [browser agent probe](experiments/browser-agent-probe/README.md)
 - [Emitter matrix](docs/emitter-matrix.md) and known limits for each target
 - [Compatibility](docs/compatibility.md)
 - [Security](SECURITY.md) and [contributing](CONTRIBUTING.md)

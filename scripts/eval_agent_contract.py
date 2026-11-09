@@ -26,6 +26,7 @@ import statistics
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -49,7 +50,13 @@ DEFAULT_OUT_ROOT = Path(".agent-eval-runs")
 # The model is configuration only: a run needs VIEWSPEC_EVAL_MODEL, and no model id lives here.
 MODEL_ENV = "VIEWSPEC_EVAL_MODEL"
 DEFAULT_PROVIDER = "anthropic"
-PROVIDER_KEY_ENV = {"anthropic": "ANTHROPIC_API_KEY"}
+PROVIDER_KEY_ENV = {"anthropic": "ANTHROPIC_API_KEY", "azure-openai": "AZURE_OPENAI_API_KEY"}
+# The azure-openai provider: an Azure OpenAI or Azure AI Foundry resource, where the model is the
+# name of a deployment. The endpoint is https://<resource>.openai.azure.com or
+# https://<resource>.services.ai.azure.com; the API version defaults to a current preview.
+AZURE_OPENAI_ENDPOINT_ENV = "AZURE_OPENAI_ENDPOINT"
+AZURE_OPENAI_API_VERSION_ENV = "AZURE_OPENAI_API_VERSION"
+DEFAULT_AZURE_OPENAI_API_VERSION = "2025-04-01-preview"
 ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 # API version 2026-10-21 rejects temperature, top_p and top_k on every model. 2023-06-01 lets an
 # explicit --temperature reach the models that still accept one.
@@ -298,6 +305,59 @@ def _backoff_seconds(attempt: int, retry_after: str | None) -> float:
     return min(float(2**attempt), MAX_RETRY_AFTER_SECONDS)
 
 
+def _post_json(
+    url: str,
+    payload: bytes,
+    headers: Mapping[str, str],
+    *,
+    timeout: float,
+    transport_retries: int,
+    opener: Callable[..., Any] | None,
+    sleep: Callable[[float], None],
+    request_id_headers: tuple[str, ...],
+) -> tuple[dict[str, Any], str | None]:
+    """POST a JSON body and read a JSON object back, retrying transport failures and retryable
+    HTTP statuses. Returns the body and the request id the first matching response header holds."""
+
+    opener = opener or urllib.request.urlopen
+    attempt = 0
+    while True:
+        request = urllib.request.Request(url, data=payload, headers=dict(headers), method="POST")
+        try:
+            with opener(request, timeout=timeout) as response:
+                raw = response.read()
+                response_headers = getattr(response, "headers", None)
+        except urllib.error.HTTPError as exc:
+            detail = f"HTTP {exc.code}: {_error_summary(exc.read())}"
+            if exc.code in RETRYABLE_HTTP_STATUS and attempt < transport_retries:
+                attempt += 1
+                sleep(_backoff_seconds(attempt, exc.headers.get("retry-after") if exc.headers else None))
+                continue
+            raise ProviderError(detail) from None
+        except (OSError, http.client.HTTPException) as exc:
+            if attempt < transport_retries:
+                attempt += 1
+                sleep(_backoff_seconds(attempt, None))
+                continue
+            raise ProviderError(f"connection error: {type(exc).__name__}: {exc}") from None
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            raise ProviderError("response body is not JSON") from None
+        if not isinstance(data, dict):
+            raise ProviderError("response body is not a JSON object")
+        if data.get("type") == "error" or (isinstance(data.get("error"), dict) and len(data) == 1):
+            raise ProviderError(_error_summary(raw))
+        request_id = None
+        if response_headers is not None:
+            for name in request_id_headers:
+                value = response_headers.get(name)
+                if isinstance(value, str):
+                    request_id = value
+                    break
+        return data, request_id
+
+
 @dataclass
 class AnthropicMessagesProvider:
     """One ``POST /v1/messages`` per generation, through ``urllib`` alone."""
@@ -359,37 +419,92 @@ class AnthropicMessagesProvider:
             "x-api-key": self.api_key,
             "anthropic-version": ANTHROPIC_VERSION,
         }
-        opener = self.opener or urllib.request.urlopen
-        attempt = 0
-        while True:
-            request = urllib.request.Request(self.url, data=payload, headers=headers, method="POST")
-            try:
-                with opener(request, timeout=self.timeout) as response:
-                    raw = response.read()
-                    response_headers = getattr(response, "headers", None)
-            except urllib.error.HTTPError as exc:
-                detail = f"HTTP {exc.code}: {_error_summary(exc.read())}"
-                if exc.code in RETRYABLE_HTTP_STATUS and attempt < self.transport_retries:
-                    attempt += 1
-                    self.sleep(_backoff_seconds(attempt, exc.headers.get("retry-after") if exc.headers else None))
-                    continue
-                raise ProviderError(detail) from None
-            except (OSError, http.client.HTTPException) as exc:
-                if attempt < self.transport_retries:
-                    attempt += 1
-                    self.sleep(_backoff_seconds(attempt, None))
-                    continue
-                raise ProviderError(f"connection error: {type(exc).__name__}: {exc}") from None
-            try:
-                data = json.loads(raw)
-            except ValueError:
-                raise ProviderError("response body is not JSON") from None
-            if not isinstance(data, dict):
-                raise ProviderError("response body is not a JSON object")
-            if data.get("type") == "error":
-                raise ProviderError(_error_summary(raw))
-            request_id = response_headers.get("request-id") if response_headers is not None else None
-            return data, (request_id if isinstance(request_id, str) else None)
+        return _post_json(
+            self.url,
+            payload,
+            headers,
+            timeout=self.timeout,
+            transport_retries=self.transport_retries,
+            opener=self.opener,
+            sleep=self.sleep,
+            request_id_headers=("request-id",),
+        )
+
+
+@dataclass
+class AzureOpenAIChatProvider:
+    """One ``POST .../chat/completions`` per generation to an Azure OpenAI or Azure AI Foundry
+    deployment, through ``urllib`` alone. ``model`` is the deployment name."""
+
+    api_key: str
+    model: str
+    endpoint: str
+    api_version: str = DEFAULT_AZURE_OPENAI_API_VERSION
+    max_tokens: int = DEFAULT_MAX_TOKENS
+    timeout: float = DEFAULT_TIMEOUT_SECONDS
+    temperature: float | None = None
+    transport_retries: int = TRANSPORT_RETRIES
+    opener: Callable[..., Any] | None = None
+    sleep: Callable[[float], None] = time.sleep
+    last_meta: dict[str, Any] = field(default_factory=dict)
+
+    name = "azure-openai"
+
+    @property
+    def url(self) -> str:
+        base = self.endpoint.rstrip("/")
+        deployment = urllib.parse.quote(self.model, safe="")
+        return f"{base}/openai/deployments/{deployment}/chat/completions?api-version={self.api_version}"
+
+    def request_body(self, system: str, user: str, schema: dict[str, Any] | None) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            # Reasoning deployments (gpt-5 and later) take max_completion_tokens and reject max_tokens.
+            "max_completion_tokens": self.max_tokens,
+        }
+        if self.temperature is not None:
+            body["temperature"] = self.temperature
+        if schema is not None:
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "viewspec_bundle", "schema": schema},
+            }
+        return body
+
+    def generate(self, system: str, user: str, schema: dict[str, Any] | None) -> str:
+        payload = json.dumps(self.request_body(system, user, schema)).encode("utf-8")
+        headers = {"content-type": "application/json", "api-key": self.api_key}
+        response, request_id = _post_json(
+            self.url,
+            payload,
+            headers,
+            timeout=self.timeout,
+            transport_retries=self.transport_retries,
+            opener=self.opener,
+            sleep=self.sleep,
+            request_id_headers=("apim-request-id", "x-request-id", "x-ms-request-id"),
+        )
+        choices = response.get("choices")
+        first = choices[0] if isinstance(choices, list) and choices and isinstance(choices[0], dict) else {}
+        message = first.get("message") if isinstance(first.get("message"), dict) else {}
+        content = message.get("content")
+        if isinstance(content, list):  # Some deployments answer with content parts.
+            text = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+        else:
+            text = content if isinstance(content, str) else ""
+        usage = response.get("usage")
+        self.last_meta = {
+            "stop_reason": first.get("finish_reason"),
+            "usage": (
+                {"input_tokens": usage.get("prompt_tokens"), "output_tokens": usage.get("completion_tokens")}
+                if isinstance(usage, dict)
+                else None
+            ),
+            "served_model": response.get("model"),
+            "message_id": response.get("id"),
+            "request_id": request_id,
+        }
+        return text
 
 
 # --- structured output schemas -------------------------------------------------------------------
@@ -1143,6 +1258,28 @@ def build_plan(
     }
 
 
+def build_provider(name: str, *, api_key: str, model: str, args: argparse.Namespace) -> Provider:
+    """The provider ``--provider`` names, configured from the arguments and the environment."""
+
+    if name == "azure-openai":
+        return AzureOpenAIChatProvider(
+            api_key=api_key,
+            model=model,
+            endpoint=os.environ[AZURE_OPENAI_ENDPOINT_ENV],
+            api_version=os.environ.get(AZURE_OPENAI_API_VERSION_ENV) or DEFAULT_AZURE_OPENAI_API_VERSION,
+            max_tokens=args.max_tokens,
+            timeout=args.timeout,
+            temperature=args.temperature,
+        )
+    return AnthropicMessagesProvider(
+        api_key=api_key,
+        model=model,
+        max_tokens=args.max_tokens,
+        timeout=args.timeout,
+        temperature=args.temperature,
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     prompts_path = Path(args.prompts)
@@ -1159,8 +1296,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     model = os.environ.get(MODEL_ENV) or None
     key_env = PROVIDER_KEY_ENV[args.provider]
     api_key = os.environ.get(key_env) or None
-    if not args.dry_run and (model is None or api_key is None):
-        missing = [name for name, present in ((MODEL_ENV, model), (key_env, api_key)) if present is None]
+    required = [(MODEL_ENV, model), (key_env, api_key)]
+    if args.provider == "azure-openai":
+        required.append((AZURE_OPENAI_ENDPOINT_ENV, os.environ.get(AZURE_OPENAI_ENDPOINT_ENV) or None))
+    if not args.dry_run and any(present is None for _, present in required):
+        missing = [name for name, present in required if present is None]
         print(
             f"not configured: set {' and '.join(missing)} to call the model, or pass --dry-run to write the plan only",
             file=sys.stderr,
@@ -1199,15 +1339,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"dry run: {len(selected)} prompts planned for model {model or '(unset)'}; no model call made")
         return 0
 
-    # The configuration gate above returned 2 unless both are set.
+    # The configuration gate above returned 2 unless everything is set.
     assert api_key is not None and model is not None
-    provider = AnthropicMessagesProvider(
-        api_key=api_key,
-        model=model,
-        max_tokens=args.max_tokens,
-        timeout=args.timeout,
-        temperature=args.temperature,
-    )
+    provider = build_provider(args.provider, api_key=api_key, model=model, args=args)
     records = run_eval(
         selected,
         provider,

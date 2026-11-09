@@ -264,6 +264,13 @@ class HtmlControl:
     min_length: int | None = None
     max_length: int | None = None
     step: str | None = None
+    # ARIA state an action may toggle: a toolbar button's aria-pressed, a tab's or an option's
+    # aria-selected. ``expanded`` holds aria-expanded for any control (a disclosure, a menu button).
+    pressed: bool | None = None
+    selected: bool | None = None
+    # The aria-sort of the column header a sort button sits in: "ascending", "descending", "none",
+    # or "other". A click that reorders the rows changes this and nothing else the diff can see.
+    sort: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -299,6 +306,9 @@ class HtmlControl:
             "min_length": self.min_length,
             "max_length": self.max_length,
             "step": self.step,
+            "pressed": self.pressed,
+            "selected": self.selected,
+            "sort": self.sort,
         }
         if self.options:
             payload["options"] = [option.to_json() for option in self.options]
@@ -414,10 +424,13 @@ class _Page:
         return self.labels_for.get((_scope(node), html_id), []) if html_id else []
 
     def labelled_by(self, node: LiftNode) -> str:
-        """The text of the elements ``node``'s ``aria-labelledby`` names, in order."""
+        """The name the elements ``node``'s ``aria-labelledby`` names give it, in order. Each gives its
+        own ``aria-label``, or else its text; an element may name itself this way ("Remove" +
+        "Recipient Name 1")."""
 
         targets = (self.referenced(node, ref) for ref in node.attrs.get("aria-labelledby", "").split())
-        return " ".join(self.text(target) for target in targets if target is not None).strip()
+        parts = [target.attrs.get("aria-label") or self.text(target) for target in targets if target is not None]
+        return " ".join(part for part in parts if part).strip()
 
     def _hidden_ids(self) -> set[str]:
         hidden: set[str] = set()
@@ -479,7 +492,9 @@ class _Page:
 def _is_date_field(node: LiftNode, control: str, name: str) -> bool:
     if node.tag == "input" and control in DATE_INPUT_TYPES:
         return True
-    if node.tag != "input" or control not in {"text", "search", "textbox"}:
+    # A date combobox (the W3C APG "Date Picker Combobox": an input with role="combobox" and a
+    # calendar button beside it) is a date field too.
+    if node.tag != "input" or control not in {"text", "search", "textbox", "combobox"}:
         return False
     hints = (node.attrs.get("name", ""), node.attrs.get("id", ""), name)
     return any(DATE_HINT_RE.search(hint) for hint in hints) or bool(
@@ -978,6 +993,8 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
             options, expanded = _choice_state(page, node, control)
         else:
             options = ()
+        if expanded is None:
+            expanded = _aria_bool(node.attrs.get("aria-expanded"))  # A disclosure, a menu button, a tree item.
         value, checked = (None, None) if kind == "action" else _field_value(page, node, control, options)
         name = _accessible_name(page, node, kind, control)
         controls.append(
@@ -1013,6 +1030,9 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 min_length=_length(node.attrs.get("minlength")),
                 max_length=_length(node.attrs.get("maxlength")),
                 step=node.attrs.get("step") or None,
+                pressed=_aria_bool(node.attrs.get("aria-pressed")),
+                selected=_aria_bool(node.attrs.get("aria-selected")),
+                sort=_column_sort(page, node) if kind == "action" else None,
             )
         )
         roles.append((node.id, kind, name, confidence))
@@ -1160,6 +1180,23 @@ def form_fields(form: HtmlForm, controls: Mapping[str, HtmlControl]) -> tuple[Fo
         kind = "boolean" if control.control == "radio" else _field_kind(control)
         fields.append(FormField(key, kind, (control,)))
     return tuple(fields)
+
+
+def _column_sort(page: _Page, node: LiftNode) -> str | None:
+    """The aria-sort of the column header around a control (a sort button in a <th>), if any."""
+
+    for ancestor in page.ancestors(node):
+        if ancestor.tag in {"th", "td"} or _role(ancestor) in {"columnheader", "rowheader"}:
+            value = ancestor.attrs.get("aria-sort", "").strip().lower()
+            return value if value in {"ascending", "descending", "none", "other"} else None
+    return None
+
+
+def _aria_bool(value: str | None) -> bool | None:
+    """An ARIA state attribute as a bool: "true" or "false"; None when missing, "mixed", or "undefined"."""
+
+    lowered = (value or "").strip().lower()
+    return True if lowered == "true" else False if lowered == "false" else None
 
 
 def _length(value: str | None) -> int | None:

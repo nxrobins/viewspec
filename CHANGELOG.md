@@ -295,6 +295,17 @@ All notable changes to ViewSpec are documented in this file. The format follows
   learned which build it showed from its first status poll, half a second after load, so an edit
   that rebuilt before that poll left the old build on screen until the next edit. Each page now
   carries the generation of its build.
+- Names follow two more accessible-name rules, found on the W3C ARIA Authoring Practices examples:
+  each element `aria-labelledby` names contributes its own `aria-label` before its text (so a button
+  that names itself and a neighbour is "Remove Recipient Name 1", not "X Recipient Name 1"), and an
+  `<input role="combobox">` named for a date (the APG Date Picker Combobox) is a date field whose
+  `select` opens its calendar.
+- Agent lift controls carry the ARIA state a click toggles: `pressed` (`aria-pressed`), `selected`
+  (`aria-selected`), `expanded` for any control, not only comboboxes and listboxes, and `sort`, the
+  `aria-sort` of the column header a sort button sits in. A diff after a click on a toolbar button,
+  a tab, a disclosure, or a table's sort button names the change instead of "no change". `fill`
+  on a control that is not an input, a textarea, or an ARIA text box (a select-only `div` combobox)
+  is refused with `AGENT_ACTION_UNSUPPORTED` before the browser acts, pointing to `select`.
 - The `react-tailwind-app` browser proof clicks once for each replay event and each `repeat`, as
   Python replay applies them. The generated test used to skip every `action_id` event and to click
   a repeated event once, so the proof of a valid bundle failed or checked fewer clicks than the
