@@ -116,7 +116,6 @@ def test_choosing_on_a_listbox_must_name_an_enabled_option():
         (OPEN, "", "AGENT_ACTION_VALUE_INVALID"),
         (OPEN, ["France", "Japan"], "AGENT_ACTION_VALUE_INVALID"),
         (OPEN, 5, "AGENT_ACTION_VALUE_INVALID"),
-        (OPEN.replace('name="country"', 'name="country" readonly'), "France", "AGENT_ACTION_READONLY"),
         (OPEN.replace('name="country"', 'name="country" disabled'), "France", "AGENT_ACTION_DISABLED"),
     ],
 )
@@ -125,6 +124,85 @@ def test_bad_choices_are_refused(html, value, code):
     with pytest.raises(AgentActionError) as caught:
         plan_control_action(country, "select", value)
     assert caught.value.code == code
+
+
+def test_an_option_is_named_by_its_title_line():
+    # Wikipedia's suggestions show a title over a description; the snapshot marks both as lines.
+    lift = _lift(
+        OPEN.replace(
+            '<li role="option" data-lift-ref="e2">France</li>',
+            '<li role="option" data-lift-ref="e2"><span data-lift-display="block">France</span>'
+            '<span data-lift-display="block">Country in Western Europe</span></li>',
+        )
+    )
+    assert [option.label for option in _by_name(lift)["Country"].options][:2] == ["France", "Japan"]
+
+
+def test_an_option_with_an_icon_above_its_title_is_named_by_the_title():
+    # react-select.com's section picker: an emoji on a line of its own, then the title.
+    lift = _lift(
+        OPEN.replace(
+            '<li role="option" data-lift-ref="e2">France</li>',
+            '<li role="option" data-lift-ref="e2"><span data-lift-display="block">🎨</span>'
+            '<span data-lift-display="block">CSS-in-JS styling API</span></li>',
+        )
+    )
+    assert _by_name(lift)["Country"].options[0].label == "CSS-in-JS styling API"
+
+
+def test_select_on_a_search_field_types_and_picks_a_suggestion():
+    # Wikipedia's search box is a plain field until it has focus, then a combobox: the browser finds out.
+    [field] = _lift('<input type="search" aria-label="Search Wikipedia">').controls
+    [step] = plan_control_action(field, "select", "Alan Turing")
+    assert step.op == "choose" and step.value == "Alan Turing"
+    [box] = _lift('<input type="checkbox" aria-label="Agree">').controls
+    with pytest.raises(AgentActionError) as caught:
+        plan_control_action(box, "select", "yes")
+    assert caught.value.code == "AGENT_ACTION_UNSUPPORTED"
+
+
+def test_a_read_only_combobox_is_still_chosen_from():
+    # ARIA: aria-readonly on a combobox means "not editable, but otherwise operable". react-select
+    # without search and Ant Design mark their select-only comboboxes this way.
+    country = _by_name(_lift(OPEN.replace('name="country"', 'name="country" readonly aria-readonly="true"')))["Country"]
+    assert country.readonly is True
+    [step] = plan_control_action(country, "select", "France")
+    assert step.op == "choose" and step.value == "France"
+    with pytest.raises(AgentActionError) as caught:
+        plan_control_action(country, "fill", "Fra")
+    assert caught.value.code == "AGENT_ACTION_READONLY"
+
+
+BESIDE = """
+<label for="colour">Colour</label>
+<div class="box">
+  <div>Purple</div>
+  <input id="colour" role="combobox" readonly aria-readonly="true" aria-haspopup="true" aria-expanded="false" value="">
+  <span aria-live="polite">option Purple, selected.</span>
+  <button aria-label="Clear"><span>×</span></button>
+</div>
+"""
+
+
+def test_an_input_combobox_shows_the_value_beside_it():
+    # react-select and Ant Design keep the input empty and show the choice in the box around it.
+    colour = _by_name(_lift(BESIDE))["Colour"]
+    assert colour.value == "Purple"
+
+    typed = _by_name(_lift(BESIDE.replace('value=""', 'value="Pur"')))["Colour"]
+    assert typed.value == "Pur"  # What is typed in the input wins.
+
+
+@pytest.mark.parametrize(
+    "html",
+    [
+        '<form><p>Choose a colour:</p><input role="combobox" aria-label="Colour"></form>',
+        '<li><span>Item one</span> <input role="combobox" aria-label="Colour"></li>',
+        '<div><label>Colour <input role="combobox"></label></div>',
+    ],
+)
+def test_the_text_beside_an_input_combobox_stops_at_its_widget(html):
+    assert _by_name(_lift(html))["Colour"].value == ""
 
 
 def test_form_tools_choose_from_lists():

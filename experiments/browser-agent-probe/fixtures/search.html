@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture search</title>
+<style>
+  .suggestion a { display: block; padding: 4px 8px; text-decoration: none; color: inherit; }
+  .suggestion .title, .suggestion .description { display: block; }
+  .suggestion .description { color: #555; font-size: .9em; }
+</style>
+</head>
+<body>
+<header>
+  <!-- Like Wikipedia's search: a plain search field until it has focus, then a combobox whose
+       suggestions show a title over a description, and open the article when clicked. -->
+  <form action="/wiki/Special:Search" id="searchform">
+    <input type="search" name="search" id="searchInput" aria-label="Search Wikipedia"
+           placeholder="Search Wikipedia" autocomplete="off">
+    <button type="submit">Search</button>
+  </form>
+  <div id="typeahead"></div>
+</header>
+<main>
+  <h1>Ada Lovelace</h1>
+  <p>English mathematician and writer, known for her work on the Analytical Engine.</p>
+</main>
+<script>
+  const ARTICLES = [
+    ["Alan Turing", "English computer scientist (1912–1954)"],
+    ["Alan Turing Institute", "Research institute in Britain"],
+    ["Alan Turing law", "2017 British law pardoning historical offences"],
+    ["Ada Lovelace", "English mathematician (1815–1852)"],
+  ];
+  const box = document.getElementById("typeahead");
+  let pending = null;
+  // The matching articles, 200 ms after a keystroke (a server call).
+  function suggest(input) {
+    const list = document.getElementById("typeahead-list");
+    const typed = input.value.trim().toLowerCase();
+    const found = ARTICLES.filter(([title]) => typed && title.toLowerCase().includes(typed));
+    list.innerHTML = found
+      .map(
+        ([title, description]) =>
+          `<li role="option" class="suggestion"><a href="/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}">` +
+          `<span class="title">${title}</span><span class="description">${description}</span></a></li>`,
+      )
+      .join("");
+    list.hidden = found.length === 0;
+    input.setAttribute("aria-expanded", String(found.length > 0));
+  }
+  // On focus, the page loads its typeahead and, 150 ms later, mounts it: a new combobox input
+  // replaces the plain field, keeps what was typed into it, and gets a list of its own.
+  document.getElementById("searchInput").addEventListener("focus", (event) => {
+    const plain = event.target;
+    setTimeout(() => {
+      const combo = plain.cloneNode();
+      combo.setAttribute("role", "combobox");
+      combo.setAttribute("aria-autocomplete", "list");
+      combo.setAttribute("aria-expanded", "false");
+      combo.setAttribute("aria-controls", "typeahead-list");
+      combo.removeAttribute("id"); // The mounted field has no id, as Wikipedia's has none.
+      combo.value = plain.value;
+      box.innerHTML = '<ul id="typeahead-list" role="listbox" aria-label="Search results" hidden></ul>';
+      plain.replaceWith(combo);
+      combo.focus();
+      combo.addEventListener("input", () => {
+        clearTimeout(pending);
+        pending = setTimeout(() => suggest(combo), 200);
+      });
+      pending = setTimeout(() => suggest(combo), 200); // For the text already typed.
+    }, 150);
+  });
+</script>
+</body>
+</html>

@@ -212,6 +212,7 @@ DATA_IMAGE_SRC_PREFIXES = ("data:image/png", "data:image/jpeg", "data:image/gif"
 NUMERIC_RE = re.compile(r"^[+-]?(?:\$)?\d[\d,]*(?:\.\d+)?(?:%|[KMB])?$", re.IGNORECASE)
 LABEL_RE = re.compile(r"^[A-Z][A-Za-z0-9][A-Za-z0-9 .,&:/()%'_-]{1,58}$")
 CONTROL_WHITESPACE_RE = re.compile(r"[\x00-\x20\x7f]+")
+WS_RE = re.compile(r"\s+")
 # Browsers treat backslashes and percent-encoded backslashes as forward slashes
 # when resolving URLs, so values like "/\evil.com" or "\\evil.com" resolve to a
 # protocol-relative (cross-origin) URL. Collapse them before authority detection.
@@ -232,7 +233,13 @@ class _HTMLNode:
     attrs: dict[str, str] = field(default_factory=dict)
     children: list[_HTMLNode] = field(default_factory=list)
     text_chunks: list[str] = field(default_factory=list)
+    # For each text chunk, how many children came before it: the place of the text among them.
+    text_slots: list[int] = field(default_factory=list)
     redact_text: bool = False
+
+    def add_text(self, text: str) -> None:
+        self.text_chunks.append(text)
+        self.text_slots.append(len(self.children))
 
 
 @dataclass(frozen=True)
@@ -244,6 +251,11 @@ class LiftNode:
     path: tuple[int, ...]
     child_ids: tuple[str, ...]
     parent_id: str | None
+    # The node's own text split at its children: run i comes just before child i, and the last run
+    # after the last child. Runs of whitespace are one space, kept at the edges, so words on either
+    # side of a child stay apart. Empty when the node has no text. ``text`` holds the same words,
+    # so ``to_json`` leaves this out.
+    text_runs: tuple[str, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -390,9 +402,9 @@ class _SanitizingHTMLParser(HTMLParser):
             node = self.stack[-1]
             if node.redact_text:
                 if data.strip() and not node.text_chunks:
-                    node.text_chunks.append(REDACTED_VALUE)
+                    node.add_text(REDACTED_VALUE)
                 return
-            node.text_chunks.append(data)
+            node.add_text(data)
 
     def handle_comment(self, data: str) -> None:
         return
@@ -827,6 +839,7 @@ def _freeze_nodes(root: _HTMLNode) -> list[LiftNode]:
                 path=path,
                 child_ids=child_ids,
                 parent_id=parent_id,
+                text_runs=tuple(WS_RE.sub(" ", run) for run in _text_runs(node)) if node.text_chunks else (),
             )
         )
         for index, child in enumerate(node.children):
@@ -839,12 +852,18 @@ def _freeze_nodes(root: _HTMLNode) -> list[LiftNode]:
 def _render_sanitized_children(root: _HTMLNode, path: tuple[int, ...]) -> tuple[str, dict[str, Any]]:
     manifest: dict[str, Any] = {}
 
+    def content(node: _HTMLNode, item_path: tuple[int, ...]) -> str:
+        # Text and children in the order the source had them.
+        runs = _text_runs(node)
+        pieces = [escape(runs[0])]
+        for index, child in enumerate(node.children):
+            pieces.append(render(child, (*item_path, index)))
+            pieces.append(escape(runs[index + 1]))
+        return "".join(pieces)
+
     def render(node: _HTMLNode, item_path: tuple[int, ...]) -> str:
         if node.tag == "document":
-            pieces = [escape(text) for text in node.text_chunks if text]
-            for index, child in enumerate(node.children):
-                pieces.append(render(child, (*item_path, index)))
-            return "".join(pieces)
+            return content(node, item_path)
         node_id = _node_id(item_path, node.tag)
         attrs = {**node.attrs, "data-viewspec-node-id": node_id}
         attr_html = " ".join(
@@ -870,12 +889,18 @@ def _render_sanitized_children(root: _HTMLNode, path: tuple[int, ...]) -> tuple[
             return f"<a {link_html}>External image: {escape(label)}</a>"
         if node.tag in {"br", "hr", "img"}:
             return f"<{node.tag} {attr_html}>"
-        pieces = [escape(text) for text in node.text_chunks if text]
-        for index, child in enumerate(node.children):
-            pieces.append(render(child, (*item_path, index)))
-        return f"<{node.tag} {attr_html}>{''.join(pieces)}</{node.tag}>"
+        return f"<{node.tag} {attr_html}>{content(node, item_path)}</{node.tag}>"
 
     return render(root, path or (0,)), manifest
+
+
+def _text_runs(node: _HTMLNode) -> list[str]:
+    """The node's text split at its children: run i comes just before child i, the last after them."""
+
+    runs = [""] * (len(node.children) + 1)
+    for text, slot in zip(node.text_chunks, node.text_slots, strict=True):
+        runs[slot] += text
+    return runs
 
 
 def _node_id(path: tuple[int, ...], tag: str) -> str:

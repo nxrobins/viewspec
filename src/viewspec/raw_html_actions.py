@@ -68,6 +68,9 @@ TIME_RE = re.compile(r"(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap])?\.?m?\.?")
 MONTH_RE = re.compile(r"(\d{4})-(\d{1,2})")
 MONTH_NAME_RE = re.compile(r"([a-z]+)\.?,?\s+(\d{4})")
 WEEK_RE = re.compile(r"(\d{4})-w(\d{1,2})")
+# Text fields that may offer suggestions once typed into. ``select`` on one types the value and picks
+# the suggestion that shows, as on a search box that becomes a combobox when it has focus.
+TYPEAHEAD_FIELDS = frozenset({"search", "searchbox", "text", "textbox"})
 NOT_FILLABLE = frozenset(
     {
         "button",
@@ -448,12 +451,118 @@ def _field_steps(item: FormField, value: Any) -> tuple[ActionStep, ...]:
         except ValueError:
             raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"Expected a number, not {value!r}.") from None
         text = str(int(number)) if number.is_integer() else str(number)
+        problem = constraint_problem(control, text)
+        if problem:
+            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", problem)
         return plan_control_action(control, "fill", text)
     if item.kind in {"select", "multi", "choose", "date"}:
         return plan_control_action(control, "select", value)
     if item.kind == "file":
         return (plan_upload(control, value),)
-    return plan_control_action(control, "fill", value)
+    steps = plan_control_action(control, "fill", value)
+    # The browser checks these before it sends the form, and shows its refusal only in a tooltip that
+    # never reaches the page, so a call that would be refused is refused here, with the reason.
+    problem = constraint_problem(control, value) if isinstance(value, str) else None
+    if problem:
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", problem)
+    if item.required and isinstance(value, str) and not value.strip():
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{item.key!r} is required and cannot be left empty.")
+    return steps
+
+
+# The WHATWG definition of a valid email address, which browsers check for type="email".
+EMAIL_RE = re.compile(
+    r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?"
+    r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+)
+URL_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
+
+
+def constraint_problem(control: HtmlControl, value: str) -> str | None:
+    """Why the browser would refuse to send a form with this value in this field, or None.
+
+    Checks what HTML constraint validation checks: an email or URL field's format, a text field's
+    ``minlength``, ``maxlength``, and ``pattern``, and a number field's ``min``, ``max``, and ``step``.
+    A pattern the browser reads differently from Python is not checked.
+    """
+
+    if control.tag != "input":
+        return _length_problem(control, value)
+    kind = control.control
+    if kind == "email" and value.strip():
+        # The browser strips the value's leading and trailing whitespace before it checks it.
+        addresses = [part.strip() for part in value.split(",")] if control.multiple else [value.strip()]
+        bad = [address for address in addresses if not EMAIL_RE.match(address)]
+        if bad:
+            return f"{_shown(control, bad[0])} is not an email address."
+    if kind == "url" and value.strip() and not URL_SCHEME_RE.match(value.strip()):
+        return f"{_shown(control, value)} is not a URL; it needs a scheme, such as https://."
+    if kind in {"number", "range"} and value:
+        return _number_problem(control, value)
+    return _length_problem(control, value) or _pattern_problem(control, value)
+
+
+def _shown(control: HtmlControl, value: str) -> str:
+    """The value as a message may show it: never for a secret field, whose value is never printed."""
+
+    return "the value" if control.secret else repr(value)
+
+
+def _length_problem(control: HtmlControl, value: str) -> str | None:
+    if control.min_length is not None and value and len(value) < control.min_length:
+        return f"{_shown(control, value)} is shorter than {control.min_length} characters."
+    if control.max_length is not None and len(value) > control.max_length:
+        return f"{_shown(control, value)} is longer than {control.max_length} characters."
+    return None
+
+
+# A quantified group ("(a+)+", "(\\w|\\s)*") can make Python's backtracking ``re`` run for an
+# unbounded time on a value made to defeat it. Such a pattern, from a page the agent does not
+# trust, is left to the browser, which reports its refusal through the step's ``invalid`` list.
+RISKY_PATTERN_RE = re.compile(r"\)\s*[*+{]")
+MAX_PATTERN_LENGTH = 200
+MAX_PATTERN_VALUE_LENGTH = 1000
+
+
+def _pattern_problem(control: HtmlControl, value: str) -> str | None:
+    pattern = control.pattern
+    if not pattern or not value:
+        return None
+    if len(pattern) > MAX_PATTERN_LENGTH or len(value) > MAX_PATTERN_VALUE_LENGTH or RISKY_PATTERN_RE.search(pattern):
+        return None  # Left to the browser: a pattern that could backtrack without bound, or a long one.
+    try:
+        matched = re.fullmatch(pattern, value)
+    except re.error:
+        return None  # A pattern Python cannot read is left to the browser.
+    return None if matched else f"{_shown(control, value)} does not match the pattern {pattern}."
+
+
+def _number_problem(control: HtmlControl, value: str) -> str | None:
+    shown = _shown(control, value)
+    try:
+        number = float(value)
+    except ValueError:
+        return f"{shown} is not a number."
+    low = _float(control.minimum)
+    high = _float(control.maximum)
+    if low is not None and number < low:
+        return f"{shown} is below the minimum, {control.minimum}."
+    if high is not None and number > high:
+        return f"{shown} is above the maximum, {control.maximum}."
+    step = _float(control.step) if control.step and control.step.strip().lower() != "any" else None
+    if step is not None and step > 0:
+        base = low if low is not None else 0.0
+        quotient = (number - base) / step
+        if abs(quotient - round(quotient)) > 1e-9:
+            return f"{shown} is not {control.step} apart from {base:g}, as the field's step requires."
+    return None
+
+
+def _float(value: str | None) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except ValueError:
+        return None
 
 
 def _range_steps(
@@ -685,6 +794,11 @@ def _select(control: HtmlControl, value: Any) -> ActionStep:
         return _date(control, value)
     if control.control in ARIA_CHOICE and control.tag != "select":
         return _choose(control, value)
+    if control.kind == "field" and control.control in TYPEAHEAD_FIELDS:
+        # A plain text or search field may offer suggestions once typed into (Wikipedia's search box
+        # becomes a combobox when it has focus). The browser types the value and picks the suggestion
+        # that shows, or refuses when no list opens.
+        return _choose(control, value)
     if control.control not in {"select", "select-multiple"}:
         raise AgentActionError("AGENT_ACTION_UNSUPPORTED", f"{_label(control)} ({control.control}) has no options.")
     wanted = list(value) if isinstance(value, (list, tuple)) else [value]
@@ -714,8 +828,8 @@ def _choose(control: HtmlControl, value: Any) -> ActionStep:
         value = value[0]
     if not isinstance(value, str) or not value.strip():
         raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{_label(control)} takes the name of one option.")
-    if control.readonly:
-        raise AgentActionError("AGENT_ACTION_READONLY", f"{_label(control)} is read-only.")
+    # A read-only combobox is not refused: ARIA says aria-readonly means "not editable, but otherwise
+    # operable", and a select-only combobox (react-select without search, Ant Design) opens on a click.
     wanted = value.strip()
     if control.control == "listbox":
         allowed = [option.label for option in control.options if not option.disabled]

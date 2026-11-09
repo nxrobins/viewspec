@@ -626,6 +626,9 @@ def _summary(results: list[StepResult]) -> str:
         if item.unsaved_downloads:
             names = ", ".join(item.unsaved_downloads)
             tail += f" It started a download ({names}) that was not saved; use action='download' to save it."
+        if item.invalid:
+            reasons = "; ".join(f"{field['name'] or 'a field'}: {field['message']}" for field in item.invalid)
+            tail += f" The browser did not send the form: {reasons}"
     return f"Did {len(results)} step(s): {'; '.join(parts)}.{tail}"
 
 
@@ -706,7 +709,7 @@ def _bridge_code(error: BridgeError) -> str:
         return "BROWSER_TARGET_DRIFT"
     if message.startswith("stale:"):
         return "BROWSER_TARGET_STALE"
-    if "did not run" in message:
+    if "did not run" in message or message.startswith("navigated:"):
         return "BROWSER_PLAN_INTERRUPTED"
     if "Timeout" in message or "timeout" in message:
         return "BROWSER_TIMEOUT"

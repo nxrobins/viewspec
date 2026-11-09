@@ -345,34 +345,87 @@ async function resolveTarget(ref, spec) {
     }
     return { target: locator, resolvedBy: spec.strategy };
   }
+  if (spec && spec.tag && spec.expect_name) {
+    // The page replaced the element with one its saved locator does not match (Wikipedia mounts a
+    // search box with no id over the one the server sent). Take the one visible element with the
+    // same tag and the same name: what the drift guard would accept from any locator.
+    const handle = await page.evaluateHandle(
+      ([tag, name]) => window.__viewspecLift.byTagAndName(tag, name),
+      [spec.tag, spec.expect_name],
+    );
+    const element = handle.asElement();
+    if (element) return { target: element, resolvedBy: "name" };
+    await handle.dispose();
+  }
   throw new Error(`stale: neither ref ${ref} nor its locator finds the element`);
 }
 
+// The element to click to open a control: the control itself, or, when a person could not see or hit
+// it (react-select draws a 1 px, transparent input and shows the widget around it), the nearest
+// ancestor with a box at least a few pixels wide and high, which is the widget the person clicks.
+const MIN_CLICK_PX = 4;
+async function clickableWidget(target) {
+  const box = await target.boundingBox();
+  if (box && box.width >= MIN_CLICK_PX && box.height >= MIN_CLICK_PX) return target;
+  const widget = await target.evaluateHandle((el, min) => {
+    for (let node = el.parentElement; node; node = node.parentElement) {
+      const rect = node.getBoundingClientRect();
+      if (rect.width >= min && rect.height >= min) return node;
+    }
+    return el;
+  }, MIN_CLICK_PX);
+  return widget.asElement() || target;
+}
+
 // Choose the option named ``value`` from a custom combobox or listbox. If the option is not in the
-// list yet, open the list: type the value into an editable combobox (most filter as you type), or
-// click the control. Then wait for the option, waking on DOM changes, and click the one match.
-async function choose(target, value) {
-  const ref = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
+// list yet, open the list: type the value into an editable combobox key by key (most filter as you
+// type), or click the control. Then wait for the option, waking on DOM changes, and click the one
+// match.
+async function choose(target, value, spec) {
+  const navigationsBefore = mainNavigations;
+  let ref = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
   const find = () => page.evaluate(([r, v]) => window.__viewspecLift.findOption(r, v), [ref, value]);
   const deadline = Date.now() + ACTION_TIMEOUT;
   let found = await find();
   let typedOver = null; // The field's text before this step typed into it.
   if (found.state === "missing") {
+    // A read-only combobox (react-select without search, Ant Design) cannot be typed in; a click opens it.
     const editable = await target.evaluate(
-      (el) => el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable,
+      (el) =>
+        (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable) &&
+        !el.readOnly &&
+        el.getAttribute("aria-readonly") !== "true",
     );
     if (editable) {
       typedOver = await target.evaluate((el) => ("value" in el ? el.value : el.textContent));
-      await target.fill(value, { timeout: ACTION_TIMEOUT });
+      // Type as a person does: clear the field, then press each key. A list may filter on `input`,
+      // which `fill` sends, or only on `keydown` or `keyup` (the W3C APG comboboxes), which it does not.
+      // A target found by ref is an ElementHandle (`type`); one found by its locator is a Locator.
+      await target.fill("", { timeout: ACTION_TIMEOUT });
+      if (target.pressSequentially) await target.pressSequentially(value, { timeout: ACTION_TIMEOUT });
+      else await target.type(value, { timeout: ACTION_TIMEOUT });
     } else {
-      await target.click({ timeout: ACTION_TIMEOUT });
+      await (await clickableWidget(target)).click({ timeout: ACTION_TIMEOUT });
     }
     found = await find();
-    while (found.state === "missing" && Date.now() < deadline) {
+    while ((found.state === "missing" || found.state === "stale") && Date.now() < deadline) {
+      if (found.state === "stale") {
+        // The page replaced the field while it was typed into (Wikipedia mounts its typeahead over
+        // the search box once it has focus). Find the new element by the saved locator, with the
+        // drift guard, and go on with it: the text typed so far is in it.
+        if (!spec) break;
+        ({ target } = await resolveTarget(ref, spec));
+        ref = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
+        found = await find();
+        continue;
+      }
       const left = Math.max(0, deadline - Date.now());
       await page.evaluate((ms) => window.__viewspecLift.nextChange(ms), left).catch(() => false);
       found = await find();
     }
+  }
+  if (found.state === "stale") {
+    throw new Error("choose: the page replaced the field while it was typed into, and no locator finds the new one; observe again");
   }
   if (found.state !== "found") {
     // Leave the control as it was: put back the text this step typed over, and close the list.
@@ -393,6 +446,11 @@ async function choose(target, value) {
   const option = (await page.evaluateHandle((r) => window.__viewspecLift.get(r), found.ref)).asElement();
   await option.click({ timeout: ACTION_TIMEOUT });
   await settle();
+  if (mainNavigations !== navigationsBefore) {
+    // The choice loaded a new page (a search suggestion that runs the search at once): there is
+    // nothing to verify on it. act() reports the navigation.
+    return { verified: null, chosen: found.label };
+  }
   const verified = await page.evaluate(
     ([r, o, label]) => window.__viewspecLift.showsChoice(r, o, label),
     [ref, found.ref, found.label],
@@ -401,21 +459,33 @@ async function choose(target, value) {
 }
 
 // Scroll once, then wait (up to waitMs) for the page to answer: an infinite list loads more items
-// after a scroll, often after a server call. ``loaded`` says whether the area grew.
+// after a scroll, often after a server call. The wait wakes on each DOM change and ends once the
+// area holds more elements than before, not counting loading indicators (a live region that says
+// "Loading…", a progress bar, an aria-busy subtree): a page that shows one first and adds its items
+// later gets the rest of the wait. ``loaded`` says whether the area holds more elements.
 async function scroll(ref, direction, waitMs) {
   await ensureLibrary();
   const first = await page.evaluate(([r, d]) => window.__viewspecLift.scrollStep(r, d), [ref, direction]);
   if (first.stale) throw new Error(`stale: the control ${ref} is no longer in the page`);
-  const changed = await page
-    .evaluate((ms) => window.__viewspecLift.nextChange(ms), Math.max(0, Math.min(waitMs, 30000)))
-    .catch(() => true);
+  const deadline = Date.now() + Math.max(0, Math.min(waitMs, 30000));
+  const read = async () => (await page.evaluate((r) => window.__viewspecLift.scrollNow(r), first.area)) || first.after;
+  let changed = false;
+  let now = first.after;
+  while (now.items <= first.before.items) {
+    const left = deadline - Date.now();
+    if (left <= 0) break;
+    const woke = await page.evaluate((ms) => window.__viewspecLift.nextChange(ms), left).catch(() => true);
+    if (!woke) break; // Nothing changed before the deadline.
+    changed = true;
+    now = await read();
+  }
   await settle();
-  const now = (await page.evaluate((r) => window.__viewspecLift.scrollNow(r), first.area)) || first.after;
+  now = await read();
   return {
     page: first.page,
     moved: first.after.top !== first.before.top,
     changed,
-    loaded: now.height > first.before.height,
+    loaded: now.items > first.before.items,
     at_end: now.atEnd,
     at_start: now.atStart,
     top: now.top,
@@ -423,18 +493,28 @@ async function scroll(ref, direction, waitMs) {
   };
 }
 
+// The element behind an in-page ref, or null when the page has removed it since.
+async function handleOf(ref) {
+  return (await page.evaluateHandle((x) => window.__viewspecLift.get(x), ref)).asElement();
+}
+
 // Pick the date ``iso`` (YYYY-MM-DD) from the calendar of a custom date field: open the calendar (by
 // a click on the field, or on a calendar button beside it), go to the right month (with the
 // calendar's month and year lists, or its next and previous buttons), and click the day.
 async function chooseDate(target, iso) {
   const ref = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
-  const read = () => page.evaluate(([r, d]) => window.__viewspecLift.readCalendar(r, d), [ref, iso]);
+  // The calendars shown before this step opened one: a calendar that shows after the click is the
+  // field's, wherever the page put it; one that was already there elsewhere is not.
+  let seen = null;
+  const read = () => page.evaluate(([r, d, s]) => window.__viewspecLift.readCalendar(r, d, s), [ref, iso, seen]);
   const changed = (ms = 1500) => page.evaluate((t) => window.__viewspecLift.nextChange(t), ms).catch(() => true);
   const clickRef = async (r) => {
-    const handle = (await page.evaluateHandle((x) => window.__viewspecLift.get(x), r)).asElement();
+    const handle = await handleOf(r);
+    if (!handle) throw new Error("choose_date: the calendar changed before the step could act on it; try again");
     await handle.click({ timeout: ACTION_TIMEOUT });
   };
   let info = await read();
+  seen = info.visible || [];
   let openedBy = null; // What this step clicked to open the calendar, to close it again on failure.
   if (info.state === "closed") {
     await target.click({ timeout: ACTION_TIMEOUT });
@@ -469,9 +549,23 @@ async function pickDay(info, read, changed, clickRef, target, ref, iso) {
   for (let step = 0; step < 240 && !info.target; step++) {
     if (info.monthList && info.yearList && !usedLists) {
       if (!info.yearList.years.includes(year)) throw new Error(`choose_date: the calendar offers no year ${year}`);
-      const yearHandle = (await page.evaluateHandle((x) => window.__viewspecLift.get(x), info.yearList.ref)).asElement();
+      const yearHandle = await handleOf(info.yearList.ref);
+      if (!yearHandle) {
+        // The calendar redrew itself since it was read (jQuery UI does, right after it opens): read it again.
+        await changed(300);
+        info = await read();
+        continue;
+      }
       await yearHandle.selectOption({ label: String(year) });
-      const monthHandle = (await page.evaluateHandle((x) => window.__viewspecLift.get(x), info.monthList)).asElement();
+      // A calendar may redraw itself when the year changes (jQuery UI replaces its month list too),
+      // so the month list is taken from a fresh reading.
+      await changed(300);
+      info = await read();
+      const monthHandle = info.monthList ? await handleOf(info.monthList) : null;
+      if (!monthHandle) {
+        usedLists = true; // The arrows take it from here.
+        continue;
+      }
       await monthHandle.selectOption({ index: month - 1 });
       usedLists = true;
       await changed();
@@ -510,12 +604,17 @@ async function chooseDateRange(target, end, value) {
   const ref = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
   const endRef = end ? await end.evaluate((el) => window.top.__viewspecLift.refOf(el)) : ref;
   const endField = end || target;
-  const read = () => page.evaluate(([r, d]) => window.__viewspecLift.readCalendar(r, d), [endRef, endIso]);
+  // The calendars shown before anything opened: the one still open after the start day is the
+  // range picker, wherever the page put it (see chooseDate).
+  let seen = null;
+  const read = () => page.evaluate(([r, d, s]) => window.__viewspecLift.readCalendar(r, d, s), [endRef, endIso, seen]);
   const changed = (ms = 1500) => page.evaluate((t) => window.__viewspecLift.nextChange(t), ms).catch(() => true);
   const clickRef = async (r) => {
-    const handle = (await page.evaluateHandle((x) => window.__viewspecLift.get(x), r)).asElement();
+    const handle = await handleOf(r);
+    if (!handle) throw new Error("choose_date_range: the calendar changed before the step could act on it; try again");
     await handle.click({ timeout: ACTION_TIMEOUT });
   };
+  seen = (await read()).visible || [];
   await chooseDate(target, startIso);
   const info = await read();
   if (info.state === "open") {
@@ -648,6 +747,7 @@ async function act({ op, ref, locator: spec, end_ref: endRef, end_locator: endSp
     return { resolved_by: "page", verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
   }
   const { target, resolvedBy } = await resolveTarget(ref, spec);
+  await page.evaluate(() => window.__viewspecLift.takeInvalid()).catch(() => []); // Forget earlier refusals.
   const navigationsBefore = mainNavigations;
   const urlBefore = page.url();
   let verified = null;
@@ -656,38 +756,55 @@ async function act({ op, ref, locator: spec, end_ref: endRef, end_locator: endSp
   strayDownloads = [];
   const requestsBefore = navigationRequests;
   const options = { timeout: ACTION_TIMEOUT };
-  if (op === "click") {
-    await target.click(options);
-  } else if (op === "fill") {
-    await target.fill(value, options);
-    verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasValue(el, v), value);
-  } else if (op === "check" || op === "uncheck") {
-    await (op === "check" ? target.check(options) : target.uncheck(options));
-    verified = (await target.evaluate((el) => window.top.__viewspecLift.isChecked(el))) === (op === "check");
-  } else if (op === "select") {
-    await target.selectOption(values, options);
-    verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasSelected(el, v), values);
-  } else if (op === "choose") {
-    ({ verified, chosen } = await choose(target, value));
-  } else if (op === "upload") {
-    ({ verified, chosen } = await upload(target, files));
-  } else if (op === "download") {
-    ({ verified, chosen, download: saved } = await download(target));
-  } else if (op === "choose_date") {
-    ({ verified, chosen } = await chooseDate(target, value));
-  } else if (op === "choose_date_range") {
-    const end = endRef || endSpec ? (await resolveTarget(endRef, endSpec)).target : null;
-    ({ verified, chosen } = await chooseDateRange(target, end, value));
-  } else if (op === "scroll") {
-    const liveRef = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
-    const result = await scroll(liveRef, value, waitMs);
-    return { resolved_by: resolvedBy, verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
-  } else if (op === "submit") {
-    await target.evaluate((form) => form.requestSubmit());
-  } else {
-    throw new Error(`unknown op ${op}`);
+  try {
+    if (op === "click") {
+      await target.click(options);
+    } else if (op === "fill") {
+      await target.fill(value, options);
+      verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasValue(el, v), value);
+    } else if (op === "check" || op === "uncheck") {
+      await (op === "check" ? target.check(options) : target.uncheck(options));
+      verified = (await target.evaluate((el) => window.top.__viewspecLift.isChecked(el))) === (op === "check");
+    } else if (op === "select") {
+      await target.selectOption(values, options);
+      verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasSelected(el, v), values);
+    } else if (op === "choose") {
+      ({ verified, chosen } = await choose(target, value, spec));
+    } else if (op === "upload") {
+      ({ verified, chosen } = await upload(target, files));
+    } else if (op === "download") {
+      ({ verified, chosen, download: saved } = await download(target));
+    } else if (op === "choose_date") {
+      ({ verified, chosen } = await chooseDate(target, value));
+    } else if (op === "choose_date_range") {
+      const end = endRef || endSpec ? (await resolveTarget(endRef, endSpec)).target : null;
+      ({ verified, chosen } = await chooseDateRange(target, end, value));
+    } else if (op === "scroll") {
+      const liveRef = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
+      const result = await scroll(liveRef, value, waitMs);
+      return { resolved_by: resolvedBy, verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
+    } else if (op === "submit") {
+      await target.evaluate((form) => form.requestSubmit());
+    } else {
+      throw new Error(`unknown op ${op}`);
+    }
+  } catch (error) {
+    // An error the step raised on purpose ("download: no download started") stands. Anything else
+    // that broke after the page loaded a new document (a click that submits a search) broke because
+    // the in-page library the step was using is gone: say that, not what failed inside.
+    const deliberate = /^(choose|choose_date|choose_date_range|upload|download|drift|stale|navigated):/.test(
+      String(error.message || ""),
+    );
+    if (mainNavigations !== navigationsBefore && !deliberate) {
+      throw new Error(`navigated: the page loaded a new document during ${op}, before the step finished; observe it and plan again`);
+    }
+    throw error;
   }
   await settle();
+  // A click or submit the browser refused: the fields that failed their constraints, and why. On a
+  // new page the library is gone, and the form was sent, so there is nothing to report.
+  const invalid =
+    op === "click" || op === "submit" ? await page.evaluate(() => window.__viewspecLift.takeInvalid()).catch(() => []) : [];
   const noPage = navigationRequests !== requestsBefore && mainNavigations === navigationsBefore;
   if (op !== "download" && noPage && !strayDownloads.length) {
     // The step asked for a page that never loaded: often a file that downloads instead. Its
@@ -700,6 +817,7 @@ async function act({ op, ref, locator: spec, end_ref: endRef, end_locator: endSp
     chosen,
     download: saved,
     unsaved_downloads: await dropStrayDownloads(),
+    invalid,
     navigated: mainNavigations !== navigationsBefore,
     url_before: urlBefore,
     url: page.url(),

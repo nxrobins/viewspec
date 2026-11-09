@@ -221,6 +221,52 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- `compile_html()` and `lift_html()` keep text in page order around inline elements. Text that came
+  after an element used to move before it: `<p>Hello <b>world</b> today</p>` compiled to
+  `<p>Hello  today<b>world</b></p>`, and the agent lift named a link `', series 12 Doctor Who'`. Agent
+  lift names, messages, values, and `visible_text()` now join text as the browser's `innerText`
+  does: an inline element's text runs into the text around it, and a block element's text is set
+  apart. `LiftNode.text_runs` holds a node's own text split at its children; `to_json()` leaves it out.
+- The agent lift counts a control inside another control when the outer one does not own its
+  content. A clickable or focusable element the lift only guessed (a `div` with a click listener)
+  gives way to the real controls inside it, so the W3C combobox inside such a `div` is found. A tree
+  item or menu item keeps the link inside it, so that link and its URL are found. Native links and
+  buttons, and ARIA roles whose content is part of them (`button`, `tab`, `checkbox`, `combobox`,
+  and the like), still own what they hold.
+- `select` on a read-only combobox or listbox plans a `choose` step instead of `AGENT_ACTION_READONLY`.
+  ARIA defines `aria-readonly` on a combobox as "not editable, but otherwise operable", and a
+  select-only combobox (react-select without search, Ant Design) opens on a click. `fill` on a
+  read-only field is still refused.
+- A combobox `<input>` whose value is empty takes as its value the text its widget shows beside it,
+  as react-select and Ant Design do: the text of the nearest ancestor that has any, without the
+  input, lists and options, live regions, labels, buttons, and other fields, and never past a form, a
+  list item, a table cell, or a section. The view showed such a combobox with no value, and a diff
+  after a choice showed only the widget's announcement.
+- `select` on a plain text or search field plans a `choose` step instead of `AGENT_ACTION_UNSUPPORTED`:
+  the browser types the value and picks the suggestion that shows, or refuses when no list opens.
+  Wikipedia's search box is a plain field until it has focus, then a combobox. A field that cannot
+  offer options (a number input, a checkbox) is still refused.
+- An ARIA option that shows a description under its title is named by its title, the first line of
+  its text, so "Alan Turing" is one option and not the three that start with it. The lift joins text
+  as the page lays it out when a browser snapshot marks elements whose layout differs from their
+  tag's default (`data-lift-display`: `block` on a span shown as a line of its own, `inline` on a div
+  that runs into its line); without the hint, it goes by the tag.
+- A form tool call checks each text and number argument the way the browser's constraint validation
+  will when the form is sent: an email or URL field's format, `minlength`, `maxlength`, `pattern`,
+  `min`, `max`, `step`, and a required field given an empty value. A call the browser would refuse is
+  `AGENT_FORM_ARGUMENTS_INVALID` with the reason, before anything happens in the browser; the browser
+  shows its own refusal only in a tooltip the page never has. Agent lift controls carry `pattern`,
+  `min_length`, `max_length`, and `step`, and form tool schemas say `minLength`, `maxLength`, and
+  `pattern`. A single `fill` is not checked: a person can type anything into the field. A secret
+  field's value is never shown in the reason ("the value is shorter than 8 characters"). A `pattern`
+  with a quantified group (`(a+)+`), or a long one, is left to the browser, since it could make
+  Python's `re` run without bound on a value made to defeat it; the browser's refusal reaches the
+  agent through the step's `invalid` list.
+- A field that nothing labels (`<p>Date: <input>`, as jQuery UI's datepicker demo has) is named by
+  the text written beside it: the text just before it in its block, or just after a bare checkbox or
+  radio, or the inline element next to it, when it is a short, label-like phrase, without its colon.
+  A sentence or a heading is not taken for a label. An id or name such as `datepicker` marks a text
+  field as a date field, as `date` already did.
 - The `react-tailwind-app` browser proof clicks once for each replay event and each `repeat`, as
   Python replay applies them. The generated test used to skip every `action_id` event and to click
   a repeated event once, so the proof of a valid bundle failed or checked fewer clicks than the

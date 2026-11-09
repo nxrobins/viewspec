@@ -116,6 +116,16 @@ async def run(base: str, folder: Path) -> None:
             "a bad form call is refused with each problem named by argument",
         )
 
+        typed = await tool(session, "act", handle=handle(card, "Email"), action="fill", value="bo")
+        refused = await tool(session, "act", handle=handle(typed, "Place order"), action="click")
+        check(
+            refused["ok"] and not refused["navigated"] and refused["steps"][0]["invalid"][0]["name"] == "Email",
+            "a click on Place order with a bad email is blocked by the browser, and the step names the field",
+        )
+        check(
+            "did not send the form" in refused["summary"] and "Email" in refused["summary"], "and the summary says so"
+        )
+
         before = card["observation_id"]
         arguments = {
             "email": "bo@example.com",

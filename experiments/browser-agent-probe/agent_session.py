@@ -80,6 +80,9 @@ class StepResult:
     # A saved download: {file, path, bytes, sha256, type, suggested, url}. Never its contents.
     download: dict[str, Any] | None = None
     unsaved_downloads: tuple[str, ...] = ()  # Downloads this step started but did not save.
+    # Fields the browser refused when this click or submit tried to send a form, and why:
+    # [{"name": "Email", "message": "Please include an '@' in the email address."}]. The form was not sent.
+    invalid: tuple[dict[str, str], ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         payload = {
@@ -95,6 +98,8 @@ class StepResult:
             payload["download"] = self.download
         if self.unsaved_downloads:
             payload["unsaved_downloads"] = list(self.unsaved_downloads)
+        if self.invalid:
+            payload["invalid"] = [{"name": item["name"], "message": item["message"]} for item in self.invalid]
         return payload
 
 
@@ -497,6 +502,7 @@ class BrowserSession:
                     chosen=reply.get("chosen"),
                     download=_with_type(reply.get("download")),
                     unsaved_downloads=tuple(reply.get("unsaved_downloads") or ()),
+                    invalid=tuple(dict(item) for item in reply.get("invalid") or ()),
                 )
             )
             if reply["navigated"] and len(results) < len(steps):
