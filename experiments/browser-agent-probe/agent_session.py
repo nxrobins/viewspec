@@ -19,13 +19,17 @@ This is an experiment. It is not part of the ViewSpec package or its guarantees.
 
 from __future__ import annotations
 
+import base64
 import contextlib
+import email
+import email.policy
 import json
 import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
 from page_view import ViewLine, view_lines
 
@@ -71,7 +75,7 @@ class StepResult:
     verified: bool | None
     navigated: bool
     url: str
-    chosen: str | None = None  # For a choose step: the name of the option that was clicked.
+    chosen: str | None = None  # The option or day that was picked, or the names of the files set.
 
     def to_json(self) -> dict[str, Any]:
         payload = {
@@ -132,6 +136,50 @@ class ScrollResult:
         if self.met is not None:
             payload["met"] = self.met
         return payload
+
+
+def request_fields(write: dict[str, Any]) -> dict[str, Any] | None:
+    """The form fields of a blocked request, or None when its body is not a form.
+
+    A text field is its text. A file is ``{"file": name, "bytes": size, "type": media type}``; its
+    bytes are never returned. A name sent more than once (several files) maps to a list.
+    """
+
+    content_type = write.get("content_type") or ""
+    if write.get("post_data_b64"):
+        raw = base64.b64decode(write["post_data_b64"])
+    else:
+        raw = (write.get("post_data") or "").encode("utf-8")
+    fields: dict[str, Any] = {}
+
+    def add(name: str, value: Any) -> None:
+        if name in fields:
+            fields[name] = [*fields[name], value] if isinstance(fields[name], list) else [fields[name], value]
+        else:
+            fields[name] = value
+
+    if content_type.lower().startswith("multipart/form-data"):
+        message = email.message_from_bytes(
+            b"Content-Type: " + content_type.encode("latin-1") + b"\r\n\r\n" + raw, policy=email.policy.HTTP
+        )
+        for part in message.iter_parts():
+            name = part.get_param("name", header="content-disposition")
+            if not isinstance(name, str):
+                continue
+            payload = part.get_payload(decode=True) or b""
+            filename = part.get_filename()
+            if filename is not None:
+                add(name, {"file": filename, "bytes": len(payload), "type": part.get_content_type()})
+            else:
+                add(name, payload.decode("utf-8", "replace"))
+        return fields
+    text = raw.decode("utf-8", "replace")
+    if "=" not in text:
+        return None
+    for name, values in parse_qs(text, keep_blank_values=True).items():
+        for value in values:
+            add(name, value)
+    return fields
 
 
 def condition_met(condition: ChangeCondition, since: Observation, current: Observation) -> bool:
@@ -405,6 +453,10 @@ class BrowserSession:
                 locator=locator if locator and locator.get("strategy") else None,
                 value=step.value,
                 values=list(step.values),
+                files=[
+                    {"name": f.name, "mime_type": f.mime_type, "data_b64": base64.b64encode(f.data).decode("ascii")}
+                    for f in step.files
+                ],
             )
             results.append(
                 StepResult(

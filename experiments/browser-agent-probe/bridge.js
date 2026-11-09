@@ -134,11 +134,14 @@ async function open({ url, block_writes: blockWrites = true, allowed_origins: al
         return route.fulfill({ status: 204, body: "" });
       }
       if (!blockWrites || SAFE_METHODS.has(request.method())) return route.continue();
+      const buffer = request.postDataBuffer();
       writes.push({
         method: request.method(),
         url: request.url(),
         resource_type: request.resourceType(),
+        content_type: request.headers()["content-type"] || null,
         post_data: request.postData(),
+        post_data_b64: buffer ? buffer.toString("base64") : null,
       });
       const body =
         "<!doctype html><title>Blocked</title><h1>Write blocked</h1>" +
@@ -477,7 +480,45 @@ async function pickDay(info, read, changed, clickRef, target, ref, iso) {
   return { verified, chosen: iso };
 }
 
-async function act({ op, ref, locator: spec, value, values, wait_ms: waitMs = 2500 }) {
+// Give files to a file input, or to the file chooser that a button opens (its file input is often
+// hidden). A chooser's accept and multiple are checked here; a file input's were checked when the
+// step was planned. Returns the names the input holds afterwards.
+async function upload(target, files) {
+  const payload = (files || []).map((f) => ({ name: f.name, mimeType: f.mime_type, buffer: Buffer.from(f.data_b64, "base64") }));
+  const isInput = await target.evaluate((el) => el.tagName === "INPUT" && el.type === "file");
+  let input = target;
+  if (isInput) {
+    await target.setInputFiles(payload, { timeout: ACTION_TIMEOUT });
+  } else {
+    let chooser;
+    try {
+      [chooser] = await Promise.all([
+        page.waitForEvent("filechooser", { timeout: ACTION_TIMEOUT }),
+        target.click({ timeout: ACTION_TIMEOUT }),
+      ]);
+    } catch (error) {
+      throw new Error("upload: the control did not open a file chooser");
+    }
+    input = chooser.element();
+    if (!chooser.isMultiple() && payload.length > 1) {
+      throw new Error(`upload: the file chooser takes one file, not ${payload.length}`);
+    }
+    const accept = await input.evaluate((el) => el.getAttribute("accept") || "");
+    for (const file of payload) {
+      const ok = await page.evaluate(
+        ([a, n, t]) => window.__viewspecLift.acceptsFile(a, n, t),
+        [accept, file.name, file.mimeType],
+      );
+      if (!ok) throw new Error(`upload: ${file.name} (${file.mimeType}) is not a type the chooser accepts (${accept})`);
+    }
+    await chooser.setFiles(payload, { timeout: ACTION_TIMEOUT });
+  }
+  await settle();
+  const names = await input.evaluate((el) => [...(el.files || [])].map((f) => f.name));
+  return { verified: JSON.stringify(names) === JSON.stringify(payload.map((f) => f.name)), chosen: names.join(", ") };
+}
+
+async function act({ op, ref, locator: spec, value, values, files, wait_ms: waitMs = 2500 }) {
   if (op === "scroll" && !ref && !spec) {
     const result = await scroll(null, value, waitMs);
     return { resolved_by: "page", verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
@@ -501,6 +542,8 @@ async function act({ op, ref, locator: spec, value, values, wait_ms: waitMs = 25
     verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasSelected(el, v), values);
   } else if (op === "choose") {
     ({ verified, chosen } = await choose(target, value));
+  } else if (op === "upload") {
+    ({ verified, chosen } = await upload(target, files));
   } else if (op === "choose_date") {
     ({ verified, chosen } = await chooseDate(target, value));
   } else if (op === "scroll") {

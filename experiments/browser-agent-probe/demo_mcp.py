@@ -1,8 +1,9 @@
 """Drive mcp_browser_server.py as an MCP client over stdio, the way an agent host does, with checks.
 
-It serves the fixtures on 127.0.0.1, starts the server with ``--allow-origin`` set to that server,
-and then uses only the three MCP tools: observe, act, and call. Every check is an assertion; the
-script exits 1 on the first failure. Secret values are never printed.
+It serves the fixtures on 127.0.0.1, starts the server with ``--allow-origin`` set to that server
+and ``--upload-dir`` set to a temporary folder, and then uses only the three MCP tools: observe,
+act, and call. Every check is an assertion; the script exits 1 on the first failure. Secret values
+and file contents are never printed.
 
 Usage:
     python experiments/browser-agent-probe/demo_mcp.py
@@ -15,6 +16,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +27,7 @@ from mcp.client.stdio import stdio_client
 SERVER = Path(__file__).resolve().parent / "mcp_browser_server.py"
 PASSWORD = "S3cret-Pass-99"
 CARD = "4242424242424242"
+CV = b"%PDF-1.4 CV-CONTENT-7781"  # These bytes must never come back in a result.
 CHECKS: list[str] = []
 
 
@@ -50,11 +53,19 @@ async def tool(session: ClientSession, name: str, **arguments: Any) -> dict[str,
     return result
 
 
-async def run(base: str) -> None:
+async def run(base: str, folder: Path) -> None:
     # Like a host's MCP config: pass where Playwright keeps its browsers, if that is not the default.
     # NODE_PATH is left out on purpose: the bridge must find Playwright without it.
     env = {key: os.environ[key] for key in ("PLAYWRIGHT_BROWSERS_PATH",) if key in os.environ}
-    params = StdioServerParameters(command=sys.executable, args=[str(SERVER), "--allow-origin", base], env=env)
+    uploads = folder / "uploads"
+    uploads.mkdir()
+    (uploads / "cv.pdf").write_bytes(CV)
+    (folder / "private.txt").write_text("outside the upload folder")
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=[str(SERVER), "--allow-origin", base, "--upload-dir", str(uploads)],
+        env=env,
+    )
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
         await session.initialize()
 
@@ -338,6 +349,92 @@ async def run(base: str) -> None:
         refund = await tool(session, "act", handle=handle(orders, "Refund order"), action="click")
         check(refund["ok"] and refund["steps"][0]["resolved_by"] == "ref", "the click used the exact element")
 
+        print("\n== uploads ==")
+        page = await tool(session, "observe", url=f"{base}/upload.html")
+        [form] = page["form_tools"]
+        resume = form["input_schema"]["properties"]["resume"]
+        check(
+            resume["type"] == "array" and resume["maxItems"] == 1 and "accepts .pdf" in resume["description"],
+            "the form tool takes the CV as a list of one file, and says which types",
+        )
+        sent = await tool(session, "act", handle=handle(page, "Résumé"), action="upload", files=[{"path": "cv.pdf"}])
+        check(sent["ok"] and sent["steps"][0]["verified"], "a file from the upload folder is set on the file input")
+        check(
+            sent["steps"][0]["step"]["files"] == [{"name": "cv.pdf", "mime_type": "application/pdf", "size": len(CV)}],
+            "the step shows the file's name, type, and size",
+        )
+        check(
+            sent["changes"]["lines"] == ["changed [2] file 'Résumé': value '' -> 'cv.pdf'"],
+            "and changes show the file name in the field",
+        )
+        for path, code in (
+            ("../private.txt", "BROWSER_UPLOAD_NOT_ALLOWED"),
+            (str(folder / "private.txt"), "BROWSER_UPLOAD_NOT_ALLOWED"),
+            ("missing.pdf", "BROWSER_UPLOAD_NOT_FOUND"),
+        ):
+            refused = await tool(session, "act", handle=handle(page, "Résumé"), action="upload", files=[{"path": path}])
+            check(
+                not refused["ok"] and refused["errors"][0]["code"] == code,
+                f"{path!r} is refused: {code}",
+            )
+        typed = await tool(
+            session, "act", handle=handle(page, "Résumé"), action="upload", files=[{"name": "cv.exe", "content": "MZ"}]
+        )
+        check(
+            not typed["ok"] and typed["errors"][0]["code"] == "AGENT_ACTION_VALUE_INVALID",
+            "a file of a type the input does not accept is refused before the browser acts",
+        )
+        photo = {"name": "dot.png", "content": "iVBORw0KGgo=", "encoding": "base64"}
+        added = await tool(
+            session,
+            "act",
+            handle=handle(page, "Add photos"),
+            action="upload",
+            files=[photo, {**photo, "name": "b.png"}],
+        )
+        check(
+            added["ok"] and added["changes"]["lines"] == ["message status '2 photos added'"],
+            "a button that opens a file chooser takes two inline photos",
+        )
+        wrong = await tool(
+            session,
+            "act",
+            handle=handle(page, "Add photos"),
+            action="upload",
+            files=[{"name": "notes.txt", "content": "x"}],
+        )
+        check(
+            not wrong["ok"] and wrong["errors"][0]["code"] == "BROWSER_UPLOAD_REFUSED",
+            "the chooser refuses a text file: BROWSER_UPLOAD_REFUSED",
+        )
+        mixed = await tool(session, "call", tool="apply", arguments={"resume": [{"path": "cv.pdf"}, {"name": "b.pdf"}]})
+        problems = {(error["argument"], error["problem"]) for error in mixed["errors"]}
+        check(
+            not mixed["ok"] and problems == {("name", "missing"), ("resume", "invalid")},
+            "a form call with a path file still reports every problem at once",
+        )
+        applied = await tool(
+            session, "call", tool="apply", arguments={"name": "Bo Diaz", "resume": [{"path": "cv.pdf"}]}
+        )
+        fields = applied["blocked_writes"][0]["form_fields"]
+        print(f"  ..  {fields}")
+        check(
+            fields
+            == {
+                "name": "Bo Diaz",
+                "resume": {"file": "cv.pdf", "bytes": len(CV), "type": "application/pdf"},
+                "photos": [
+                    {"file": "dot.png", "bytes": 8, "type": "image/png"},
+                    {"file": "b.png", "bytes": 8, "type": "image/png"},
+                ],
+            },
+            "the blocked form post shows each file's name, size, and type",
+        )
+        check(
+            all(b"CV-CONTENT" not in json.dumps(item).encode() for item in (sent, applied)),
+            "no result holds the bytes of a file",
+        )
+
 
 def first_failure(error: BaseException) -> BaseException:
     """The first exception inside the task groups that the MCP client wraps failures in."""
@@ -350,7 +447,8 @@ def first_failure(error: BaseException) -> BaseException:
 def main() -> int:
     server, base = serve()
     try:
-        asyncio.run(run(base))
+        with tempfile.TemporaryDirectory() as folder:
+            asyncio.run(run(base, Path(folder)))
     except (AssertionError, BaseExceptionGroup) as error:
         failure = first_failure(error)
         print(f"\nFAILED: {type(failure).__name__}: {failure}")

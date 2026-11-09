@@ -29,20 +29,39 @@ that loads whatever pages the agent opens. It is an experiment, not part of the 
 from __future__ import annotations
 
 import argparse
+import base64
 import os
 import signal
 import sys
 import threading
+from pathlib import Path
 from types import FrameType
 from typing import Any, Literal, TypedDict
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import urlsplit
 
-from agent_session import BridgeError, BrowserSession, Observation, ScrollResult, StepResult, WaitResult, changes
+from agent_session import (
+    BridgeError,
+    BrowserSession,
+    Observation,
+    ScrollResult,
+    StepResult,
+    WaitResult,
+    changes,
+    request_fields,
+)
 from page_view import view_page
 
 from viewspec.local_tools_response import tool_error_response, tool_response
-from viewspec.raw_html_actions import ActionStep, AgentActionError, plan_control_action, plan_form_call, plan_scroll
-from viewspec.raw_html_agent import SENSITIVE_NAME_RE
+from viewspec.raw_html_actions import (
+    MAX_UPLOAD_BYTES,
+    ActionStep,
+    AgentActionError,
+    UploadFile,
+    plan_control_action,
+    plan_form_call,
+    plan_scroll,
+)
+from viewspec.raw_html_agent import SENSITIVE_NAME_RE, form_fields, form_tool_names
 from viewspec.raw_html_diff import ChangeCondition
 
 SERVER_NAME = "viewspec-browser"
@@ -66,6 +85,23 @@ DEFAULT_VIEW_LIMIT = 200
 MAX_VIEW_LIMIT = 1000
 
 
+class FileArg(TypedDict, total=False):
+    """A file to upload: ``name`` and ``content`` (text, or base64 with ``encoding: "base64"``), or a
+    ``path`` inside the upload folder the server was started with."""
+
+    name: str
+    content: str
+    encoding: Literal["text", "base64"]
+    mime_type: str
+    path: str
+
+
+class _ToolError(Exception):
+    def __init__(self, code: str, message: str, fix: str) -> None:
+        super().__init__(message)
+        self.result = _error(code, message, fix)
+
+
 class WaitFor(TypedDict, total=False):
     """What to wait for after the action. Give exactly one of change, text, gone, or control."""
 
@@ -79,8 +115,11 @@ class WaitFor(TypedDict, total=False):
 class BrowserTools:
     """The three tools, over one browser session that starts on the first ``observe``."""
 
-    def __init__(self, *, block_writes: bool = True, allowed_origins: tuple[str, ...] = ()) -> None:
+    def __init__(
+        self, *, block_writes: bool = True, allowed_origins: tuple[str, ...] = (), upload_dir: Path | None = None
+    ) -> None:
         self.block_writes = block_writes
+        self.upload_dir = upload_dir.resolve() if upload_dir is not None else None
         self.allowed_origins = tuple(origin.rstrip("/") for origin in allowed_origins)
         self._session: BrowserSession | None = None
         self._history: dict[int, Observation] = {}
@@ -175,14 +214,21 @@ class BrowserTools:
 
     def act(
         self,
-        action: Literal["click", "fill", "check", "uncheck", "select", "scroll"],
+        action: Literal["click", "fill", "check", "uncheck", "select", "scroll", "upload"],
         handle: int | None = None,
         value: str | list[str] | None = None,
         observation_id: int | None = None,
         wait_for: WaitFor | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
+        files: list[FileArg] | None = None,
     ) -> dict[str, Any]:
         """Do one thing to the control with this handle, then read the page again.
+
+        ``upload`` gives ``files`` to a file input, or to the file chooser that a button opens (an "Add
+        photos" button whose file input is hidden). A file is ``{"name", "content"}`` (text, or base64
+        with ``"encoding": "base64"``), or ``{"path"}`` inside the server's upload folder. The input's
+        accepted types and whether it takes several files are checked. Results show file names and
+        sizes, never contents.
 
         ``scroll`` scrolls the page (no handle), or the scrollable area that holds the control with
         this handle (a side pane, a feed in a box). ``value`` is ``end`` (the default; where an infinite
@@ -227,9 +273,14 @@ class BrowserTools:
                     "Use a handle from the view of that observation.",
                 )
             try:
-                steps = plan_control_action(observation.handles[handle], action, value)
+                if action == "upload":
+                    steps = plan_control_action(observation.handles[handle], "upload", self._files(files or []))
+                else:
+                    steps = plan_control_action(observation.handles[handle], action, value)
             except AgentActionError as error:
                 return _planning_error(error)
+            except _ToolError as error:
+                return error.result
             return self._run(steps, observation, condition, timeout_ms)
 
     def call(
@@ -255,10 +306,66 @@ class BrowserTools:
                 return observation
             try:
                 condition = _condition(wait_for)
-                steps = plan_form_call(observation.lift, tool, arguments, submit=submit)
+                steps = plan_form_call(
+                    observation.lift, tool, self._with_files(observation, tool, arguments), submit=submit
+                )
             except AgentActionError as error:
                 return _planning_error(error)
+            except _ToolError as error:
+                return error.result
             return self._run(steps, observation, condition, timeout_ms)
+
+    # ---- files ------------------------------------------------------------------------------------
+    def _files(self, items: list[Any]) -> list[Any]:
+        """Files to upload, with each ``path`` read. Other items are checked when the step is planned."""
+
+        return [self._read_path(item) if isinstance(item, dict) and "path" in item else item for item in items]
+
+    def _read_path(self, item: dict[str, Any]) -> UploadFile:
+        """Read a file by its path. A path is read only from inside the upload folder, never from elsewhere."""
+
+        if self.upload_dir is None:
+            raise _ToolError(
+                "BROWSER_UPLOAD_NOT_ALLOWED",
+                "This server has no upload folder, so it reads no files by path.",
+                "Send the file's content instead, or start the server with --upload-dir.",
+            )
+        # resolve() follows links, so a link inside the folder to a file outside it is refused too.
+        target = (self.upload_dir / str(item["path"])).resolve()
+        if not target.is_relative_to(self.upload_dir):
+            raise _ToolError(
+                "BROWSER_UPLOAD_NOT_ALLOWED",
+                f"{item['path']!r} is outside the upload folder.",
+                "Use a path inside the upload folder.",
+            )
+        if not target.is_file():
+            raise _ToolError(
+                "BROWSER_UPLOAD_NOT_FOUND", f"No file {item['path']!r} in the upload folder.", "Check the name."
+            )
+        if target.stat().st_size > MAX_UPLOAD_BYTES:
+            raise _ToolError(
+                "BROWSER_UPLOAD_TOO_LARGE", f"{item['path']!r} is larger than 10 MB.", "Choose a smaller file."
+            )
+        named = UploadFile.named(item.get("name") or target.name, target.read_bytes())
+        return UploadFile(named.name, named.data, item.get("mime_type") or named.mime_type)
+
+    def _with_files(self, observation: Observation, tool: str, arguments: Any) -> Any:
+        """The arguments of a form call, with the ``path`` files of its file fields read."""
+
+        names = form_tool_names(observation.lift.forms)
+        if tool not in names or not isinstance(arguments, dict):
+            return arguments
+        form = observation.lift.forms[names.index(tool)]
+        controls = {control.node_id: control for control in observation.lift.controls}
+        keys = {field.key for field in form_fields(form, controls) if field.kind == "file"}
+        resolved = dict(arguments)
+        for key in keys & set(arguments):
+            value = arguments[key]
+            if isinstance(value, list):
+                resolved[key] = self._files(value)
+            elif isinstance(value, dict):
+                resolved[key] = self._files([value])
+        return resolved
 
     def close(self) -> None:
         with self._lock:
@@ -445,17 +552,18 @@ class BrowserTools:
         """A blocked request, with secret form fields redacted. A body that is not a form is not shown."""
 
         shown: dict[str, Any] = {"method": write["method"], "url": write["url"]}
-        body = write.get("post_data") or ""
-        fields = parse_qs(body, keep_blank_values=True) if "=" in body else {}
+        fields = request_fields(write)
         if fields:
             shown["form_fields"] = {
-                key: REDACTED
-                if key in self._secret_fields or SENSITIVE_NAME_RE.search(key)
-                else (values[0] if len(values) == 1 else values)
-                for key, values in fields.items()
+                key: REDACTED if key in self._secret_fields or SENSITIVE_NAME_RE.search(key) else value
+                for key, value in fields.items()
             }
-        elif body:
-            shown["body_bytes"] = len(body.encode("utf-8"))
+        elif write.get("post_data") or write.get("post_data_b64"):
+            shown["body_bytes"] = (
+                len(base64.b64decode(write["post_data_b64"]))
+                if write.get("post_data_b64")
+                else len((write.get("post_data") or "").encode("utf-8"))
+            )
         return shown
 
 
@@ -550,6 +658,8 @@ def _bridge_code(error: BridgeError) -> str:
         return "BROWSER_DATE_UNAVAILABLE"
     if message.startswith("choose_date:"):
         return "BROWSER_DATE_NOT_PICKED"
+    if message.startswith("upload:"):
+        return "BROWSER_UPLOAD_REFUSED"
     if message.startswith("drift:"):
         return "BROWSER_TARGET_DRIFT"
     if message.startswith("stale:"):
@@ -596,8 +706,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="let form posts and other non-GET requests through (by default they are blocked)",
     )
+    parser.add_argument(
+        "--upload-dir",
+        type=Path,
+        metavar="DIR",
+        help="the only folder the agent may upload files from by path (by default it may send contents only)",
+    )
     args = parser.parse_args(argv)
-    tools = BrowserTools(block_writes=not args.allow_writes, allowed_origins=tuple(args.allow_origin))
+    tools = BrowserTools(
+        block_writes=not args.allow_writes, allowed_origins=tuple(args.allow_origin), upload_dir=args.upload_dir
+    )
     app = build_server(tools)
 
     def stop(signum: int, _frame: FrameType | None) -> None:

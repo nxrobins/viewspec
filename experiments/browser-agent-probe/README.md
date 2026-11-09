@@ -29,8 +29,8 @@ See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile
 | `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
-| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 69 checks on the fixtures. |
-| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 73 checks. |
+| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 78 checks on the fixtures. |
+| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 86 checks. |
 
 ### Locators
 
@@ -112,6 +112,26 @@ If the calendar cannot reach the date, or the day is disabled, the step is refus
 opened is closed again. A numeric date that can be read two ways ("11/12/2026") is refused before the
 browser acts. When more than one calendar is open, the one the field names in `aria-controls`, or else
 the one nearest the field, is used.
+
+### Uploads
+
+`act(handle, "upload", files)` gives files to a file input. A file is `UploadFile(name, data,
+mime_type)`; over MCP it is `{"name", "content"}` (text, or base64 with `"encoding": "base64"`), or
+`{"path"}` inside the upload folder.
+
+- **A file input:** the package checks its `accept` (`.pdf`, `image/*`, `text/csv`) and `multiple`
+  before the browser acts, then the bridge sets the files. An empty list clears the input. The view
+  shows `[2] file 'Résumé' required accepts .pdf,.doc,.docx`, and after an upload, the file names.
+- **A button whose file input is hidden** ("Add photos", as many sites do): the bridge clicks it,
+  waits for the file chooser it opens, checks the chooser's `accept` and `multiple`, and sets the
+  files. A control that opens no chooser is refused.
+
+The step is verified when the input holds exactly the files that were sent. A form tool takes a file
+field as a list of files (`maxItems: 1` when the input takes one); `call` uploads them in the field's
+place in the form. Each file is at most 10 MB, and the files of one step at most 25 MB together.
+
+File contents are never in a step, a log, or a result: a step shows each file's name, media type, and
+size. A blocked form post shows a file as `{"file": "cv.pdf", "bytes": 24, "type": "application/pdf"}`.
 
 ### Scrolling
 
@@ -197,8 +217,8 @@ view: a handle from any slice, or from `find`, works with `act`.
 | Tool | Arguments | Does |
 |---|---|---|
 | `observe` | `url` or `since` (both optional), `wait_for`, `timeout_ms`, `offset`, `limit`, `find`; or `observation_id` with `offset`, `limit`, `find` | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, and control; each control has a handle such as `[7]`), `view_page` (which lines these are), `form_tools` (one typed tool per form), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. With `observation_id`, it pages through that kept reading without reading the page again. |
-| `act` | `action` (`click`, `fill`, `check`, `uncheck`, `select`, `scroll`), `handle`, `value`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. `scroll` needs no handle: it scrolls the page, or the pane of the control with the handle; `value` is the direction, and `wait_for` means "keep scrolling until it shows". The result has `scroll`: `scrolls`, `moved`, `loaded`, `at_end`, `end_reached`, `met`. |
-| `call` | `tool`, `arguments`, `submit`, `observation_id`, `wait_for`, `timeout_ms` | Fills in a form with typed arguments and submits it, waits for `wait_for` if given, then reads the page again. |
+| `act` | `action` (`click`, `fill`, `check`, `uncheck`, `select`, `scroll`, `upload`), `handle`, `value`, `files`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. `upload` gives `files` to a file input, or to the file chooser a button opens. `scroll` needs no handle: it scrolls the page, or the pane of the control with the handle; `value` is the direction, and `wait_for` means "keep scrolling until it shows". The result has `scroll`: `scrolls`, `moved`, `loaded`, `at_end`, `end_reached`, `met`. |
+| `call` | `tool`, `arguments`, `submit`, `observation_id`, `wait_for`, `timeout_ms` | Fills in a form with typed arguments (files too) and submits it, waits for `wait_for` if given, then reads the page again. |
 
 The view in every result is a slice: 200 lines by default, at most 1000 (`limit`). `view_page` gives
 `offset`, `returned`, `total`, `next_offset`, and for a slice in the middle of the page, `context`.
@@ -214,12 +234,16 @@ and `waited_ms`. A wait that is not met is not an error: the action is done, `ok
 summary says the change did not show, so the agent does not repeat an action that may have worked.
 A `wait_for` that is not valid is refused before the browser does anything (`AGENT_WAIT_INVALID`). When writes
 are blocked, `blocked_writes` lists each stopped request with its form fields; secret fields are
-`[redacted]`. `blocked_navigations` lists each navigation the origin allowlist stopped.
+`[redacted]`, and a file is its name, size, and type. `blocked_navigations` lists each navigation the
+origin allowlist stopped.
 
 A request that the page cannot take is refused before the browser does anything, and the result
 says so. A refused form call names each problem: `{"argument": "ship", "problem": "invalid", ...}`.
 Other codes: `BROWSER_NO_PAGE`, `BROWSER_INVALID_REQUEST`, `BROWSER_HANDLE_REQUIRED`, `BROWSER_HANDLE_UNKNOWN`,
-`BROWSER_OPTION_AMBIGUOUS`, `BROWSER_OPTION_NOT_FOUND`, `BROWSER_DATE_UNAVAILABLE`, `BROWSER_DATE_NOT_PICKED`, `BROWSER_OBSERVATION_UNKNOWN` (the server
+`BROWSER_OPTION_AMBIGUOUS`, `BROWSER_OPTION_NOT_FOUND`, `BROWSER_DATE_UNAVAILABLE`, `BROWSER_DATE_NOT_PICKED`,
+`BROWSER_UPLOAD_NOT_ALLOWED` (a path outside the upload folder, or no folder), `BROWSER_UPLOAD_NOT_FOUND`,
+`BROWSER_UPLOAD_TOO_LARGE`, `BROWSER_UPLOAD_REFUSED` (the chooser refused the files, or no chooser
+opened), `BROWSER_OBSERVATION_UNKNOWN` (the server
 keeps the last 8 observations), `BROWSER_OBSERVATION_STALE`, `BROWSER_TARGET_DRIFT`,
 `BROWSER_TARGET_STALE`, `BROWSER_PLAN_INTERRUPTED`, `BROWSER_ORIGIN_NOT_ALLOWED`, `BROWSER_TIMEOUT`,
 and `BROWSER_ERROR`.
@@ -231,7 +255,10 @@ and `BROWSER_ERROR`.
 - `--allow-origin URL` (repeatable) limits the pages the agent can open, and stops a click or a
   script from taking it to another origin. The stopped navigation is answered with HTTP 204, so the
   page stays where it was.
-- No result contains a secret value.
+- `--upload-dir DIR` is the only folder the agent may upload files from by path. Without it, the agent
+  can send file contents only. A path that leads out of the folder (`../`, an absolute path, or a
+  link) is refused.
+- No result contains a secret value or the contents of a file.
 
 This is not `viewspec mcp`. The package's server makes no network calls; this one drives a browser
 that loads the pages the agent opens. That is why it lives in this folder, not in the package.
@@ -322,10 +349,11 @@ with BrowserSession() as session:  # block_writes=True by default
 | feed | 860 | 310 | 41 | 40/41 | 41/41 | 41/41 | 41/41 | 41/41 | 0 | True | 0 |
 | shop | 255 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
 | spa | 138 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 6/6 | 0 | True | 0 |
+| upload | 57 | 49 | 4 | 2/4 | 4/4 | 4/4 | 4/4 | 4/4 | 1 | True | 0 |
 | viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
 
-- **agent cov** matches by element (ref), not by name: 759 of 759 visible controls. **same name**: the
-  lift names all 759 as the browser does.
+- **agent cov** matches by element (ref), not by name: 763 of 763 visible controls. **same name**: the
+  lift names all 763 as the browser does.
 - **located**: every control has a locator (the agent lift also finds 2 pointer-only clickables).
   Kinds on the four small fixtures, for 39 controls and 2 forms: 28 stable attribute, 4 content
   anchor, 4 role and name, 4 exact text, and 1 structural path (a form with no name). On the catalog:
@@ -338,7 +366,7 @@ with BrowserSession() as session:  # block_writes=True by default
 - **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
   schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
-`demo_agent.py` (69 checks, all pass):
+`demo_agent.py` (78 checks, all pass):
 
 - **checkout:** a click inside the web component's shadow DOM changes the quantity from 2 to 3. Fills
   inside the payment iframe are verified, and the next snapshot does not contain the card number. A
@@ -370,8 +398,13 @@ with BrowserSession() as session:  # block_writes=True by default
   picks 23 November, then moves three months ahead for 14 February; a past (disabled) day is refused
   and its calendar is closed again. The birth date calendar uses its month and year lists for
   7 March 1990. A form call fills the native date and picks both calendar dates.
+- **uploads:** a PDF set on the résumé input is verified, and the diff shows `value '' -> 'cv.pdf'`;
+  an `.exe` file and two files for the one-file input are refused before the browser acts. "Add
+  photos" opens the chooser of a hidden input, which takes two images, and the page says "2 photos
+  added"; a text file is refused by the chooser's `accept`. A form call sends the name and a CV, and
+  the blocked multipart post holds the name, the CV, and both photos, as names and sizes.
 
-`demo_mcp.py` (73 checks, all pass) runs the same kind of tasks through the MCP server, as a host
+`demo_mcp.py` (86 checks, all pass) runs the same kind of tasks through the MCP server, as a host
 would, with `--allow-origin` set to the local fixture server and without `NODE_PATH`. It also checks
 that the tool schemas carry no internal node ids, that a blocked post shows the password field as
 `[redacted]` and no result contains the password or the card number, that acting from a view of a
@@ -392,7 +425,10 @@ end, that `find` reaches the comments pane past the first slice and its handle s
 no scroll happens when the text already shows, and that a bad direction and a click without a handle
 are refused. On the booking page it checks the date field's form tool, a date picked three months
 ahead, a disabled day refused, an ambiguous date refused, and a form call that fills and picks every
-date.
+date. On the upload page, with `--upload-dir` set to a temporary folder, it checks a file uploaded by
+path, that `../private.txt`, an absolute path, and a missing file are refused, that a wrong type is
+refused before the browser acts, two inline photos for the "Add photos" button, a text file refused by
+the chooser, a form call that uploads by path, and that no result holds the bytes of a file.
 
 The fixtures are small and hand-made. Run the probe on real sites before you draw conclusions.
 
@@ -423,11 +459,16 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 - A diff matches controls by ref, then by unique name, then by place. A control that the page
   re-rendered and also renamed and moved is reported as removed and added.
 - A message that the page shows again with the same text is not reported as new.
+- `upload` sets files the way a file chooser does. A drop zone that takes files only by drag and drop,
+  or a page that reads files another way, is not reached. A chooser that only a keyboard event opens
+  is not either.
+- Many pages send a file as soon as it is chosen, before the form is sent. With writes blocked, that
+  request is stopped and listed in `blocked_writes`, so the page may show an upload error.
 - A wait wakes on DOM changes and navigations. A change that only sets a property (text typed into a
   field by script) does not wake it; the next DOM change or the timeout does.
 
 ## Next steps
 
 1. Add the MCP server to an agent host, and try it on real sites.
-2. Let the agent upload a file to a file input.
-3. Let `choose_date` pick a date range in one step (check-in and check-out in one calendar).
+2. Let `choose_date` pick a date range in one step (check-in and check-out in one calendar).
+3. Let the agent download a file a page offers, into a folder the operator names.

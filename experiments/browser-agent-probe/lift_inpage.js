@@ -161,7 +161,10 @@
         } else if (secret) {
           if (collectSecrets && el.value) secrets.push(el.value);
           result.removeAttribute("value");
-        } else if (type !== "file") {
+        } else if (type === "file") {
+          // Name the chosen files; their bytes stay in the page.
+          result.setAttribute("data-lift-files", [...(el.files || [])].map((f) => f.name).join(", "));
+        } else {
           result.setAttribute("value", el.value);
         }
       } else if (tag === "OPTION") {
@@ -676,6 +679,21 @@
     return (a === y && b === m && c === d) || (c === y && ((a === m && b === d) || (a === d && b === m)));
   }
 
+  // ---- Uploads --------------------------------------------------------------------------------
+  // The names of the files a file input holds now.
+  function fileNames(el) {
+    return [...(el.files || [])].map((f) => f.name);
+  }
+  // Whether a file input's accept list allows a file (".pdf", "image/*", "text/csv").
+  function acceptsFile(accept, name, type) {
+    const tokens = (accept || "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+    if (!tokens.length) return true;
+    const n = name.toLowerCase();
+    const t = (type || "").toLowerCase();
+    return tokens.some((token) => (token.startsWith(".") && n.endsWith(token)) ||
+      (token.endsWith("/*") && t.startsWith(token.slice(0, -1))) || token === t);
+  }
+
   // ---- Checks after an action -------------------------------------------------------------------
   // Each returns true or false and never returns the element's value, so a secret stays in the page.
   function hasValue(el, value) {
@@ -706,6 +724,8 @@
     scrollStep,
     scrollNow,
     readCalendar,
+    fileNames,
+    acceptsFile,
     calendarOpener,
     showsDate,
     hasValue,

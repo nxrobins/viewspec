@@ -42,6 +42,12 @@ All notable changes to ViewSpec are documented in this file. The format follows
   `min` and `max`. `select` on a native date field plans a `fill` in that format, and on a custom
   date field a `choose_date` step. Form tools give date fields a `format`, and number fields `minimum`
   and `maximum`. `hidden_ids()` returns the nodes a user cannot see.
+- File inputs in the agent lift carry `accept` and `multiple`, and show the names of the files they
+  hold. `viewspec.raw_html_actions.UploadFile` is a file to upload (its bytes are never shown), and
+  `plan_upload()` plans an `upload` step to a file input, or to a button that opens a file chooser.
+  It checks the input's `accept` and `multiple`, the file names, and size limits (10 MB a file, 25 MB a
+  step). `act` with `upload` and file fields in form tool calls plan upload steps; steps show each
+  file's name, media type, and size, never its contents.
 
 ## [0.4.0] - 2026-11-01
 

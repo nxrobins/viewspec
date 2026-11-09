@@ -38,6 +38,9 @@ def control_line(handle: int, control: HtmlControl) -> str:
             line += " read-only"
         if control.date and control.control == "text":
             line += " date"  # A custom date field: select a date, and its calendar is used.
+        if control.control == "file":
+            line += " multiple" if control.multiple else ""
+            line += f" accepts {control.accept}" if control.accept else ""
     if control.href:
         line += f" -> {control.href}"
     if control.submits:

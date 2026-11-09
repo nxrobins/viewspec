@@ -15,6 +15,8 @@ It serves the fixtures on 127.0.0.1, then:
 7. scrolling: an infinite feed and a pane that each load more as they are scrolled.
 8. dates: a native date field, and two custom date pickers (one with month buttons and plain day
    numbers, one with month and year lists).
+9. uploads: a file input, and an "Add photos" button whose file input is hidden. Wrong types and
+   too many files are refused; the blocked form post holds the file names and sizes.
 
 After each action in checkout and shop, the script also checks the diff between the reading before
 and the reading after (``agent_session.changes``).
@@ -35,9 +37,9 @@ import threading
 from pathlib import Path
 from urllib.parse import parse_qs
 
-from agent_session import BridgeError, BrowserSession, StepResult, changes
+from agent_session import BridgeError, BrowserSession, StepResult, changes, request_fields
 
-from viewspec.raw_html_actions import AgentActionError, plan_control_action, plan_scroll
+from viewspec.raw_html_actions import AgentActionError, UploadFile, plan_control_action, plan_scroll
 from viewspec.raw_html_diff import ChangeCondition
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -57,6 +59,8 @@ def show(results: list[StepResult]) -> None:
     for result in results:
         step = result.step.to_json()
         value = f" {step['value']!r}" if "value" in step else f" {step['values']}" if "values" in step else ""
+        if "files" in step:
+            value = f" {[file['name'] for file in step['files']]}"
         flags = [f"by {result.resolved_by}"]
         if result.verified is not None:
             flags.append("verified" if result.verified else "NOT VERIFIED")
@@ -425,6 +429,66 @@ def dates(session: BrowserSession, base: str) -> None:
     )
 
 
+def uploads(session: BrowserSession, base: str) -> None:
+    print("\n== uploads: a file input, and a button that opens a hidden one ==")
+    session.open(f"{base}/upload.html")
+    view = session.observe()
+    check("file 'Résumé' required accepts .pdf,.doc,.docx" in view.view, "the view shows the file input and its types")
+    pdf = UploadFile.named("cv.pdf", b"%PDF-1.4 a short CV")
+
+    before = session.observe()
+    results = session.act(handle_named(session, "Résumé"), "upload", [pdf])
+    show(results)
+    lines = changes(before, session.observe())["lines"]
+    print("\n".join(f"  ~~  {line}" for line in lines))
+    check(results[0].verified, "the CV is set on the file input, and the browser shows it")
+    check(any("'' -> 'cv.pdf'" in line for line in lines), "the diff shows the file name in the field")
+    for files, words in (
+        ([UploadFile.named("cv.exe", b"MZ")], "not a type"),
+        ([pdf, pdf], "takes one file"),
+    ):
+        try:
+            session.act(handle_named(session, "Résumé"), "upload", files)
+            check(False, f"{words} is refused")
+        except AgentActionError as error:
+            check(words in error.message, f"the planner refuses it before the browser acts: {words}")
+
+    photos = [UploadFile.named("front.png", b"\x89PNG front"), UploadFile.named("back.jpg", b"\xff\xd8 back")]
+    before = session.observe()
+    results = session.act(handle_named(session, "Add photos"), "upload", photos)
+    show(results)
+    after = session.observe()
+    print("\n".join(f"  ~~  {line}" for line in changes(before, after)["lines"]))
+    check(
+        results[0].verified and results[0].chosen == "front.png, back.jpg",
+        "the button opens a file chooser, which takes both photos",
+    )
+    check(any(m.text == "2 photos added" for m in after.lift.messages), "the page says 2 photos added")
+    try:
+        session.act(handle_named(session, "Add photos"), "upload", [UploadFile.named("notes.txt", b"x")])
+        check(False, "a text file is refused for photos")
+    except BridgeError as error:
+        print(f"  !!  {error}")
+        check("not a type the chooser accepts" in str(error), "the chooser's accept refuses a text file")
+
+    show(session.call("apply", {"name": "Bo Diaz", "resume": [{"name": "cv-2026.pdf", "content": "%PDF-1.7"}]}))
+    [write] = session.blocked_writes()
+    fields = request_fields(write)
+    print(f"  ..  blocked {write['method']} {write['url']}: {fields}")
+    check(
+        fields
+        == {
+            "name": "Bo Diaz",
+            "resume": {"file": "cv-2026.pdf", "bytes": 8, "type": "application/pdf"},
+            "photos": [
+                {"file": "front.png", "bytes": 10, "type": "image/png"},
+                {"file": "back.jpg", "bytes": 7, "type": "image/jpeg"},
+            ],
+        },
+        "the form post (blocked) holds the name, the CV and both photos",
+    )
+
+
 def main() -> int:
     server, base = serve()
     try:
@@ -437,6 +501,7 @@ def main() -> int:
             choosing(session, base)
             scrolling(session, base)
             dates(session, base)
+            uploads(session, base)
     except AssertionError as error:
         print(f"\nFAILED: {error}")
         return 1

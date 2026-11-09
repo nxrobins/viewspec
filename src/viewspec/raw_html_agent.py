@@ -154,6 +154,8 @@ class HtmlControl:
     maximum: str | None = None
     popup: str | None = None
     date: bool = False
+    accept: str | None = None
+    multiple: bool = False
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -180,6 +182,8 @@ class HtmlControl:
             "maximum": self.maximum,
             "popup": self.popup,
             "date": self.date,
+            "accept": self.accept,
+            "multiple": self.multiple,
         }
         if self.options:
             payload["options"] = [option.to_json() for option in self.options]
@@ -522,6 +526,9 @@ def _field_value(
         return ", ".join(chosen), None
     if node.tag == "textarea":
         return node.text, None
+    if node.tag == "input" and control == "file":
+        # A browser snapshot names the chosen files in data-lift-files; the files stay in the page.
+        return attrs.get("data-lift-files", ""), None
     if node.tag == "input":
         return attrs.get("value", ""), None
     if control == "listbox":
@@ -653,6 +660,8 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 maximum=node.attrs.get("max") or None,
                 popup=(node.attrs.get("aria-haspopup") or "").lower() or None,
                 date=_is_date_field(node, control, name),
+                accept=node.attrs.get("accept") or None if node.tag == "input" else None,
+                multiple="multiple" in node.attrs,
             )
         )
         roles.append((node.id, kind, name, confidence))
@@ -738,6 +747,8 @@ class FormField:
 
 
 def _field_kind(control: HtmlControl) -> str:
+    if control.control == "file" and control.tag == "input":
+        return "file"
     if control.date:
         return "date"
     if control.control in ARIA_CHOICE and control.tag != "select":
@@ -834,6 +845,24 @@ def _field_schema(field: FormField) -> dict[str, Any]:
             number = _number(limit)
             if number is not None:
                 prop[key] = number
+    elif field.kind == "file":
+        prop["type"] = "array"
+        prop["items"] = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "content": {"type": "string"},
+                "encoding": {"type": "string", "enum": ["text", "base64"]},
+                "mime_type": {"type": "string"},
+                "path": {"type": "string"},
+            },
+        }
+        if not control.multiple:
+            prop["maxItems"] = 1
+        accepts = f"; accepts {control.accept}" if control.accept else ""
+        prop["description"] = (
+            f"{prop['description']} (files to upload: name and content, or a path in the upload folder{accepts})"
+        )
     elif field.kind == "date":
         native = control.tag == "input" and control.control in DATE_INPUT_TYPES
         kind = control.control if native else "date"
@@ -870,7 +899,7 @@ def _field_schema(field: FormField) -> dict[str, Any]:
         if control.control in STRING_FORMATS:
             prop["format"] = STRING_FORMATS[control.control]
     custom_date = field.kind == "date" and control.control not in DATE_INPUT_TYPES
-    if control.value not in {None, "", "[redacted]"} and field.kind != "boolean" and not custom_date:
+    if control.value not in {None, "", "[redacted]"} and field.kind not in {"boolean", "file"} and not custom_date:
         prop["default"] = control.value  # A calendar's own display format is not the tool's format.
     if control.secret:
         prop["writeOnly"] = True

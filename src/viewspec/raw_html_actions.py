@@ -11,7 +11,10 @@ the snapshot set one, so the driver can find the exact element again.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import datetime
+import mimetypes
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -29,7 +32,9 @@ from viewspec.raw_html_agent import (
 if TYPE_CHECKING:
     from viewspec.raw_html import HtmlLiftResult
 
-ACTION_OPS = ("click", "fill", "check", "uncheck", "select", "submit")
+ACTION_OPS = ("click", "fill", "check", "uncheck", "select", "upload", "submit")
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # One file.
+MAX_UPLOAD_TOTAL_BYTES = 25 * 1024 * 1024  # All files of one step.
 SCROLL_DIRECTIONS = ("end", "down", "up", "top")
 ARIA_CHOICE = frozenset({"combobox", "listbox"})
 MONTHS = {
@@ -99,6 +104,85 @@ class AgentActionError(ValueError):
 
 
 @dataclass(frozen=True)
+class UploadFile:
+    """A file to upload: its name, its bytes, and its media type. Its bytes are never logged."""
+
+    name: str
+    data: bytes = field(repr=False)
+    mime_type: str = "application/octet-stream"
+
+    @classmethod
+    def from_json(cls, payload: Any) -> UploadFile:
+        """Read ``{"name", "content", "encoding": "text" | "base64", "mime_type"?}``.
+
+        ``content`` is text (sent as UTF-8) unless ``encoding`` is ``base64``. A ``path`` is not read
+        here: whoever runs the browser decides which folder files may come from, and reads them.
+        """
+
+        if isinstance(payload, UploadFile):
+            return payload
+        if not isinstance(payload, Mapping):
+            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"A file is an object with a name, not {payload!r}.")
+        if "path" in payload:
+            raise AgentActionError(
+                "AGENT_ACTION_VALUE_INVALID", "A file path must be read by the browser driver, from its upload folder."
+            )
+        name = payload.get("name")
+        if not isinstance(name, str):
+            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", "A file needs a name, as text.")
+        content = payload.get("content")
+        encoding = payload.get("encoding", "text")
+        if not isinstance(content, str) or encoding not in {"text", "base64"}:
+            raise AgentActionError(
+                "AGENT_ACTION_VALUE_INVALID", "A file needs content as text, or as base64 with encoding 'base64'."
+            )
+        if encoding == "base64":
+            try:
+                data = base64.b64decode(content, validate=True)
+            except (binascii.Error, ValueError):
+                raise AgentActionError(
+                    "AGENT_ACTION_VALUE_INVALID", f"The content of {name!r} is not base64."
+                ) from None
+        else:
+            data = content.encode("utf-8")
+        mime_type = payload.get("mime_type")
+        return cls(name=name, data=data, mime_type=mime_type) if mime_type else cls.named(name, data)
+
+    @classmethod
+    def named(cls, name: Any, data: bytes) -> UploadFile:
+        """A file whose media type is guessed from its name."""
+
+        guess = mimetypes.guess_type(name)[0] if isinstance(name, str) else None
+        return cls(name=name, data=data, mime_type=guess or "application/octet-stream")
+
+    @property
+    def size(self) -> int:
+        return len(self.data)
+
+    def to_json(self) -> dict[str, Any]:
+        return {"name": self.name, "mime_type": self.mime_type, "size": self.size}
+
+
+def accepts(accept: str | None, file: UploadFile) -> bool:
+    """Whether a file input's ``accept`` (``.pdf,image/*,text/csv``) allows this file. No ``accept``
+    allows any file."""
+
+    tokens = [token.strip().lower() for token in (accept or "").split(",") if token.strip()]
+    if not tokens:
+        return True
+    name = file.name.lower()
+    mime = file.mime_type.lower()
+    for token in tokens:
+        if token.startswith(".") and name.endswith(token):
+            return True
+        if token.endswith("/*") and mime.startswith(token[:-1]):
+            return True
+        if token == mime:
+            return True
+    return False
+
+
+@dataclass(frozen=True)
 class ActionStep:
     """One thing for a browser driver to do.
 
@@ -106,9 +190,10 @@ class ActionStep:
     ``choose`` (pick the option named ``value`` from an ARIA combobox or listbox: open its list if
     needed, find the option, click it), ``choose_date`` (pick the date ``value``, as YYYY-MM-DD, from
     the calendar of a custom date field), ``scroll`` (scroll the page, or the scrollable area that holds
-    the control ``node_id``, in the direction ``value``), or ``submit`` (submit the form ``node_id``
-    without a submit button). ``secret`` marks a value that
-    must not be logged; ``to_json()`` redacts it unless asked not to.
+    the control ``node_id``, in the direction ``value``), ``upload`` (give ``files`` to a file input, or
+    to the file chooser a button opens), or ``submit`` (submit the form ``node_id`` without a submit
+    button). ``secret`` marks a value that must not be logged; ``to_json()`` redacts it unless asked
+    not to. ``to_json()`` shows each file's name, type, and size, never its bytes.
     """
 
     op: str
@@ -118,6 +203,7 @@ class ActionStep:
     value: str | None = None
     values: tuple[str, ...] = field(default_factory=tuple)
     secret: bool = False
+    files: tuple[UploadFile, ...] = field(default_factory=tuple)
 
     def to_json(self, *, redact: bool = True) -> dict[str, Any]:
         hide = redact and self.secret
@@ -126,6 +212,8 @@ class ActionStep:
             payload["value"] = REDACTED if hide else self.value
         if self.values:
             payload["values"] = [REDACTED] if hide else list(self.values)
+        if self.op == "upload":
+            payload["files"] = [item.to_json() for item in self.files]
         if self.secret:
             payload["secret"] = True
         return payload
@@ -148,7 +236,54 @@ def plan_control_action(control: HtmlControl, op: str, value: Any = None) -> tup
         return (_fill(control, value),)
     if op in {"check", "uncheck"}:
         return _set_checked(control, op == "check")
+    if op == "upload":
+        return (plan_upload(control, value),)
     return (_select(control, value),)
+
+
+def plan_upload(control: HtmlControl, files: Any) -> ActionStep:
+    """Plan an upload of ``files`` (``UploadFile`` objects, or inline file objects) to a control.
+
+    A file input takes the files directly; its ``accept`` and ``multiple`` are checked here, and an
+    empty list clears it. Any other control (an "Add photos" button whose file input is hidden) must
+    open a file chooser when clicked; the driver checks that chooser's ``accept`` and ``multiple``.
+    """
+
+    if control.disabled:
+        raise AgentActionError("AGENT_ACTION_DISABLED", f"{_label(control)} is disabled.")
+    is_input = control.control == "file" and control.tag == "input"
+    if not is_input and control.kind != "action":
+        raise AgentActionError(
+            "AGENT_ACTION_UNSUPPORTED",
+            f"{_label(control)} ({control.control}) takes no files; use a file input or its button.",
+        )
+    items = list(files) if isinstance(files, (list, tuple)) else [files]
+    uploads = tuple(UploadFile.from_json(item) for item in items)
+    if not uploads and not is_input:
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{_label(control)} needs at least one file.")
+    if is_input and not control.multiple and len(uploads) > 1:
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{_label(control)} takes one file, not {len(uploads)}.")
+    total = 0
+    for upload in uploads:
+        if not isinstance(upload.name, str) or not upload.name.strip() or any(c in upload.name for c in "/\\\0"):
+            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{upload.name!r} is not a file name.")
+        if upload.size > MAX_UPLOAD_BYTES:
+            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{upload.name!r} is larger than 10 MB.")
+        total += upload.size
+        if is_input and not accepts(control.accept, upload):
+            raise AgentActionError(
+                "AGENT_ACTION_VALUE_INVALID",
+                f"{upload.name!r} ({upload.mime_type}) is not a type {_label(control)} accepts ({control.accept}).",
+            )
+    if total > MAX_UPLOAD_TOTAL_BYTES:
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", "The files are larger than 25 MB together.")
+    return ActionStep(
+        op="upload",
+        node_id=control.node_id,
+        ref=control.ref,
+        name=control.name or control.field_name or control.node_id,
+        files=uploads,
+    )
 
 
 def plan_form_call(
@@ -243,11 +378,13 @@ def _field_steps(item: FormField, value: Any) -> tuple[ActionStep, ...]:
         return plan_control_action(control, "fill", text)
     if item.kind in {"select", "multi", "choose", "date"}:
         return plan_control_action(control, "select", value)
+    if item.kind == "file":
+        return (plan_upload(control, value),)
     return plan_control_action(control, "fill", value)
 
 
 def _empty(item: FormField) -> bool:
-    if item.kind == "date":
+    if item.kind in {"date", "file"}:
         return not item.control.value
     if item.kind == "choice":
         return not any(member.checked for _, member in item.choices)
@@ -472,6 +609,9 @@ __all__ = [
     "plan_control_action",
     "plan_form_call",
     "plan_scroll",
+    "plan_upload",
+    "UploadFile",
+    "accepts",
     "date_value",
     "parse_date",
 ]

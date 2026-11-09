@@ -105,7 +105,8 @@ for step in steps:
     print(step.to_json())  # {"op": "fill", "node_id": ..., "ref": "e20", "name": "Email", "value": ...}
 ```
 
-- `plan_control_action(control, op, value)` takes `click`, `fill`, `check`, `uncheck`, or `select`.
+- `plan_control_action(control, op, value)` takes `click`, `fill`, `check`, `uncheck`, `select`, or
+  `upload` (see [File uploads](#file-uploads)).
   It refuses a disabled control (`AGENT_ACTION_DISABLED`), a read-only one (`AGENT_ACTION_READONLY`),
   an action the control cannot take, such as filling a link (`AGENT_ACTION_UNSUPPORTED`), and a value
   it cannot hold, such as an option that is not in the list (`AGENT_ACTION_VALUE_INVALID`). On an ARIA
@@ -159,6 +160,31 @@ calendar; a read-only custom date field takes `select` but not `fill`. In a form
 is a string with `format: date` (or `date-time`, `time`), a description that gives its shape and its
 limits, and for a custom field, "picked from its calendar". Number fields get `minimum` and
 `maximum`. `viewspec.raw_html_agent.hidden_ids(nodes)` returns the nodes the user cannot see.
+
+### File uploads
+
+A file input is a control with `control: "file"`, its `accept` (such as `.pdf,.docx` or `image/*`),
+and `multiple`. Its value is the names of the files it holds, which a snapshot gives in
+`data-lift-files`; file contents are never in a lift.
+
+`viewspec.raw_html_actions.UploadFile(name, data, mime_type)` is a file to upload. Its `repr` and
+`to_json()` show the name, media type, and size, never the bytes. `UploadFile.from_json()` reads
+`{"name", "content"}`, with text content, or base64 content and `"encoding": "base64"`. It refuses a
+`path`: only the driver of the browser knows which folder files may come from, so it reads them.
+
+`plan_upload(control, files)` plans an `upload` step:
+
+- On a file input, it checks `accept` (by extension, by `type/*`, or by exact type) and `multiple`
+  before the browser acts. An empty list clears the input.
+- On a button (an "Add photos" button whose file input is hidden), it plans the step and the driver
+  checks the file chooser that the button opens.
+- Every file needs a plain file name (no `/`, `\`, or NUL), is at most 10 MB, and the files of one step
+  are at most 25 MB together. A disabled control is `AGENT_ACTION_DISABLED`; a control that takes no
+  files is `AGENT_ACTION_UNSUPPORTED`.
+
+`plan_control_action(control, "upload", files)` does the same. In a form tool, a file field is an
+array of file objects (`maxItems: 1` unless the input takes several), and its description says which
+types it accepts. A form call plans its upload in the field's place among the other steps.
 
 ### Messages and changes
 
