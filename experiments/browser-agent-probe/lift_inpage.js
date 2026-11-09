@@ -58,27 +58,48 @@
     const root = el.getRootNode();
     return (root.getElementById ? root.getElementById(id) : null) || el.ownerDocument.getElementById(id);
   };
+  // The text of an element's content as its name: like innerText, but without aria-hidden subtrees
+  // (a switch's "On"/"Off" marks, a button's decorative "−"), which ARIA leaves out of a name. A
+  // block-level child is set apart by spaces, as the package's join_text does.
+  function nameText(el, skipControls = false) {
+    let out = "";
+    for (const node of el.childNodes) {
+      if (node.nodeType === 3) {
+        out += node.data;
+        continue;
+      }
+      if (node.nodeType !== 1 || SKIP.has(node.tagName) || node.getAttribute("aria-hidden") === "true" || !shown(node)) continue;
+      if (skipControls && /^(INPUT|SELECT|TEXTAREA|OPTION)$/.test(node.tagName)) continue; // A label's text, not its field's.
+      const text = nameText(node, skipControls);
+      out += /^inline/.test(getComputedStyle(node).display) ? text : ` ${text} `;
+    }
+    return out;
+  }
   function nameOf(el) {
-    if (el.getAttribute("aria-label")) return clean(el.getAttribute("aria-label"));
+    // aria-labelledby first: each element named contributes its own aria-label, or else its text,
+    // and an element may name itself this way ("Remove" + "Recipient Name 1").
     const labelledBy = el.getAttribute("aria-labelledby");
     if (labelledBy) {
       const text = labelledBy
         .split(/\s+/)
-        .map((id) => byId(el, id)?.textContent || "")
+        .map((id) => {
+          const target = byId(el, id);
+          return target ? target.getAttribute("aria-label") || nameText(target) : "";
+        })
         .join(" ");
       if (clean(text)) return clean(text);
     }
+    if (el.getAttribute("aria-label")) return clean(el.getAttribute("aria-label"));
     if (el.labels && el.labels.length) {
-      // A label's text, without the text of the fields inside it (option text, for example).
-      const label = el.labels[0].cloneNode(true);
-      label.querySelectorAll("select,textarea,option").forEach((child) => child.remove());
-      if (clean(label.textContent)) return clean(label.textContent);
+      // A label's text, without the text of the fields inside it and without its aria-hidden marks.
+      const text = clean(nameText(el.labels[0], true));
+      if (text) return text;
     }
     const tag = el.tagName;
     if (tag === "INPUT" && /^(submit|reset|button|image)$/i.test(el.type)) {
       return clean(el.value || el.getAttribute("alt") || (el.type === "reset" ? "Reset" : "Submit"));
     }
-    if (tag !== "INPUT" && tag !== "SELECT" && tag !== "TEXTAREA" && clean(el.innerText)) return clean(el.innerText);
+    if (tag !== "INPUT" && tag !== "SELECT" && tag !== "TEXTAREA" && clean(nameText(el))) return clean(nameText(el));
     const fallback = clean(el.getAttribute("title") || el.getAttribute("placeholder") || el.querySelector?.("img")?.alt);
     if (fallback || (tag !== "INPUT" && tag !== "SELECT" && tag !== "TEXTAREA")) return fallback;
     return labelBeside(el);

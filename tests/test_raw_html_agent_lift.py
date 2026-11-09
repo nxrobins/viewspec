@@ -341,9 +341,64 @@ def test_an_unlabelled_field_is_named_by_the_text_beside_it():
     assert [control.field_name for control in lift.controls if not control.name] == ["more", "dd"]
 
 
+def test_names_follow_aria_labelledby_and_hidden_content_rules():
+    # The W3C APG layout grid: a button names itself with its aria-label, then a neighbour.
+    # The APG spin button: content that is aria-hidden gives no name, so the title does.
+    controls = _controls(
+        """
+        <span role="button" id="rb1" aria-label="Remove" aria-labelledby="rb1 r1" tabindex="-1">X</span>
+        <a id="r1" href="#">Recipient Name 1</a>
+        <button type="button" title="Remove adult"><span aria-hidden="true">&minus;</span></button>
+        <button type="button" role="switch" aria-checked="false">Living Room Lights
+          <span aria-hidden="true">On</span><span aria-hidden="true">Off</span></button>
+        """
+    )
+    assert "Remove Recipient Name 1" in controls
+    assert controls["Remove adult"]["control"] == "button"
+    assert controls["Living Room Lights"]["control"] == "switch"
+
+
 def test_a_datepicker_id_marks_a_date_field():
     [control] = lift_html('<input id="datepicker" aria-label="When">', profile="agent").controls
     assert control.name == "When" and control.date is True
+
+
+def test_controls_carry_the_aria_state_an_action_toggles():
+    # The W3C APG toolbar, tabs, and disclosure examples: a click changes only one of these.
+    controls = _controls(
+        """
+        <button type="button" aria-pressed="false">Bold</button>
+        <button role="tab" aria-selected="true">Nils Frahm</button>
+        <button role="tab" aria-selected="false">Agnes Obel</button>
+        <button type="button" aria-expanded="false" aria-controls="faq1">What do I need?</button>
+        <button type="button" aria-pressed="mixed">Italic</button>
+        """
+    )
+    assert controls["Bold"]["pressed"] is False and controls["Italic"]["pressed"] is None
+    assert controls["Nils Frahm"]["selected"] is True and controls["Agnes Obel"]["selected"] is False
+    assert controls["What do I need?"]["expanded"] is False
+
+    # The APG sortable table: the sort button's column header carries aria-sort.
+    table = _controls(
+        '<table><tr><th aria-sort="ascending"><button>First Name</button></th>'
+        '<th aria-sort="none"><button>Last Name</button></th><th><button>Age</button></th></tr></table>'
+    )
+    assert (table["First Name"]["sort"], table["Last Name"]["sort"], table["Age"]["sort"]) == (
+        "ascending",
+        "none",
+        None,
+    )
+
+
+def test_a_date_combobox_is_a_date_field():
+    # The W3C APG Date Picker Combobox: an input with role="combobox" and a calendar button.
+    lift = lift_html(
+        '<label for="d">Date</label><input id="d" type="text" role="combobox" aria-haspopup="dialog">'
+        '<button type="button" aria-label="Choose Date">&#128197;</button>',
+        profile="agent",
+    )
+    date = next(control for control in lift.controls if control.control == "combobox")
+    assert date.date is True
 
 
 def test_a_tree_item_keeps_the_link_inside_it():
