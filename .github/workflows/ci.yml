@@ -265,6 +265,12 @@ jobs:
           VIEWSPEC_HTML_VERIFY_NODE_MODULES_DIR: ${{ github.workspace }}/src/viewspec/html_verify_template/node_modules
         run: python -m pytest tests/test_html_verify_e2e.py -q --strict-markers -m e2e
 
+      - name: Studio inspector overlay in Chromium
+        env:
+          VIEWSPEC_RUN_STUDIO_E2E: "1"
+          VIEWSPEC_HTML_VERIFY_NODE_MODULES_DIR: ${{ github.workspace }}/src/viewspec/html_verify_template/node_modules
+        run: python -m pytest tests/test_studio_inspector_e2e.py -q --strict-markers -m e2e
+
   react_tailwind_host:
     runs-on: ubuntu-latest
     timeout-minutes: 60

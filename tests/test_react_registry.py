@@ -481,6 +481,44 @@ def test_check_fails_with_registry_manifest_mismatch_after_the_section_is_edited
     assert cli_main(["check", str(out_dir)]) == 0
 
 
+# Each edit changes only ViewSpecView.tsx and leaves the manifest as the compiler wrote it, so the
+# registry check has to read the source to notice.
+_TSX_ONLY_EDITS = [
+    pytest.param(
+        lambda tsx: tsx.replace('from "./viewspec-registry";', 'from "./other-registry";', 1),
+        "registry import does not match the manifest registry",
+        id="import-module",
+    ),
+    pytest.param(
+        lambda tsx: re.sub(r"<Label (as=\"[a-z0-9]+\"[^\n]*?)</Label>", r"<Chip \1</Chip>", tsx, count=1),
+        "renders <Chip> but the registry maps label to Label",
+        id="component",
+    ),
+    pytest.param(
+        lambda tsx: re.sub(r'<Label as="[a-z0-9]+"', '<Label as="script"', tsx, count=1),
+        "has no closed `as` element",
+        id="as-element",
+    ),
+]
+
+
+@pytest.mark.parametrize("target", REACT_TARGETS)
+@pytest.mark.parametrize(("edit", "message"), _TSX_ONLY_EDITS)
+def test_check_fails_with_registry_manifest_mismatch_when_only_the_tsx_is_edited(tmp_path, target, edit, message):
+    out_dir = _compile(tmp_path, "artifact", target=target)
+    tsx_path = out_dir / "ViewSpecView.tsx"
+    pristine_manifest = _manifest(out_dir)
+    pristine = tsx_path.read_text(encoding="utf-8")
+    edited = edit(pristine)
+    assert edited != pristine, "the edit did not land, so the check below would prove nothing"
+    tsx_path.write_text(edited, encoding="utf-8")
+
+    assert _manifest(out_dir) == pristine_manifest
+    errors = _registry_errors(out_dir)
+    assert any(message in error for error in errors), errors
+    assert cli_main(["check", str(out_dir)]) == 2
+
+
 def test_check_json_reports_the_registry_code_and_summary(tmp_path, capsys):
     out_dir = _compile(tmp_path, "artifact", target="react-tailwind-tsx")
     assert cli_main(["check", str(out_dir)]) == 0

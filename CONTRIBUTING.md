@@ -54,6 +54,13 @@ the full test suite does not run on Windows.
    python -m pytest -q -m e2e tests/test_html_verify_e2e.py
    ```
 
+   The Studio inspector proof drives the `viewspec studio` overlay in Chromium with the same
+   harness:
+
+   ```bash
+   VIEWSPEC_RUN_STUDIO_E2E=1 python -m pytest -q -m e2e tests/test_studio_inspector_e2e.py
+   ```
+
 3. **Optional runtimes.** Bun 1.x is only needed for the opt-in Freerange proof and its e2e
    scenarios; ViewSpec never installs it. Nothing in the default suite needs network access.
 

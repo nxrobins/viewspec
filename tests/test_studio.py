@@ -22,11 +22,11 @@ from viewspec.cli import main as cli_main
 from viewspec.intent_tools import starter_intent_payload
 from viewspec.studio import (
     INSPECTOR_SCRIPT,
-    LIVE_RELOAD_SCRIPT,
     STUDIO_INSPECTOR_PATH,
     STUDIO_STATUS_PATH,
     Studio,
     StudioError,
+    live_reload_script,
     resolve_studio_source,
 )
 
@@ -68,14 +68,33 @@ def test_serves_the_compiled_page_with_live_reload(running):
     status, body = _get(running.url)
     assert status == 200
     assert "First Title" in body
-    assert LIVE_RELOAD_SCRIPT in body
+    assert live_reload_script(1) in body
     assert json.loads(_get(f"{running.url.rstrip('/')}{STUDIO_STATUS_PATH}")[1]) == {"generation": 1, "errors": []}
+
+
+def test_the_page_names_the_build_it_shows(running):
+    # Each page carries its build's generation, so an edit that rebuilds before the page's first
+    # status poll still reloads it.
+    assert live_reload_script(1) in _get(running.url)[1]
+    running.source.write_text(running.source.read_text(encoding="utf-8").replace("First Title", "Second"), "utf-8")
+    _wait_for(lambda: running.generation == 2)
+    body = _get(running.url)[1]
+    assert "Second" in body
+    assert live_reload_script(2) in body
+    assert live_reload_script(1) not in body
+
+
+def test_the_live_reload_script_takes_only_an_integer_generation():
+    assert "const shown = 7;" in live_reload_script(7)
+    assert "@@" not in live_reload_script(0)
+    with pytest.raises(ValueError):
+        live_reload_script("1; alert(1)")  # type: ignore[arg-type]
 
 
 def test_serves_artifact_siblings_without_rewriting_them(running):
     status, body = _get(f"{running.url}provenance_manifest.json")
     assert status == 200
-    assert LIVE_RELOAD_SCRIPT not in body
+    assert STUDIO_STATUS_PATH not in body
     json.loads(body)
 
 
@@ -116,7 +135,7 @@ def test_a_source_that_starts_broken_still_serves_its_errors(tmp_path):
         assert studio.errors
         status, body = _get(studio.url)
         assert status == 200
-        assert LIVE_RELOAD_SCRIPT in body
+        assert live_reload_script(studio.generation) in body
 
 
 def test_previews_an_app_bundle_and_its_screens(tmp_path):
@@ -247,7 +266,7 @@ def _inspector(studio: Studio) -> dict:
 
 def _served_artifact(studio: Studio) -> str:
     """The page Studio serves at "/" without the scripts it injects."""
-    return _get(studio.url)[1].replace(LIVE_RELOAD_SCRIPT, "").replace(INSPECTOR_SCRIPT, "")
+    return _get(studio.url)[1].replace(live_reload_script(studio.generation), "").replace(INSPECTOR_SCRIPT, "")
 
 
 def test_the_inspector_leaves_the_artifact_bytes_alone(running, tmp_path):
@@ -265,7 +284,7 @@ def test_the_inspector_leaves_the_artifact_bytes_alone(running, tmp_path):
     assert STUDIO_INSPECTOR_PATH not in file_text
     served = _get(running.url)[1]
     assert INSPECTOR_SCRIPT in served
-    assert served.replace(LIVE_RELOAD_SCRIPT, "").replace(INSPECTOR_SCRIPT, "") == file_text
+    assert served.replace(live_reload_script(running.generation), "").replace(INSPECTOR_SCRIPT, "") == file_text
 
 
 def test_inspector_json_maps_every_binding_to_its_source(running):

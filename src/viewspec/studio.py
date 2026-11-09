@@ -33,26 +33,32 @@ STUDIO_SOURCE_NAMES = ("viewspec.app.json", "viewspec.intent.json", "viewspec.co
 STUDIO_STATUS_PATH = "/__viewspec/status"
 STUDIO_WATCH_SECONDS = 0.25
 
-LIVE_RELOAD_SCRIPT = f"""<script>
+_LIVE_RELOAD_TEMPLATE = f"""<script>
 (() => {{
-  let seen = null;
+  // The generation of the build this page shows, written in when it was served. Learning it from the
+  // first poll instead would take an edit that rebuilt before that poll as the build on screen.
+  const shown = @@generation@@;
   const banner = document.createElement("pre");
   banner.style.cssText = "position:fixed;inset:auto 0 0 0;z-index:2147483647;margin:0;padding:12px 16px;"
     + "max-height:40vh;overflow:auto;white-space:pre-wrap;background:#7f1d1d;color:#fff;font:13px/1.5 monospace";
   setInterval(async () => {{
     const status = await fetch("{STUDIO_STATUS_PATH}").then((response) => response.json()).catch(() => null);
     if (status === null) return;
-    if (seen !== null && status.generation !== seen) location.reload();
-    seen = status.generation;
+    if (status.generation !== shown) location.reload();
     banner.textContent = status.errors.join("\\n");
     if (status.errors.length > 0) document.body.append(banner);
     else banner.remove();
   }}, 500);
 }})();
 </script>"""
+
+
+def live_reload_script(generation: int) -> str:
+    """The live-reload script for a page that shows build ``generation``."""
+    return _LIVE_RELOAD_TEMPLATE.replace("@@generation@@", str(int(generation)))
+
+
 EMPTY_PAGE = "<!doctype html><title>ViewSpec Studio</title><body></body>"
-# Injected into the page served at "/", never into the files on disk: live reload, then the inspector.
-STUDIO_SCRIPTS = LIVE_RELOAD_SCRIPT + INSPECTOR_SCRIPT
 
 
 class StudioError(ValueError):
@@ -248,9 +254,11 @@ def _resolve_inside(root: Path, request_path: str) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
-def _with_studio_scripts(html: str) -> str:
+def _with_studio_scripts(html: str, generation: int) -> str:
+    """Inject live reload, then the inspector, into the page served at "/", never into the files on disk."""
+    scripts = live_reload_script(generation) + INSPECTOR_SCRIPT
     head, marker, tail = html.rpartition("</body>")
-    return f"{head}{STUDIO_SCRIPTS}{marker}{tail}" if marker else f"{html}{STUDIO_SCRIPTS}"
+    return f"{head}{scripts}{marker}{tail}" if marker else f"{html}{scripts}"
 
 
 def _handler_for(studio: Studio) -> type[BaseHTTPRequestHandler]:
@@ -270,8 +278,11 @@ def _handler_for(studio: Studio) -> type[BaseHTTPRequestHandler]:
             if route == STUDIO_INSPECTOR_PATH:
                 self._send_inspector(urlsplit(self.path).query)
                 return
+            # Generation first: rebuild publishes build_dir before the generation, so the page can only
+            # name a build older than the one it shows. That costs an extra reload, never a stale page.
+            generation = studio.generation
             try:
-                self._send_artifact(route, studio.build_dir)
+                self._send_artifact(route, studio.build_dir, generation)
             except OSError:
                 # A rebuild replaced this build mid-request; the page's next poll reloads it.
                 self._send(HTTPStatus.NOT_FOUND, b"Not found.", "text/plain; charset=utf-8")
@@ -290,10 +301,11 @@ def _handler_for(studio: Studio) -> type[BaseHTTPRequestHandler]:
                 return
             self._send(HTTPStatus.OK, json.dumps(payload).encode("utf-8"), "application/json")
 
-        def _send_artifact(self, route: str, build_dir: Path | None) -> None:
+        def _send_artifact(self, route: str, build_dir: Path | None, generation: int) -> None:
             if route == "/":
                 html = (build_dir / "index.html").read_text(encoding="utf-8") if build_dir else EMPTY_PAGE
-                self._send(HTTPStatus.OK, _with_studio_scripts(html).encode("utf-8"), "text/html; charset=utf-8")
+                page = _with_studio_scripts(html, generation)
+                self._send(HTTPStatus.OK, page.encode("utf-8"), "text/html; charset=utf-8")
                 return
             target = _resolve_inside(build_dir, self.path) if build_dir else None
             if target is None:
