@@ -102,6 +102,33 @@ def test_native_limits_are_checked():
         plan_control_action(_control('<input type="time" aria-label="T">'), "fill", "25:00")
 
 
+@pytest.mark.parametrize(
+    ("html", "allowed", "refused"),
+    [
+        # A limit with seconds bounds a value without them, and the other way around.
+        ('<input type="time" aria-label="T" min="09:00:00" max="17:30">', "09:00", "08:59"),
+        ('<input type="time" aria-label="T" min="09:00" max="17:30:00">', "17:30", "17:30:01"),
+        (
+            '<input type="datetime-local" aria-label="D" min="2026-11-20T09:00:00">',
+            "2026-11-20T09:00",
+            "2026-11-20T08:59",
+        ),
+        # A custom date field's limit is read as a date, not compared with the ISO value as text.
+        ('<input aria-label="Day" readonly placeholder="DD/MM/YYYY" min="20/11/2026">', "2026-11-20", "2026-11-19"),
+    ],
+)
+def test_limits_written_another_way_still_bound_the_value(html, allowed, refused):
+    control = _control(html)
+    assert plan_control_action(control, "select", allowed)[0].value == allowed
+    with pytest.raises(AgentActionError, match="earliest|latest"):
+        plan_control_action(control, "select", refused)
+
+
+def test_a_limit_that_cannot_be_read_is_ignored_as_the_browser_ignores_it():
+    control = _control('<input type="time" aria-label="T" min="noon" max="09:00:00.000">')
+    assert plan_control_action(control, "fill", "18:00")[0].value == "18:00"
+
+
 def test_a_custom_date_field_plans_choose_date():
     control = _control(
         '<input name="checkout" readonly placeholder="DD/MM/YYYY" aria-label="Check-out" data-lift-ref="e4">'

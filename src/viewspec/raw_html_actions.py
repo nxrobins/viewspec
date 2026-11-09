@@ -16,7 +16,7 @@ import binascii
 import datetime
 import mimetypes
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -522,13 +522,71 @@ def _length_problem(control: HtmlControl, value: str) -> str | None:
 RISKY_PATTERN_RE = re.compile(r"\)\s*[*+{]")
 MAX_PATTERN_LENGTH = 200
 MAX_PATTERN_VALUE_LENGTH = 1000
+# Quantifiers in a row that can each take part of the same text backtrack polynomially without any
+# group: "[a-z]+.*[a-z]+.*x" on 1000 letters tries about n**k splits for k such quantifiers, and
+# "a?" * 20 + "a" * 20 tries 2**20. On a 1000-character value, two take milliseconds, three up to
+# 0.4 s, and four more than 20 s (CPython 3.15), so more than two is left to the browser.
+MAX_CHOICE_QUANTIFIERS = 2
+# A quantifier as written, with its lazy "?" or possessive "+": "*", "+?", "{2,}", "{,5}", "{3}".
+# "{}" is not one; Python reads it as text.
+QUANTIFIER_RE = re.compile(r"(?:[*+?]|\{(?!\})\d*(?:,\d*)?\})[?+]?")
+
+
+def _quantifiers(pattern: str) -> Iterator[str]:
+    """Each quantifier in ``pattern``, as QUANTIFIER_RE reads it. A mark after a backslash or inside a
+    character class is text, and the "?" that opens a group's syntax ("(?:", "(?=") is not one."""
+
+    index, in_class = 0, False
+    while index < len(pattern):
+        char = pattern[index]
+        if char == "\\":
+            index += 2
+        elif in_class:
+            in_class = char != "]"
+            index += 1
+        elif char == "[":
+            index += 1
+            index += pattern.startswith("^", index)
+            index += pattern.startswith("]", index)  # A "]" first in a class is text.
+            in_class = True
+        elif char == "(":
+            index += 1 + pattern.startswith("?", index + 1)
+        elif match := QUANTIFIER_RE.match(pattern, index):
+            yield match.group()
+            index = match.end()
+        else:
+            index += 1
+
+
+def _leaves_choice(quantifier: str) -> bool:
+    """Whether ``quantifier`` (as ``_quantifiers`` yields it) lets the matcher try more than one
+    length of text, so a failed match can come back to it and try another.
+
+    A lazy one ("+?") still backtracks, only in the other order. A possessive one ("++") does not, but
+    it counts too: JavaScript has no possessive quantifiers, so in the browser the pattern means
+    something else, and leaving it to the browser is the safe side. A range counts unless its two
+    ends are the same: "{1,3}" leaves three lengths to try, "{3}" and "{3,3}" only one.
+    """
+
+    base = quantifier[:-1] if len(quantifier) > 1 and quantifier[-1] in "?+" else quantifier
+    if not base.startswith("{"):
+        return True  # "*", "+", "?"
+    low, comma, high = base[1:-1].partition(",")
+    if not comma:
+        return False  # "{3}": exactly that many.
+    return not high or int(low or 0) != int(high)  # "{2,}" and "{,}" are open; "{,5}" is "{0,5}".
 
 
 def _pattern_problem(control: HtmlControl, value: str) -> str | None:
     pattern = control.pattern
     if not pattern or not value:
         return None
-    if len(pattern) > MAX_PATTERN_LENGTH or len(value) > MAX_PATTERN_VALUE_LENGTH or RISKY_PATTERN_RE.search(pattern):
+    if (
+        len(pattern) > MAX_PATTERN_LENGTH
+        or len(value) > MAX_PATTERN_VALUE_LENGTH
+        or RISKY_PATTERN_RE.search(pattern)
+        or sum(_leaves_choice(quantifier) for quantifier in _quantifiers(pattern)) > MAX_CHOICE_QUANTIFIERS
+    ):
         return None  # Left to the browser: a pattern that could backtrack without bound, or a long one.
     try:
         matched = re.fullmatch(pattern, value)
@@ -723,32 +781,61 @@ def date_value(control: HtmlControl, value: Any) -> str:
     kind = control.control if _native_date(control) else "date"
     if not isinstance(value, str) or not value.strip():
         raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{_label(control)} takes a {kind}, not {value!r}.")
-    text = " ".join(value.split())
-    if kind == "date":
-        result = parse_date(text).isoformat()
-    elif kind == "time":
-        result = _time(text)
-    elif kind == "datetime-local":
-        date_part, _, time_part = text.replace("T", " ").replace("t", " ").partition(" ")
-        if not time_part:
-            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{value!r} has no time; write YYYY-MM-DDTHH:MM.")
-        result = f"{parse_date(date_part).isoformat()}T{_time(time_part)}"
-    elif kind == "month":
-        result = _month(text)
-    else:
-        match = WEEK_RE.fullmatch(text.lower())
-        if not match or not 1 <= int(match.group(2)) <= 53:
-            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{value!r} is not a week; write YYYY-Www.")
-        result = f"{int(match.group(1)):04d}-W{int(match.group(2)):02d}"
-    if control.minimum and len(control.minimum) == len(result) and result < control.minimum:
+    result = _date_text(kind, value)
+    low, high = _date_bound(kind, control.minimum), _date_bound(kind, control.maximum)
+    if low is not None and _date_key(kind, result) < low:
         raise AgentActionError(
             "AGENT_ACTION_VALUE_INVALID", f"{result} is before the earliest allowed, {control.minimum}."
         )
-    if control.maximum and len(control.maximum) == len(result) and result > control.maximum:
+    if high is not None and _date_key(kind, result) > high:
         raise AgentActionError(
             "AGENT_ACTION_VALUE_INVALID", f"{result} is after the latest allowed, {control.maximum}."
         )
     return result
+
+
+def _date_text(kind: str, value: str) -> str:
+    """``value`` written as a ``kind`` field (date, time, datetime-local, month, or week) takes it."""
+
+    text = " ".join(value.split())
+    if kind == "date":
+        return parse_date(text).isoformat()
+    if kind == "time":
+        return _time(text)
+    if kind == "datetime-local":
+        date_part, _, time_part = text.replace("T", " ").replace("t", " ").partition(" ")
+        if not time_part:
+            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{value!r} has no time; write YYYY-MM-DDTHH:MM.")
+        return f"{parse_date(date_part).isoformat()}T{_time(time_part)}"
+    if kind == "month":
+        return _month(text)
+    match = WEEK_RE.fullmatch(text.lower())
+    if not match or not 1 <= int(match.group(2)) <= 53:
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{value!r} is not a week; write YYYY-Www.")
+    return f"{int(match.group(1)):04d}-W{int(match.group(2)):02d}"
+
+
+def _date_key(kind: str, text: str) -> str:
+    """A ``_date_text`` result in a form whose string order is time order. Every part is zero-padded
+    to a fixed width already; only a time without seconds needs them written out ("09:00" sorts
+    before "09:00:30" either way, but "09:00" must equal "09:00:00")."""
+
+    if (kind == "time" and len(text) == 5) or (kind == "datetime-local" and len(text) == 16):
+        return text + ":00"
+    return text
+
+
+def _date_bound(kind: str, bound: str | None) -> str | None:
+    """A field's ``min`` or ``max`` read the way its values are, so "09:00:00" bounds an "HH:MM" value
+    and "20/11/2026" bounds a custom date field. None when there is none, or it cannot be read: the
+    browser ignores a bound it cannot read, and refuses nothing for it."""
+
+    if not bound:
+        return None
+    try:
+        return _date_key(kind, _date_text(kind, bound))
+    except AgentActionError:
+        return None
 
 
 def _time(text: str) -> str:
