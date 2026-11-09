@@ -609,6 +609,11 @@ def _empty(item: FormField) -> bool:
 def _fill(control: HtmlControl, value: Any) -> ActionStep:
     if control.kind != "field" or control.control in NOT_FILLABLE:
         raise AgentActionError("AGENT_ACTION_UNSUPPORTED", f"{_label(control)} ({control.control}) cannot be filled.")
+    if control.tag not in {"input", "textarea"} and control.control not in {"textbox", "searchbox"}:
+        # A select-only combobox is a div: nothing to type into. Its options are chosen with select.
+        raise AgentActionError(
+            "AGENT_ACTION_UNSUPPORTED", f"{_label(control)} ({control.control}) cannot be typed into; use select."
+        )
     if control.readonly:
         raise AgentActionError("AGENT_ACTION_READONLY", f"{_label(control)} is read-only.")
     if not isinstance(value, str):

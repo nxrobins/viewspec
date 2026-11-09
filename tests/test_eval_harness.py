@@ -980,6 +980,68 @@ def test_anthropic_provider_builds_the_messages_request_and_reads_the_text():
     }
 
 
+def test_azure_openai_provider_builds_the_chat_request_and_reads_the_text():
+    seen: list[urllib.request.Request] = []
+    answer = {
+        "id": "chatcmpl-01",
+        "model": "gpt-test-2026",
+        "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": '{"a": 1}'}}],
+        "usage": {"prompt_tokens": 12, "completion_tokens": 34, "total_tokens": 46},
+    }
+
+    def opener(request, timeout):
+        seen.append(request)
+        assert timeout == 12.5
+        return _FakeResponse(json.dumps(answer).encode("utf-8"), {"apim-request-id": "apim_01"})
+
+    provider = harness.AzureOpenAIChatProvider(
+        api_key="az-test",
+        model="gpt-5.5",
+        endpoint="https://resource.services.ai.azure.com/",
+        api_version="2025-04-01-preview",
+        timeout=12.5,
+        opener=opener,
+    )
+    schema = {"type": "object", "additionalProperties": False}
+
+    text = provider.generate("SYSTEM", "USER", schema)
+
+    assert text == '{"a": 1}'
+    (request,) = seen
+    assert request.full_url == (
+        "https://resource.services.ai.azure.com/openai/deployments/gpt-5.5/chat/completions?api-version=2025-04-01-preview"
+    )
+    assert request.get_header("Api-key") == "az-test" and request.get_header("Content-type") == "application/json"
+    body = json.loads(request.data)
+    assert body == {
+        "messages": [{"role": "system", "content": "SYSTEM"}, {"role": "user", "content": "USER"}],
+        "max_completion_tokens": 16000,
+        "response_format": {"type": "json_schema", "json_schema": {"name": "viewspec_bundle", "schema": schema}},
+    }
+    assert "max_tokens" not in body and "temperature" not in body
+    assert provider.last_meta == {
+        "stop_reason": "stop",
+        "usage": {"input_tokens": 12, "output_tokens": 34},
+        "served_model": "gpt-test-2026",
+        "message_id": "chatcmpl-01",
+        "request_id": "apim_01",
+    }
+
+
+def test_azure_openai_provider_needs_the_endpoint_and_is_chosen_by_name(monkeypatch, tmp_path):
+    monkeypatch.setenv("VIEWSPEC_EVAL_MODEL", "gpt-5.5")
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "az-test")
+    monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
+    code = harness.main(["--provider", "azure-openai", "--out", str(tmp_path), "--limit", "1"])
+    assert code == 2  # The endpoint is part of the configuration gate.
+
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://resource.openai.azure.com")
+    args = harness.build_parser().parse_args(["--provider", "azure-openai"])
+    provider = harness.build_provider("azure-openai", api_key="az-test", model="gpt-5.5", args=args)
+    assert isinstance(provider, harness.AzureOpenAIChatProvider)
+    assert provider.endpoint == "https://resource.openai.azure.com" and provider.api_version == "2025-04-01-preview"
+
+
 def test_anthropic_provider_sends_a_temperature_only_when_given():
     plain = harness.AnthropicMessagesProvider(api_key="k", model=TEST_MODEL).request_body("S", "U", None)
     zero = harness.AnthropicMessagesProvider(api_key="k", model=TEST_MODEL, temperature=0.0).request_body(

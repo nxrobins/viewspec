@@ -54,6 +54,16 @@ def control_line(handle: int, control: HtmlControl) -> str:
         line += " (submits)"
     if control.action_id:
         line += f" #{control.action_id}"
+    # ARIA state a click toggles: shown so the agent can tell a pressed toolbar button, the
+    # selected tab, or an open disclosure from the others, and see the change in the diff.
+    if control.pressed is not None:
+        line += " pressed" if control.pressed else " not pressed"
+    if control.selected:
+        line += " selected"
+    if control.expanded is not None and control.kind == "action":
+        line += " expanded" if control.expanded else " collapsed"
+    if control.sort and control.sort != "none":
+        line += f" sorted {control.sort}"
     if control.disabled:
         line += " disabled"
     return line
