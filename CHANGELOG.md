@@ -195,6 +195,9 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- `SECURITY.md` says what a refused `viewspec prove` writes (nothing, into a directory it does not
+  own) and how the static shell is scanned: by context, so tags, attribute names, attribute values,
+  script blocks, and text are each checked for what can run or fetch there.
 - `docs/compatibility.md` covers the compact authoring form and `agent-intent-compact.schema.json`,
   and the AppBundle Node.js messages and README lines say V3 to V5.
 - `integrations/claude-code/SKILL.md` is now a short pointer to `skills/viewspec/SKILL.md`.
