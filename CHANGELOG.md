@@ -394,6 +394,8 @@ All notable changes to ViewSpec are documented in this file. The format follows
   `APP_VISIBILITY_REPLAY_MISMATCH`, or `APP_STATE_TEXT_REPLAY_MISMATCH` code when an expectation is
   wrong. Before, both passed and only `viewspec compile` or `viewspec prove --with-shell` failed.
   `viewspec compile` now lists every failed expectation instead of the first one.
+- A test of the agent lift no longer fails when Hypothesis draws a string that the lift's JSON
+  already contains, such as a key name.
 
 ### Security
 
