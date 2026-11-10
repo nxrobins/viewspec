@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from viewspec.raw_html import compile_html, lift_html
@@ -523,10 +523,14 @@ def test_secret_values_are_never_kept(field):
     wrapper=st.sampled_from(["{f}", "<label>Pass {f}</label>", "<div><form>{f}</form></div>", "<p>{f}</p>"]),
 )
 def test_password_values_never_leak(secret, wrapper):
-    field = f'<input type="password" name="p" value="{secret}">'
-    lift = lift_html(wrapper.format(f=field), profile="agent")
+    def lifted(value: str) -> str:
+        field = f'<input type="password" name="p" value="{value}">'
+        return json.dumps(lift_html(wrapper.format(f=field), profile="agent").to_json())
 
-    assert secret not in json.dumps(lift.to_json())
+    # Hypothesis also draws string constants from the module under test, so `secret` can be text the
+    # lift writes for every page, such as the key `ngram_length`. Finding that text is not a leak.
+    assume(secret not in lifted("x"))
+    assert secret not in lifted(secret)
 
 
 def test_agent_lift_ids_and_fingerprint_are_deterministic():
