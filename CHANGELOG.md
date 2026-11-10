@@ -237,6 +237,14 @@ All notable changes to ViewSpec are documented in this file. The format follows
   script blocks for worker construction; text and JSON data only for a full URL, which is still
   rejected wherever it appears. A rejection names what matched, in at most 40 characters, and where.
   Markup that is not in the form the compiler writes is still scanned whole.
+- A compact document rejects an integer with magnitude above 2^53 (`9007199254740992`) with
+  `INTEGER_OUT_OF_SAFE_RANGE`, as the canonical form does. Normalization stores values as 64-bit
+  doubles, so a table row whose value was `9007199254740993` passed `viewspec check`, compiled, and
+  showed `9007199254740992` on the page. `check`, `compile`, and `prove` now stop before
+  normalization and name the value's compact path, such as `$.motifs[0].rows[0].value`. The check
+  covers every value the builder stores, at any depth: the root title, item labels, values,
+  descriptions, and `values` entries, the title, eyebrow, and description of hero and state motifs,
+  and input labels and values. Write such identifiers as JSON strings.
 - In the agent lift, a `<button>` whose `type` is empty or unknown submits its form, as the HTML spec
   gives a missing or invalid type the Submit Button state. `type=""` and `type="bogus"` used to make
   it a plain button, so a form call did not click it. Only `type="button"` and `type="reset"` do not
