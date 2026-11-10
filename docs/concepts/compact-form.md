@@ -57,7 +57,10 @@ has the full key reference.
 
 1. `--patch` applies to the compact file as written. Its pointers name the compact document, such as
    `/motifs/1/cards/1/present_as`.
-2. The compact checks run. Their issues carry `COMPACT_*` codes and compact paths.
+2. The compact checks run. Their issues carry `COMPACT_*` codes and compact paths. An integer with
+   magnitude above 2^53 in a title, eyebrow, label, value, description, or `values` entry fails
+   here, with `INTEGER_OUT_OF_SAFE_RANGE`, because normalization stores numbers as 64-bit doubles
+   and would round it. Write such identifiers as JSON strings.
 3. Normalization builds the canonical bundle with `ViewSpecBuilder`.
 4. The lossless fixes and the canonical validator run on that bundle. Their `fixes` and `issues`
    carry canonical paths: a `tag` alias on the `overdue` card is fixed at
