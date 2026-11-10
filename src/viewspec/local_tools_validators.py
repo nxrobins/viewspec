@@ -2842,10 +2842,10 @@ def _validate_intent_visible_text(
         if dom_text != _collapse_artifact_text(str(props.get("state_text_initial") or "")):
             errors.append(f"DOM element {dom_id} text does not match manifest props")
     elif primitive in TEXT_PROP_PRIMITIVES and "text" in props:
-        if dom_text != str(props["text"]):
+        if dom_text != _collapse_artifact_text(str(props["text"])):
             errors.append(f"DOM element {dom_id} text does not match manifest props")
     elif primitive == "button" and "label" in props:
-        if dom_text != str(props["label"]):
+        if dom_text != _collapse_artifact_text(str(props["label"])):
             errors.append(f"DOM element {dom_id} text does not match manifest props")
 
 
