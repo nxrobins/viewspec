@@ -357,6 +357,22 @@ All notable changes to ViewSpec are documented in this file. The format follows
 - `viewspec check` reports `APP_SCHEMA_VERSION_REQUIRED` for an AppBundle whose `schema_version`
   is an array or an object. It used to raise `TypeError`.
 
+### Security
+
+- A refused `viewspec prove` no longer writes into an output directory it does not own, so the
+  `--force` it recommends can no longer delete that directory. It used to write `proof_report.json`,
+  `PROOF.md` and `support_bundle.json` (for an AppBundle, `app_proof_report.json`, `APP_PROOF.md`
+  and `app_support_bundle.json`) into the `--out` directory it had just refused, and those files
+  are what `--force` takes as proof that a directory is ViewSpec's: the next `--force` removed the
+  directory and everything in it. The CLI and the MCP `prove` tool both did this after
+  `PROVE_OUTPUT_EXISTS`, an unknown target or kind, an internal error, or a mistyped AppBundle
+  path. A proof now writes report files into its output directory only when it created that
+  directory, or when the directory was already empty or held a ViewSpec output. Otherwise it writes
+  nothing there, and an IntentBundle proof writes only a `--report-out` file outside it.
+  `PROVE_OUTPUT_EXISTS` and `APP_PROOF_OUTPUT_EXISTS` offer `--force` only for a directory it would
+  replace, and otherwise ask for a new `--out`. An AppBundle proof refused on an empty directory now
+  writes its report there, as an IntentBundle proof does.
+
 ## [0.4.0] - 2026-11-01
 
 ViewSpec is now a local, open-source compiler with no hosted service and a much smaller surface.

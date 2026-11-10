@@ -33,6 +33,7 @@ from viewspec.local_tools import (
     resolve_local_path,
 )
 from viewspec.local_tools_io import (
+    OutputOwnership,
     input_inside_output,
     is_replaceable_output_dir,
     portable_report_paths,
@@ -110,6 +111,7 @@ def prove(
     browser = target in HTML_VERIFY_TARGETS and bool(install or pretext or renders)
     root = resolve_cwd(cwd)
     output_dir = _resolve_output(out_dir, root)
+    ownership = OutputOwnership(output_dir)
     report_path = (
         resolve_local_path(report_out, cwd=root, allow_outside_cwd=True)
         if report_out
@@ -128,7 +130,14 @@ def prove(
                 f"Unsupported starter kind: {kind}",
                 f"Use one of: {', '.join(STARTER_INTENT_KINDS)}.",
             )
-        _prepare_output_dir(output_dir, root=root, force=force, raw_out=out_dir, inputs=(intent_path, design_path))
+        _prepare_output_dir(
+            output_dir,
+            root=root,
+            force=force,
+            raw_out=out_dir,
+            inputs=(intent_path, design_path),
+            ownership=ownership,
+        )
         prepared = _time_phase(
             timings,
             "prepare",
@@ -265,9 +274,7 @@ def prove(
             errors=[{"code": exc.code, "message": exc.message, "fix": exc.fix}],
             metadata={"sdk_version": __version__, "network_calls": "none"},
         )
-        if report_out is None and exc.code in {"PROVE_OUTPUT_UNSAFE", "PROVE_OUTPUT_UNRECOGNIZED"}:
-            return _final_report(report, report_path)
-        return _write_report(report, report_path)
+        return _write_failure_report(report, report_path, ownership, report_out=report_out)
     except LocalToolError as exc:
         # A missing/unreadable/unsafe input path is USER error, not an internal crash:
         # stamp a non-internal code so the CLI returns exit 2 (like compile), not 1.
@@ -288,7 +295,7 @@ def prove(
             ],
             metadata={"sdk_version": __version__, "network_calls": "none"},
         )
-        return _write_report(report, report_path)
+        return _write_failure_report(report, report_path, ownership, report_out=report_out)
     except Exception as exc:
         report = _report(
             ok=False,
@@ -307,9 +314,7 @@ def prove(
             ],
             metadata={"sdk_version": __version__, "network_calls": "none"},
         )
-        if report_out is None and not output_dir.exists():
-            return _final_report(report, report_path)
-        return _write_report(report, report_path)
+        return _write_failure_report(report, report_path, ownership, report_out=report_out)
 
 
 def _resolve_output(out_dir: str | Path, root: Path) -> Path:
@@ -317,15 +322,19 @@ def _resolve_output(out_dir: str | Path, root: Path) -> Path:
 
 
 def _prepare_output_dir(
-    output_dir: Path, *, root: Path, force: bool, raw_out: str | Path, inputs: tuple[str | Path | None, ...]
+    output_dir: Path,
+    *,
+    root: Path,
+    force: bool,
+    raw_out: str | Path,
+    inputs: tuple[str | Path | None, ...],
+    ownership: OutputOwnership,
 ) -> None:
     _assert_safe_output(output_dir, root=root, raw_out=raw_out)
     if output_dir.exists():
         if not force:
             raise ProveFailure(
-                "PROVE_OUTPUT_EXISTS",
-                f"Proof output already exists: {output_dir}",
-                "Pass --force or choose a new --out directory.",
+                "PROVE_OUTPUT_EXISTS", f"Proof output already exists: {output_dir}", ownership.refuse_existing()
             )
         if not output_dir.is_dir():
             raise ProveFailure(
@@ -348,6 +357,7 @@ def _prepare_output_dir(
             )
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)
+    ownership.created()
     # Mark the directory as ViewSpec's before writing anything else, so an interrupted proof stays
     # replaceable with --force.
     write_output_sentinel(output_dir)
@@ -691,6 +701,23 @@ def _write_report(report: dict[str, Any], report_path: Path) -> dict[str, Any]:
             failed = _support_failure_report(failed, report_path, support_exc)
             _write_report_file(failed, report_path)
         return failed
+    return report
+
+
+def _write_failure_report(
+    report: dict[str, Any], report_path: Path, ownership: OutputOwnership, *, report_out: str | Path | None
+) -> dict[str, Any]:
+    """Write a failed proof's files only where this run may, and return the report.
+
+    A proof directory the run owns gets the report, ``PROOF.md`` and the support bundle.  Any other
+    gets nothing, so a refusal never leaves the marker files that let ``--force`` replace that
+    directory; a ``--report-out`` file outside it is still written.
+    """
+    if ownership.owned:
+        return _write_report(report, report_path)
+    report = _final_report(report, report_path)
+    if report_out is not None and not ownership.holds(report_path):
+        _write_report_file(report, report_path)
     return report
 
 
