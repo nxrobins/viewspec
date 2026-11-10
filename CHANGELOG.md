@@ -228,9 +228,12 @@ All notable changes to ViewSpec are documented in this file. The format follows
   bundle that declares none.
 - Aesthetic profile colours change where the contrast proof, now measured from the artifact, found
   text below WCAG AA. On `html-tailwind` and `mcp-app`, `aesthetic.data_dense` and
-  `aesthetic.neon_cyber` paint the table and its row headers with their own surface colours, in
-  rules scoped to the profile's root and appended after the base stylesheet (their light ink was
-  1.23:1 and 1.13:1 on the white table); artifacts of the other profiles keep their stylesheet. The
+  `aesthetic.neon_cyber` put the table on the ground of their `surface.subtle` token and its row
+  headers on that of `surface.strong`, as the artifact resolves them, in rules scoped to the
+  profile's root and appended after the base stylesheet (their light ink was 1.23:1 and 1.13:1 on the
+  white table). A DESIGN.md whose `colors.surface` repaints those tokens repaints the tables with
+  them, as it does the hero and cards, so the starter DESIGN.md that `prove` applies keeps its dark
+  ink on white tables. Artifacts of the other profiles keep their stylesheet. The
   `tone.muted` ink darkens in `calm_ops` (`#5d7268` to `#596d64`), `premium_saas` (`#6b668d` to
   `#656085`), `editorial_product` (`#85715f` to `#756354`) and `executive_review` (`#51647a` to
   `#506278`), on every target that applies style tokens. On `react-tailwind-tsx`, `neon_cyber`'s

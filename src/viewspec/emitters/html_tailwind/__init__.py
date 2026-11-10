@@ -793,9 +793,10 @@ def emit_compiler_result(
         emitter_css = f"{OFFLINE_EMITTER_CSS}\n{VISIBILITY_EMITTER_CSS}"
     aesthetic_profile = result.root.root.props.get("aesthetic_profile")
     if isinstance(aesthetic_profile, str) and aesthetic_profile:
-        # A light-ink profile repaints the base stylesheet's white table under its own root. Other
-        # profiles append nothing, so their artifacts keep their bytes.
-        table_surface_css = profile_table_surface_css(aesthetic_profile)
+        # A light-ink profile puts its tables on its surface tokens' grounds, as these style values
+        # resolve them (a DESIGN.md's surface colour included), under its own root. Other profiles
+        # append nothing, so their artifacts keep their bytes.
+        table_surface_css = profile_table_surface_css(aesthetic_profile, style_values)
         if table_surface_css:
             emitter_css = f"{emitter_css}\n{table_surface_css}"
     head_extra: list[str] = []

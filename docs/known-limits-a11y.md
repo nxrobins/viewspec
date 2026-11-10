@@ -34,9 +34,12 @@ they also cover a swapped MCP App root.
   white on white is 1.0:1.
 - **The eight aesthetic profiles pass this measurement** on `html-tailwind` and
   `react-tailwind-tsx` for the nine conformance fixtures, a hero plus table page, and a page with
-  a strong surface, a list and a comparison (`tests/test_contrast_from_artifact.py`). That is what
-  is tested, not a claim about every page: a profile combined with other colours, or text on a
-  ground those pages do not have, is measured like any other artifact and can fail.
+  a strong surface, a list and a comparison, each compiled without a DESIGN.md and with the starter
+  DESIGN.md that `prove` applies when none is given; and `prove` itself passes a hero plus table
+  page in every profile on `html-tailwind`, `mcp-app` and `react-tailwind-tsx`
+  (`tests/test_contrast_from_artifact.py`). That is what is tested, not a claim about every page: a
+  profile combined with other colours, or text on a ground those pages do not have, is measured
+  like any other artifact and can fail.
 - **Accessible-name presence.** Interactive controls (input, button, image) must carry an
   author-provided accessible name — image `alt`/`label`, a button's visible `text`/`label`, and for
   inputs one of two compiler-derived label associations: the source node's `label` attribute

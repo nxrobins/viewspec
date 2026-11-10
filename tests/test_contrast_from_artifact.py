@@ -25,6 +25,7 @@ from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tailwind_tsx.recipes import DEFAULT_TAILWIND_RECIPE_REGISTRY
 from viewspec.error_codes import ERROR_CODES
 from viewspec.intent_tools import compile_intent_bundle_file_tool, init_intent_file, wrap_intent_bundle_manifest
+from viewspec.local_tools_constants import STARTER_DESIGN
 from viewspec.prove import _a11y_report, prove
 from viewspec.sdk.builder import ViewSpecBuilder
 
@@ -35,6 +36,7 @@ WHITE_DESIGN = (
     '  background: "#FFFFFF"\n  accent: "#FFFFFF"\n---\n'
 )
 TARGETS = ("html-tailwind", "react-tailwind-tsx")
+PROVE_TARGETS = ("html-tailwind", "mcp-app", "react-tailwind-tsx")
 EMITTER_BY_TARGET = {"html-tailwind": "html_tailwind", "react-tailwind-tsx": "react_tailwind_tsx"}
 FIXTURES = (
     "collection-states",
@@ -74,8 +76,8 @@ def _surfaces(profile: str) -> ViewSpecBuilder:
     return builder
 
 
-def _compile(bundle_path: Path, out_dir: Path, target: str, cwd: Path) -> dict[str, Any]:
-    response = compile_intent_bundle_file_tool(bundle_path, out_dir, target=target, cwd=cwd)
+def _compile(bundle_path: Path, out_dir: Path, target: str, cwd: Path, *, design: Path | None = None) -> dict[str, Any]:
+    response = compile_intent_bundle_file_tool(bundle_path, out_dir, design_path=design, target=target, cwd=cwd)
     assert response["ok"], response.get("errors")
     return _a11y_report(out_dir / "provenance_manifest.json")
 
@@ -100,11 +102,12 @@ def _below_threshold(a11y: dict[str, Any], where: str) -> list[str]:
 # --- every profile passes on both targets, measured from the artifact -------------------------------
 
 
+@pytest.mark.parametrize("design", ["none", "starter"])
 @pytest.mark.parametrize("target", TARGETS)
 @pytest.mark.parametrize("profile", AESTHETIC_PROFILE_TOKENS)
-def test_every_profile_passes_the_hero_and_table_bundle(tmp_path, profile, target):
+def test_every_profile_passes_the_hero_and_table_bundle(tmp_path, profile, target, design):
     bundle = _hero_and_table(profile).export_json(tmp_path / "probe.intent.json")
-    a11y = _compile(bundle, tmp_path / "out", target, tmp_path)
+    a11y = _compile(bundle, tmp_path / "out", target, tmp_path, design=_starter_design(tmp_path, design))
 
     assert a11y["contrast_source"] == "artifact"
     assert _below_threshold(a11y, profile) == []
@@ -120,36 +123,86 @@ def test_every_profile_passes_the_hero_and_table_bundle(tmp_path, profile, targe
     } <= {pair["node"] for pair in measured["pairs"]}
 
 
+@pytest.mark.parametrize("design", ["none", "starter"])
 @pytest.mark.parametrize("target", TARGETS)
 @pytest.mark.parametrize("profile", AESTHETIC_PROFILE_TOKENS)
-def test_every_profile_passes_on_its_other_surfaces(tmp_path, profile, target):
+def test_every_profile_passes_on_its_other_surfaces(tmp_path, profile, target, design):
     bundle = _surfaces(profile).export_json(tmp_path / "surfaces.intent.json")
-    a11y = _compile(bundle, tmp_path / "out", target, tmp_path)
+    a11y = _compile(bundle, tmp_path / "out", target, tmp_path, design=_starter_design(tmp_path, design))
 
     assert _below_threshold(a11y, profile) == []
     assert a11y["pairs_checked"] >= 6
 
 
+def _starter_design(directory: Path, design: str) -> Path | None:
+    """The starter DESIGN.md that prove writes when no design is given, or no design."""
+    if design == "none":
+        return None
+    path = directory / "DESIGN.md"
+    path.write_text(STARTER_DESIGN, encoding="utf-8")
+    return path
+
+
 @pytest.mark.parametrize("fixture", FIXTURES)
 def test_every_profile_passes_the_conformance_fixture(tmp_path, fixture):
+    # Compiled without a DESIGN.md, and with the starter DESIGN.md that prove applies by default.
     source = ROOT / "conformance" / "verification" / "fixtures" / f"{fixture}.intent.json"
+    starter_design = _starter_design(tmp_path, "starter")
     below: list[str] = []
     for profile in AESTHETIC_PROFILE_TOKENS:
         bundle = _with_profile(source, profile, tmp_path / f"{profile}.intent.json")
         for target in TARGETS:
-            a11y = _compile(bundle, tmp_path / f"{profile}-{target}", target, tmp_path)
-            assert a11y["pairs_checked"] > 0
-            below.extend(_below_threshold(a11y, f"{profile} {target}"))
+            for design in (None, starter_design):
+                out = tmp_path / f"{profile}-{target}-{'design' if design else 'plain'}"
+                a11y = _compile(bundle, out, target, tmp_path, design=design)
+                assert a11y["pairs_checked"] > 0
+                below.extend(_below_threshold(a11y, f"{profile} {target} design={bool(design)}"))
     assert below == []
 
 
-def test_table_surfaces_are_scoped_to_the_profiles_that_set_them(tmp_path):
-    from viewspec.aesthetics import AESTHETIC_PROFILE_TABLE_SURFACES, profile_table_surface_css
+@pytest.mark.parametrize("target", PROVE_TARGETS)
+@pytest.mark.parametrize("profile", AESTHETIC_PROFILE_TOKENS)
+def test_every_profile_passes_the_default_prove_path(tmp_path, monkeypatch, profile, target):
+    # viewspec prove <bundle> applies the starter DESIGN.md: its dark ink and white surfaces override
+    # the profile's, so a table repainted with the profile's own dark ground failed this path (1.08:1)
+    # while the compile without a design passed.
+    builder = ViewSpecBuilder("ops")
+    builder.add_hero("hero", region="main", title="Deploy status", description="Last 24 hours")
+    builder.add_table("tbl", region="main", group_id="rows").add_row(id="r1", label="api", value="Failed")
+    builder.set_aesthetic_profile(profile)
+    bundle = builder.export_json(tmp_path / "ops.intent.json")
+    prove_module = importlib.import_module("viewspec.prove")
+    monkeypatch.setattr(prove_module, "verify_host_artifact_dir", lambda *_args, **_kwargs: {"ok": True, "errors": []})
 
-    assert set(AESTHETIC_PROFILE_TABLE_SURFACES) == {"aesthetic.data_dense", "aesthetic.neon_cyber"}
+    report = prove(intent_path=bundle, out_dir=tmp_path / "proof", target=target, cwd=tmp_path)
+
+    assert report["checks"]["design"] == "generated"
+    assert report["checks"]["a11y_contrast"] == "passed", report["errors"]
+    assert report["ok"] is True, report["errors"]
+    # The table cells were among the measured nodes.
+    emitter = "react_tailwind_tsx" if target == "react-tailwind-tsx" else "html_tailwind"
+    measured = artifact_contrast_report(tmp_path / "proof" / "artifact", emitter=emitter)
+    assert measured is not None
+    assert {"dom-binding_r1_label", "dom-binding_r1_value"} <= {pair["node"] for pair in measured["pairs"]}
+
+
+def test_table_surfaces_follow_the_resolved_surface_tokens(tmp_path):
+    from viewspec.aesthetics import AESTHETIC_TABLE_SURFACE_PROFILES, profile_table_surface_css
+
+    assert AESTHETIC_TABLE_SURFACE_PROFILES == ("aesthetic.data_dense", "aesthetic.neon_cyber")
+    # Without a design: the profile's own surface.subtle and surface.strong grounds.
     assert profile_table_surface_css("aesthetic.neon_cyber") == (
         '[data-aesthetic-profile="aesthetic.neon_cyber"] table.vs-stack { background: #0b0f1a; }\n'
         '[data-aesthetic-profile="aesthetic.neon_cyber"] th.vs-label { background: #10182a; }'
+    )
+    # With a DESIGN.md that repaints the surfaces, the tables follow it like the hero and cards.
+    designed = {
+        "surface.subtle": "background: #0b0f1a; border: 1px solid #00eaff; background-color: #FFFFFF;",
+        "surface.strong": "background: #10182a; background-color: #F1F5F9;",
+    }
+    assert profile_table_surface_css("aesthetic.neon_cyber", designed) == (
+        '[data-aesthetic-profile="aesthetic.neon_cyber"] table.vs-stack { background: #ffffff; }\n'
+        '[data-aesthetic-profile="aesthetic.neon_cyber"] th.vs-label { background: #f1f5f9; }'
     )
     assert profile_table_surface_css("aesthetic.calm_ops") == ""
     for profile, expected in (("aesthetic.neon_cyber", True), ("aesthetic.calm_ops", False)):
@@ -159,18 +212,12 @@ def test_table_surfaces_are_scoped_to_the_profiles_that_set_them(tmp_path):
         assert ("[data-aesthetic-profile=" in html) is expected
 
 
-@pytest.mark.parametrize(
-    "surfaces",
-    [{"table": "navy"}, {"table": "#0b0f1a; color: red"}, {"table": "#0b0f1a\n"}, {"cell": "#0b0f1a"}, ["#0b0f1a"]],
-)
-def test_table_surfaces_must_be_closed_names_and_hex(monkeypatch, surfaces):
-    from viewspec.aesthetics import (
-        AESTHETIC_PROFILE_TABLE_SURFACES,
-        AestheticProfileError,
-        validate_aesthetic_profile_registry,
-    )
+@pytest.mark.parametrize("ground", ["background: transparent;", "background: linear-gradient(#000000, #111111);"])
+def test_table_surface_profiles_must_paint_flat_hex_surfaces(monkeypatch, ground):
+    from viewspec.aesthetics import AestheticProfileError, validate_aesthetic_profile_registry
 
-    monkeypatch.setitem(AESTHETIC_PROFILE_TABLE_SURFACES, "aesthetic.calm_ops", surfaces)
+    values = {**AESTHETIC_PROFILE_STYLE_VALUES["aesthetic.neon_cyber"], "surface.strong": ground}
+    monkeypatch.setitem(AESTHETIC_PROFILE_STYLE_VALUES, "aesthetic.neon_cyber", values)
     with pytest.raises(AestheticProfileError) as excinfo:
         validate_aesthetic_profile_registry()
     assert excinfo.value.code == "AESTHETIC_PROFILE_UNSAFE_STYLE"

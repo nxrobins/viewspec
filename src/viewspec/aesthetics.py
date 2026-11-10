@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import colorsys
 import re
+from collections.abc import Mapping
 
 from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES
 
@@ -327,18 +328,29 @@ AESTHETIC_PROFILE_SHAPE_VARS: dict[str, dict[str, str]] = {
 
 
 # Table surfaces (C-14). The html_tailwind base stylesheet paints a table #ffffff and its row headers
-# #f8fafc, under whatever ink the cells' tone tokens set. A profile whose ink is light repaints those
-# two surfaces with its own surface colours: the emitter appends rules scoped to the profile's root
-# (``profile_table_surface_css``), so an artifact of any other profile keeps its bytes and an
-# AppBundle shell that joins screens of several profiles keeps each table on its own profile.
-AESTHETIC_TABLE_SURFACE_SELECTORS = {"table": "table.vs-stack", "row_header": "th.vs-label"}
-AESTHETIC_PROFILE_TABLE_SURFACES: dict[str, dict[str, str]] = {
-    # surface.subtle and surface.strong grounds: light ink was 1.23:1 and 2.47:1 on the base table.
-    "aesthetic.data_dense": {"table": "#16213a", "row_header": "#1d2b4a"},
-    # surface.subtle and surface.strong grounds: light ink was 1.13:1 and 2.14:1 on the base table.
-    "aesthetic.neon_cyber": {"table": "#0b0f1a", "row_header": "#10182a"},
-}
-_SURFACE_HEX_RE = re.compile(r"#[0-9a-f]{6}")
+# #f8fafc, whatever ink the cells' tone tokens set. In a profile whose ink is light, tables take the
+# grounds of the profile's own surface tokens instead, as the artifact resolves them: the table the
+# surface.subtle ground, its row headers the surface.strong ground, the tokens that paint the
+# profile's hero and cards. A DESIGN.md whose `colors.surface` repaints those tokens repaints the
+# tables with them, so the design's ink stays on the design's ground. The emitter appends the rules
+# scoped to the profile's root (``profile_table_surface_css``): an artifact of any other profile keeps
+# its bytes, and an AppBundle shell that joins screens of several profiles keeps each table on its own
+# profile.
+AESTHETIC_TABLE_SURFACE_TOKENS = {"table.vs-stack": "surface.subtle", "th.vs-label": "surface.strong"}
+# Their light ink was 1.23:1 and 1.13:1 in table cells on the base white table.
+AESTHETIC_TABLE_SURFACE_PROFILES = ("aesthetic.data_dense", "aesthetic.neon_cyber")
+_BACKGROUND_DECLARATION_RE = re.compile(r"(?:^|;)\s*background(?:-color)?\s*:\s*([^;]+)", re.IGNORECASE)
+_HEX_GROUND_RE = re.compile(r"#[0-9a-fA-F]{6}")
+
+
+def _css_background_ground(css: str) -> str | None:
+    """The flat ``#rrggbb`` ground the last ``background`` or ``background-color`` declaration of
+    ``css`` paints, lowercased; None when it paints anything else, or nothing."""
+    declarations = _BACKGROUND_DECLARATION_RE.findall(css or "")
+    if not declarations:
+        return None
+    value = declarations[-1].strip()
+    return value.lower() if _HEX_GROUND_RE.fullmatch(value) else None
 
 
 def is_aesthetic_profile_token(token: str) -> bool:
@@ -376,21 +388,26 @@ def profile_shape_var_css(profile: str) -> str:
     return " ".join(f"{name}: {shape[name]};" for name in AESTHETIC_SHAPE_VAR_NAMES if name in shape)
 
 
-def profile_table_surface_css(profile: str) -> str:
-    """The stylesheet rules that repaint the base table surfaces for ``profile``, scoped to its root.
+def profile_table_surface_css(profile: str, style_values: Mapping[str, str] | None = None) -> str:
+    """The stylesheet rules that put ``profile``'s tables on its surface grounds, scoped to its root.
 
-    One rule per surface the profile sets, in AESTHETIC_TABLE_SURFACE_SELECTORS order. Empty string
-    for a profile that keeps the base surfaces.
+    ``style_values`` are the artifact's resolved token values, a DESIGN.md's included; without them
+    the profile's own values are read. One rule per surface, in AESTHETIC_TABLE_SURFACE_TOKENS order,
+    and none for a surface whose resolved ground is not a flat hex colour (the base one stays). Empty
+    string for a profile that keeps the base table.
     """
     validate_aesthetic_profile_registry()
     if profile not in AESTHETIC_PROFILE_TOKENS:
         raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
-    surfaces = AESTHETIC_PROFILE_TABLE_SURFACES.get(profile, {})
-    return "\n".join(
-        f'[data-aesthetic-profile="{profile}"] {selector} {{ background: {surfaces[name]}; }}'
-        for name, selector in AESTHETIC_TABLE_SURFACE_SELECTORS.items()
-        if name in surfaces
-    )
+    if profile not in AESTHETIC_TABLE_SURFACE_PROFILES:
+        return ""
+    values = AESTHETIC_PROFILE_STYLE_VALUES[profile] if style_values is None else style_values
+    rules: list[str] = []
+    for selector, token in AESTHETIC_TABLE_SURFACE_TOKENS.items():
+        ground = _css_background_ground(values.get(token, ""))
+        if ground is not None:
+            rules.append(f'[data-aesthetic-profile="{profile}"] {selector} {{ background: {ground}; }}')
+    return "\n".join(rules)
 
 
 def profile_style_facts(profile: str) -> dict[str, object]:
@@ -568,7 +585,6 @@ def validate_aesthetic_profile_registry() -> None:
         if shape_vars is None:
             raise AestheticProfileError("AESTHETIC_DEFAULT_REGRESSION", f"Missing profile shape vars for {profile}.")
         _validate_profile_shape_vars(profile, shape_vars)
-        _validate_profile_table_surfaces(profile, AESTHETIC_PROFILE_TABLE_SURFACES.get(profile, {}))
         changed_tokens = {
             token for token, css in values.items() if DEFAULT_STYLE_TOKEN_VALUES.get(token, "").strip() != css.strip()
         }
@@ -581,9 +597,16 @@ def validate_aesthetic_profile_registry() -> None:
                 "AESTHETIC_DEFAULT_REGRESSION",
                 f"{profile} must change at least {MIN_AESTHETIC_PROFILE_STYLE_CHANGES} style projections across {MIN_AESTHETIC_PROFILE_CATEGORIES} categories.",
             )
-    for profile in AESTHETIC_PROFILE_TABLE_SURFACES:
+    for profile in AESTHETIC_TABLE_SURFACE_PROFILES:
         if profile not in AESTHETIC_PROFILE_TOKENS:
             raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
+        # The proof must resolve every ground it reads, so the profile's own surfaces are flat hex.
+        for token in AESTHETIC_TABLE_SURFACE_TOKENS.values():
+            if _css_background_ground(AESTHETIC_PROFILE_STYLE_VALUES[profile].get(token, "")) is None:
+                raise AestheticProfileError(
+                    "AESTHETIC_PROFILE_UNSAFE_STYLE",
+                    f"{profile} {token} must paint a flat #rrggbb ground for its tables.",
+                )
 
 
 def _validate_profile_layout_props(profile: str, values: dict[str, dict[str, int]]) -> None:
@@ -659,22 +682,6 @@ def _validate_profile_shape_vars(profile: str, values: dict[str, str]) -> None:
             )
 
 
-def _validate_profile_table_surfaces(profile: str, values: object) -> None:
-    # Closed names and flat #rrggbb values: the emitter writes them into its stylesheet, and the
-    # contrast proof must resolve every colour it reads.
-    if not isinstance(values, dict):
-        raise AestheticProfileError("AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} table surfaces must be a mapping.")
-    for name, value in values.items():
-        if name not in AESTHETIC_TABLE_SURFACE_SELECTORS:
-            raise AestheticProfileError(
-                "AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} sets unknown table surface {name}."
-            )
-        if not isinstance(value, str) or not _SURFACE_HEX_RE.fullmatch(value):
-            raise AestheticProfileError(
-                "AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} table surface {name} must be a #rrggbb colour."
-            )
-
-
 def _validate_profile_style_values(profile: str, values: dict[str, str]) -> None:
     if profile not in AESTHETIC_PROFILE_TOKENS:
         raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
@@ -733,9 +740,9 @@ __all__ = [
     "AESTHETIC_PROFILE_STYLE_VALUES",
     "AestheticProfileError",
     "AESTHETIC_PROFILE_SHAPE_VARS",
-    "AESTHETIC_PROFILE_TABLE_SURFACES",
     "AESTHETIC_SHAPE_VAR_NAMES",
-    "AESTHETIC_TABLE_SURFACE_SELECTORS",
+    "AESTHETIC_TABLE_SURFACE_PROFILES",
+    "AESTHETIC_TABLE_SURFACE_TOKENS",
     "is_aesthetic_profile_token",
     "profile_layout_props",
     "profile_projection_axes",
