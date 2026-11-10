@@ -218,6 +218,14 @@ All notable changes to ViewSpec are documented in this file. The format follows
   `--canonical-out` writes. `retry_command` and `patch_command` name the file that was checked, and
   the report adds `source_format`. Both forms ask for the whole document unless the host asks for an
   RFC 6902 JSON Patch.
+- The AppBundle V3 to V5 reducer conformance status gains a third value, `initial_state_only`: the
+  generated reducer matched the Python reference at the initial state, and no replay assertion with
+  an event ran. `passed` now means that a replay assertion of at least one event passed. The status
+  is the same in `shell_manifest.json` (`state_ir.reducer_conformance`), in the conformance report
+  of `state_manifest.json` and of the compile and proof reports (new `status` and `initial_replay`
+  fields), and in `APP_PROOF.md`. The shell manifest adds `replay_assertion_count` beside
+  `replay_ok`, and `APP_PROOF.md` says `not run: no replay assertions` instead of `passed` for a
+  bundle that declares none.
 
 ### Fixed
 
@@ -349,6 +357,19 @@ All notable changes to ViewSpec are documented in this file. The format follows
   the runtime holds. V4 reducers change by that one line; every corpus golden is unchanged.
 - `viewspec check` reports `APP_SCHEMA_VERSION_REQUIRED` for an AppBundle whose `schema_version`
   is an array or an object. It used to raise `TypeError`.
+- AppBundle V3 to V5 reducer conformance no longer reports `passed` when nothing was replayed. It
+  always replays the initial state with zero events and compares the state, every selector, every
+  visibility verdict, and every state text between the Python reference and the generated reducer.
+  A bundle whose screens are baked from one answer while the page computes another now fails
+  `viewspec compile` with `APP_STATE_REDUCER_CONFORMANCE_FAILED`, and the message names the value
+  that differs and both answers. Before, with no replay assertion, it compiled and recorded
+  `reducer_conformance: "passed"`.
+- `viewspec check`, plain `viewspec prove`, and `AppBundle.load` run an AppBundle's
+  `state_replay_assertions` through the Python reference, without Node, and fail with the existing
+  `APP_STATE_REPLAY_STATE_MISMATCH`, `APP_STATE_REPLAY_SELECTOR_MISMATCH`,
+  `APP_VISIBILITY_REPLAY_MISMATCH`, or `APP_STATE_TEXT_REPLAY_MISMATCH` code when an expectation is
+  wrong. Before, both passed and only `viewspec compile` or `viewspec prove --with-shell` failed.
+  `viewspec compile` now lists every failed expectation instead of the first one.
 
 ## [0.4.0] - 2026-11-01
 
