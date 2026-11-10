@@ -229,6 +229,19 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- `prove` measures contrast from the compiled artifact. It used to report `a11y_contrast: "passed"`
+  from a table of colour pairs chosen by profile name, without reading the colours the artifact was
+  written with: a DESIGN.md that set every colour to white passed with a minimum ratio of 4.55. Now
+  every text node's ink is checked against the background of its nearest ancestor that paints one,
+  read for `html-tailwind` and `mcp-app` from the document's inline styles (DESIGN.md colours
+  included) and `<style>` rules, and for `react-tailwind-tsx` from the classes each node is emitted
+  with. A node below its threshold fails with `A11Y_CONTRAST_BELOW_AA`, which names the node, both
+  colours and the ratio, so the white design now fails at 1.0:1. A colour the proof cannot resolve to
+  an sRGB value fails it with the new code `A11Y_CONTRAST_UNRESOLVED`, which names the node and the
+  value. The Tailwind palette gains `red-50`, the ground of the error-state recipes. `react-tsx`
+  proofs, whose inline style objects the measurement does not read, report `a11y_contrast:
+  "not_applicable"` instead of a pass. The proof's `a11y` section adds `contrast_source`,
+  `contrast_unresolved` and `contrast_unresolved_labels`, and each failure label now names a node.
 - `check` accepts the html-tailwind and mcp-app output that `compile` writes for text with two
   spaces, a leading or trailing space, a newline, a tab, or a no-break space. It collapsed the
   whitespace in each element's text and compared the result with the manifest's text as written: a

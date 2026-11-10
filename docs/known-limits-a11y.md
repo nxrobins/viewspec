@@ -9,15 +9,29 @@ they also cover a swapped MCP App root.
 
 ## Proven, fail-closed
 
-- **Scoped WCAG AA contrast.** Every governed text/background pair — enumerated from the closed
-  aesthetic style vocabulary plus the emitter's fixed base-CSS pairs — meets a size/role-scoped
-  threshold: body text ≥ 4.5:1, large text and UI components ≥ 3.0:1. Because agents may only use
-  governed tokens, that enumeration provably covers every rendered node. Any pair below its
-  threshold fails the proof (`a11y_contrast`), naming the offending pair.
-- **React Tailwind emitter contrast (slice 2).** The `react_tailwind_tsx` recipes + per-profile
-  overlays resolve to the browser-grounded Tailwind v4 sRGB palette (rasterized by the same Blink
-  engine the host renders in) and are checked against the same scoped thresholds; the base recipe
-  and all eight profiles clear AA and fail closed otherwise.
+- **Scoped WCAG AA contrast, measured from the artifact.** `prove` reads the compiled artifact and
+  checks every text-bearing node: its ink against the background of its nearest ancestor that
+  paints one, the node itself included. A translucent background is composited over the layer
+  below it, down to the white canvas. For `html-tailwind` and `mcp-app` the colours are the
+  document's own: its inline `style` values, which hold the aesthetic profile's values and the
+  colours a DESIGN.md applied, and the rules of its `<style>` block, cascaded by origin,
+  importance, specificity and order. For `react-tailwind-tsx` they are the classes each node is
+  emitted with, resolved to the browser-grounded Tailwind v4 palette (rasterized by the same Blink
+  engine the reference host renders in). Each node meets a size/role-scoped threshold: body text
+  ≥ 4.5:1, large text (18pt, or 14pt bold, read from the font size and weight the artifact sets)
+  and UI components (a button's label) ≥ 3.0:1. A node below its threshold fails the proof
+  (`a11y_contrast`) with `A11Y_CONTRAST_BELOW_AA`, naming the node, both colours and the ratio.
+- **A colour the proof cannot measure fails it.** The measurement reads hex colours, `rgb()` and
+  `rgba()`, `transparent`, `white` and `black`, and the Tailwind classes in its palette. A
+  `var()` with no value, any other colour syntax, a class outside the palette, a background image
+  or gradient, an `opacity` below 1, a matching rule inside `@media` or another conditional group,
+  or a selector it cannot evaluate leaves the node's contrast unresolved, and the proof fails
+  with `A11Y_CONTRAST_UNRESOLVED`, naming the node and the value. DESIGN.md colours are validated
+  `#RRGGBB` hex and the profiles and recipes are closed tables, so an unresolved colour points to a
+  gap in those tables, not to a guess the proof should make.
+- **A DESIGN.md is measured like any other colour.** Its colours reach the artifact as inline
+  styles, so a design whose ink does not contrast with its surfaces fails the proof; a design of
+  white on white is 1.0:1.
 - **Accessible-name presence.** Interactive controls (input, button, image) must carry an
   author-provided accessible name — image `alt`/`label`, a button's visible `text`/`label`, and for
   inputs one of two compiler-derived label associations: the source node's `label` attribute
@@ -31,19 +45,20 @@ they also cover a swapped MCP App root.
 
 ## Explicitly out of scope (no fallback owed)
 
-- **Text on gradient / image / video backgrounds** — the compiler never emits text on them. Every
-  governed background is a flat 6-digit sRGB hex value from the closed aesthetic registry (plus the
-  emitter's fixed base-CSS pairs), so there is no "unresolvable background" case at proof time: the
-  contrast enumeration in `viewspec.a11y` always has a concrete `#rrggbb` pair to measure. A profile
-  whose ground or accent is not measurable hex is rejected when the registry itself is validated
-  (`AESTHETIC_PROFILE_UNSAFE_STYLE`), and agent-supplied style values outside the closed vocabulary
-  are rejected upstream by the style validator (`UNSUPPORTED_STYLE_TOKEN`). A pair below its
-  threshold fails `prove` loudly with `A11Y_CONTRAST_BELOW_AA`, never silently.
+- **The `react-tsx` target's contrast.** Its colours are inline style objects the measurement does
+  not read, so its proof reports `a11y_contrast: not_applicable`, never `passed`.
+- **States other than the default render.** Rules for `:hover`, `:focus` and the other interaction
+  states, and Tailwind's interaction variants, are not applied; the resting colours are measured.
+- **Rendered pixels.** The measurement is static: it does not see anti-aliasing, text shadows,
+  overlapping or positioned elements, or a background painted by an element that is not the text's
+  ancestor. A font size it cannot read counts as body text, the strictest threshold.
+- **Text on gradient / image / video backgrounds** — the compiler never emits them; an artifact
+  that has one fails closed with `A11Y_CONTRAST_UNRESOLVED`.
 - **Focus / tab order, ARIA-state truthfulness, keyboard operability, heading hierarchy, target
   size (WCAG 2.5.8), reduced-motion, live-region politeness, and screen-reader runtime behavior** —
   not statically decidable and/or later slices.
-- **Wide-gamut / non-sRGB color** — the registry is 6-digit sRGB hex; anything else is rejected
-  upstream by the style validator.
+- **Wide-gamut / non-sRGB color** — DESIGN.md and the profiles are 6-digit sRGB hex; any other
+  colour syntax in an artifact is unresolved and fails the proof.
 - **Initially-hidden visibility targets (AppBundle V4)** — nodes carrying `data-visibility-rule`
   markers are still name- and contrast-checked even when baked `hidden`: a hidden node can become
   visible at runtime, so exempting it would under-check. Intentional, not an oversight.
