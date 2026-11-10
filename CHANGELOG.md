@@ -7,6 +7,45 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-10
+
+### Fixed
+
+- `check` accepts the html-tailwind and mcp-app output that `compile` writes for text with two
+  spaces, a leading or trailing space, a newline, a tab, or a no-break space. It collapsed the
+  whitespace in each element's text and compared the result with the manifest's text as written: a
+  table value `"Ada  Lovelace"` passed `check` on the source and compiled, and then `check` on the
+  output and `prove` failed with "text does not match manifest props", and `compile --target
+  mcp-app`, `compile_mcp_app()` and `app.render()` failed with `CHECK_FAILED`. Both sides are now
+  collapsed before they are compared.
+- The default AppBundle target, `html-tailwind-app`, no longer fails on ordinary text. Its shell scan
+  read the whole HTML as raw text, so text such as "HTTP: 502 Bad Gateway", "Worker (night shift)" or
+  "Nodes online = 12" in a screen, the app title, or a route label passed `viewspec check` and then
+  failed `viewspec compile` with `APP_SHELL_NETWORK_SURFACE_REJECTED` or
+  `APP_SHELL_EMBEDDING_UNSUPPORTED`, for surfaces that were not there. The scan now reads markup by
+  context: tags and attributes for event handlers, embeds, links, import maps, and remote URLs;
+  script blocks for worker construction; text and JSON data only for a full URL, which is still
+  rejected wherever it appears. A rejection names what matched, in at most 40 characters, and where.
+  Markup that is not in the form the compiler writes is still scanned whole.
+
+### Security
+
+- A refused `viewspec prove` no longer writes into an output directory it does not own, so the
+  `--force` it recommends can no longer delete that directory. It used to write `proof_report.json`,
+  `PROOF.md` and `support_bundle.json` (for an AppBundle, `app_proof_report.json`, `APP_PROOF.md`
+  and `app_support_bundle.json`) into the `--out` directory it had just refused, and those files
+  are what `--force` takes as proof that a directory is ViewSpec's: the next `--force` removed the
+  directory and everything in it. The CLI and the MCP `prove` tool both did this after
+  `PROVE_OUTPUT_EXISTS`, an unknown target or kind, an internal error, or a mistyped AppBundle
+  path. A proof now writes report files into its output directory only when it created that
+  directory, or when the directory was already empty or held a ViewSpec output. Otherwise it writes
+  nothing there, and an IntentBundle proof writes only a `--report-out` file outside it.
+  `PROVE_OUTPUT_EXISTS` and `APP_PROOF_OUTPUT_EXISTS` offer `--force` only for a directory it would
+  replace, and otherwise ask for a new `--out`. An AppBundle proof refused on an empty directory now
+  writes its report there, as an IntentBundle proof does.
+- The AppBundle V4 static shell escapes `<`, `>` and `&` in the reducer data it inlines, so a state
+  value can no longer end the shell's script.
+
 ## [0.4.0] - 2026-11-01
 
 ViewSpec is now a local, open-source compiler with no hosted service and a much smaller surface.
@@ -678,7 +717,8 @@ Versions `0.3.0b8`, `0.3.0b6`, `0.3.0b4`, `0.3.0b2`, `0.3.0b1`, and `0.2.0` were
 the remote, so they have no compare links below; the `0.3.0b9` and `0.3.0b7` links therefore each
 span two betas.
 
-[Unreleased]: https://github.com/nxrobins/viewspec/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/nxrobins/viewspec/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/nxrobins/viewspec/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/nxrobins/viewspec/compare/v0.3.0b12...v0.4.0
 [0.3.0b12]: https://github.com/nxrobins/viewspec/compare/v0.3.0b11...v0.3.0b12
 [0.3.0b11]: https://github.com/nxrobins/viewspec/compare/v0.3.0b10...v0.3.0b11
