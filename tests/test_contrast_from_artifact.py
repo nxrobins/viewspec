@@ -18,7 +18,8 @@ from unittest.mock import patch
 import pytest
 
 from viewspec import compile as compile_bundle
-from viewspec.aesthetics import AESTHETIC_PROFILE_STYLE_VALUES
+from viewspec.a11y import artifact_contrast_report
+from viewspec.aesthetics import AESTHETIC_PROFILE_STYLE_VALUES, AESTHETIC_PROFILE_TOKENS
 from viewspec.cli import main as cli_main
 from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tailwind_tsx.recipes import DEFAULT_TAILWIND_RECIPE_REGISTRY
@@ -27,10 +28,24 @@ from viewspec.intent_tools import compile_intent_bundle_file_tool, init_intent_f
 from viewspec.prove import _a11y_report, prove
 from viewspec.sdk.builder import ViewSpecBuilder
 
+ROOT = Path(__file__).resolve().parents[1]
 WHITE_DESIGN = (
     "---\nname: W\ncolors:\n"
     '  primary: "#FFFFFF"\n  secondary: "#FFFFFF"\n  surface: "#FFFFFF"\n'
     '  background: "#FFFFFF"\n  accent: "#FFFFFF"\n---\n'
+)
+TARGETS = ("html-tailwind", "react-tailwind-tsx")
+EMITTER_BY_TARGET = {"html-tailwind": "html_tailwind", "react-tailwind-tsx": "react_tailwind_tsx"}
+FIXTURES = (
+    "collection-states",
+    "dense-operational-console",
+    "interactive-form",
+    "invoice-table",
+    "kpi-dashboard",
+    "multi-step-workflow",
+    "outcome-states",
+    "pricing-comparison",
+    "settings",
 )
 
 
@@ -44,10 +59,140 @@ def _hero_and_table(profile: str | None) -> ViewSpecBuilder:
     return builder
 
 
+def _surfaces(profile: str) -> ViewSpecBuilder:
+    """Labels on a profile's strong surface, a list and a comparison: the other grounds a profile paints."""
+    builder = ViewSpecBuilder("surfaces", root_attrs={"title": "Surfaces"})
+    detail = builder.add_detail("facts", region="main", group_id="fact_rows")
+    detail.add_field(label="Owner", value="Revenue Platform", id="owner")
+    builder.add_style("facts_surface", "motif:facts", "surface.strong")
+    notes = builder.add_list("notes", region="main", group_id="note_rows")
+    notes.add_item(label="Scope", description="Profile tokens change the style projection.", id="scope")
+    plans = builder.add_comparison("plans", region="main", group_id="plan_rows")
+    plans.add_item(label="Starter", value="$9/mo", id="starter")
+    plans.add_item(label="Pro", value="$29/mo", id="pro")
+    builder.set_aesthetic_profile(profile)
+    return builder
+
+
 def _compile(bundle_path: Path, out_dir: Path, target: str, cwd: Path) -> dict[str, Any]:
     response = compile_intent_bundle_file_tool(bundle_path, out_dir, target=target, cwd=cwd)
     assert response["ok"], response.get("errors")
     return _a11y_report(out_dir / "provenance_manifest.json")
+
+
+def _with_profile(source: Path, profile: str, destination: Path) -> Path:
+    bundle = json.loads(source.read_text(encoding="utf-8"))
+    view = bundle["view_spec"]
+    view["styles"] = [
+        style
+        for style in view.get("styles", [])
+        if style.get("id") != "aesthetic_profile" and not str(style.get("token", "")).startswith("aesthetic.")
+    ]
+    view["styles"].append({"id": "aesthetic_profile", "target": f"view:{view['id']}", "token": profile})
+    destination.write_text(json.dumps(bundle), encoding="utf-8")
+    return destination
+
+
+def _below_threshold(a11y: dict[str, Any], where: str) -> list[str]:
+    return [f"{where}: {label}" for label in [*a11y["contrast_failure_labels"], *a11y["contrast_unresolved_labels"]]]
+
+
+# --- every profile passes on both targets, measured from the artifact -------------------------------
+
+
+@pytest.mark.parametrize("target", TARGETS)
+@pytest.mark.parametrize("profile", AESTHETIC_PROFILE_TOKENS)
+def test_every_profile_passes_the_hero_and_table_bundle(tmp_path, profile, target):
+    bundle = _hero_and_table(profile).export_json(tmp_path / "probe.intent.json")
+    a11y = _compile(bundle, tmp_path / "out", target, tmp_path)
+
+    assert a11y["contrast_source"] == "artifact"
+    assert _below_threshold(a11y, profile) == []
+    # The hero and the table cell themselves were measured, from the artifact the compile wrote.
+    measured = artifact_contrast_report(tmp_path / "out", emitter=EMITTER_BY_TARGET[target])
+    assert measured is not None
+    assert {
+        "dom-binding_intro_eyebrow",
+        "dom-binding_intro_title",
+        "dom-binding_intro_description",
+        "dom-binding_r1_label",
+        "dom-binding_r1_value",
+    } <= {pair["node"] for pair in measured["pairs"]}
+
+
+@pytest.mark.parametrize("target", TARGETS)
+@pytest.mark.parametrize("profile", AESTHETIC_PROFILE_TOKENS)
+def test_every_profile_passes_on_its_other_surfaces(tmp_path, profile, target):
+    bundle = _surfaces(profile).export_json(tmp_path / "surfaces.intent.json")
+    a11y = _compile(bundle, tmp_path / "out", target, tmp_path)
+
+    assert _below_threshold(a11y, profile) == []
+    assert a11y["pairs_checked"] >= 6
+
+
+@pytest.mark.parametrize("fixture", FIXTURES)
+def test_every_profile_passes_the_conformance_fixture(tmp_path, fixture):
+    source = ROOT / "conformance" / "verification" / "fixtures" / f"{fixture}.intent.json"
+    below: list[str] = []
+    for profile in AESTHETIC_PROFILE_TOKENS:
+        bundle = _with_profile(source, profile, tmp_path / f"{profile}.intent.json")
+        for target in TARGETS:
+            a11y = _compile(bundle, tmp_path / f"{profile}-{target}", target, tmp_path)
+            assert a11y["pairs_checked"] > 0
+            below.extend(_below_threshold(a11y, f"{profile} {target}"))
+    assert below == []
+
+
+def test_table_surfaces_are_scoped_to_the_profiles_that_set_them(tmp_path):
+    from viewspec.aesthetics import AESTHETIC_PROFILE_TABLE_SURFACES, profile_table_surface_css
+
+    assert set(AESTHETIC_PROFILE_TABLE_SURFACES) == {"aesthetic.data_dense", "aesthetic.neon_cyber"}
+    assert profile_table_surface_css("aesthetic.neon_cyber") == (
+        '[data-aesthetic-profile="aesthetic.neon_cyber"] table.vs-stack { background: #0b0f1a; }\n'
+        '[data-aesthetic-profile="aesthetic.neon_cyber"] th.vs-label { background: #10182a; }'
+    )
+    assert profile_table_surface_css("aesthetic.calm_ops") == ""
+    for profile, expected in (("aesthetic.neon_cyber", True), ("aesthetic.calm_ops", False)):
+        bundle = _hero_and_table(profile).export_json(tmp_path / f"{profile}.intent.json")
+        _compile(bundle, tmp_path / profile, "html-tailwind", tmp_path)
+        html = (tmp_path / profile / "index.html").read_text(encoding="utf-8")
+        assert ("[data-aesthetic-profile=" in html) is expected
+
+
+@pytest.mark.parametrize(
+    "surfaces",
+    [{"table": "navy"}, {"table": "#0b0f1a; color: red"}, {"table": "#0b0f1a\n"}, {"cell": "#0b0f1a"}, ["#0b0f1a"]],
+)
+def test_table_surfaces_must_be_closed_names_and_hex(monkeypatch, surfaces):
+    from viewspec.aesthetics import (
+        AESTHETIC_PROFILE_TABLE_SURFACES,
+        AestheticProfileError,
+        validate_aesthetic_profile_registry,
+    )
+
+    monkeypatch.setitem(AESTHETIC_PROFILE_TABLE_SURFACES, "aesthetic.calm_ops", surfaces)
+    with pytest.raises(AestheticProfileError) as excinfo:
+        validate_aesthetic_profile_registry()
+    assert excinfo.value.code == "AESTHETIC_PROFILE_UNSAFE_STYLE"
+
+
+def test_the_audit_neon_cyber_nodes_now_clear_their_thresholds(tmp_path):
+    # The audit's cases: the table cell at 1.13:1 on html-tailwind and the title at 1.00:1 on
+    # react-tailwind-tsx.
+    bundle = _hero_and_table("aesthetic.neon_cyber").export_json(tmp_path / "probe.intent.json")
+    pairs: dict[str, dict[str, dict[str, Any]]] = {}
+    for target in TARGETS:
+        _compile(bundle, tmp_path / target, target, tmp_path)
+        measured = artifact_contrast_report(tmp_path / target, emitter=EMITTER_BY_TARGET[target])
+        assert measured is not None
+        pairs[target] = {pair["node"]: pair for pair in measured["pairs"]}
+
+    cell = pairs["html-tailwind"]["dom-binding_r1_value"]
+    assert (cell["fg"], cell["bg"]) == ("#d8f6ff", "#0b0f1a")
+    assert cell["ratio"] >= cell["threshold"]
+    title = pairs["react-tailwind-tsx"]["dom-binding_intro_title"]
+    assert (title["fg"], title["bg"]) == ("#ecfeff", "#020618")
+    assert title["ratio"] >= title["threshold"]
 
 
 # --- the white DESIGN.md of the audit ---------------------------------------------------------------

@@ -125,7 +125,7 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
     "aesthetic.calm_ops": {
         "palette.temperature": "background-color: #e9f3ee;",
         "tone.neutral": "color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif;",
-        "tone.muted": "color: #5d7268;",
+        "tone.muted": "color: #596d64;",  # 4.62:1 on surface.strong (#5d7268 was 4.31:1)
         "tone.accent": "color: #0f766e; font-weight: 800;",
         "action.accent": "background-color: #0f766e; color: #ffffff; border-radius: 10px;",
         "surface.subtle": "background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;",
@@ -140,7 +140,7 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
     "aesthetic.premium_saas": {
         "palette.temperature": "background-color: #ece9fe;",
         "tone.neutral": "color: #17123a; font-family: ui-sans-serif, system-ui, sans-serif;",
-        "tone.muted": "color: #6b668d;",
+        "tone.muted": "color: #656085;",  # 4.61:1 on surface.strong (#6b668d was 4.20:1)
         "tone.accent": "color: #4f46e5; font-weight: 860;",
         "action.accent": "background-color: #4f46e5; color: #ffffff; border-radius: 999px;",
         "surface.subtle": "background: #ffffff; border: 1px solid #d6ccff; border-radius: 20px; box-shadow: 0 24px 60px rgb(79 70 229 / 0.22);",
@@ -171,7 +171,7 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
     "aesthetic.editorial_product": {
         "palette.temperature": "background-color: #f8f1e5;",
         "tone.neutral": "color: #2b2118; font-family: ui-serif, Georgia, Cambria, serif;",
-        "tone.muted": "color: #85715f;",
+        "tone.muted": "color: #756354;",  # 4.71:1 on surface.strong (#85715f was 4.13:1 on the page)
         "tone.accent": "color: #be123c; font-weight: 780; font-style: italic;",
         "action.accent": "background-color: #be123c; color: #ffffff; border-radius: 18px;",
         "surface.subtle": "background: #fffcf5; border: 1px solid #e7d9bf; border-radius: 24px; box-shadow: 0 3px 0 rgb(190 18 60 / 0.16);",
@@ -186,7 +186,7 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
     "aesthetic.executive_review": {
         "palette.temperature": "background-color: #e2e9f1;",
         "tone.neutral": "color: #0b1f33; font-family: ui-sans-serif, system-ui, sans-serif;",
-        "tone.muted": "color: #51647a;",
+        "tone.muted": "color: #506278;",  # 4.62:1 on surface.strong (#51647a was 4.49:1)
         "tone.accent": "color: #0f5f72; font-weight: 820; text-transform: uppercase;",
         "action.accent": "background-color: #0b1f33; color: #ffffff; border-radius: 6px;",
         "surface.subtle": "background: #f7fafc; border: 1px solid #b9c8d8; border-radius: 4px; box-shadow: 0 10px 24px rgb(15 23 42 / 0.10);",
@@ -326,6 +326,21 @@ AESTHETIC_PROFILE_SHAPE_VARS: dict[str, dict[str, str]] = {
 }
 
 
+# Table surfaces (C-14). The html_tailwind base stylesheet paints a table #ffffff and its row headers
+# #f8fafc, under whatever ink the cells' tone tokens set. A profile whose ink is light repaints those
+# two surfaces with its own surface colours: the emitter appends rules scoped to the profile's root
+# (``profile_table_surface_css``), so an artifact of any other profile keeps its bytes and an
+# AppBundle shell that joins screens of several profiles keeps each table on its own profile.
+AESTHETIC_TABLE_SURFACE_SELECTORS = {"table": "table.vs-stack", "row_header": "th.vs-label"}
+AESTHETIC_PROFILE_TABLE_SURFACES: dict[str, dict[str, str]] = {
+    # surface.subtle and surface.strong grounds: light ink was 1.23:1 and 2.47:1 on the base table.
+    "aesthetic.data_dense": {"table": "#16213a", "row_header": "#1d2b4a"},
+    # surface.subtle and surface.strong grounds: light ink was 1.13:1 and 2.14:1 on the base table.
+    "aesthetic.neon_cyber": {"table": "#0b0f1a", "row_header": "#10182a"},
+}
+_SURFACE_HEX_RE = re.compile(r"#[0-9a-f]{6}")
+
+
 def is_aesthetic_profile_token(token: str) -> bool:
     return isinstance(token, str) and token.startswith(AESTHETIC_PROFILE_PREFIX)
 
@@ -359,6 +374,23 @@ def profile_shape_var_css(profile: str) -> str:
     order (independent of dict insertion order). Empty string when the profile sets none."""
     shape = profile_shape_vars(profile)
     return " ".join(f"{name}: {shape[name]};" for name in AESTHETIC_SHAPE_VAR_NAMES if name in shape)
+
+
+def profile_table_surface_css(profile: str) -> str:
+    """The stylesheet rules that repaint the base table surfaces for ``profile``, scoped to its root.
+
+    One rule per surface the profile sets, in AESTHETIC_TABLE_SURFACE_SELECTORS order. Empty string
+    for a profile that keeps the base surfaces.
+    """
+    validate_aesthetic_profile_registry()
+    if profile not in AESTHETIC_PROFILE_TOKENS:
+        raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
+    surfaces = AESTHETIC_PROFILE_TABLE_SURFACES.get(profile, {})
+    return "\n".join(
+        f'[data-aesthetic-profile="{profile}"] {selector} {{ background: {surfaces[name]}; }}'
+        for name, selector in AESTHETIC_TABLE_SURFACE_SELECTORS.items()
+        if name in surfaces
+    )
 
 
 def profile_style_facts(profile: str) -> dict[str, object]:
@@ -536,6 +568,7 @@ def validate_aesthetic_profile_registry() -> None:
         if shape_vars is None:
             raise AestheticProfileError("AESTHETIC_DEFAULT_REGRESSION", f"Missing profile shape vars for {profile}.")
         _validate_profile_shape_vars(profile, shape_vars)
+        _validate_profile_table_surfaces(profile, AESTHETIC_PROFILE_TABLE_SURFACES.get(profile, {}))
         changed_tokens = {
             token for token, css in values.items() if DEFAULT_STYLE_TOKEN_VALUES.get(token, "").strip() != css.strip()
         }
@@ -548,6 +581,9 @@ def validate_aesthetic_profile_registry() -> None:
                 "AESTHETIC_DEFAULT_REGRESSION",
                 f"{profile} must change at least {MIN_AESTHETIC_PROFILE_STYLE_CHANGES} style projections across {MIN_AESTHETIC_PROFILE_CATEGORIES} categories.",
             )
+    for profile in AESTHETIC_PROFILE_TABLE_SURFACES:
+        if profile not in AESTHETIC_PROFILE_TOKENS:
+            raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
 
 
 def _validate_profile_layout_props(profile: str, values: dict[str, dict[str, int]]) -> None:
@@ -623,6 +659,22 @@ def _validate_profile_shape_vars(profile: str, values: dict[str, str]) -> None:
             )
 
 
+def _validate_profile_table_surfaces(profile: str, values: object) -> None:
+    # Closed names and flat #rrggbb values: the emitter writes them into its stylesheet, and the
+    # contrast proof must resolve every colour it reads.
+    if not isinstance(values, dict):
+        raise AestheticProfileError("AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} table surfaces must be a mapping.")
+    for name, value in values.items():
+        if name not in AESTHETIC_TABLE_SURFACE_SELECTORS:
+            raise AestheticProfileError(
+                "AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} sets unknown table surface {name}."
+            )
+        if not isinstance(value, str) or not _SURFACE_HEX_RE.fullmatch(value):
+            raise AestheticProfileError(
+                "AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} table surface {name} must be a #rrggbb colour."
+            )
+
+
 def _validate_profile_style_values(profile: str, values: dict[str, str]) -> None:
     if profile not in AESTHETIC_PROFILE_TOKENS:
         raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
@@ -681,7 +733,9 @@ __all__ = [
     "AESTHETIC_PROFILE_STYLE_VALUES",
     "AestheticProfileError",
     "AESTHETIC_PROFILE_SHAPE_VARS",
+    "AESTHETIC_PROFILE_TABLE_SURFACES",
     "AESTHETIC_SHAPE_VAR_NAMES",
+    "AESTHETIC_TABLE_SURFACE_SELECTORS",
     "is_aesthetic_profile_token",
     "profile_layout_props",
     "profile_projection_axes",
@@ -690,5 +744,6 @@ __all__ = [
     "profile_shape_vars",
     "profile_style_facts",
     "profile_style_values",
+    "profile_table_surface_css",
     "validate_aesthetic_profile_registry",
 ]

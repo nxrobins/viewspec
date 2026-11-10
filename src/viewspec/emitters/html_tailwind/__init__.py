@@ -15,7 +15,7 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
-from viewspec.aesthetics import profile_shape_var_css
+from viewspec.aesthetics import profile_shape_var_css, profile_table_surface_css
 from viewspec.compiler_refs import PRODUCT_SURFACE_PLANNER_V1_ROLES
 from viewspec.emitters._write import write_artifact_set
 from viewspec.emitters.base import EmitterPlugin
@@ -791,6 +791,13 @@ def emit_compiler_result(
     emitter_css = OFFLINE_EMITTER_CSS
     if _has_visibility_node(result.root.root):
         emitter_css = f"{OFFLINE_EMITTER_CSS}\n{VISIBILITY_EMITTER_CSS}"
+    aesthetic_profile = result.root.root.props.get("aesthetic_profile")
+    if isinstance(aesthetic_profile, str) and aesthetic_profile:
+        # A light-ink profile repaints the base stylesheet's white table under its own root. Other
+        # profiles append nothing, so their artifacts keep their bytes.
+        table_surface_css = profile_table_surface_css(aesthetic_profile)
+        if table_surface_css:
+            emitter_css = f"{emitter_css}\n{table_surface_css}"
     head_extra: list[str] = []
     if mcp_tools is not None:
         body_tail.append(MCP_APP_BRIDGE_SCRIPT)

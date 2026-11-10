@@ -275,6 +275,10 @@ TAILWIND_AESTHETIC_RECIPE_OVERLAYS: dict[str, dict[str, str]] = {
         "primitive:label": "text-slate-500",
         "primitive:value": "text-3xl font-black tracking-tight text-slate-950",
         "primitive:text": "text-base leading-7 text-slate-700",
+        # C-14: slate-500 terms were 4.26:1 on the indigo-50 panel, and comparison labels 4.34:1 on
+        # the violet-50 ground; the comparison items now sit on white cards like the other panels.
+        "role:detail:term": "text-slate-600",
+        "motif:comparison:stack": "rounded-2xl border border-violet-200 bg-white p-6 shadow-xl",
     },
     "aesthetic.data_dense": {
         "app_role:app_shell": "bg-slate-200 px-4 py-4 font-mono text-slate-950 sm:px-5",
@@ -289,6 +293,10 @@ TAILWIND_AESTHETIC_RECIPE_OVERLAYS: dict[str, dict[str, str]] = {
         "primitive:value": "text-lg font-bold leading-tight text-slate-950",
         "primitive:text": "text-xs leading-5 text-slate-700",
         "primitive:input": "rounded-sm border-slate-300 px-2 py-1 text-xs",
+        # C-14: the teal-700 eyebrow was 4.35:1 on the slate-200 ground, slate-500 terms 4.38:1 on
+        # the blue-50 panel.
+        "role:hero:eyebrow": "text-blue-800",
+        "role:detail:term": "text-slate-600",
     },
     "aesthetic.editorial_product": {
         "app_role:app_shell": "bg-rose-50 px-8 py-10 font-serif text-neutral-950 sm:px-12",
@@ -302,6 +310,8 @@ TAILWIND_AESTHETIC_RECIPE_OVERLAYS: dict[str, dict[str, str]] = {
         "primitive:label": "text-xs font-bold uppercase text-rose-700",
         "primitive:value": "text-4xl font-black leading-none text-neutral-950",
         "primitive:text": "max-w-2xl text-lg leading-9 text-neutral-700",
+        # C-14: slate-500 terms were 4.34:1 on the rose-50 panel; terms take the label ink.
+        "role:detail:term": "text-rose-700",
     },
     "aesthetic.executive_review": {
         "app_role:app_shell": "bg-slate-100 px-6 py-6 text-slate-950 sm:px-8",
@@ -334,13 +344,26 @@ TAILWIND_AESTHETIC_RECIPE_OVERLAYS: dict[str, dict[str, str]] = {
         "app_role:metric_card": "rounded-md border border-cyan-400 bg-slate-900 p-3 shadow-lg",
         "app_role:form_panel": "rounded-md border border-cyan-400 bg-slate-900 p-3 shadow-lg",
         "app_role:detail_panel": "rounded-md border border-cyan-400 bg-slate-900 p-3 shadow-lg",
-        "app_role:data_table": "rounded-md border border-cyan-400 bg-slate-900",
+        # C-14: the base cell recipe's slate-700 ink was 1.72:1 on a slate-900 table; the table now
+        # keeps the cells' ink and takes a light ground.
+        "app_role:data_table": "rounded-md border border-cyan-400 bg-cyan-50",
         "app_role:collection_action_bar": "rounded-md border border-cyan-400 bg-slate-900 p-2",
         "primitive:button": "rounded-md bg-fuchsia-500 px-4 py-2 text-slate-950 hover:bg-fuchsia-400 focus:ring-fuchsia-500",
         "primitive:badge": "rounded-md bg-fuchsia-500/20 text-fuchsia-200 ring-fuchsia-400",
         "primitive:label": "text-xs font-bold uppercase text-cyan-300",
         "primitive:value": "text-2xl font-bold leading-tight text-cyan-50",
         "primitive:text": "text-sm leading-6 text-cyan-200",
+        # C-14: the base role recipes kept their dark ink on this dark ground (the hero title was
+        # slate-950 on slate-950, 1.00:1), and the base white surfaces held this profile's light
+        # labels (cyan-300 on white, 1.44:1).
+        "role:hero:eyebrow": "text-fuchsia-400",
+        "role:hero:title": "text-cyan-50",
+        "role:hero:description": "text-cyan-200",
+        "role:detail:term": "text-cyan-300",
+        "role:detail:description": "text-cyan-100",
+        "app_role:field_group": "border-cyan-400 bg-slate-900",
+        "layout:surface": "border-cyan-400 bg-slate-900",
+        "motif:list:surface": "border-cyan-400 bg-slate-900",
     },
     "aesthetic.warm_organic": {
         "app_role:app_shell": "bg-amber-50 px-8 py-8 text-stone-900 sm:px-10",

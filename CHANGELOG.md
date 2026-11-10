@@ -226,6 +226,19 @@ All notable changes to ViewSpec are documented in this file. The format follows
   fields), and in `APP_PROOF.md`. The shell manifest adds `replay_assertion_count` beside
   `replay_ok`, and `APP_PROOF.md` says `not run: no replay assertions` instead of `passed` for a
   bundle that declares none.
+- Aesthetic profile colours change where the contrast proof, now measured from the artifact, found
+  text below WCAG AA. On `html-tailwind` and `mcp-app`, `aesthetic.data_dense` and
+  `aesthetic.neon_cyber` paint the table and its row headers with their own surface colours, in
+  rules scoped to the profile's root and appended after the base stylesheet (their light ink was
+  1.23:1 and 1.13:1 on the white table); artifacts of the other profiles keep their stylesheet. The
+  `tone.muted` ink darkens in `calm_ops` (`#5d7268` to `#596d64`), `premium_saas` (`#6b668d` to
+  `#656085`), `editorial_product` (`#85715f` to `#756354`) and `executive_review` (`#51647a` to
+  `#506278`), on every target that applies style tokens. On `react-tailwind-tsx`, `neon_cyber`'s
+  hero, detail terms and detail descriptions take light ink, its field groups, generic surfaces and
+  list items a dark ground, and its data table a light one; `data_dense`'s hero eyebrow is
+  `text-blue-800`; the detail terms of `premium_saas` and `data_dense` are `text-slate-600` and those
+  of `editorial_product` `text-rose-700`; and `premium_saas` comparison items sit on white cards. The
+  Tailwind recipe registry digest changes with the overlays.
 
 ### Fixed
 
