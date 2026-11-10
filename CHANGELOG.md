@@ -228,6 +228,15 @@ All notable changes to ViewSpec are documented in this file. The format follows
   output and `prove` failed with "text does not match manifest props", and `compile --target
   mcp-app`, `compile_mcp_app()` and `app.render()` failed with `CHECK_FAILED`. Both sides are now
   collapsed before they are compared.
+- The default AppBundle target, `html-tailwind-app`, no longer fails on ordinary text. Its shell scan
+  read the whole HTML as raw text, so text such as "HTTP: 502 Bad Gateway", "Worker (night shift)" or
+  "Nodes online = 12" in a screen, the app title, or a route label passed `viewspec check` and then
+  failed `viewspec compile` with `APP_SHELL_NETWORK_SURFACE_REJECTED` or
+  `APP_SHELL_EMBEDDING_UNSUPPORTED`, for surfaces that were not there. The scan now reads markup by
+  context: tags and attributes for event handlers, embeds, links, import maps, and remote URLs;
+  script blocks for worker construction; text and JSON data only for a full URL, which is still
+  rejected wherever it appears. A rejection names what matched, in at most 40 characters, and where.
+  Markup that is not in the form the compiler writes is still scanned whole.
 - In the agent lift, a `<button>` whose `type` is empty or unknown submits its form, as the HTML spec
   gives a missing or invalid type the Submit Button state. `type=""` and `type="bogus"` used to make
   it a plain button, so a form call did not click it. Only `type="button"` and `type="reset"` do not
