@@ -58,7 +58,8 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 
 # tailwind_recipe_registry_digest() on main before Q-4 (64e77eb). The default registry is built from
 # the same checked-in tables, so the value must not move; a deliberate recipe change updates it here.
-MAIN_REGISTRY_DIGEST = "a1916b7868b484feaa9e14a409416fb41dd2faf507614f4581dbd623a0bae83d"
+# Updated for C-14, whose contrast repair changed four profiles' overlays.
+MAIN_REGISTRY_DIGEST = "99d93f0967ef114465e364dd01302c1251cab832192afe593ba2cd79d5f3d28a"
 
 # The tables the registry is built from: these are what emitting must leave alone.
 _MODULE_TABLES = (

@@ -75,13 +75,16 @@ def test_every_profile_clears_scoped_aa():
 
 
 def test_profile_min_contrast_golden():
-    # Deliberate pin: a palette change that dips a governed pair below its scoped threshold changes
-    # these numbers and fails here loudly. data_dense's 3.68 is its button (a UI pair, threshold 3.0).
+    # Deliberate pin of the registry enumeration: a palette change that dips a governed pair below
+    # its scoped threshold changes these numbers and fails here loudly. data_dense's 3.68 is its
+    # button (a UI pair, threshold 3.0). The proof itself measures the artifact
+    # (tests/test_contrast_from_artifact.py); editorial_product's darker muted ink (C-14) moved its
+    # minimum from 4.53 to the base table-header pair.
     expected = {
         "aesthetic.calm_ops": 4.55,
         "aesthetic.premium_saas": 4.55,
         "aesthetic.data_dense": 3.68,
-        "aesthetic.editorial_product": 4.53,
+        "aesthetic.editorial_product": 4.55,
         "aesthetic.executive_review": 4.55,
         "aesthetic.brutalist": 4.55,
         "aesthetic.neon_cyber": 4.55,

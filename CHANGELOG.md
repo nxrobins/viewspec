@@ -226,9 +226,38 @@ All notable changes to ViewSpec are documented in this file. The format follows
   fields), and in `APP_PROOF.md`. The shell manifest adds `replay_assertion_count` beside
   `replay_ok`, and `APP_PROOF.md` says `not run: no replay assertions` instead of `passed` for a
   bundle that declares none.
+- Aesthetic profile colours change where the contrast proof, now measured from the artifact, found
+  text below WCAG AA. On `html-tailwind` and `mcp-app`, `aesthetic.data_dense` and
+  `aesthetic.neon_cyber` put the table on the ground of their `surface.subtle` token and its row
+  headers on that of `surface.strong`, as the artifact resolves them, in rules scoped to the
+  profile's root and appended after the base stylesheet (their light ink was 1.23:1 and 1.13:1 on the
+  white table). A DESIGN.md whose `colors.surface` repaints those tokens repaints the tables with
+  them, as it does the hero and cards, so the starter DESIGN.md that `prove` applies keeps its dark
+  ink on white tables. Artifacts of the other profiles keep their stylesheet. The
+  `tone.muted` ink darkens in `calm_ops` (`#5d7268` to `#596d64`), `premium_saas` (`#6b668d` to
+  `#656085`), `editorial_product` (`#85715f` to `#756354`) and `executive_review` (`#51647a` to
+  `#506278`), on every target that applies style tokens. On `react-tailwind-tsx`, `neon_cyber`'s
+  hero, detail terms and detail descriptions take light ink, its field groups, generic surfaces and
+  list items a dark ground, and its data table a light one; `data_dense`'s hero eyebrow is
+  `text-blue-800`; the detail terms of `premium_saas` and `data_dense` are `text-slate-600` and those
+  of `editorial_product` `text-rose-700`; and `premium_saas` comparison items sit on white cards. The
+  Tailwind recipe registry digest changes with the overlays.
 
 ### Fixed
 
+- `prove` measures contrast from the compiled artifact. It used to report `a11y_contrast: "passed"`
+  from a table of colour pairs chosen by profile name, without reading the colours the artifact was
+  written with: a DESIGN.md that set every colour to white passed with a minimum ratio of 4.55. Now
+  every text node's ink is checked against the background of its nearest ancestor that paints one,
+  read for `html-tailwind` and `mcp-app` from the document's inline styles (DESIGN.md colours
+  included) and `<style>` rules, and for `react-tailwind-tsx` from the classes each node is emitted
+  with. A node below its threshold fails with `A11Y_CONTRAST_BELOW_AA`, which names the node, both
+  colours and the ratio, so the white design now fails at 1.0:1. A colour the proof cannot resolve to
+  an sRGB value fails it with the new code `A11Y_CONTRAST_UNRESOLVED`, which names the node and the
+  value. The Tailwind palette gains `red-50`, the ground of the error-state recipes. `react-tsx`
+  proofs, whose inline style objects the measurement does not read, report `a11y_contrast:
+  "not_applicable"` instead of a pass. The proof's `a11y` section adds `contrast_source`,
+  `contrast_unresolved` and `contrast_unresolved_labels`, and each failure label now names a node.
 - `check` accepts the html-tailwind and mcp-app output that `compile` writes for text with two
   spaces, a leading or trailing space, a newline, a tab, or a no-break space. It collapsed the
   whitespace in each element's text and compared the result with the manifest's text as written: a

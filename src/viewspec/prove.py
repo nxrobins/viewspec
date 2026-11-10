@@ -13,7 +13,13 @@ from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
-from viewspec.a11y import a11y_contrast_report, name_report
+from viewspec.a11y import (
+    artifact_contrast_report,
+    contrast_pair_label,
+    name_report,
+    summarize_labels,
+    unresolved_colour_label,
+)
 from viewspec.host_verify import HOST_VERIFY_TARGET, verify_host_artifact_dir
 from viewspec.html_verify import HTML_VERIFY_TARGETS, load_mcp_render
 from viewspec.intent_tools import (
@@ -212,16 +218,34 @@ def prove(
         a11y = _a11y_report(manifest_path)
         if a11y.get("available"):
             if a11y.get("contrast_checked"):
-                checks["a11y_contrast"] = "passed" if a11y["contrast_failures"] == 0 else "failed"
+                contrast_ok = a11y["contrast_failures"] == 0 and a11y["contrast_unresolved"] == 0
+                checks["a11y_contrast"] = "passed" if contrast_ok else "failed"
                 if a11y["contrast_failures"]:
                     errors = list(errors) + [
                         {
                             "code": "A11Y_CONTRAST_BELOW_AA",
                             "message": (
-                                f"{a11y['contrast_failures']} text/background pair(s) below the scoped "
-                                f"WCAG threshold: {', '.join(a11y['contrast_failure_labels'])}."
+                                f"{a11y['contrast_failures']} text node(s) below the scoped WCAG threshold, "
+                                f"measured from the artifact: {summarize_labels(a11y['contrast_failure_labels'])}."
                             ),
-                            "fix": "Raise contrast on the named pairs to meet WCAG AA (body 4.5:1, large/UI 3.0:1).",
+                            "fix": (
+                                "Raise contrast on the named nodes to meet WCAG AA (body 4.5:1, large/UI 3.0:1): "
+                                "change the DESIGN.md colours or the aesthetic profile."
+                            ),
+                        }
+                    ]
+                if a11y["contrast_unresolved"]:
+                    errors = list(errors) + [
+                        {
+                            "code": "A11Y_CONTRAST_UNRESOLVED",
+                            "message": (
+                                f"{a11y['contrast_unresolved']} text node(s) use a colour the contrast proof "
+                                f"cannot resolve to an sRGB value: {summarize_labels(a11y['contrast_unresolved_labels'])}."
+                            ),
+                            "fix": (
+                                "Use #RRGGBB colours and the checked Tailwind palette; the proof fails closed on a "
+                                "colour it cannot measure."
+                            ),
                         }
                     ]
             else:
@@ -447,11 +471,14 @@ def _artifact_path(artifact_dir: Path, target: str) -> Path:
 
 
 def _a11y_report(manifest_path: Path) -> dict[str, Any]:
-    """Derive scoped WCAG contrast + accessible-name facts from a compiled artifact manifest.
+    """Derive scoped WCAG contrast + accessible-name facts from a compiled artifact.
 
-    Pure and deterministic, no browser: contrast is enumerated from the closed style vocabulary
-    (registry + fixed base pairs), names from the flat node props. `available` is False when there
-    is no readable manifest — the check simply does not apply.
+    Pure and deterministic, no browser. Contrast is measured from the artifact beside the manifest:
+    each text node's ink against the background of its nearest ancestor that paints one, read from
+    the HTML document's inline styles and ``<style>`` rules or from the React Tailwind classes
+    (``viewspec.a11y.artifact_contrast_report``). Names come from the flat node props. `available`
+    is False when there is no readable manifest. Contrast is not checked for an emitter the
+    measurement does not read (``react_tsx``) or an artifact with no text.
     """
     if not manifest_path.exists():
         return {"available": False}
@@ -465,22 +492,7 @@ def _a11y_report(manifest_path: Path) -> dict[str, Any]:
     profile = manifest_root_aesthetic_profile(nodes)
     emitter = manifest.get("emitter") if isinstance(manifest, dict) else None
     names = name_report(nodes)
-    contrast = None
-    if emitter == "react_tailwind_tsx":
-        # React colors are Tailwind classes, not the profile hex — use the emitter's own grounded
-        # enumeration. Lazy import so plain prove does not pull in the React emitter.
-        from viewspec.emitters.react_tailwind_tsx.a11y import react_contrast_report
-        from viewspec.emitters.react_tailwind_tsx.recipes import DEFAULT_TAILWIND_RECIPE_REGISTRY
-
-        # profile overlay when set, else the base recipe (profile=None) — React contrast is always
-        # checked now. Like viewspec check, the proof reads the default registry, the snapshot a
-        # default emit reads, not the module tables it was built from.
-        registry = DEFAULT_TAILWIND_RECIPE_REGISTRY
-        contrast = react_contrast_report(
-            profile if profile in registry.aesthetic_overlays else None, recipe_registry=registry
-        )
-    else:
-        contrast = a11y_contrast_report(profile)
+    contrast = artifact_contrast_report(manifest_path.parent, emitter=emitter if isinstance(emitter, str) else None)
     report: dict[str, Any] = {
         "available": True,
         "profile": profile,
@@ -489,15 +501,20 @@ def _a11y_report(manifest_path: Path) -> dict[str, Any]:
         "unnamed_interactive": names["unnamed_interactive"],
         "unnamed": names["unnamed"],
     }
-    if contrast is not None:
+    if contrast is not None and (contrast["pairs_checked"] or contrast["unresolved"]):
         report.update(
             {
                 "contrast_checked": True,
+                "contrast_source": contrast["source"],
                 "pairs_checked": contrast["pairs_checked"],
                 "min_contrast_ratio": contrast["min_contrast_ratio"],
                 "contrast_failures": contrast["contrast_failures"],
-                "contrast_failure_labels": [f["label"] for f in contrast["failures"]],
-                "assertion_count": contrast["pairs_checked"] + names["interactive_controls"],
+                "contrast_failure_labels": [contrast_pair_label(entry) for entry in contrast["failures"]],
+                "contrast_unresolved": len(contrast["unresolved"]),
+                "contrast_unresolved_labels": [unresolved_colour_label(entry) for entry in contrast["unresolved"]],
+                "assertion_count": contrast["pairs_checked"]
+                + len(contrast["unresolved"])
+                + names["interactive_controls"],
             }
         )
     else:

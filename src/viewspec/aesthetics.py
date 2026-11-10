@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import colorsys
 import re
+from collections.abc import Mapping
 
 from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES
 
@@ -125,7 +126,7 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
     "aesthetic.calm_ops": {
         "palette.temperature": "background-color: #e9f3ee;",
         "tone.neutral": "color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif;",
-        "tone.muted": "color: #5d7268;",
+        "tone.muted": "color: #596d64;",  # 4.62:1 on surface.strong (#5d7268 was 4.31:1)
         "tone.accent": "color: #0f766e; font-weight: 800;",
         "action.accent": "background-color: #0f766e; color: #ffffff; border-radius: 10px;",
         "surface.subtle": "background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;",
@@ -140,7 +141,7 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
     "aesthetic.premium_saas": {
         "palette.temperature": "background-color: #ece9fe;",
         "tone.neutral": "color: #17123a; font-family: ui-sans-serif, system-ui, sans-serif;",
-        "tone.muted": "color: #6b668d;",
+        "tone.muted": "color: #656085;",  # 4.61:1 on surface.strong (#6b668d was 4.20:1)
         "tone.accent": "color: #4f46e5; font-weight: 860;",
         "action.accent": "background-color: #4f46e5; color: #ffffff; border-radius: 999px;",
         "surface.subtle": "background: #ffffff; border: 1px solid #d6ccff; border-radius: 20px; box-shadow: 0 24px 60px rgb(79 70 229 / 0.22);",
@@ -171,7 +172,7 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
     "aesthetic.editorial_product": {
         "palette.temperature": "background-color: #f8f1e5;",
         "tone.neutral": "color: #2b2118; font-family: ui-serif, Georgia, Cambria, serif;",
-        "tone.muted": "color: #85715f;",
+        "tone.muted": "color: #756354;",  # 4.71:1 on surface.strong (#85715f was 4.13:1 on the page)
         "tone.accent": "color: #be123c; font-weight: 780; font-style: italic;",
         "action.accent": "background-color: #be123c; color: #ffffff; border-radius: 18px;",
         "surface.subtle": "background: #fffcf5; border: 1px solid #e7d9bf; border-radius: 24px; box-shadow: 0 3px 0 rgb(190 18 60 / 0.16);",
@@ -186,7 +187,7 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
     "aesthetic.executive_review": {
         "palette.temperature": "background-color: #e2e9f1;",
         "tone.neutral": "color: #0b1f33; font-family: ui-sans-serif, system-ui, sans-serif;",
-        "tone.muted": "color: #51647a;",
+        "tone.muted": "color: #506278;",  # 4.62:1 on surface.strong (#51647a was 4.49:1)
         "tone.accent": "color: #0f5f72; font-weight: 820; text-transform: uppercase;",
         "action.accent": "background-color: #0b1f33; color: #ffffff; border-radius: 6px;",
         "surface.subtle": "background: #f7fafc; border: 1px solid #b9c8d8; border-radius: 4px; box-shadow: 0 10px 24px rgb(15 23 42 / 0.10);",
@@ -326,6 +327,32 @@ AESTHETIC_PROFILE_SHAPE_VARS: dict[str, dict[str, str]] = {
 }
 
 
+# Table surfaces (C-14). The html_tailwind base stylesheet paints a table #ffffff and its row headers
+# #f8fafc, whatever ink the cells' tone tokens set. In a profile whose ink is light, tables take the
+# grounds of the profile's own surface tokens instead, as the artifact resolves them: the table the
+# surface.subtle ground, its row headers the surface.strong ground, the tokens that paint the
+# profile's hero and cards. A DESIGN.md whose `colors.surface` repaints those tokens repaints the
+# tables with them, so the design's ink stays on the design's ground. The emitter appends the rules
+# scoped to the profile's root (``profile_table_surface_css``): an artifact of any other profile keeps
+# its bytes, and an AppBundle shell that joins screens of several profiles keeps each table on its own
+# profile.
+AESTHETIC_TABLE_SURFACE_TOKENS = {"table.vs-stack": "surface.subtle", "th.vs-label": "surface.strong"}
+# Their light ink was 1.23:1 and 1.13:1 in table cells on the base white table.
+AESTHETIC_TABLE_SURFACE_PROFILES = ("aesthetic.data_dense", "aesthetic.neon_cyber")
+_BACKGROUND_DECLARATION_RE = re.compile(r"(?:^|;)\s*background(?:-color)?\s*:\s*([^;]+)", re.IGNORECASE)
+_HEX_GROUND_RE = re.compile(r"#[0-9a-fA-F]{6}")
+
+
+def _css_background_ground(css: str) -> str | None:
+    """The flat ``#rrggbb`` ground the last ``background`` or ``background-color`` declaration of
+    ``css`` paints, lowercased; None when it paints anything else, or nothing."""
+    declarations = _BACKGROUND_DECLARATION_RE.findall(css or "")
+    if not declarations:
+        return None
+    value = declarations[-1].strip()
+    return value.lower() if _HEX_GROUND_RE.fullmatch(value) else None
+
+
 def is_aesthetic_profile_token(token: str) -> bool:
     return isinstance(token, str) and token.startswith(AESTHETIC_PROFILE_PREFIX)
 
@@ -359,6 +386,28 @@ def profile_shape_var_css(profile: str) -> str:
     order (independent of dict insertion order). Empty string when the profile sets none."""
     shape = profile_shape_vars(profile)
     return " ".join(f"{name}: {shape[name]};" for name in AESTHETIC_SHAPE_VAR_NAMES if name in shape)
+
+
+def profile_table_surface_css(profile: str, style_values: Mapping[str, str] | None = None) -> str:
+    """The stylesheet rules that put ``profile``'s tables on its surface grounds, scoped to its root.
+
+    ``style_values`` are the artifact's resolved token values, a DESIGN.md's included; without them
+    the profile's own values are read. One rule per surface, in AESTHETIC_TABLE_SURFACE_TOKENS order,
+    and none for a surface whose resolved ground is not a flat hex colour (the base one stays). Empty
+    string for a profile that keeps the base table.
+    """
+    validate_aesthetic_profile_registry()
+    if profile not in AESTHETIC_PROFILE_TOKENS:
+        raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
+    if profile not in AESTHETIC_TABLE_SURFACE_PROFILES:
+        return ""
+    values = AESTHETIC_PROFILE_STYLE_VALUES[profile] if style_values is None else style_values
+    rules: list[str] = []
+    for selector, token in AESTHETIC_TABLE_SURFACE_TOKENS.items():
+        ground = _css_background_ground(values.get(token, ""))
+        if ground is not None:
+            rules.append(f'[data-aesthetic-profile="{profile}"] {selector} {{ background: {ground}; }}')
+    return "\n".join(rules)
 
 
 def profile_style_facts(profile: str) -> dict[str, object]:
@@ -548,6 +597,16 @@ def validate_aesthetic_profile_registry() -> None:
                 "AESTHETIC_DEFAULT_REGRESSION",
                 f"{profile} must change at least {MIN_AESTHETIC_PROFILE_STYLE_CHANGES} style projections across {MIN_AESTHETIC_PROFILE_CATEGORIES} categories.",
             )
+    for profile in AESTHETIC_TABLE_SURFACE_PROFILES:
+        if profile not in AESTHETIC_PROFILE_TOKENS:
+            raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
+        # The proof must resolve every ground it reads, so the profile's own surfaces are flat hex.
+        for token in AESTHETIC_TABLE_SURFACE_TOKENS.values():
+            if _css_background_ground(AESTHETIC_PROFILE_STYLE_VALUES[profile].get(token, "")) is None:
+                raise AestheticProfileError(
+                    "AESTHETIC_PROFILE_UNSAFE_STYLE",
+                    f"{profile} {token} must paint a flat #rrggbb ground for its tables.",
+                )
 
 
 def _validate_profile_layout_props(profile: str, values: dict[str, dict[str, int]]) -> None:
@@ -682,6 +741,8 @@ __all__ = [
     "AestheticProfileError",
     "AESTHETIC_PROFILE_SHAPE_VARS",
     "AESTHETIC_SHAPE_VAR_NAMES",
+    "AESTHETIC_TABLE_SURFACE_PROFILES",
+    "AESTHETIC_TABLE_SURFACE_TOKENS",
     "is_aesthetic_profile_token",
     "profile_layout_props",
     "profile_projection_axes",
@@ -690,5 +751,6 @@ __all__ = [
     "profile_shape_vars",
     "profile_style_facts",
     "profile_style_values",
+    "profile_table_surface_css",
     "validate_aesthetic_profile_registry",
 ]

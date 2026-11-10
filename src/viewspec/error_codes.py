@@ -11,6 +11,7 @@ from __future__ import annotations
 ERROR_CODES: frozenset[str] = frozenset(
     (
         "A11Y_CONTRAST_BELOW_AA",
+        "A11Y_CONTRAST_UNRESOLVED",
         "A11Y_CONTROL_UNNAMED",
         "AESTHETIC_DEFAULT_REGRESSION",
         "AESTHETIC_PROFILE_LAYOUT_MISMATCH",
