@@ -221,6 +221,13 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- `check` accepts the html-tailwind and mcp-app output that `compile` writes for text with two
+  spaces, a leading or trailing space, a newline, a tab, or a no-break space. It collapsed the
+  whitespace in each element's text and compared the result with the manifest's text as written: a
+  table value `"Ada  Lovelace"` passed `check` on the source and compiled, and then `check` on the
+  output and `prove` failed with "text does not match manifest props", and `compile --target
+  mcp-app`, `compile_mcp_app()` and `app.render()` failed with `CHECK_FAILED`. Both sides are now
+  collapsed before they are compared.
 - In the agent lift, a `<button>` whose `type` is empty or unknown submits its form, as the HTML spec
   gives a missing or invalid type the Submit Button state. `type=""` and `type="bogus"` used to make
   it a plain button, so a form call did not click it. Only `type="button"` and `type="reset"` do not
