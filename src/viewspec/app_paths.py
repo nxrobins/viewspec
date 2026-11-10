@@ -6,11 +6,22 @@ import shutil
 from pathlib import Path
 
 from viewspec.app_errors import AppBundleProofFailure
-from viewspec.local_tools_io import input_inside_output, is_replaceable_output_dir, write_output_sentinel
+from viewspec.local_tools_io import (
+    OutputOwnership,
+    input_inside_output,
+    is_replaceable_output_dir,
+    write_output_sentinel,
+)
 
 
 def _prepare_app_output_dir(
-    output_dir: Path, *, root: Path, force: bool, raw_out: str | Path, inputs: tuple[Path | None, ...]
+    output_dir: Path,
+    *,
+    root: Path,
+    force: bool,
+    raw_out: str | Path,
+    inputs: tuple[Path | None, ...],
+    ownership: OutputOwnership,
 ) -> None:
     _assert_safe_app_output(output_dir, root=root, raw_out=raw_out)
     if output_dir.exists():
@@ -18,7 +29,7 @@ def _prepare_app_output_dir(
             raise AppBundleProofFailure(
                 "APP_PROOF_OUTPUT_EXISTS",
                 f"App proof output already exists: {output_dir}",
-                "Pass --force or choose a new --out directory.",
+                ownership.refuse_existing(),
             )
         if not output_dir.is_dir():
             raise AppBundleProofFailure(
@@ -41,6 +52,7 @@ def _prepare_app_output_dir(
             )
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)
+    ownership.created()
     # Mark the directory as ViewSpec's before writing anything else, so an interrupted app proof stays
     # replaceable with --force.  AppBundle compile output (below) is a deployable site and gets no sentinel.
     write_output_sentinel(output_dir)
@@ -81,16 +93,6 @@ def _assert_report_under_output(report_path: Path, output_dir: Path) -> None:
             f"App proof report path must stay under proof root: {report_path}",
             "Write the proof report under the --out directory or omit --report-out.",
         )
-
-
-def _should_write_app_proof_failure(output_dir: Path, code: str) -> bool:
-    no_write_codes = {
-        "APP_PROOF_OUTPUT_EXISTS",
-        "APP_PROOF_OUTPUT_UNRECOGNIZED",
-        "APP_PROOF_OUTPUT_UNSAFE",
-        "APP_PROOF_REPORT_PATH_UNSAFE",
-    }
-    return output_dir.exists() and code not in no_write_codes
 
 
 def _prepare_app_shell_output_dir(
@@ -195,5 +197,4 @@ __all__ = [
     "_assert_under_proof_root",
     "_prepare_app_output_dir",
     "_prepare_app_shell_output_dir",
-    "_should_write_app_proof_failure",
 ]

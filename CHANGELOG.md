@@ -221,6 +221,13 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- `check` accepts the html-tailwind and mcp-app output that `compile` writes for text with two
+  spaces, a leading or trailing space, a newline, a tab, or a no-break space. It collapsed the
+  whitespace in each element's text and compared the result with the manifest's text as written: a
+  table value `"Ada  Lovelace"` passed `check` on the source and compiled, and then `check` on the
+  output and `prove` failed with "text does not match manifest props", and `compile --target
+  mcp-app`, `compile_mcp_app()` and `app.render()` failed with `CHECK_FAILED`. Both sides are now
+  collapsed before they are compared.
 - The default AppBundle target, `html-tailwind-app`, no longer fails on ordinary text. Its shell scan
   read the whole HTML as raw text, so text such as "HTTP: 502 Bad Gateway", "Worker (night shift)" or
   "Nodes online = 12" in a screen, the app title, or a route label passed `viewspec check` and then
@@ -358,6 +365,22 @@ All notable changes to ViewSpec are documented in this file. The format follows
   the runtime holds. V4 reducers change by that one line; every corpus golden is unchanged.
 - `viewspec check` reports `APP_SCHEMA_VERSION_REQUIRED` for an AppBundle whose `schema_version`
   is an array or an object. It used to raise `TypeError`.
+
+### Security
+
+- A refused `viewspec prove` no longer writes into an output directory it does not own, so the
+  `--force` it recommends can no longer delete that directory. It used to write `proof_report.json`,
+  `PROOF.md` and `support_bundle.json` (for an AppBundle, `app_proof_report.json`, `APP_PROOF.md`
+  and `app_support_bundle.json`) into the `--out` directory it had just refused, and those files
+  are what `--force` takes as proof that a directory is ViewSpec's: the next `--force` removed the
+  directory and everything in it. The CLI and the MCP `prove` tool both did this after
+  `PROVE_OUTPUT_EXISTS`, an unknown target or kind, an internal error, or a mistyped AppBundle
+  path. A proof now writes report files into its output directory only when it created that
+  directory, or when the directory was already empty or held a ViewSpec output. Otherwise it writes
+  nothing there, and an IntentBundle proof writes only a `--report-out` file outside it.
+  `PROVE_OUTPUT_EXISTS` and `APP_PROOF_OUTPUT_EXISTS` offer `--force` only for a directory it would
+  replace, and otherwise ask for a new `--out`. An AppBundle proof refused on an empty directory now
+  writes its report there, as an IntentBundle proof does.
 
 ## [0.4.0] - 2026-11-01
 
