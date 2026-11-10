@@ -12,7 +12,6 @@ from viewspec.app_paths import (
     _assert_report_under_output,
     _prepare_app_output_dir,
     _prepare_app_shell_output_dir,
-    _should_write_app_proof_failure,
 )
 from viewspec.app_prepared import PreparedAppProof, PreparedAppShell
 from viewspec.app_react import REACT_APP_TARGET, write_react_app
@@ -49,6 +48,7 @@ from viewspec.app_validation import (
     validate_app_text,
 )
 from viewspec.local_tools import atomic_write, resolve_cwd, resolve_local_path
+from viewspec.local_tools_io import OutputOwnership
 from viewspec.state_ir import check_reducer_conformance, generate_typescript_reducer, state_manifest
 
 
@@ -94,6 +94,7 @@ def prove_app(
     timings: dict[str, int] = {}
     root = resolve_cwd(cwd)
     output_dir = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=True)
+    ownership = OutputOwnership(output_dir)
     report_path = (
         resolve_local_path(report_out, cwd=root, allow_outside_cwd=True)
         if report_out
@@ -202,7 +203,9 @@ def prove_app(
             )
         payload = materialize_resource_repeats(json.loads(app_text, parse_constant=reject_json_constant))
         _assert_report_under_output(report_path, output_dir)
-        _prepare_app_output_dir(output_dir, root=root, force=force, raw_out=out_dir, inputs=(source, design))
+        _prepare_app_output_dir(
+            output_dir, root=root, force=force, raw_out=out_dir, inputs=(source, design), ownership=ownership
+        )
         prepared = PreparedAppProof(
             output_dir=output_dir,
             app_path=source,
@@ -323,20 +326,10 @@ def prove_app(
             errors=[{"code": exc.code, "message": exc.message, "fix": exc.fix}],
             timings=timings,
             validation=None,
-            write=_should_write_app_proof_failure(output_dir, exc.code),
+            write=ownership.owned,
             target=target,
         )
-        if _should_write_app_proof_failure(output_dir, exc.code):
-            prepared = PreparedAppProof(
-                output_dir,
-                Path(app_path),
-                None,
-                report_path,
-                output_dir / APP_BUNDLE_DEFAULT_SUMMARY,
-                output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE,
-            )
-            return write_app_proof(report, prepared)
-        return report
+        return _write_app_proof_failure(report, ownership, app_path=app_path, report_path=report_path)
     except Exception as exc:
         report = app_proof_failure_report(
             output_dir=output_dir,
@@ -350,20 +343,32 @@ def prove_app(
             ],
             timings=timings,
             validation=None,
-            write=output_dir.exists(),
+            write=ownership.owned,
             target=target,
         )
-        if output_dir.exists():
-            prepared = PreparedAppProof(
-                output_dir,
-                Path(app_path),
-                None,
-                report_path,
-                output_dir / APP_BUNDLE_DEFAULT_SUMMARY,
-                output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE,
-            )
-            return write_app_proof(report, prepared)
+        return _write_app_proof_failure(report, ownership, app_path=app_path, report_path=report_path)
+
+
+def _write_app_proof_failure(
+    report: dict[str, Any], ownership: OutputOwnership, *, app_path: str | Path, report_path: Path
+) -> dict[str, Any]:
+    """Write a failed app proof's files only into a proof directory this run owns, and return the report.
+
+    An app proof's report must lie inside its proof directory (``APP_PROOF_REPORT_PATH_UNSAFE``), so
+    a run that does not own that directory writes nothing at all.
+    """
+    if not ownership.owned:
         return report
+    output_dir = ownership.output_dir
+    prepared = PreparedAppProof(
+        output_dir,
+        Path(app_path),
+        None,
+        report_path,
+        output_dir / APP_BUNDLE_DEFAULT_SUMMARY,
+        output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE,
+    )
+    return write_app_proof(report, prepared)
 
 
 def compile_app(

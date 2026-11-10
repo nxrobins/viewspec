@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable, Iterable, Iterator
 from html import escape
+from itertools import chain
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from viewspec.app_errors import AppBundleProofFailure
 from viewspec.app_resource_repeat import resource_repeat_summary
@@ -23,7 +25,7 @@ from viewspec.app_validation import (
 )
 from viewspec.local_tools import source_hash
 from viewspec.local_tools_constants import MAX_SCANNED_TAG_BLOCKS
-from viewspec.local_tools_validators import TagBlockScan, css_has_unsafe_reference, find_tag_blocks, iter_tag_regions
+from viewspec.local_tools_validators import TagBlockScan, find_tag_blocks, iter_tag_regions, normalize_css_text
 from viewspec.presentation_plan import (
     build_presentation_plan,
     presentation_plan_css,
@@ -49,17 +51,283 @@ APP_SHELL_MAX_MANIFEST_BYTES = 256 * 1024
 # <body>, <style> and <script> blocks are located with the linear block scanner shared with
 # `viewspec check` (find_tag_blocks / iter_tag_regions), never with `<tag\b[^>]*>[\s\S]*?</tag>`
 # regexes that re-scan to EOF from every unclosed opener.
+#
+# The surface patterns are applied by context (`_split_by_context`): tag patterns to tags, the
+# handler rule to attribute names, the worker pattern to script blocks, and URL_SCHEME_RE to every
+# context, so visible text such as "Nodes online = 12" is never read as markup. Markup that cannot
+# be split by context is scanned whole, with every pattern.
 HTML_FORBIDDEN_EMBED_RE = re.compile(r"<\s*(?:iframe|object|embed)\b", re.IGNORECASE)
 HTML_FORBIDDEN_LINK_RE = re.compile(r"<\s*link\b", re.IGNORECASE)
 HTML_INLINE_HANDLER_RE = re.compile(r"\son[a-z]+\s*=", re.IGNORECASE)
 HTML_WORKER_IMPORT_RE = re.compile(r"\b(?:Worker|SharedWorker|importScripts)\s*\(", re.IGNORECASE)
 HTML_IMPORT_MAP_RE = re.compile(r"<script\b[^>]*type\s*=\s*['\"]importmap['\"]", re.IGNORECASE)
 HTML_PROTOCOL_RELATIVE_RE = re.compile(r"(?i)(?:src|href|action|formaction|poster|srcset)\s*=\s*['\"]//")
-# Matched against CSS normalised by `css_has_unsafe_reference`: escapes decoded, comments removed,
+# Matched against CSS normalised by `normalize_css_text`: escapes decoded, comments removed,
 # whitespace stripped, lower-cased. Lists every URL-loading function plus remote schemes.
 CSS_FORBIDDEN_RE = re.compile(
     r"@import|url\(|image-set\(|-webkit-image-set\(|image\(|src\(|expression\(|javascript:|vbscript:|data:|https?:|//"
 )
+
+_HTML_SPACE = r"[ \t\n\f\r]"
+# One tag as the compiler writes it: the doctype, an end tag, or a start tag whose ASCII attribute
+# names carry double-quoted values with no quote or angle bracket inside. In markup made only of
+# these, the first ">" after a "<" ends the tag for a browser too, so cutting at "<" and ">" (the
+# rule `_tag_source` applies for `viewspec check`) separates tags, attributes and text as a browser
+# does. Possessive quantifiers keep a long malformed tag linear.
+_COMPILER_TAG_RE = re.compile(
+    rf"!doctype{_HTML_SPACE}++html{_HTML_SPACE}*+"
+    rf"|/[a-z][a-z0-9-]*+{_HTML_SPACE}*+"
+    rf"|(?P<name>[a-z][a-z0-9-]*+)"
+    rf'(?P<attributes>(?:{_HTML_SPACE}++[a-z_:][a-z0-9_:.-]*+(?:="[^"<>]*+")?)*+){_HTML_SPACE}*+/?',
+    re.ASCII | re.IGNORECASE,
+)
+_COMPILER_ATTRIBUTE_RE = re.compile(
+    r'(?P<name>[a-z_:][a-z0-9_:.-]*)(?:="(?P<value>[^"<>]*)")?', re.ASCII | re.IGNORECASE
+)
+# The shell's route and state data blocks; the only script opener with attributes the shell writes.
+_JSON_DATA_OPENER_RE = re.compile(r'<script type="application/json" id="[a-z0-9_-]+">')
+# In SVG and MathML a script or style element holds markup, not raw text.
+_FOREIGN_CONTENT_TAGS = frozenset({"svg", "math"})
+_EVENT_HANDLER_NAME_RE = re.compile(r"on[a-z]+", re.ASCII | re.IGNORECASE)
+_PROTOCOL_RELATIVE_ATTRIBUTES = ("src", "href", "action", "formaction", "poster", "srcset")
+_REMOTE_SCHEME_RE = re.compile(r"https?:", re.ASCII | re.IGNORECASE)
+# Attributes a browser shows or reads out as text; a bare "http:" in them is prose, not a fetch.
+_TEXT_ATTRIBUTES = frozenset({"alt", "aria-label", "placeholder", "title", "value"})
+_EXCERPT_LIMIT = 40
+_EXCERPT_TOKEN_RE = re.compile(r"[^\s\"'<>;{}]*")
+_UNSPLIT_MARKUP = "markup the scan cannot split by context"
+
+
+class _Tag(NamedTuple):
+    source: str
+    attributes: tuple[tuple[str, str | None], ...]  # (lower-cased name, value as written or None)
+
+
+class _ShellMarkup(NamedTuple):
+    """A document split by context: its tags, its text, and its script, JSON data, and style blocks."""
+
+    tags: tuple[_Tag, ...]
+    text: tuple[str, ...]
+    scripts: tuple[str, ...]
+    data: tuple[str, ...]
+    styles: tuple[str, ...]
+
+
+def _split_by_context(html: str) -> _ShellMarkup | None:
+    """Split markup the compiler wrote into tags, text, and raw-text blocks; None for other markup.
+
+    Script and style blocks come from find_tag_blocks. A block counts only with the compiler's own
+    opener and closer and with content a browser cannot end early or read as markup: no "</" or
+    "<!--" in a script, no "<" in a style. Every other "<" must open a tag in the compiler's form
+    (_COMPILER_TAG_RE), outside SVG and MathML.
+    """
+    blocks: list[tuple[int, int, int, int, str]] = []
+    for kind in ("script", "style"):
+        scan = find_tag_blocks(html, kind)
+        if scan.unclosed_content_start is not None or scan.truncated:
+            return None
+        blocks.extend((*block, kind) for block in scan.blocks)
+    scripts: list[str] = []
+    data: list[str] = []
+    styles: list[str] = []
+    markup: list[str] = []
+    position = previous_end = 0
+    for start, content_start, content_end, end, kind in sorted(blocks):
+        opener, content = html[start:content_start], html[content_start:content_end]
+        if start < previous_end or html[content_end:end] != f"</{kind}>":
+            return None
+        if kind == "style":
+            if opener != "<style>" or "<" in content:
+                return None
+            styles.append(content)
+        elif "</" in content or "<!--" in content:
+            return None
+        elif opener == "<script>":
+            scripts.append(content)
+        elif _JSON_DATA_OPENER_RE.fullmatch(opener):
+            data.append(content)
+        else:
+            return None
+        markup.append(html[position:content_start])
+        position, previous_end = content_end, end
+    markup.append(html[position:])
+    tags: list[_Tag] = []
+    text: list[str] = []
+    for piece in markup:
+        leading, *spans = piece.split("<")
+        text.append(leading)
+        for span in spans:
+            body, closed, trailing = span.partition(">")
+            tag = _COMPILER_TAG_RE.fullmatch(body)
+            if not closed or tag is None or (tag["name"] or "").lower() in _FOREIGN_CONTENT_TAGS:
+                return None
+            attributes = tuple(
+                (attribute["name"].lower(), attribute["value"])
+                for attribute in _COMPILER_ATTRIBUTE_RE.finditer(tag["attributes"] or "")
+            )
+            tags.append(_Tag(f"<{body}>", attributes))
+            text.append(trailing)
+    return _ShellMarkup(tuple(tags), tuple(text), tuple(scripts), tuple(data), tuple(styles))
+
+
+def _excerpt(text: str, match: re.Match[str]) -> str:
+    """The matched text run on to the end of its token, in at most 40 characters."""
+    token = _EXCERPT_TOKEN_RE.match(text, match.end())
+    end = token.end() if token is not None else match.end()
+    return text[match.start() : end].strip()[:_EXCERPT_LIMIT]
+
+
+def _first_match(pattern: re.Pattern[str], segments: Iterable[tuple[str, str]]) -> tuple[str, str] | None:
+    """(where, excerpt) for the first segment the pattern matches."""
+    for where, text in segments:
+        match = pattern.search(text)
+        if match is not None:
+            return where, _excerpt(text, match)
+    return None
+
+
+def _tag_segments(markup: _ShellMarkup) -> Iterator[tuple[str, str]]:
+    return (("a tag", tag.source) for tag in markup.tags)
+
+
+def _value_segments(markup: _ShellMarkup, *, skip: frozenset[str] = frozenset()) -> Iterator[tuple[str, str]]:
+    return (
+        ("an attribute", value) for tag in markup.tags for name, value in tag.attributes if value and name not in skip
+    )
+
+
+def _style_segments(markup: _ShellMarkup) -> Iterator[tuple[str, str]]:
+    return (("a style block", style) for style in markup.styles)
+
+
+def _first_attribute(markup: _ShellMarkup, matches: Callable[[str, str], bool]) -> tuple[str, str] | None:
+    for tag in markup.tags:
+        for name, value in tag.attributes:
+            if value is not None and matches(name, value):
+                return "an attribute", f'{name}="{value}"'[:_EXCERPT_LIMIT]
+    return None
+
+
+def _embed_tag(markup: _ShellMarkup) -> tuple[str, str] | None:
+    return _first_match(HTML_FORBIDDEN_EMBED_RE, _tag_segments(markup))
+
+
+def _import_map_tag(markup: _ShellMarkup) -> tuple[str, str] | None:
+    return _first_match(HTML_IMPORT_MAP_RE, _tag_segments(markup))
+
+
+def _link_tag(markup: _ShellMarkup) -> tuple[str, str] | None:
+    return _first_match(HTML_FORBIDDEN_LINK_RE, _tag_segments(markup))
+
+
+def _worker_in_script(markup: _ShellMarkup) -> tuple[str, str] | None:
+    return _first_match(HTML_WORKER_IMPORT_RE, (("a script block", script) for script in markup.scripts))
+
+
+def _url_anywhere(markup: _ShellMarkup) -> tuple[str, str] | None:
+    return _first_match(
+        URL_SCHEME_RE,
+        chain(
+            _value_segments(markup),
+            (("text", text) for text in markup.text),
+            (("a script block", script) for script in markup.scripts),
+            (("a JSON data block", data) for data in markup.data),
+            _style_segments(markup),
+        ),
+    )
+
+
+def _remote_scheme_outside_text(markup: _ShellMarkup) -> tuple[str, str] | None:
+    return _first_match(
+        _REMOTE_SCHEME_RE, chain(_value_segments(markup, skip=_TEXT_ATTRIBUTES), _style_segments(markup))
+    )
+
+
+def _protocol_relative_attribute(markup: _ShellMarkup) -> tuple[str, str] | None:
+    return _first_attribute(
+        markup, lambda name, value: value.startswith("//") and name.endswith(_PROTOCOL_RELATIVE_ATTRIBUTES)
+    )
+
+
+def _event_handler_attribute(markup: _ShellMarkup) -> tuple[str, str] | None:
+    return _first_attribute(markup, lambda name, _value: _EVENT_HANDLER_NAME_RE.fullmatch(name) is not None)
+
+
+class _SurfaceRule(NamedTuple):
+    what: str
+    whole_document: re.Pattern[str]  # applied to markup that cannot be split by context
+    by_context: Callable[[_ShellMarkup], tuple[str, str] | None]
+
+
+_EMBED_RULE = _SurfaceRule("an embed, object, or frame tag", HTML_FORBIDDEN_EMBED_RE, _embed_tag)
+_IMPORT_MAP_RULE = _SurfaceRule("an import map", HTML_IMPORT_MAP_RE, _import_map_tag)
+_LINK_RULE = _SurfaceRule("a link tag", HTML_FORBIDDEN_LINK_RE, _link_tag)
+_WORKER_RULE = _SurfaceRule("worker construction", HTML_WORKER_IMPORT_RE, _worker_in_script)
+_URL_RULE = _SurfaceRule("a URL", URL_SCHEME_RE, _url_anywhere)
+_REMOTE_URL_RULE = _SurfaceRule("a remote URL", _REMOTE_SCHEME_RE, _remote_scheme_outside_text)
+_PROTOCOL_RELATIVE_RULE = _SurfaceRule(
+    "a protocol-relative URL", HTML_PROTOCOL_RELATIVE_RE, _protocol_relative_attribute
+)
+_EVENT_HANDLER_RULE = _SurfaceRule("an inline event handler", HTML_INLINE_HANDLER_RE, _event_handler_attribute)
+# (code, rules, fix) in the order each scan reports them.
+_SCREEN_SURFACE_CHECKS: tuple[tuple[str, tuple[_SurfaceRule, ...], str], ...] = (
+    (
+        "APP_SHELL_EMBEDDING_UNSUPPORTED",
+        (_EMBED_RULE, _WORKER_RULE),
+        "Remove embed/runtime surfaces before compiling the static shell.",
+    ),
+    (
+        "APP_SHELL_NETWORK_SURFACE_REJECTED",
+        (_LINK_RULE, _URL_RULE, _PROTOCOL_RELATIVE_RULE),
+        "Remove external resources before compiling the static shell.",
+    ),
+    (
+        "APP_SHELL_EMBEDDING_UNSUPPORTED",
+        (_EVENT_HANDLER_RULE,),
+        "Remove inline event handlers before compiling the static shell.",
+    ),
+)
+_SHELL_SURFACE_CHECKS: tuple[tuple[str, tuple[_SurfaceRule, ...], str], ...] = (
+    (
+        "APP_SHELL_NETWORK_SURFACE_REJECTED",
+        (_REMOTE_URL_RULE, _URL_RULE, _PROTOCOL_RELATIVE_RULE),
+        "Remove external resources before compiling the static shell.",
+    ),
+    (
+        "APP_SHELL_EMBEDDING_UNSUPPORTED",
+        (_EMBED_RULE, _IMPORT_MAP_RULE, _WORKER_RULE),
+        "Remove unsupported surfaces before compiling the static shell.",
+    ),
+    (
+        "APP_SHELL_EMBEDDING_UNSUPPORTED",
+        (_EVENT_HANDLER_RULE,),
+        "Use the compiler-owned static route script only.",
+    ),
+)
+
+
+def _reject_surfaces(html: str, subject: str, checks: tuple[tuple[str, tuple[_SurfaceRule, ...], str], ...]) -> None:
+    """Raise for the first surface any check finds, naming what matched and in which context."""
+    markup = _split_by_context(html)
+    for code, rules, fix in checks:
+        for rule in rules:
+            found = (
+                rule.by_context(markup)
+                if markup is not None
+                else _first_match(rule.whole_document, ((_UNSPLIT_MARKUP, html),))
+            )
+            if found is not None:
+                where, excerpt = found
+                raise AppBundleProofFailure(code, f"{subject} contains {rule.what} in {where}: {excerpt!r}.", fix)
+
+
+def _unsafe_css_excerpt(css: str) -> str | None:
+    """What CSS_FORBIDDEN_RE matched in either normalised view of the CSS, or None."""
+    for variant in normalize_css_text(css):
+        match = CSS_FORBIDDEN_RE.search(variant)
+        if match is not None:
+            return _excerpt(variant, match)
+    return None
 
 
 def _build_static_app_shell(
@@ -215,32 +483,22 @@ def _assert_screen_artifact_shell_safe(html: str, screen_id: str) -> None:
         if attrs.strip():
             raise AppBundleProofFailure(
                 "APP_SHELL_EMBEDDING_UNSUPPORTED",
-                f"Screen {screen_id} contains an attributed script tag; Static Shell V0 embeds inert fragments only.",
+                (
+                    f"Screen {screen_id} contains an attributed script tag in a tag: "
+                    f"{('<script' + attrs)[:_EXCERPT_LIMIT]!r}; Static Shell V0 embeds inert fragments only."
+                ),
                 "Remove import maps, external script references, or typed script surfaces before compiling the shell.",
             )
-    if HTML_FORBIDDEN_EMBED_RE.search(html) or HTML_WORKER_IMPORT_RE.search(html):
-        raise AppBundleProofFailure(
-            "APP_SHELL_EMBEDDING_UNSUPPORTED",
-            f"Screen {screen_id} contains an unsupported embed, frame, import map, or worker surface.",
-            "Remove embed/runtime surfaces before compiling the static shell.",
-        )
-    if HTML_FORBIDDEN_LINK_RE.search(html) or URL_SCHEME_RE.search(html) or HTML_PROTOCOL_RELATIVE_RE.search(html):
-        raise AppBundleProofFailure(
-            "APP_SHELL_NETWORK_SURFACE_REJECTED",
-            f"Screen {screen_id} contains a URL-bearing or external resource surface.",
-            "Remove external resources before compiling the static shell.",
-        )
-    if HTML_INLINE_HANDLER_RE.search(html):
-        raise AppBundleProofFailure(
-            "APP_SHELL_EMBEDDING_UNSUPPORTED",
-            f"Screen {screen_id} contains inline event handlers.",
-            "Remove inline event handlers before compiling the static shell.",
-        )
+    _reject_surfaces(html, f"Screen {screen_id}", _SCREEN_SURFACE_CHECKS)
     for style in _extract_screen_styles(html, screen_id):
-        if css_has_unsafe_reference(style, CSS_FORBIDDEN_RE):
+        excerpt = _unsafe_css_excerpt(style)
+        if excerpt is not None:
             raise AppBundleProofFailure(
                 "APP_SHELL_NETWORK_SURFACE_REJECTED",
-                f"Screen {screen_id} CSS contains an import, URL, expression, or script-like value.",
+                (
+                    f"Screen {screen_id} contains an import, URL, expression, or script-like CSS value "
+                    f"in a style block: {excerpt!r}."
+                ),
                 "Remove external or executable CSS surfaces before compiling the static shell.",
             )
 
@@ -574,8 +832,9 @@ def _app_shell_state_runtime_script() -> str:
     # dispatchViewSpecAction (declared data-payload-bindings only, [data-binding-id] values,
     # scoped to the screen section). A failed mutation halts the click's remaining mutations
     # (mirroring Python replay) and marks the section data-viewspec-state-halted (SC-V5).
-    # NAMING RULE: no identifier may start with "on" (the shell safety regex \son[a-z]+\s*=
-    # scans the full HTML), and no http/url(/Worker( tokens.
+    # NAMING RULE: no identifier may start with "on", and no http/url(/Worker( tokens: the shell
+    # scan reads script blocks for worker construction and URLs, and reads markup it cannot split
+    # by context whole, with every pattern (\son[a-z]+\s*= included).
     return """(() => {
   const dataEl = document.getElementById('viewspec-app-state-data');
   if (!dataEl || typeof ViewSpecStateRuntime === 'undefined') return;
@@ -665,24 +924,7 @@ def _assert_rendered_shell_static_contract(html: str) -> None:
             "Rendered shell must contain exactly one local 404 panel.",
             "Regenerate the shell from the validated AppBundle route graph.",
         )
-    if "http:" in html.lower() or "https:" in html.lower() or HTML_PROTOCOL_RELATIVE_RE.search(html):
-        raise AppBundleProofFailure(
-            "APP_SHELL_NETWORK_SURFACE_REJECTED",
-            "Rendered shell contains a network URL surface.",
-            "Remove external resources before compiling the static shell.",
-        )
-    if HTML_FORBIDDEN_EMBED_RE.search(html) or HTML_IMPORT_MAP_RE.search(html) or HTML_WORKER_IMPORT_RE.search(html):
-        raise AppBundleProofFailure(
-            "APP_SHELL_EMBEDDING_UNSUPPORTED",
-            "Rendered shell contains unsupported frame/embed/import/worker surfaces.",
-            "Remove unsupported surfaces before compiling the static shell.",
-        )
-    if HTML_INLINE_HANDLER_RE.search(html):
-        raise AppBundleProofFailure(
-            "APP_SHELL_EMBEDDING_UNSUPPORTED",
-            "Rendered shell contains inline event handlers.",
-            "Use the compiler-owned static route script only.",
-        )
+    _reject_surfaces(html, "Rendered shell", _SHELL_SURFACE_CHECKS)
 
 
 def _static_shell_manifest(

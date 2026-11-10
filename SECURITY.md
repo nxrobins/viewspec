@@ -41,8 +41,16 @@ What the local SDK does — and deliberately does not do:
   either file, because whoever edits the artifact can re-hash the manifest. `viewspec prove` adds
   the artifact, manifest, and proof report hashes in `PROOF.md` for that purpose.
 - **Bounded static shells.** AppBundle Static Shell V0 rejects external network, embed, and
-  script surfaces; the full shell HTML is scanned for inline handlers, `http:` URLs, `url(`,
-  worker construction, and import maps before a proof can pass.
+  script surfaces before a proof can pass. Each embedded screen and the full shell are scanned by
+  context. Tags are checked for embed, object, and frame tags and import maps, and in screens for
+  `<link>` and any attributed `<script>`. Attribute names are checked for inline event handlers.
+  Attribute values are checked for protocol-relative URLs and, in the full shell, for `http:` and
+  `https:` outside the text attributes `alt`, `aria-label`, `placeholder`, `title`, and `value`.
+  Script blocks are checked for worker construction and `importScripts`. Text and JSON data are
+  checked only for a full URL (a scheme followed by `://`), which is rejected in every context.
+  Screen `<style>` blocks are checked for `url(`, `@import`, and other CSS references, and the
+  shell's own `<style>` block for `http:` and `https:`. Markup that is not in the form the compiler
+  writes is scanned whole, with every pattern.
 - **Local preview only.** `viewspec studio` binds 127.0.0.1, refuses requests for any other `Host`
   (which also blocks DNS rebinding), and serves only files inside its private build directory.
 - **MCP path containment.** `viewspec mcp` resolves its working directory first and confines every
@@ -58,7 +66,10 @@ What the local SDK does — and deliberately does not do:
   so the host's sandbox and CSP are the boundary there.
 - **Output containment.** `--force` on `viewspec prove` and `viewspec compile` replaces only an empty
   directory or one that holds a ViewSpec-written marker such as `proof_report.json`; any other
-  directory is refused rather than deleted.
+  directory is refused rather than deleted. A refused `viewspec prove` writes nothing into a
+  directory it does not own: report files go only into a directory the run created, or one that was
+  already empty or held such a marker, so a refusal never makes the directory it refused
+  replaceable.
 - **Untrusted input is the normal case.** Validators are fail-closed with hard caps on bytes,
   counts, and depth, and reject unknown fields instead of ignoring them. DESIGN.md is capped at
   64 KiB, checked against its on-disk size before it is read, and its YAML front matter rejects

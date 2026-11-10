@@ -110,6 +110,41 @@ def is_replaceable_output_dir(output_dir: Path) -> bool:
     )
 
 
+class OutputOwnership:
+    """Whether a proof run may write its report files into its output directory.
+
+    :func:`is_replaceable_output_dir` takes a report file as proof that a directory is ViewSpec's, so
+    a run that leaves one in a directory it does not own lets the next ``force`` delete that
+    directory.  ``owned`` starts False and is decided once, before the run writes anything there:
+    :meth:`created` when the run creates the directory, or :meth:`refuse_existing` when it refuses
+    to replace an existing one.  Every other failure leaves the directory untouched: one raised
+    before the run looked at the directory, a refusal under ``force``, and an unsafe output.
+    ``viewspec prove`` decides with this class for IntentBundles and AppBundles alike.
+    """
+
+    def __init__(self, output_dir: Path) -> None:
+        self.output_dir = output_dir
+        self.owned = False
+
+    def created(self) -> None:
+        """Record that this run created ``output_dir``, so its reports go there."""
+        self.owned = True
+
+    def refuse_existing(self) -> str:
+        """Decide whether the refused, existing ``output_dir`` takes the refusal report; return the fix.
+
+        It does when ``force`` would replace it, and only then does the fix offer ``--force``.
+        """
+        self.owned = is_replaceable_output_dir(self.output_dir)
+        if self.owned:
+            return "Pass --force or choose a new --out directory."
+        return "Choose a new --out directory; ViewSpec did not write this one, so it will not replace it."
+
+    def holds(self, path: Path) -> bool:
+        """Return True when ``path`` is ``output_dir`` or lies inside it."""
+        return _is_relative_to(path.resolve(), self.output_dir.resolve())
+
+
 def input_inside_output(output_dir: Path, root: Path, *inputs: str | Path | None) -> str | Path | None:
     """Return the first input that replacing ``output_dir`` would delete; relative inputs start at ``root``."""
     replaced = output_dir.resolve()

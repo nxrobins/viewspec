@@ -39,7 +39,7 @@ The CLI is exactly six commands:
 
 ## Current Product Facts
 
-- Current public SDK version: `0.4.0`.
+- Current public SDK version: `0.4.1`.
 - Free, MIT-licensed SDK: `python -m pip install viewspec`.
 - Starter proof: `viewspec prove --out .viewspec-proof` writes `.viewspec-proof/PROOF.md` for humans, `.viewspec-proof/proof_report.json` for tools, and `.viewspec-proof/support_bundle.json` for redacted local support triage; checked manifest summaries include compact style-delta counts when aesthetic profiles are present; `docs/proof-bundle.md` and https://viewspec.dev/proof-bundle/ explain status, hashes, checks, failure codes, and support bundles.
 - Canonical authored-intent lifecycle: `viewspec init --out viewspec.intent.json`; edit the semantic source; `viewspec check viewspec.intent.json --json`; then `viewspec prove viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json`. The final command compiles, checks, and renders the exact artifact at canonical mobile, tablet, and desktop viewports.
