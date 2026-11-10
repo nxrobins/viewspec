@@ -967,9 +967,9 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
     lines.extend(
         [
             f"export const VIEWSPEC_STATE_PROFILE{ann(json.dumps(INTERACTIVE_STATE_PROFILE))} = {json.dumps(INTERACTIVE_STATE_PROFILE)};",
-            f"export const initialState{ann('ViewSpecState')} = {json.dumps(model.initial, indent=2, sort_keys=True)};",
-            f"const mutations{ann('Mutation[]')} = {json.dumps(model.mutations, indent=2, sort_keys=True)};",
-            f"const selectors{ann('Selector[]')} = {json.dumps(model.selectors, indent=2, sort_keys=True)};",
+            f"export const initialState{ann('ViewSpecState')} = {_reducer_json_literal(model.initial)};",
+            f"const mutations{ann('Mutation[]')} = {_reducer_json_literal(model.mutations)};",
+            f"const selectors{ann('Selector[]')} = {_reducer_json_literal(model.selectors)};",
             "",
             _function_signature(
                 "clone<T>" if typescript else "clone",
@@ -1176,7 +1176,7 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
         lines.extend(
             [
                 "",
-                f"const visibilityRules{ann('VisibilityRule[]')} = {json.dumps(model.visibility_rules, indent=2, sort_keys=True)};",
+                f"const visibilityRules{ann('VisibilityRule[]')} = {_reducer_json_literal(model.visibility_rules)};",
                 _function_signature(
                     "evaluateViewSpecVisibility",
                     (("state", "ViewSpecState"),),
@@ -1209,7 +1209,7 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
         lines.extend(
             [
                 "",
-                f"const stateTextRules{ann('StateTextRule[]')} = {json.dumps(model.state_text_rules, indent=2, sort_keys=True)};",
+                f"const stateTextRules{ann('StateTextRule[]')} = {_reducer_json_literal(model.state_text_rules)};",
                 _function_signature(
                     "stateTextScalar",
                     (("value", "unknown"),),
@@ -1237,6 +1237,18 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
             ]
         )
     return "\n".join(lines) + "\n"
+
+
+def _reducer_json_literal(value: Any) -> str:
+    """A JSON literal for the generated reducer, safe inside the static shell's inline script.
+
+    The static shell inlines the reducer in a ``<script>`` element, where the HTML parser ends the
+    script at the first ``</script>`` whatever the JavaScript means. So every literal escapes ``<``,
+    ``>``, and ``&``. JSON puts these characters only inside strings, where the escape keeps the
+    value, so no template, state value, or mutation value can end the script or start another.
+    """
+    text = json.dumps(value, indent=2, sort_keys=True)
+    return text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
 def generate_typescript_reducer(app_payload: dict[str, Any]) -> str:
