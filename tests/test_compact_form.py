@@ -293,7 +293,34 @@ def test_normalize_is_deterministic_across_runs_and_json_round_trips():
 
 
 _LABEL = st.text(alphabet=st.characters(categories=("L", "N", "P", "Zs")), min_size=1, max_size=12)
-_VALUE = st.one_of(_LABEL, st.integers(min_value=-(2**53), max_value=2**53), st.booleans())
+# Integers past 2**53 are drawn too. A double cannot hold them, so the compact checks must reject them
+# with INTEGER_OUT_OF_SAFE_RANGE where normalization would round them.
+_UNSAFE_INTEGER = st.one_of(
+    st.integers(min_value=2**53 + 1, max_value=2**80), st.integers(min_value=-(2**80), max_value=-(2**53) - 1)
+)
+_VALUE = st.one_of(_LABEL, st.integers(min_value=-(2**53), max_value=2**53), _UNSAFE_INTEGER, st.booleans())
+
+
+def _is_unsafe_integer(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and abs(value) > 2**53
+
+
+def _unsafe_integer_paths(value, path: str = "$") -> list[str]:
+    """The compact path of every integer in ``value`` with magnitude above 2**53."""
+    if isinstance(value, dict):
+        return [found for key, item in value.items() for found in _unsafe_integer_paths(item, f"{path}.{key}")]
+    if isinstance(value, list):
+        return [found for index, item in enumerate(value) for found in _unsafe_integer_paths(item, f"{path}[{index}]")]
+    return [path] if _is_unsafe_integer(value) else []
+
+
+def _unsafe_integers_as_strings(value):
+    """``value`` with every integer past 2**53 written as a JSON string, the fix the issue suggests."""
+    if isinstance(value, dict):
+        return {key: _unsafe_integers_as_strings(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_unsafe_integers_as_strings(item) for item in value]
+    return str(value) if _is_unsafe_integer(value) else value
 
 
 def _item(kind: str):
@@ -339,6 +366,18 @@ _DOCUMENTS = st.integers(min_value=1, max_value=4).flatmap(
 @given(document=_DOCUMENTS)
 def test_generated_compact_documents_normalize_deterministically_to_valid_bundles(document):
     assert SCHEMA.is_valid(document), sorted(error.message for error in SCHEMA.iter_errors(document))
+    unsafe = _unsafe_integer_paths(document)
+    if unsafe:
+        # The schema accepts them (a JSON Schema bound on integers would also reject floats such as
+        # 1e20), so the compact checks reject each one at its compact path, before any value is
+        # rounded. The document then normalizes once they are written as strings, as the issue says.
+        canonical, issues = normalize_with_issues(document)
+        assert canonical is None
+        assert sorted((issue.code, issue.path) for issue in issues) == [
+            ("INTEGER_OUT_OF_SAFE_RANGE", path) for path in sorted(unsafe)
+        ]
+        assert normalize_with_issues(json.loads(json.dumps(document)))[1] == issues
+        document = _unsafe_integers_as_strings(document)
     first = normalize(document)
     second = normalize(json.loads(json.dumps(document)))
 

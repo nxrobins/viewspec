@@ -9,7 +9,10 @@ document: the same compact document always gives the same canonical document.
 The compact form rejects, with a ``COMPACT_*`` code, every construct that the builder cannot express
 or would lose silently (an unknown key, a duplicate id, a missing item list). Everything the canonical
 contract checks (motif completeness, style targets, collection action rules, caps) is left to the
-unchanged canonical validator, which reports it with canonical ``$.view_spec`` paths.
+unchanged canonical validator, which reports it with canonical ``$.view_spec`` paths. The exception is
+an integer with magnitude above 2**53 in a value: the builder stores numbers as doubles and would round
+it before the canonical validator sees it, so the compact checks apply the canonical rule
+(``INTEGER_OUT_OF_SAFE_RANGE``) themselves, at the value's compact path.
 """
 
 from __future__ import annotations
@@ -37,6 +40,7 @@ from viewspec.agent import (
     SUPPORTED_AGENT_MOTIFS,
     SUPPORTED_AGENT_REGION_LAYOUTS,
     AgentValidationIssue,
+    _validate_number_precision,
 )
 from viewspec.sdk.builder import ViewSpecBuilder
 from viewspec.types import INTENT_BUNDLE_SCHEMA_VERSION, PRESENT_AS_TO_PRIMITIVE
@@ -45,8 +49,9 @@ COMPACT_FORMAT = "compact"
 COMPACT_FORM_SCHEMA_ID = "https://viewspec.dev/agent-intent-compact.schema.json"
 MAX_COMPACT_BYTES = MAX_AGENT_INTENT_BYTES
 
-# The closed set of codes the compact form itself reports. UNSUPPORTED_SCHEMA_VERSION is shared with
-# the canonical validator because it means the same thing at the same path.
+# The closed set of codes the compact form itself reports. Two canonical codes are shared because they
+# mean the same thing: UNSUPPORTED_SCHEMA_VERSION at the same path, and INTEGER_OUT_OF_SAFE_RANGE at
+# the compact path of a value that normalization would otherwise round.
 COMPACT_ERROR_CODES: tuple[str, ...] = (
     "COMPACT_ACTION_KIND_UNSUPPORTED",
     "COMPACT_ACTION_PAYLOAD_UNKNOWN",
@@ -494,6 +499,7 @@ class _CompactPlan:
                 )
             else:
                 self.title = payload["title"]
+                _validate_number_precision(self.title, "$.title", self.issues)
         if "aesthetic" in payload:
             aesthetic = payload["aesthetic"]
             if not isinstance(aesthetic, str) or aesthetic not in AESTHETIC_PROFILE_TOKENS:
@@ -831,6 +837,10 @@ class _CompactPlan:
                         f"{field} must not be null.",
                         f"Omit {field} or give it a value.",
                     )
+            # Every other item key becomes a node attribute, whose numbers the builder stores as doubles.
+            for field in allowed:
+                if field in item and field not in {"id", "present_as"}:
+                    _validate_number_precision(item[field], f"{item_path}.{field}", self.issues)
             if "id" in item:
                 explicit_id = _safe_id(item["id"])
                 if explicit_id is None:
@@ -920,6 +930,7 @@ class _CompactPlan:
                     )
                 else:
                     scalars[field] = motif[field]
+                    _validate_number_precision(motif[field], f"{path}.{field}", self.issues)
         if not self._claim_node(motif_id, f"{path}.id"):
             return scalars
         for field in SCALAR_FIELDS_BY_KIND[kind]:
@@ -956,6 +967,8 @@ class _CompactPlan:
                         f"{field} must not be null.",
                         f"Omit {field} or give it a value.",
                     )
+                elif field in item:
+                    _validate_number_precision(item[field], f"{path}.{field}", self.issues)
             region = self._check_region(item.get("region", DEFAULT_REGION), f"{path}.region")
             group = self._check_group(item.get("group"), f"{path}.group", owned=False)
             if not self._claim_node(input_id, f"{path}.id"):
