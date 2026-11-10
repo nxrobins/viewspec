@@ -44,6 +44,13 @@ APP_STATE_MAX_EVENTS_PER_REPLAY = 32
 APP_STATE_MAX_REDUCER_BYTES = 64 * 1024
 APP_STATE_MAX_MANIFEST_BYTES = 64 * 1024
 STATE_MANIFEST_SCHEMA_VERSION = 2
+# Reducer conformance status. Conformance always replays the initial state with zero events; it is
+# "passed" only when a replay assertion of at least one event also passed, and "initial_state_only"
+# when the initial state is all that was compared.
+REDUCER_CONFORMANCE_PASSED = "passed"
+REDUCER_CONFORMANCE_FAILED = "failed"
+REDUCER_CONFORMANCE_INITIAL_STATE_ONLY = "initial_state_only"
+REPLAY_FAILURE_FIX = "Fix the named replay assertion, mutation, or expected value and retry."
 STATE_REDUCER_EXPORTS = (
     "VIEWSPEC_STATE_PROFILE",
     "initialState",
@@ -681,6 +688,39 @@ def _replay_value_mismatches(
             }
         )
     return mismatches
+
+
+def replay_error_code(error: dict[str, Any]) -> str:
+    """The code a failed replay reports: the error's own, or the generic replay failure."""
+    return str(error.get("code") or "APP_STATE_REPLAY_ASSERTION_FAILED")
+
+
+def replay_error_message(error: dict[str, Any]) -> str:
+    """A replay error's message followed by the assertion, event, mutation, path and values it names.
+
+    ``viewspec check``, ``viewspec prove`` and ``viewspec compile`` all report a failed replay with
+    this one message.
+    """
+    detail = str(error.get("message") or "State replay assertions failed.")
+    context = []
+    if error.get("assertion_id") is not None:
+        context.append(f"assertion={error['assertion_id']}")
+    if error.get("event_index") is not None:
+        context.append(f"event={error['event_index']}")
+    if error.get("mutation_id") is not None:
+        context.append(f"mutation={error['mutation_id']}")
+    if error.get("path") is not None:
+        context.append(f"path={error['path']}")
+    error_code = replay_error_code(error)
+    if "VISIBILITY" in error_code:
+        context.append("result=visibility")
+    elif "SELECTOR" in error_code:
+        context.append("result=selector")
+    elif "STATE" in error_code:
+        context.append("result=state")
+    if "expected" in error or "actual" in error:
+        context.append(f"expected={error.get('expected')!r} actual={error.get('actual')!r}")
+    return f"{detail} ({', '.join(context)})" if context else detail
 
 
 def initial_state(app_payload: dict[str, Any], state_ir: StateIR) -> dict[str, Any]:
@@ -1564,65 +1604,72 @@ def check_reducer_conformance(
     reducer_source: str | None = None,
     node_command: str = "node",
 ) -> dict[str, Any]:
+    """Compare the generated reducer under Node with the Python reference.
+
+    One implicit replay of zero events always runs first and compares the initial state, every
+    selector, every visibility verdict and every state text: the baked page shows the Python answer
+    and the running page computes the generated one. Then each replay assertion runs. The report's
+    ``status`` is ``failed``, ``passed`` (a replay assertion of at least one event passed) or
+    ``initial_state_only`` (no event was replayed).
+    """
     state_ir, issues = validate_state_ir(app_payload)
     if state_ir is None:
-        return {
-            "ok": False,
-            "profile": INTERACTIVE_STATE_PROFILE,
-            "runtime": "node",
-            "assertion_count": 0,
-            "passed_count": 0,
-            "failed_count": len(issues),
-            "reducer_source_hash": None,
-            "export_names": [],
-            "errors": [issue.to_json() for issue in issues],
-            "replays": [],
-        }
+        return _conformance_report(
+            ok=False,
+            assertion_count=0,
+            passed_count=0,
+            failed_count=len(issues),
+            reducer_source_hash=None,
+            export_names=[],
+            errors=[issue.to_json() for issue in issues],
+            initial_replay=None,
+            replays=[],
+        )
     canonical_source = generate_typescript_reducer(app_payload)
     source = reducer_source if reducer_source is not None else canonical_source
+    expected_initial = _expected_initial_replay(app_payload, state_ir)
     expected_replays = _expected_conformance_replays(app_payload, state_ir)
     if source != canonical_source:
-        return {
-            "ok": False,
-            "profile": INTERACTIVE_STATE_PROFILE,
-            "runtime": "node",
-            "assertion_count": len(expected_replays),
-            "passed_count": 0,
-            "failed_count": len(expected_replays) or 1,
-            "reducer_source_hash": _hash_text(source),
-            "export_names": [],
-            "errors": [
+        return _conformance_report(
+            ok=False,
+            assertion_count=len(expected_replays),
+            passed_count=0,
+            failed_count=len(expected_replays) or 1,
+            reducer_source_hash=_hash_text(source),
+            export_names=[],
+            errors=[
                 _conformance_error(
                     "Generated reducer source differs from the canonical typed state, selector, and visibility emitter output."
                 )
             ],
-            "replays": [],
-        }
+            initial_replay=None,
+            replays=[],
+        )
     runtime_source = generate_javascript_reducer(app_payload)
     node_report = _run_node_conformance(runtime_source, state_ir, node_command=node_command)
     errors: list[dict[str, Any]] = []
     if not node_report.get("ok"):
         errors.extend(node_report.get("errors") if isinstance(node_report.get("errors"), list) else [])
-        return {
-            "ok": False,
-            "profile": INTERACTIVE_STATE_PROFILE,
-            "runtime": "node",
-            "assertion_count": len(expected_replays),
-            "passed_count": 0,
-            "failed_count": len(expected_replays) or 1,
-            "reducer_source_hash": _hash_text(source),
-            "export_names": node_report.get("export_names")
-            if isinstance(node_report.get("export_names"), list)
-            else [],
-            "errors": errors or [_conformance_error("Node reducer conformance failed before replay.")],
-            "replays": [],
-        }
+        reported_exports = node_report.get("export_names")
+        return _conformance_report(
+            ok=False,
+            assertion_count=len(expected_replays),
+            passed_count=0,
+            failed_count=len(expected_replays) or 1,
+            reducer_source_hash=_hash_text(source),
+            export_names=reported_exports if isinstance(reported_exports, list) else [],
+            errors=errors or [_conformance_error("Node reducer conformance failed before replay.")],
+            initial_replay=None,
+            replays=[],
+        )
     export_names = [name for name in node_report.get("export_names", []) if isinstance(name, str)]
     missing_exports = [name for name in state_reducer_exports(app_payload) if name not in export_names]
     if node_report.get("profile") != INTERACTIVE_STATE_PROFILE:
         errors.append(_conformance_error("Generated reducer exported an unexpected VIEWSPEC_STATE_PROFILE."))
     if missing_exports:
         errors.append(_conformance_error(f"Generated reducer is missing export(s): {', '.join(missing_exports)}."))
+    initial_report, initial_errors = _compare_initial_replay(expected_initial, node_report.get("initial"))
+    errors.extend(initial_errors)
     node_replays = {
         replay.get("id"): replay
         for replay in node_report.get("replays", [])
@@ -1702,18 +1749,71 @@ def check_reducer_conformance(
             }
         )
     failed_count = sum(1 for replay in replay_reports if replay["status"] != "passed")
-    return {
-        "ok": failed_count == 0 and not errors,
+    return _conformance_report(
+        ok=failed_count == 0 and not errors,
+        assertion_count=len(expected_replays),
+        passed_count=len(expected_replays) - failed_count,
+        failed_count=failed_count,
+        reducer_source_hash=_hash_text(source),
+        export_names=export_names,
+        errors=errors,
+        initial_replay=initial_report,
+        replays=replay_reports,
+    )
+
+
+def reducer_conformance_status(report: object) -> str | None:
+    """The status a reducer conformance report earns, or ``None`` for anything that is not one.
+
+    ``failed`` when conformance failed. ``passed`` only when a replay assertion of at least one event
+    passed. ``initial_state_only`` when no event was replayed, so the generated reducer was compared
+    with the Python reference at the initial state alone.
+    """
+    if not isinstance(report, dict):
+        return None
+    if report.get("ok") is False:
+        return REDUCER_CONFORMANCE_FAILED
+    if report.get("ok") is not True:
+        return None
+    replays = report.get("replays")
+    exercised = isinstance(replays, list) and any(
+        isinstance(replay, dict)
+        and replay.get("status") == "passed"
+        and type(replay.get("event_count")) is int
+        and replay["event_count"] > 0
+        for replay in replays
+    )
+    return REDUCER_CONFORMANCE_PASSED if exercised else REDUCER_CONFORMANCE_INITIAL_STATE_ONLY
+
+
+def _conformance_report(
+    *,
+    ok: bool,
+    assertion_count: int,
+    passed_count: int,
+    failed_count: int,
+    reducer_source_hash: str | None,
+    export_names: list[Any],
+    errors: list[dict[str, Any]],
+    initial_replay: dict[str, Any] | None,
+    replays: list[dict[str, Any]],
+) -> dict[str, Any]:
+    # The counts describe the author's replay assertions; initial_replay is the implicit one.
+    report: dict[str, Any] = {
+        "ok": ok,
         "profile": INTERACTIVE_STATE_PROFILE,
         "runtime": "node",
-        "assertion_count": len(expected_replays),
-        "passed_count": len(expected_replays) - failed_count,
+        "assertion_count": assertion_count,
+        "passed_count": passed_count,
         "failed_count": failed_count,
-        "reducer_source_hash": _hash_text(source),
+        "reducer_source_hash": reducer_source_hash,
         "export_names": export_names,
         "errors": errors,
-        "replays": replay_reports,
+        "initial_replay": initial_replay,
+        "replays": replays,
     }
+    report["status"] = reducer_conformance_status(report)
+    return report
 
 
 def _parse_state_entries(
@@ -3363,6 +3463,104 @@ def _project_expected(values: dict[str, Any], expected: dict[str, Any]) -> dict[
     return {key: copy.deepcopy(values.get(key)) for key in expected}
 
 
+def _expected_initial_replay(app_payload: dict[str, Any], state_ir: StateIR) -> dict[str, Any]:
+    """The Python reference before any event: the values the compiled screens are baked from."""
+    current = initial_state(app_payload, state_ir)
+    selector_values = evaluate_selectors(current, state_ir)
+    expected: dict[str, Any] = {"state": current, "selectors": selector_values}
+    if app_has_visibility(app_payload):
+        expected["visibility"] = evaluate_visibility(current, selector_values, state_ir)
+    if "state_text" in app_payload:
+        expected["text"] = evaluate_state_text(current, state_ir)
+    return expected
+
+
+# What the initial-state replay compares: the result key, how a message names one entry and all of
+# them, the bundle section that declares the entries, and the report flag.
+_INITIAL_REPLAY_SECTIONS = (
+    ("state", "state", "state values", "$.state", "state_matches"),
+    ("selectors", "selector", "selector values", "$.selectors", "selector_matches"),
+    ("visibility", "visibility rule", "visibility verdicts", "$.visibility", "visibility_matches"),
+    ("text", "state text", "state text values", "$.state_text", "text_matches"),
+)
+_INITIAL_REPLAY_DIVERGED = "Generated reducer diverged from the Python reference at the initial state (zero events)"
+_CONFORMANCE_VALUE_MAX_CHARS = 200
+_ABSENT = object()
+
+
+def _compare_initial_replay(expected: dict[str, Any], actual: Any) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    """Compare the generated reducer's zero-event replay with the Python reference, value by value."""
+    flags = [section for section in _INITIAL_REPLAY_SECTIONS if section[0] in expected]
+    if not isinstance(actual, dict):
+        report = {"status": "failed", "event_count": 0, **{section[4]: False for section in flags}}
+        return report, [_conformance_error("Node reducer omitted the initial-state replay.")]
+    errors: list[dict[str, str]] = []
+    thrown = actual.get("errors")
+    for error in thrown if isinstance(thrown, list) else []:
+        detail = error.get("message") if isinstance(error, dict) else error
+        errors.append(
+            _conformance_error(
+                f"Generated reducer failed at the initial state (zero events), where the Python reference did not: {detail}"
+            )
+        )
+    report: dict[str, Any] = {"status": "passed", "event_count": 0}
+    for key, label, noun, path, flag in flags:
+        matches = _json_values_equal(actual.get(key), expected[key])
+        report[flag] = matches
+        if not matches:
+            errors.extend(_initial_replay_divergences(label, noun, path, expected[key], actual.get(key)))
+    if errors:
+        report["status"] = "failed"
+    return report, errors
+
+
+def _initial_replay_divergences(label: str, noun: str, path: str, expected: Any, actual: Any) -> list[dict[str, str]]:
+    """One error per entry that differs, naming the entry and both values."""
+    errors: list[dict[str, str]] = []
+    if isinstance(expected, dict):
+        generated_values = actual if isinstance(actual, dict) else {}
+        names = [*expected, *sorted(name for name in generated_values if name not in expected)]
+        for name in names:
+            reference = expected.get(name, _ABSENT)
+            generated = generated_values.get(name, _ABSENT)
+            if reference is not _ABSENT and generated is not _ABSENT and _json_values_equal(generated, reference):
+                continue
+            errors.append(
+                {
+                    "code": "APP_STATE_REDUCER_CONFORMANCE_FAILED",
+                    "path": f"{path}.{name}",
+                    "message": (
+                        f"{_INITIAL_REPLAY_DIVERGED}: {label} {name} is {_conformance_value_text(reference)} in the "
+                        f"Python reference and {_conformance_value_text(generated)} in the generated reducer."
+                    ),
+                }
+            )
+    if errors:
+        return errors
+    return [
+        {
+            "code": "APP_STATE_REDUCER_CONFORMANCE_FAILED",
+            "path": path,
+            "message": (
+                f"{_INITIAL_REPLAY_DIVERGED}: the {noun} are {_conformance_value_text(expected)} in the Python "
+                f"reference and {_conformance_value_text(actual)} in the generated reducer."
+            ),
+        }
+    ]
+
+
+def _conformance_value_text(value: Any) -> str:
+    if value is _ABSENT:
+        return "missing"
+    try:
+        text = _stable_json(value)
+    except (TypeError, ValueError):
+        text = repr(value)
+    if len(text) > _CONFORMANCE_VALUE_MAX_CHARS:
+        return text[: _CONFORMANCE_VALUE_MAX_CHARS - 3] + "..."
+    return text
+
+
 def _expected_conformance_replays(app_payload: dict[str, Any], state_ir: StateIR) -> list[dict[str, Any]]:
     initial = initial_state(app_payload, state_ir)
     is_v4 = app_has_visibility(app_payload)
@@ -3410,12 +3608,11 @@ const inputPath = process.argv[3];
 const input = JSON.parse(readFileSync(inputPath, "utf8"));
 const mod = await import(pathToFileURL(reducerPath).href);
 const exportNames = Object.keys(mod).sort();
-const replays = [];
 
-for (const assertion of input.assertions || []) {
+function replay(events) {
   let state = mod.initialState;
   const errors = [];
-  for (const event of assertion.events || []) {
+  for (const event of events) {
     try {
       state = mod.reduceViewSpecState(state, event);
     } catch (error) {
@@ -3441,13 +3638,21 @@ for (const assertion of input.assertions || []) {
   } catch (error) {
     errors.push({ code: "APP_STATE_REDUCER_CONFORMANCE_FAILED", message: String(error?.message || error) });
   }
-  replays.push({ id: assertion.id, ok: errors.length === 0, state, selectors, visibility, text, errors });
+  return { ok: errors.length === 0, state, selectors, visibility, text, errors };
+}
+
+// The implicit replay: zero events, so it compares what the page shows before any interaction.
+const initial = replay([]);
+const replays = [];
+for (const assertion of input.assertions || []) {
+  replays.push({ id: assertion.id, ...replay(assertion.events || []) });
 }
 
 console.log(JSON.stringify({
   ok: true,
   profile: mod.VIEWSPEC_STATE_PROFILE,
   export_names: exportNames,
+  initial,
   replays
 }));
 """.lstrip()
@@ -3621,6 +3826,10 @@ __all__ = [
     "APP_VISIBILITY_MIN_COMPOSITE_ITEMS",
     "INTERACTIVE_STATE_PROFILE",
     "NormalizedStateIR",
+    "REDUCER_CONFORMANCE_FAILED",
+    "REDUCER_CONFORMANCE_INITIAL_STATE_ONLY",
+    "REDUCER_CONFORMANCE_PASSED",
+    "REPLAY_FAILURE_FIX",
     "STATE_MANIFEST_SCHEMA_VERSION",
     "STATE_REDUCER_EXPORTS",
     "StateEntry",
@@ -3638,6 +3847,9 @@ __all__ = [
     "initial_state",
     "initial_state_text",
     "normalize_state_ir",
+    "reducer_conformance_status",
+    "replay_error_code",
+    "replay_error_message",
     "replay_state_assertions",
     "state_contract_hash",
     "state_event_schemas",

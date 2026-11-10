@@ -10,7 +10,15 @@ from typing import Any
 from viewspec.app_errors import AppBundleProofFailure
 from viewspec.app_versions import app_has_interactive_state, app_has_visibility
 from viewspec.local_tools import atomic_write, file_hash
-from viewspec.state_ir import APP_STATE_MAX_MANIFEST_BYTES, APP_STATE_MAX_REDUCER_BYTES, INTERACTIVE_STATE_PROFILE
+from viewspec.state_ir import (
+    APP_STATE_MAX_MANIFEST_BYTES,
+    APP_STATE_MAX_REDUCER_BYTES,
+    INTERACTIVE_STATE_PROFILE,
+    REPLAY_FAILURE_FIX,
+    reducer_conformance_status,
+    replay_error_code,
+    replay_error_message,
+)
 
 APP_STATE_REDUCER = "state_reducer.ts"
 APP_STATE_MANIFEST = "state_manifest.json"
@@ -65,39 +73,10 @@ def _write_state_artifacts(
         if replay and not replay.get("ok"):
             replay_errors = replay.get("errors") if isinstance(replay.get("errors"), list) else []
             first = replay_errors[0] if replay_errors and isinstance(replay_errors[0], dict) else {}
-            detail = str(first.get("message") or "State replay assertions failed.")
-            assertion_id = first.get("assertion_id")
-            event_index = first.get("event_index")
-            mutation_id = first.get("mutation_id")
-            state_path = first.get("path")
-            expected = first.get("expected")
-            actual = first.get("actual")
-            context = []
-            if assertion_id is not None:
-                context.append(f"assertion={assertion_id}")
-            if event_index is not None:
-                context.append(f"event={event_index}")
-            if mutation_id is not None:
-                context.append(f"mutation={mutation_id}")
-            if state_path is not None:
-                context.append(f"path={state_path}")
-            error_code = str(first.get("code") or "APP_STATE_REPLAY_ASSERTION_FAILED")
-            if "VISIBILITY" in error_code:
-                context.append("result=visibility")
-            elif "SELECTOR" in error_code:
-                context.append("result=selector")
-            elif "STATE" in error_code:
-                context.append("result=state")
-            if "expected" in first or "actual" in first:
-                context.append(f"expected={expected!r} actual={actual!r}")
-            if context:
-                detail = f"{detail} ({', '.join(context)})"
             raise AppBundleProofFailure(
-                error_code,
-                detail,
-                str(
-                    first.get("suggestion") or "Fix the named replay assertion, mutation, or expected value and retry."
-                ),
+                replay_error_code(first),
+                replay_error_message(first),
+                str(first.get("suggestion") or REPLAY_FAILURE_FIX),
             )
         _write_bounded_json(
             manifest_path,
@@ -129,6 +108,10 @@ def _write_state_artifacts(
             "replay_ok": bool(manifest.get("replay", {}).get("ok"))
             if isinstance(manifest.get("replay"), dict)
             else True,
+            # replay_ok is vacuously true with no assertion; the count says whether any ran.
+            "replay_assertion_count": len(payload.get("state_replay_assertions", []))
+            if isinstance(payload.get("state_replay_assertions"), list)
+            else 0,
             "contract_hash": manifest.get("contract_hash"),
             "reducer_conformance": _state_conformance_status(conformance),
             # v4+ keys: the v3 summary shape stays byte-stable.
@@ -197,13 +180,8 @@ def _initial_hidden_count(payload: dict[str, Any]) -> int | None:
 
 
 def _state_conformance_status(report: object) -> str | None:
-    if not isinstance(report, dict):
-        return None
-    if report.get("ok") is True:
-        return "passed"
-    if report.get("ok") is False:
-        return "failed"
-    return None
+    """``failed``, ``passed`` or ``initial_state_only``: the one status manifests and reports carry."""
+    return reducer_conformance_status(report)
 
 
 def _write_bounded_json(path: Path, payload: dict[str, Any], *, limit: int, code: str) -> None:
