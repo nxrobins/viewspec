@@ -991,8 +991,7 @@ def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str)
         if conformance_status:
             lines.append(f"- State reducer conformance: `{_summary_value(conformance_status)}`")
         if isinstance(report.get("state_replay"), dict):
-            replay = report["state_replay"]
-            lines.append(f"- State replay: `{_summary_value('passed' if replay.get('ok') else 'failed')}`")
+            lines.append(f"- State replay: `{_summary_value(_state_replay_status(report['state_replay']))}`")
         for key in (
             "every_route_maps_exactly_one_screen",
             "every_screen_has_route",
@@ -1188,6 +1187,15 @@ def _summary_value(value: object) -> str:
     if value is None:
         return "not_recorded"
     return str(value).replace("\r", " ").replace("\n", " ").replace("`", "'")
+
+
+def _state_replay_status(replay: dict[str, Any]) -> str:
+    """The replay line claims a pass only when at least one replay assertion ran."""
+    if not replay.get("ok"):
+        return "failed"
+    if replay.get("assertion_count") == 0:
+        return "not run: no replay assertions"
+    return "passed"
 
 
 def _final_timings(timings: dict[str, int]) -> dict[str, int]:

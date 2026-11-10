@@ -34,6 +34,10 @@ from viewspec.state_ir import (
     APP_STATE_TEXT_MAX_TEMPLATE_CHARS,
     APP_VISIBILITY_MAX_RULES,
     INTERACTIVE_STATE_PROFILE,
+    REPLAY_FAILURE_FIX,
+    replay_error_code,
+    replay_error_message,
+    replay_state_assertions,
     state_ir_summary,
     unsafe_integer_issues,
     v5_feature_issues,
@@ -257,14 +261,37 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
     _validate_unique_ids(screen_ids, "$.screens", "APP_DUPLICATE_SCREEN_ID", issues)
     _validate_route_graph(app, routes, set(screen_ids), issues)
     if version in APP_BUNDLE_STATEFUL_SCHEMA_VERSIONS:
-        _state_ir, state_issues = validate_state_ir(validation_payload)
+        state_ir, state_issues = validate_state_ir(validation_payload)
         issues.extend(issue.to_json() for issue in state_issues)
+        if state_ir is not None:
+            issues.extend(_state_replay_issues(validation_payload))
     else:
         # Versions 1 and 2 have no state IR, but their fixture records still reach the runtime.
         issues.extend(issue.to_json() for issue in unsafe_integer_issues(payload, sections=("resources",)))
     if version in {APP_BUNDLE_SCHEMA_VERSION, APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION}:
         # Versions 4 and 5 report these inside their own rule parsers.
         issues.extend(issue.to_json() for issue in v5_feature_issues(payload))
+
+
+def _state_replay_issues(payload: dict[str, Any]) -> list[dict[str, str]]:
+    """Each failed replay expectation, from the Python reference alone.
+
+    ``viewspec check``, plain ``viewspec prove`` and ``AppBundle.load`` run the author's replay
+    assertions here, without Node; ``viewspec compile`` then also compares the generated reducer.
+    """
+    report = replay_state_assertions(payload)
+    if report.get("ok") is True:
+        return []
+    errors = [error for error in report.get("errors", []) if isinstance(error, dict)] or [{}]
+    return [
+        _issue(
+            replay_error_code(error),
+            str(error.get("path") or "$.state_replay_assertions"),
+            replay_error_message(error),
+            str(error.get("suggestion") or REPLAY_FAILURE_FIX),
+        )
+        for error in errors
+    ]
 
 
 def _validate_app_object(app: dict[str, Any], issues: list[dict[str, str]]) -> None:

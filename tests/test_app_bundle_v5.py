@@ -150,7 +150,8 @@ def test_earlier_versions_name_the_v5_gate(version):
     [
         (
             "composed_when",
-            lambda p: p["visibility"][0].update(when={"not": {"state": "selected_incident", "is": "truthy"}}),
+            # "not falsy" keeps the V4 rule's truthy verdict, so the bundle's replay expectations hold.
+            lambda p: p["visibility"][0].update(when={"not": {"state": "selected_incident", "is": "falsy"}}),
         ),
         (
             "values_form",
@@ -300,15 +301,20 @@ def test_depth_4_condition_is_rejected():
     assert "APP_VISIBILITY_CONDITION_TOO_DEEP" in _codes(_composed(when))
 
 
+# The fixture's replays expect escalation to be "active and not acked", so a condition that a limit test
+# accepts keeps that verdict on every replayed state.
+LEAF_NOT_ACKED = {"state": "acked", "is": "falsy"}
+
+
 def test_depth_3_condition_is_accepted_and_one_more_level_is_not():
-    depth_3 = {"all": [LEAF_ACKED, {"any": [LEAF_ACTIVE, LEAF_PICKED]}]}
+    depth_3 = {"all": [LEAF_NOT_ACKED, {"any": [LEAF_ACTIVE, LEAF_PICKED]}]}
     assert _codes(_composed(depth_3)) == set()
     assert "APP_VISIBILITY_CONDITION_TOO_DEEP" in _codes(_composed({"not": depth_3}))
 
 
 def test_nine_leaves_are_rejected_and_eight_are_accepted():
-    eight = {"any": [{"all": [LEAF_ACKED] * 4}, {"all": [LEAF_ACTIVE] * 4}]}
-    nine = {"any": [{"all": [LEAF_ACKED] * 5}, {"all": [LEAF_ACTIVE] * 4}]}
+    eight = {"all": [{"any": [LEAF_ACTIVE] * 4}, {"any": [LEAF_NOT_ACKED] * 4}]}
+    nine = {"all": [{"any": [LEAF_ACTIVE] * 5}, {"any": [LEAF_NOT_ACKED] * 4}]}
     assert _codes(_composed(eight)) == set()
     assert "APP_VISIBILITY_CONDITION_TOO_MANY_LEAVES" in _codes(_composed(nine))
 
@@ -475,6 +481,20 @@ def test_normalized_contract_keeps_both_rule_forms():
     assert contract["visibility"][1]["when"]["any"][0]["all"][0] == LEAF_ACKED
 
 
+def _spend_from_two_pow_53(payload: dict[str, Any]) -> None:
+    """Start spend at 2^53, the largest integer accepted, with the replay expectations that hold for it."""
+    _rule(payload, "state", "spend")["initial"] = {"value": 2**53}
+    replays = {assertion["id"]: assertion for assertion in payload["state_replay_assertions"]}
+    replays["initial_view"]["expect_state"]["spend"] = 2**53
+    replays["initial_view"]["expect_text"]["spend_summary"] = "Spend: 9,007,199,254,740,992.00"
+    replays["initial_view"]["expect_text"]["open_summary"] = "1 open of 2, $9,007,199,254,740,992.00 spent"
+    replays["triage_then_acknowledge"]["expect_text"]["open_summary"] = "2 open of 2, $9,007,199,254,740,992.00 spent"
+    # Doubles above 2^53 are 2 apart, so 2^53 + 100.25 is held as 9007199254741092.
+    replays["record_spend"]["expect_state"]["spend"] = 9007199254741092.0
+    replays["record_spend"]["expect_text"]["spend_summary"] = "Spend: 9,007,199,254,741,092.00"
+    replays["record_spend"]["expect_text"]["open_summary"] = "1 open of 2, $9,007,199,254,741,092.00 spent"
+
+
 def test_v5_rejects_integers_beyond_two_pow_53_as_v4_does():
     def big(p):
         _rule(p, "state", "spend")["initial"] = {"value": 2**53 + 1}
@@ -483,7 +503,7 @@ def test_v5_rejects_integers_beyond_two_pow_53_as_v4_does():
     assert [(issue["code"], issue["path"]) for issue in issues] == [
         ("APP_STATE_INTEGER_OUT_OF_SAFE_RANGE", "$.state[3].initial.value")
     ]
-    assert _codes(_mutated(_v5(), lambda p: _rule(p, "state", "spend").update(initial={"value": 2**53}))) == set()
+    assert _codes(_mutated(_v5(), _spend_from_two_pow_53)) == set()
     # Every schema version rejects them now: the V4 runtime reads the same doubles.
     v4 = _state_text_app_bundle()
     v4["state"][1]["initial"] = {"value": 2**53 + 1}

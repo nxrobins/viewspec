@@ -26,15 +26,17 @@ viewspec prove viewspec.app.json --target react-tailwind-app --install
 The proof checks the same embedded screen provenance and resource assertions as the source path,
 verifies generated reducer replay under Node, checks every generated file hash, runs strict
 TypeScript checking before the Vite production build, and exercises routes, browser history,
-unknown-route fallback, state actions, live resource-field rebinding, selector expectations,
-visibility, and declared state text in Chromium. Each replay event, and each `repeat` of it, is one
-click on its action. One click applies every mutation that the action triggers on its screen, in
-declared order, as replay does for an `action_id` event. Consecutive `mutation_id` events that
-list every mutation of one action in that order, with the same `payload_values`, are also one
-click. No click applies only part of an action, so any other `mutation_id` event of an action that
-triggers more than one mutation fails the `react-tailwind-app` compile with
-`APP_REACT_REPLAY_EVENT_NOT_CLICKABLE`. A binding that a `state_text` rule targets is checked by the
-rule's text, not by its resource field.
+unknown-route fallback, state actions, live resource-field rebinding, visibility, and declared
+state text in Chromium. Selector expectations are checked by the Python replay and by reducer
+conformance under Node, not in Chromium: the browser test asserts no selector value, and its
+`selector_assertion_count` counts the declared `expect_selectors` entries. Each replay event, and
+each `repeat` of it, is one click on its action. One click applies every mutation that the action
+triggers on its screen, in declared order, as replay does for an `action_id` event. Consecutive
+`mutation_id` events that list every mutation of one action in that order, with the same
+`payload_values`, are also one click. No click applies only part of an action, so any other
+`mutation_id` event of an action that triggers more than one mutation fails the
+`react-tailwind-app` compile with `APP_REACT_REPLAY_EVENT_NOT_CLICKABLE`. A binding that a
+`state_text` rule targets is checked by the rule's text, not by its resource field.
 
 The generated `ViewSpecApp` accepts fixture-compatible resource records plus typed navigation, action, state-change, and error callbacks. Network requests, authentication, persistence, optimistic updates, and deployment infrastructure remain host-owned.
 
@@ -500,7 +502,9 @@ The proof report keeps report schema metadata separate from app contract metadat
 
 With `--with-shell`, `viewspec prove` also writes `.viewspec-app-proof/app-shell/index.html`, `.viewspec-app-proof/app-shell/shell_manifest.json`, and `.viewspec-app-proof/app-shell/diagnostics.json`; the proof report uses `target: "html-tailwind-app"`, `route_navigation: "static_shell_v0"`, `shell_artifact_hash`, `shell_manifest_hash`, shell route assertions, and the same per-screen proof data.
 
-For V3/V4 shell proofs, `viewspec compile` and `viewspec prove --with-shell` also write matching `state_reducer.ts` and `state_manifest.json`, record `state_contract_hash`, `state_reducer_hash`, `state_manifest_hash`, replay status, and reducer conformance status. Replay assertions execute through the normalized mutation definitions in the Python interpreter, and the generated reducer is imported with local Node and compared against the Python replay before returning a successful report. **Node.js (>=18) on `PATH` is a prerequisite for V3/V4/V5 conformance** — without it, `viewspec compile` and `viewspec prove` fail with `APP_STATE_REDUCER_NODE_UNAVAILABLE` (install Node, or use a V1/V2 AppBundle, which needs no Node).
+For V3 to V5 shell proofs, `viewspec compile` and `viewspec prove --with-shell` also write matching `state_reducer.ts` and `state_manifest.json`, record `state_contract_hash`, `state_reducer_hash`, `state_manifest_hash`, replay status, and reducer conformance status. Replay assertions execute through the normalized mutation definitions in the Python interpreter. `viewspec check`, plain `viewspec prove`, and `AppBundle.load` run them too, without Node, so a wrong expectation fails there with `APP_STATE_REPLAY_STATE_MISMATCH`, `APP_STATE_REPLAY_SELECTOR_MISMATCH`, `APP_VISIBILITY_REPLAY_MISMATCH`, `APP_STATE_TEXT_REPLAY_MISMATCH`, or the failing event's code. `replay_ok` in the shell manifest is true when no assertion failed, including when none is declared; `replay_assertion_count` beside it says how many ran, and `APP_PROOF.md` reports `not run: no replay assertions` instead of `passed` when there are none.
+
+Reducer conformance then imports the generated reducer with local Node and compares it with the Python reference before returning a successful report. It always runs one implicit replay with zero events first, comparing the initial state, every selector, every visibility verdict, and every state text: the compiled screens are baked from the Python values, and the running page computes the generated ones. Then it runs each replay assertion. A difference fails with `APP_STATE_REDUCER_CONFORMANCE_FAILED`; at the initial state the message names the state, selector, visibility rule, or state text that differs and both values. The conformance status in `shell_manifest.json` (`state_ir.reducer_conformance`), in the `status` of the conformance report in `state_manifest.json` and the compile and proof reports, and in `APP_PROOF.md` is one of three values: `passed` when a replay assertion of at least one event passed, `initial_state_only` when no event was replayed and only the initial state was compared, and `failed`, which fails the compile. **Node.js (>=18) on `PATH` is a prerequisite for V3/V4/V5 conformance** — without it, `viewspec compile`, `viewspec prove --with-shell`, and `viewspec prove --target react-tailwind-app` fail with `APP_STATE_REDUCER_NODE_UNAVAILABLE` (install Node, or use a V1/V2 AppBundle, which needs no Node).
 
 ## Explicit Anti-Goals
 
