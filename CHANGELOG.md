@@ -195,6 +195,11 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- Releases reach PyPI through `.github/workflows/publish.yml` and PyPI Trusted Publishing. A
+  maintainer starts it with the id of the SDK Reliability run that built the release, and it uploads
+  that run's exact wheel and sdist once a reviewer approves the `pypi` environment. No PyPI token is
+  stored in the repository, and each file carries a provenance attestation.
+  `docs/release-checklist.md` lists the steps and the one-time setup.
 - `SECURITY.md` says what a refused `viewspec prove` writes (nothing, into a directory it does not
   own) and how the static shell is scanned: by context, so tags, attribute names, attribute values,
   script blocks, and text are each checked for what can run or fetch there.
