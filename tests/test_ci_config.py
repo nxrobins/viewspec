@@ -88,6 +88,23 @@ def test_pretext_e2e_keeps_upload_artifact_v5() -> None:
     assert [(ref, comment) for _n, _l, _a, ref, comment in pins] == [("330a01c490aca151604b8cf639adc76d48f6c5d4", "v5")]
 
 
+def test_pypi_publishing_waits_for_a_reviewer() -> None:
+    # Only the publish job can mint a PyPI credential. It runs after verify and in the pypi
+    # environment, and verify stops the run when that environment has no required reviewer:
+    # GitHub creates a missing environment unprotected, which would let the upload run unapproved.
+    workflow = _load("publish.yml")
+    assert set(_triggers(workflow)) == {"workflow_dispatch"}
+    assert workflow["permissions"] == {"contents": "read"}
+    minting = [name for name, job in workflow["jobs"].items() if job.get("permissions", {}).get("id-token") == "write"]
+    assert minting == ["publish"]
+    publish = workflow["jobs"]["publish"]
+    assert publish["needs"] == "verify"
+    assert publish["environment"]["name"] == "pypi"
+    verify_scripts = "\n".join(step.get("run", "") for step in workflow["jobs"]["verify"]["steps"])
+    assert "environments/pypi" in verify_scripts
+    assert 'select(.type == "required_reviewers")' in verify_scripts
+
+
 # The steps below run the pretext-e2e job's own shell code against stubbed inputs, so the
 # assertions are checked as the runner executes them rather than as text.
 _RUNS_LIKE_THE_E2E_JOB = pytest.mark.skipif(

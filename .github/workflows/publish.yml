@@ -1,0 +1,178 @@
+name: Publish to PyPI
+
+# Uploads one release to PyPI from the exact files a successful SDK Reliability run built and
+# tested. Start it by hand with that run's id and the version it built. The `verify` job checks
+# the run and the files and lists their sha256 in the run summary. The `publish` job waits for a
+# reviewer to approve the `pypi` environment, checks that it has the same files, and uploads them
+# through PyPI Trusted Publishing, so no PyPI token is stored in this repository.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: "Id of the successful SDK Reliability run that built the release"
+        required: true
+        type: string
+      version:
+        description: "Version the release files carry, for example 0.4.1"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-pypi
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify the release files
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      wheel-sha256: ${{ steps.files.outputs.wheel-sha256 }}
+      sdist-sha256: ${{ steps.files.outputs.sdist-sha256 }}
+
+    steps:
+      - name: Check the inputs
+        env:
+          RUN_ID: ${{ inputs.run-id }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::run-id must be a number, not '$RUN_ID'."
+            exit 1
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?$ ]]; then
+            echo "::error::version must look like 0.4.1 or 0.5.0b1, not '$VERSION'."
+            exit 1
+          fi
+
+      - name: Check that publishing waits for a reviewer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! reviewers=$(gh api "repos/$GITHUB_REPOSITORY/environments/pypi" \
+              --jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length'); then
+            echo "::error::The pypi environment is missing or unreadable. Create it with a required reviewer first."
+            exit 1
+          fi
+          if [ "$reviewers" -lt 1 ]; then
+            echo "::error::The pypi environment has no required reviewer, so the upload would not wait for approval."
+            exit 1
+          fi
+
+      - name: Check the source run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run-id }}
+        run: |
+          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")
+          workflow_file=$(jq -r .path <<<"$run")
+          conclusion=$(jq -r .conclusion <<<"$run")
+          event=$(jq -r .event <<<"$run")
+          branch=$(jq -r .head_branch <<<"$run")
+          sha=$(jq -r .head_sha <<<"$run")
+          url=$(jq -r .html_url <<<"$run")
+          {
+            echo "### Source run"
+            echo ""
+            echo "[$RUN_ID]($url): \`$workflow_file\`, $event on \`$branch\` at \`$sha\`, $conclusion"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$workflow_file" != ".github/workflows/ci.yml" ]; then
+            echo "::error::Run $RUN_ID is from $workflow_file, not the SDK Reliability workflow."
+            exit 1
+          fi
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::Run $RUN_ID did not succeed (conclusion: $conclusion)."
+            exit 1
+          fi
+          if [ "$event" != "push" ] && [ "$event" != "workflow_dispatch" ]; then
+            echo "::error::Run $RUN_ID was triggered by $event. A pull request run builds a different commit."
+            exit 1
+          fi
+          if [ "$branch" != "main" ] && [[ "$branch" != release/* ]]; then
+            echo "::error::Run $RUN_ID built $branch, not main or a release/ branch."
+            exit 1
+          fi
+
+      - name: Download the release files
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-python-3.11
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+          path: dist
+
+      - name: Check the release files
+        id: files
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          wheel="dist/viewspec-${VERSION}-py3-none-any.whl"
+          sdist="dist/viewspec-${VERSION}.tar.gz"
+          if [ "$(find dist -type f | wc -l)" -ne 2 ] || [ ! -f "$wheel" ] || [ ! -f "$sdist" ]; then
+            echo "::error::The artifact must hold exactly $wheel and $sdist."
+            find dist -type f
+            exit 1
+          fi
+          # twine 7 is the first to read the Metadata-Version 2.5 that the build writes.
+          pipx run --spec twine==7.0.0 twine check --strict "$wheel" "$sdist"
+          wheel_sha=$(sha256sum "$wheel" | cut -d' ' -f1)
+          sdist_sha=$(sha256sum "$sdist" | cut -d' ' -f1)
+          echo "wheel-sha256=$wheel_sha" >> "$GITHUB_OUTPUT"
+          echo "sdist-sha256=$sdist_sha" >> "$GITHUB_OUTPUT"
+          {
+            echo ""
+            echo "### Files to publish"
+            echo ""
+            echo "| File | sha256 |"
+            echo "|---|---|"
+            echo "| \`${wheel#dist/}\` | \`$wheel_sha\` |"
+            echo "| \`${sdist#dist/}\` | \`$sdist_sha\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Publish to PyPI
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/project/viewspec/${{ inputs.version }}/
+    permissions:
+      actions: read
+      id-token: write
+
+    steps:
+      - name: Download the release files
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-python-3.11
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+          path: dist
+
+      - name: Check these are the files verify listed
+        env:
+          VERSION: ${{ inputs.version }}
+          WHEEL_SHA256: ${{ needs.verify.outputs.wheel-sha256 }}
+          SDIST_SHA256: ${{ needs.verify.outputs.sdist-sha256 }}
+        run: |
+          if [ "$(find dist -type f | wc -l)" -ne 2 ]; then
+            echo "::error::The artifact changed since verify ran."
+            find dist -type f
+            exit 1
+          fi
+          printf '%s  %s\n' \
+            "$WHEEL_SHA256" "dist/viewspec-${VERSION}-py3-none-any.whl" \
+            "$SDIST_SHA256" "dist/viewspec-${VERSION}.tar.gz" | sha256sum --check --strict
+
+      - name: Upload to PyPI
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1
+        with:
+          print-hash: true
