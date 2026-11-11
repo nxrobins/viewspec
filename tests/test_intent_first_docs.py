@@ -119,8 +119,8 @@ def test_first_proof_is_public_and_bounded():
 
     release = root.joinpath("docs/release-checklist.md").read_text(encoding="utf-8")
     assert "demos/public-facts.json" in release
-    assert "Publish to PyPI manually" in release
-    assert "Do not add automated PyPI upload" in release
+    assert "`.github/workflows/publish.yml`" in release
+    assert "required reviewer" in release
 
 
 def test_public_docs_include_app_bundle_v0_contract():

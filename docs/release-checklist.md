@@ -22,20 +22,38 @@ Use this checklist before publishing a new ViewSpec package or public-site updat
 - Run `python scripts/run_verification_corpus.py --install`; all public cases must compile and
   produce the required browser evidence roles.
 
-## Manual Publish
+## Publish
 
 - Know what the merge deploys. **Deploy to GitHub Pages** runs on every push to `main`. Merging the
   release branch publishes the new-version homepage at once, and until the package is on PyPI its
   install command installs the previous version on that channel, which for a stable release can
-  be far behind. Keep that window short by uploading as soon as the merged commit's distribution
+  be far behind. Keep that window short by publishing as soon as the merged commit's distribution
   artifacts exist.
-- Publish to PyPI manually after the release branch is merged and the package artifacts are verified.
-- Upload the exact artifacts retained by the successful SDK Reliability `distribution` job of the
+- Publish the exact artifacts retained by the successful SDK Reliability `distribution` job of the
   push-to-`main` run for the merged release commit: the wheel and sdist in one
   `release-python-*` artifact. CI supersedes only pull request runs, so every merged commit
-  gets its own complete run; do not use a pull request run, which builds a different commit.
+  gets its own complete run; do not use a pull request run, which builds a different commit. A
+  patch release built on a `release/*` branch uses the SDK Reliability run started by hand on that
+  branch instead.
+- Publish to PyPI with **Publish to PyPI** (`.github/workflows/publish.yml`) after the release
+  branch is merged and the package artifacts are verified. Start it by hand with the id of that run
+  and the version it built. Its `verify` job checks the run, checks both files with twine, and lists
+  their sha256 in the run summary. Compare them with the files you verified, then approve the `pypi`
+  environment. The `publish` job checks that it has the same files and uploads them through PyPI
+  Trusted Publishing.
 - Tag `v<version>` on the merged release revision (`git tag -a v<version> <merged-sha>`, then
   `git push origin v<version>`) and create a GitHub Release for that tag pointing at the retained
   CI artifacts. Every published version needs both the tag and the Release; the compare links at
   the bottom of `CHANGELOG.md` depend on the tags.
-- Do not add automated PyPI upload in this checklist; release credentials and publish approval remain outside the SDK Reliability CI workflow.
+- Publishing stays a maintainer's decision. The workflow runs only when started by hand, the
+  `publish` job waits for a required reviewer on the `pypi` environment, and `verify` stops the run
+  if that environment has no required reviewer. No PyPI token is stored in the repository, and
+  release credentials stay outside the SDK Reliability CI workflow.
+- To upload by hand instead, use twine 7.0 or newer: the build writes Metadata-Version 2.5, which
+  earlier versions of twine reject.
+
+## One-Time PyPI Setup
+
+- On PyPI, add a trusted publisher to the `viewspec` project: GitHub, owner `nxrobins`, repository
+  `viewspec`, workflow `publish.yml`, environment `pypi`.
+- On GitHub, create the `pypi` environment and add at least one required reviewer.
