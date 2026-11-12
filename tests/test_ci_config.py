@@ -105,6 +105,86 @@ def test_pypi_publishing_waits_for_a_reviewer() -> None:
     assert 'select(.type == "required_reviewers")' in verify_scripts
 
 
+def _eval_preflight() -> tuple[dict[str, Any], dict[str, Any]]:
+    workflow = _load("agent-eval.yml")
+    job = workflow["jobs"]["preflight"]
+    (step,) = [step for step in job["steps"] if step.get("id") == "configured"]
+    # Without a ``shell`` key at the step, job or workflow level, GitHub runs the step as
+    # ``bash -e {0}``, as the test below does.
+    assert "shell" not in step and "shell" not in job.get("defaults", {}).get("run", {})
+    assert "shell" not in workflow.get("defaults", {}).get("run", {})
+    return job, step
+
+
+def test_agent_eval_job_waits_for_a_preflight_that_reads_the_same_inputs() -> None:
+    workflow = _load("agent-eval.yml")
+    job, step = _eval_preflight()
+    eval_job = workflow["jobs"]["agent_eval"]
+    assert eval_job["needs"] == "preflight"
+    assert (
+        str(eval_job["if"]).removeprefix("${{").removesuffix("}}").strip()
+        == "needs.preflight.outputs.run_eval == 'true'"
+    )
+    assert job["outputs"] == {"run_eval": "${{ steps.configured.outputs.run_eval }}"}
+    # The preflight reads the model id and the key as the eval job and its run step do.
+    (run_step,) = [step for step in eval_job["steps"] if step.get("name") == "Run the eval against the model"]
+    assert step["env"]["VIEWSPEC_EVAL_MODEL"] == eval_job["env"]["VIEWSPEC_EVAL_MODEL"]
+    assert step["env"]["ANTHROPIC_API_KEY"] == run_step["env"]["ANTHROPIC_API_KEY"]
+
+
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux") or shutil.which("bash") is None,
+    reason="the agent-eval workflow runs its steps with bash on Linux",
+)
+@pytest.mark.parametrize(
+    ("event", "model", "key", "runs", "missing"),
+    [
+        ("schedule", "", "", False, ["the repository variable VIEWSPEC_EVAL_MODEL", "the secret ANTHROPIC_API_KEY"]),
+        ("schedule", "test-model", "", False, ["the secret ANTHROPIC_API_KEY"]),
+        ("schedule", "", "test-key-value", False, ["the repository variable VIEWSPEC_EVAL_MODEL"]),
+        ("schedule", "test-model", "test-key-value", True, []),
+        # A person who starts a run is told when it did not happen. A manual run never skips: the
+        # eval job runs, and its run step exits 2 and turns the run red when the key is missing.
+        ("workflow_dispatch", "test-model", "", True, []),
+        ("workflow_dispatch", "test-model", "test-key-value", True, []),
+    ],
+)
+def test_scheduled_agent_eval_skips_quietly_until_it_is_configured(
+    tmp_path: Path, event: str, model: str, key: str, runs: bool, missing: list[str]
+) -> None:
+    _job, step = _eval_preflight()
+    output = tmp_path / "github_output"
+    output.write_text("", encoding="utf-8")
+    script = tmp_path / "step.sh"
+    script.write_text(step["run"], encoding="utf-8")
+
+    result = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-e", str(script)],
+        env={
+            "PATH": os.environ["PATH"],
+            "GITHUB_EVENT_NAME": event,
+            "GITHUB_OUTPUT": str(output),
+            "VIEWSPEC_EVAL_MODEL": model,
+            "ANTHROPIC_API_KEY": key,
+        },
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert output.read_text(encoding="utf-8").splitlines() == [f"run_eval={'true' if runs else 'false'}"]
+    commands = [line for line in result.stdout.splitlines() if line.startswith("::")]
+    if runs:
+        assert commands == []
+    else:
+        assert commands == [
+            f"::notice title=Agent eval skipped::The scheduled eval is not configured. Set {' and '.join(missing)} to turn it on."
+        ]
+    if key:
+        assert key not in result.stdout + result.stderr
+
+
 # The steps below run the pretext-e2e job's own shell code against stubbed inputs, so the
 # assertions are checked as the runner executes them rather than as text.
 _RUNS_LIKE_THE_E2E_JOB = pytest.mark.skipif(

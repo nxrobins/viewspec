@@ -5,8 +5,12 @@ name: Agent Eval
 # SDK, retries once with the correction prompt, and uploads the report. It is a separate,
 # non-blocking workflow: it never runs on pull requests and no branch protection waits for it.
 # The model id comes from the dispatch input or, on the schedule, from the repository variable
-# VIEWSPEC_EVAL_MODEL. The key comes from the ANTHROPIC_API_KEY secret. Without a model id or a
-# key the script exits 2 and the run is red.
+# VIEWSPEC_EVAL_MODEL. The key comes from the ANTHROPIC_API_KEY secret.
+#
+# A scheduled run does nothing until both are set. The preflight job says so in a notice, the eval
+# job is skipped, and the run stays green. A manual run never skips: it always has a model id,
+# because the input is required, and without the key the script exits 2 and the run is red, so a
+# person who starts a run is told when it did not happen.
 
 on:
   schedule:
@@ -22,8 +26,34 @@ permissions:
   contents: read
 
 jobs:
+  preflight:
+    name: Check that the eval is configured
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run_eval: ${{ steps.configured.outputs.run_eval }}
+
+    steps:
+      - name: Decide whether the eval runs
+        id: configured
+        env:
+          VIEWSPEC_EVAL_MODEL: ${{ inputs.model || vars.VIEWSPEC_EVAL_MODEL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          missing=""
+          [ -n "$VIEWSPEC_EVAL_MODEL" ] || missing="the repository variable VIEWSPEC_EVAL_MODEL"
+          [ -n "$ANTHROPIC_API_KEY" ] || missing="${missing:+$missing and }the secret ANTHROPIC_API_KEY"
+          if [ -n "$missing" ] && [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            echo "run_eval=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Agent eval skipped::The scheduled eval is not configured. Set $missing to turn it on."
+          else
+            echo "run_eval=true" >> "$GITHUB_OUTPUT"
+          fi
+
   agent_eval:
     name: Model-in-the-loop agent contract eval
+    needs: preflight
+    if: ${{ needs.preflight.outputs.run_eval == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
