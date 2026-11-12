@@ -7,6 +7,10 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-12
+
+Fixes to the agent lift, which 0.4.0 was the first release to ship.
+
 ### Security
 
 - The agent lift (`lift_html(..., profile="agent")`) no longer keeps the value of a field named
@@ -1147,7 +1151,8 @@ Versions `0.3.0b8`, `0.3.0b6`, `0.3.0b4`, `0.3.0b2`, `0.3.0b1`, and `0.2.0` were
 the remote, so they have no compare links below; the `0.3.0b9` and `0.3.0b7` links therefore each
 span two betas.
 
-[Unreleased]: https://github.com/nxrobins/viewspec/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/nxrobins/viewspec/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/nxrobins/viewspec/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/nxrobins/viewspec/compare/v0.3.0b12...v0.4.0
 [0.3.0b12]: https://github.com/nxrobins/viewspec/compare/v0.3.0b11...v0.3.0b12
 [0.3.0b11]: https://github.com/nxrobins/viewspec/compare/v0.3.0b10...v0.3.0b11
