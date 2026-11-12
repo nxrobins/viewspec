@@ -509,7 +509,7 @@ def test_unsafe_markup_is_still_removed():
 )
 def test_secret_values_are_never_kept(field):
     secret = "s3cr3t-Value-91"
-    lift = lift_html(f"<form>{field}</form>", profile="agent")
+    lift = lift_html(f"<form>{field.format(secret=secret)}</form>", profile="agent")
 
     assert secret not in json.dumps(lift.to_json())
     assert secret not in json.dumps(lift.form_tool_schemas())
@@ -531,6 +531,136 @@ def test_password_values_never_leak(secret, wrapper):
     # lift writes for every page, such as the key `ngram_length`. Finding that text is not a leak.
     assume(secret not in lifted("x"))
     assert secret not in lifted(secret)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        '<input name="api_key" value="{secret}">',
+        '<input name="apiKey" value="{secret}">',
+        '<input id="APIKey" value="{secret}">',
+        '<input name="access_key" value="{secret}">',
+        '<textarea name="private_key">{secret}</textarea>',
+        '<input name="auth" value="{secret}">',
+        '<input name="pin" value="{secret}">',
+        '<input name="pwd" value="{secret}">',
+        '<input name="iban" value="{secret}">',
+        '<input name="mfa_code" value="{secret}">',
+        '<input name="2fa" value="{secret}">',
+        '<input name="verificationCode" value="{secret}">',
+        '<input name="routing-number" value="{secret}">',
+        '<label>Recovery code <input name="f0" value="{secret}"></label>',
+        '<input name="user_pass" type="text" value="{secret}">',  # A password shown by a "show" toggle.
+        '<input aria-label="Password" value="{secret}">',
+        '<input placeholder="Card number" value="{secret}">',
+        '<label>Secret <input name="f1" value="{secret}"></label>',
+        '<label for="f2">One-time token</label><input id="f2" value="{secret}">',
+        '<span id="l3">Passcode</span><input aria-labelledby="l3" value="{secret}">',
+        '<label>Client secret <textarea name="f4">{secret}</textarea></label>',
+    ],
+)
+def test_a_field_named_for_a_secret_keeps_no_value(field):
+    secret = "s3cr3t-Value-92"
+    lift = lift_html(f"<form>{field.format(secret=secret)}<button>Save</button></form>", profile="agent")
+
+    assert secret not in json.dumps(lift.to_json())
+    assert secret not in json.dumps(lift.form_tool_schemas())
+    [control] = [control for control in lift.controls if control.kind == "field"]
+    assert control.secret is True
+    assert "HTML_VALUE_REDACTED" in {item["code"] for item in lift.diagnostics}
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        *("businessName", "passenger_type", "compass", "tokenizer_model", "secretary", "author", "spinner"),
+        *("keyboard", "search_key", "postal_code", "phone_number", "authority", "pinned"),
+    ],
+)
+def test_a_name_that_only_contains_a_secret_word_keeps_its_value(name):
+    lift = lift_html(f'<form><input name="{name}" value="Acme Widgets"></form>', profile="agent")
+
+    [control] = lift.controls
+    assert control.secret is False and control.value == "Acme Widgets"
+    assert "HTML_VALUE_REDACTED" not in {item["code"] for item in lift.diagnostics}
+
+
+def test_a_choice_named_like_a_secret_keeps_its_options():
+    # The values of a radio group are the page author's options, not text a person typed.
+    html = (
+        '<form aria-label="Trip">'
+        '<label><input type="radio" name="pass_type" value="adult" checked> Adult</label>'
+        '<label><input type="radio" name="pass_type" value="child"> Child</label>'
+        '<label><input type="checkbox" name="token_refresh" value="yes"> Refresh</label>'
+        "<button>Go</button></form>"
+    )
+    lift = lift_html(html, profile="agent")
+
+    assert [control.secret for control in lift.controls] == [False, False, False, False]
+    assert "[redacted]" not in json.dumps(lift.to_json())
+    [schema] = lift.form_tool_schemas()
+    assert schema["input_schema"]["properties"]["pass_type"]["enum"] == ["adult", "child"]
+
+
+def test_a_long_label_that_mentions_a_secret_does_not_mark_its_field():
+    label = "Email address (we will never ask you for your password by email or by phone)"
+    lift = lift_html(f'<label>{label} <input name="email" value="bo@example.com"></label>', profile="agent")
+
+    [control] = lift.controls
+    assert control.secret is False and control.value == "bo@example.com"
+
+
+def test_a_field_marked_by_its_label_says_so_on_its_node():
+    lift = lift_html('<label>Secret <input name="f1" value="s3cr3t-Value-93"></label>', profile="agent")
+
+    [node] = [node for node in lift.nodes if node.tag == "input"]
+    assert node.attrs["data-lift-secret"] == "true" and node.attrs["value"] == "[redacted]"
+    # A browser-side snapshot can mark a field the same way.
+    [control] = lift_html('<input name="f1" data-lift-secret="true" value="s3cr3t-Value-93">', profile="agent").controls
+    assert control.secret is True and control.value == "[redacted]"
+
+
+@pytest.mark.parametrize(
+    ("element", "kept"),
+    [
+        ('<a href="/reset?user=bo&token={secret}">Reset</a>', "/reset?user=bo&token=%5Bredacted%5D"),
+        (
+            '<a href="https://example.com/cb#access_token={secret}&state=1">Back</a>',
+            "#access_token=%5Bredacted%5D&state=1",
+        ),
+        ('<form action="/save?session_token={secret}"><button>Save</button></form>', "session_token=%5Bredacted%5D"),
+    ],
+)
+def test_a_secret_parameter_in_a_url_keeps_no_value(element, kept):
+    secret = "s3cr3t-Value-94"
+    lift = lift_html(element.format(secret=secret), profile="agent")
+    text = json.dumps(lift.to_json())
+
+    assert secret not in text and kept in text
+    assert "HTML_VALUE_REDACTED" in {item["code"] for item in lift.diagnostics}
+
+
+def test_an_ordinary_url_is_kept_as_written():
+    lift = lift_html('<a href="/search?q=compass&page=2#results">Next</a>', profile="agent")
+
+    [control] = lift.controls
+    assert control.href == "/search?q=compass&page=2#results"
+
+
+def test_a_long_label_does_not_multiply_into_the_lift():
+    # One label around many fields names each of them; its text is kept once per field.
+    html = "<label>" + "word " * 2000 + "".join(f'<input name="f{index}">' for index in range(200)) + "</label>"
+    lift = lift_html(html, profile="agent")
+
+    assert len(lift.controls) == 200 and all(len(control.name) <= 200 for control in lift.controls)
+
+
+def test_form_names_come_from_the_first_heading_inside_each_form():
+    html = (
+        '<form><h2>Billing</h2><input name="a"><fieldset><legend>Card</legend><input name="b"></fieldset></form>'
+        '<h2>Outside</h2><form><input name="c"><button>Send</button></form>'
+    )
+    assert [form.name for form in lift_html(html, profile="agent").forms] == ["Billing", "Send"]
 
 
 def test_agent_lift_ids_and_fingerprint_are_deterministic():

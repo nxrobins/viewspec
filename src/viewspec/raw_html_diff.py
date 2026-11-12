@@ -18,7 +18,7 @@ everything differs; read the new page instead.
 
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -189,10 +189,11 @@ def _match(
     def take(key: Callable[[HtmlControl], Any], *, unique: bool) -> None:
         left_keys = Counter(key(control) for control in left)
         right_keys = Counter(key(control) for control in right)
-        by_key: dict[Any, list[HtmlControl]] = {}
+        by_key: dict[Any, deque[HtmlControl]] = {}
         for control in right:
-            by_key.setdefault(key(control), []).append(control)
+            by_key.setdefault(key(control), deque()).append(control)
         kept: list[HtmlControl] = []
+        taken: set[int] = set()
         for control in left:
             value = key(control)
             if value is None or not by_key.get(value):
@@ -201,10 +202,11 @@ def _match(
             if unique and (left_keys[value] != 1 or right_keys[value] != 1):
                 kept.append(control)
                 continue
-            match = by_key[value].pop(0)
-            right.remove(match)
+            match = by_key[value].popleft()
+            taken.add(id(match))
             pairs.append((control, match))
         left[:] = kept
+        right[:] = [control for control in right if id(control) not in taken]
 
     take(lambda control: control.ref, unique=False)
     take(lambda control: (control.control, control.name) if control.name else None, unique=True)

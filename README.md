@@ -202,8 +202,12 @@ limits, and
 ViewSpec also works in the other direction: it describes a page that already exists to an agent
 that has to use it. `lift_html(html, profile="agent")` takes a rendered page and lists every visible
 control with the name the browser gives it and its live state, each form as a typed tool, and the
-messages the page shows. It never keeps a secret value. The planner checks a request before a
-browser does anything, and a diff of two lifts says what an action changed:
+messages the page shows. It does not keep the value of a field it takes for a secret: a password
+field, a one-time code or card field, or a field whose name or label names one, such as a token or
+an API key. The rule reads names, so it cannot see a secret in a field that is named for something
+else; [docs/local-html-wedge.md](docs/local-html-wedge.md) gives the rule in full. The planner
+checks a request before a browser does anything, and a diff of two lifts says what an action
+changed:
 
 ```python
 from viewspec.raw_html import lift_html
@@ -248,10 +252,15 @@ examples, the reference implementations of every ARIA widget pattern:
 | Measure | Result |
 |---|---:|
 | Visible controls found | 3,532 of 3,551 (99.5%) |
-| Named as the browser names them | 99.6% |
+| Names that agree with the in-page library's | 99.6% |
 | Locators confirmed by Playwright | 3,548 of 3,548 |
-| Secret values leaked | 0 |
+| Values of fields the secret rule marks, found in any output | 0 |
 | One action on each kind of widget in each example | 58 of 64 |
+
+Two of these rows check the lift against itself, not against the browser. The names are compared
+with the probe's in-page library, which follows the same naming rules in JavaScript. The secret
+count searches the outputs for the values of the fields the secret rule marked, so it cannot show a
+secret the rule did not mark. The locators are checked by Playwright, which is independent.
 
 Of the 19 it misses, 11 are drawn inside inline SVG, which the sanitizer removes; the other 8 are
 wrappers it drops on purpose, listing the controls inside them instead. `apg_eval.py` in the probe

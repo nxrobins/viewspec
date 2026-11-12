@@ -253,6 +253,40 @@ def test_a_pattern_with_few_open_quantifiers_is_still_checked(pattern, value):
     assert "does not match the pattern" in problem["message"]
 
 
+@pytest.mark.parametrize(
+    "pattern",
+    [
+        "(a|aa)" * 24 + "c",  # No quantifier, but 2**24 ways to split a run of "a".
+        "(?:a|b|c)(?:a|b|c)(?:a|b|c)x",  # 27 ways: over the limit.
+        "a{4294967296}",  # Python cannot build a count this large.
+        "a{2,1}",  # Not a pattern Python can read.
+    ],
+)
+def test_a_pattern_python_cannot_bound_is_left_to_the_browser_and_out_of_the_schema(pattern):
+    lift = _pattern_form(pattern)
+    steps = plan_form_call(lift, "in", {"code": "a" * 47 + "b"})
+    assert [step.op for step in steps] == ["fill", "click"]
+    [schema] = lift.form_tool_schemas()
+    assert "pattern" not in schema["input_schema"]["properties"]["code"]
+
+
+@pytest.mark.parametrize(
+    ("pattern", "value"),
+    [
+        ("mr|mrs|ms|dr|prof", "sir"),  # One choice of many words is quick.
+        (r"(?:cat|dog)-(?:a|b)\d+", "cat-c1"),
+        (r"\|a[|]b", "ab"),  # A "|" after a backslash or in a class is text.
+    ],
+)
+def test_a_pattern_with_few_choices_is_still_checked_and_stays_in_the_schema(pattern, value):
+    lift = _pattern_form(pattern)
+    with pytest.raises(AgentActionError) as caught:
+        plan_form_call(lift, "in", {"code": value})
+    assert "does not match the pattern" in caught.value.details[0]["message"]
+    [schema] = lift.form_tool_schemas()
+    assert schema["input_schema"]["properties"]["code"]["pattern"] == f"^(?:{pattern})$"
+
+
 def test_an_email_with_spaces_around_it_is_accepted_as_the_browser_does():
     steps = plan_form_call(_lift(CONSTRAINED), "join", {"email": " bo@example.com "})
     assert [step.op for step in steps] == ["fill", "click"]

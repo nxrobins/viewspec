@@ -14,6 +14,8 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
+from viewspec.raw_html_patterns import pattern_is_bounded
+
 if TYPE_CHECKING:
     from viewspec.raw_html import LiftNode
 
@@ -138,9 +140,39 @@ SENSITIVE_AUTOCOMPLETE = frozenset(
         "one-time-code",
     }
 )
-SENSITIVE_NAME_RE = re.compile(
-    r"pass(?:word|wd|code)?|secret|token|otp|cvv|cvc|ssn|card.?num|cc.?num|security.?code", re.IGNORECASE
+# A field is named by words: "apiKey", "api_key", and "API key" are all ("api", "key"). The rule reads
+# whole words, so "businessName" does not hold "ssn" and "passenger_type" does not hold "pass".
+NAME_WORD_RE = re.compile(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|[0-9]+")
+# One word that marks a secret on its own, however the rest of the name reads.
+SECRET_WORDS = frozenset(
+    {
+        *("pass", "password", "passwd", "passcode", "passphrase", "pwd", "pin"),
+        *("secret", "token", "bearer", "credential", "credentials", "auth", "apikey"),
+        *("otp", "totp", "mfa", "cvv", "cvc", "ssn", "iban", "cardnumber", "ccnum"),
+    }
 )
+# Two words in a row that mark a secret together, where neither does alone: "key" is also a search
+# key and a keyboard key, and "code" a postal code, so each counts only after a word that says which.
+SECRET_PHRASES = frozenset(
+    {
+        *((first, "key") for first in ("api", "access", "private", "signing", "encryption", "license")),
+        *((first, "code") for first in ("security", "verification", "recovery", "backup", "sort")),
+        *((first, second) for first in ("card", "cc", "account", "routing") for second in ("num", "number")),
+        ("2", "fa"),
+    }
+)
+# An input whose value is one the page's author set for a choice or a button, not text a person typed.
+# Its name is not read: a radio group named "token_type" has options, not a secret.
+AUTHOR_VALUE_INPUT_TYPES = frozenset(
+    {"button", "checkbox", "color", "file", "image", "radio", "range", "reset", "submit"}
+)
+# Attributes of a field that name it. A label element is read by ``label_secret_ids``.
+NAMING_ATTRS = ("name", "id", "aria-label", "placeholder", "title")
+# A label longer than this is a sentence ("We never ask for your password by email"), not a name.
+MAX_SECRET_LABEL_LENGTH = 60
+# Set by the lift on a field that only its label marks as secret, so that every later reader of the
+# node agrees. A browser-side snapshot may set it too.
+HINT_SECRET = "data-lift-secret"
 NUMBER_INPUT_TYPES = frozenset({"number", "range"})
 STRING_FORMATS = {
     "date": "date",
@@ -186,17 +218,51 @@ DATE_RANGE_PAIRS = tuple(
 )
 
 
+def names_a_secret(text: str) -> bool:
+    """True when ``text``, a field's name, id, or label, or a URL parameter's name, names a secret."""
+
+    words = [word.lower() for word in NAME_WORD_RE.findall(text)]
+    return any(word in SECRET_WORDS for word in words) or any(
+        pair in SECRET_PHRASES for pair in zip(words, words[1:], strict=False)
+    )
+
+
 def is_sensitive_control(tag: str, attrs: Mapping[str, str]) -> bool:
     """True when a field may hold a secret, so the lift must not keep its value."""
 
     if tag not in {"input", "textarea"}:
         return False
-    if attrs.get("type", "").lower() == "password":
+    kind = attrs.get("type", "").lower()
+    if kind == "password" or attrs.get(HINT_SECRET, "").lower() == "true":
         return True
+    if tag == "input" and kind in AUTHOR_VALUE_INPUT_TYPES:
+        return False
     tokens = set(attrs.get("autocomplete", "").lower().split())
     if tokens & SENSITIVE_AUTOCOMPLETE:
         return True
-    return any(SENSITIVE_NAME_RE.search(attrs.get(name, "")) for name in ("name", "id"))
+    return any(names_a_secret(attrs.get(name, "")) for name in NAMING_ATTRS)
+
+
+def label_secret_ids(nodes: Sequence[LiftNode]) -> frozenset[str]:
+    """Ids of the fields that only a label marks as secret: a ``<label for>``, a label around the
+    field, or the elements its ``aria-labelledby`` names. ``is_sensitive_control`` reads the field's
+    own attributes; this reads the words a person sees beside it ("API key").
+    """
+
+    page = _Page(nodes)
+    found: set[str] = set()
+    for node in nodes:
+        if node.tag not in {"input", "textarea"} or is_sensitive_control(node.tag, node.attrs):
+            continue
+        if node.tag == "input" and node.attrs.get("type", "").lower() in AUTHOR_VALUE_INPUT_TYPES | {"hidden"}:
+            continue
+        labels = [page.labelled_by(node), *(page.text(label, skip_controls=True) for label in page.labels(node))]
+        wrapper = next((ancestor for ancestor in page.ancestors(node) if ancestor.tag == "label"), None)
+        if wrapper is not None:
+            labels.append(page.text(wrapper, skip_controls=True))
+        if any(len(label) <= MAX_SECRET_LABEL_LENGTH and names_a_secret(label) for label in labels):
+            found.add(node.id)
+    return frozenset(found)
 
 
 @dataclass(frozen=True)
@@ -400,6 +466,31 @@ class _Page:
                         self.popup_of.setdefault(node.id, target.id)
         self.hidden = self._hidden_ids()
         self._text: dict[tuple[str, bool], str] = {}
+        self._child_index: dict[str, int] | None = None
+        self._form_headings: dict[str, str] | None = None
+
+    def child_index(self, node: LiftNode) -> int | None:
+        """Where ``node`` is among its parent's children; None for a node its parent does not list."""
+
+        if self._child_index is None:
+            self._child_index = {
+                child_id: index for parent in self.nodes for index, child_id in enumerate(parent.child_ids)
+            }
+        return self._child_index.get(node.id)
+
+    def form_heading(self, form: LiftNode) -> str:
+        """The text of the first legend or heading inside ``form`` that has any, or ""."""
+
+        if self._form_headings is None:
+            self._form_headings = {}
+            for node in self.nodes:
+                if node.tag not in {"legend", "h1", "h2", "h3", "h4", "h5", "h6"}:
+                    continue
+                inside = [ancestor.id for ancestor in self.ancestors(node) if ancestor.tag == "form"]
+                if inside and (text := self.text(node)):
+                    for form_id in inside:
+                        self._form_headings.setdefault(form_id, text)
+        return self._form_headings.get(form.id, "")
 
     def owned(self, node: LiftNode, html_id: str) -> LiftNode | None:
         """The element with ``html_id`` in ``node``'s own scope, as a browser finds a label's ``for``
@@ -657,6 +748,15 @@ def _accessible_name(page: _Page, node: LiftNode, kind: str, control: str) -> st
     return fallback
 
 
+# The longest name a control or a group keeps. One long label can name every field inside it, so
+# without a limit a small page gives a lift thousands of times its size.
+MAX_NAME_LENGTH = 200
+
+
+def _clip(name: str) -> str:
+    return name if len(name) <= MAX_NAME_LENGTH else name[:MAX_NAME_LENGTH].rstrip()
+
+
 # The longest phrase that is taken as the label written beside an unlabelled field.
 LABEL_BESIDE_MAX = 40
 # A letter or a digit in any script: what tells a line of words from a line that is only an icon.
@@ -672,16 +772,17 @@ def _text_beside(page: _Page, node: LiftNode) -> str:
     """
 
     parent = page.by_id.get(node.parent_id) if node.parent_id else None
-    if parent is None or node.id not in parent.child_ids:
+    index = page.child_index(node) if parent is not None else None
+    if parent is None or index is None:
         return ""
-    index = parent.child_ids.index(node.id)
     after = node.tag == "input" and node.attrs.get("type", "").lower() in {"checkbox", "radio"}
     runs = parent.text_runs
     text = (runs[index + 1] if index + 1 < len(runs) else "") if after else (runs[index] if index < len(runs) else "")
     if not text.strip():
-        siblings = parent.child_ids[index + 1 :] if after else list(reversed(parent.child_ids[:index]))
-        for sibling_id in siblings:
-            sibling = page.by_id[sibling_id]
+        # Walked in place: a copy of the siblings for every field of one parent is quadratic.
+        positions = range(index + 1, len(parent.child_ids)) if after else range(index - 1, -1, -1)
+        for position in positions:
+            sibling = page.by_id[parent.child_ids[position]]
             if sibling.id in page.hidden:
                 continue
             if is_inline(sibling) and _classify(sibling) is None:
@@ -927,13 +1028,9 @@ def _form_name(page: _Page, form: LiftNode, members: Sequence[HtmlControl]) -> s
     text = page.labelled_by(form)
     if text:
         return text
-    for node in page.nodes:
-        if node.tag in {"legend", "h1", "h2", "h3", "h4", "h5", "h6"} and any(
-            ancestor.id == form.id for ancestor in page.ancestors(node)
-        ):
-            text = page.text(node)
-            if text:
-                return text
+    text = page.form_heading(form)
+    if text:
+        return text
     for control in members:
         if control.submits and control.name:
             return control.name
@@ -996,7 +1093,7 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
         if expanded is None:
             expanded = _aria_bool(node.attrs.get("aria-expanded"))  # A disclosure, a menu button, a tree item.
         value, checked = (None, None) if kind == "action" else _field_value(page, node, control, options)
-        name = _accessible_name(page, node, kind, control)
+        name = _clip(_accessible_name(page, node, kind, control))
         controls.append(
             HtmlControl(
                 node_id=node.id,
@@ -1013,7 +1110,7 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 href=node.attrs.get("href") if node.tag == "a" else None,
                 action_id=node.attrs.get("data-action-id") or None,
                 options=options,
-                group=_group_name(page, node) if kind == "field" else None,
+                group=_clip(_group_name(page, node) or "") or None if kind == "field" else None,
                 readonly="readonly" in node.attrs or node.attrs.get("aria-readonly", "").lower() == "true",
                 secret=is_sensitive_control(node.tag, node.attrs),
                 ref=node.attrs.get(HINT_REF) or None,
@@ -1043,11 +1140,15 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
         excluded.difference_update(wrappers)
     controls = _date_ranges(page, controls)
 
+    members_of: dict[str, list[HtmlControl]] = {}
+    for control in controls:
+        if control.form_id is not None:
+            members_of.setdefault(control.form_id, []).append(control)
     forms: list[HtmlForm] = []
     for node in nodes:
         if node.tag != "form" or node.id in page.hidden:
             continue
-        members = [control for control in controls if control.form_id == node.id]
+        members = members_of.get(node.id, [])
         forms.append(
             HtmlForm(
                 node_id=node.id,
@@ -1317,7 +1418,9 @@ def _field_schema(field: FormField) -> dict[str, Any]:
             prop["minLength"] = control.min_length
         if control.max_length is not None:
             prop["maxLength"] = control.max_length
-        if control.pattern:
+        # A host that checks a call against this schema runs the pattern, so one that could stall
+        # the planner is left out here too; the browser still checks it.
+        if control.pattern and pattern_is_bounded(control.pattern):
             prop["pattern"] = f"^(?:{control.pattern})$"
     custom_date = field.kind == "date" and control.control not in DATE_INPUT_TYPES
     if control.value not in {None, "", "[redacted]"} and field.kind not in {"boolean", "file"} and not custom_date:
@@ -1421,5 +1524,7 @@ __all__ = [
     "form_tool_schema",
     "hidden_ids",
     "is_sensitive_control",
+    "label_secret_ids",
+    "names_a_secret",
     "visible_text",
 ]
