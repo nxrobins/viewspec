@@ -7,7 +7,86 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-11
+
+ViewSpec is now a local, open-source compiler with no hosted service and a much smaller surface.
+This is a breaking release; `docs/compatibility.md` allows that before 1.0.
+
 ### Added
+
+
+- `viewspec.compile_mcp_app()` and the `mcp-app` compile target turn an `IntentBundle` into an
+  [MCP Apps](docs/mcp-apps.md) `ui://` resource. `viewspec compile --target mcp-app` takes `--uri`
+  and `--action-tool ACTION=TOOL` and writes `mcp_app.json` beside the artifact, and the MCP
+  `compile` tool takes `uri` and `action_tools`. A pinned bridge handles the host handshake and
+  sizing, sends actions as `tools/call`, `ui/message`, or `ui/update-model-context`, and applies
+  `structuredContent.viewspecBindings` from tool results. `viewspec check` pins the bridge and
+  enforces a 120,000 byte ceiling (`MCP_APP_BRIDGE_MISMATCH`, `MCP_APP_TOO_LARGE`). Other
+  `html-tailwind` output is byte-identical.
+- `viewspec.mcp_apps.register_mcp_app()` publishes the resource on a FastMCP server and returns a
+  decorator for the tools linked to it, including view-only tools through `visibility=["app"]`.
+- `MCPAppArtifact.render()` lets a tool return a new bundle, so a tool result can change how many
+  rows a view shows. Each render is compiled and checked on the server and arrives as
+  `structuredContent.viewspecRoot`. The bridge swaps it in, keeps typed text, focus, and running
+  actions, and refuses any root holding a tag or attribute the emitter cannot write, or a `style`
+  that `check` would refuse. MCP App documents now always carry the action runtime, because a render
+  can bring a view its first action.
+- `examples/mcp_app_incident_console.py`, and a CI job that runs compiled apps against the
+  `@modelcontextprotocol/ext-apps` SDK host in Chromium.
+- `viewspec prove` now proves `html-tailwind` and `mcp-app` in Chromium at the three canonical
+  viewports, on a source with `--install` or `--pretext` and on a compiled directory, where both used
+  to report `indeterminate`. Nothing is built: a packaged harness with its own lockfile serves
+  html-tailwind from a loopback port and mounts an MCP App in the ext-apps `AppBridge`, in a sandboxed
+  iframe under the default CSP. It runs the manifest DOM, grid and span, aesthetic layout, overflow,
+  overlap, and accessibility checks, and an MCP App must also finish `ui/initialize` and take its own
+  compiled root through the tool-result path. `--target mcp-app` joins `viewspec prove`, whose source
+  proofs now exit `1` for a nonconformant browser run.
+- `--pretext` works on `html-tailwind` and `mcp-app`. The pinned `@chenglou/pretext` `0.0.8` reaches
+  the page by evaluation, so the document and its pinned bridge stay byte-identical.
+- `viewspec prove --render FILE`, `prove(renders=...)`, and the MCP `prove` tool's `renders` send
+  `app.render()` results through a live view and prove each swapped root
+  (`PROVE_RENDER_INVALID`). A root the bridge refuses is nonconformant.
+- `viewspec.ViewSpecError`, the base of `CompilerInputError`, `UnsupportedMotifError`,
+  `DesignSystemError`, `AppBundleError`, and the stable-code errors.
+- `viewspec mcp` is rebuilt as a thin stdio server with exactly five tools, `init`, `compile`,
+  `check`, `prove`, and `studio`, over the same code as the CLI. It keeps the `agents` extra
+  (`mcp>=1.30,<2`), confines every path to its working directory unless `--allow-outside-cwd` is
+  passed, and returns failures as reports with a code and a fix. The `studio` tool runs one
+  background preview and returns its URL. The server ends promptly on SIGTERM or SIGINT and removes
+  the preview's build directory.
+- `viewspec.check()`, and the `viewspec.AppBundle` class with `load()`, `from_json()`, and `to_json()`.
+- `viewspec check` on a compiled AppBundle directory checks every screen and compares the files
+  above the screens with the hashes in their manifest. It used to fail, because the provenance
+  manifests live one level down.
+- Golden `artifact_hash`, `semantic_digest` and file hashes for every conformance corpus case and
+  local target in `tests/fixtures/corpus_goldens.json`, checked on Linux and Windows in CI; the
+  React app manifest writes POSIX paths on every platform.
+- The default test suite skips, with exact reasons, the tests that need installed Node seeds, full
+  git history or a Playwright browser; drift tests cover the landing page;
+  the release and corpus scripts have smoke tests.
+- Documentation tests: every error code cited in the docs exists in the registry, and the Claude
+  Code skill matches the managed instructions.
+- `compile(bundle, design=...)` and `compile_html(html, design=...)` accept an `os.PathLike`, such
+  as `pathlib.Path("DESIGN.md")`, and read it as a DESIGN.md file; `compile()` applies
+  `strict_design` to it. For `compile()`, a `str` is still DESIGN.md content and never
+  touches the filesystem: `compile()` does not open it, read it or check whether a file by that
+  name exists, so a `str` taken from a request can neither make `compile()` read a local file nor
+  reveal which local paths exist. `compile(bundle, design="DESIGN.md")` still fails with
+  `DesignSystemError` ("must begin with YAML front matter"); that error now carries an exception
+  note that says to pass `pathlib.Path`, the same note for every one-line `str`.
+- `TailwindRecipeRegistry`, a read-only set of the React Tailwind emitter's recipe tables, and
+  `DEFAULT_TAILWIND_RECIPE_REGISTRY`, the checked-in one. `ReactTailwindTsxEmitter`,
+  `emit_compiler_result`, both `resolve_manifest_recipe_metadata` functions,
+  `tailwind_recipe_registry_projection`, `tailwind_recipe_registry_digest` and
+  `react_contrast_report` take an optional `recipe_registry=` keyword (default
+  `DEFAULT_TAILWIND_RECIPE_REGISTRY`); build a variant with `dataclasses.replace`. A registry
+  copies its tables into read-only mappings and tuples when it is built (contract values given as
+  a set in sorted order), and its digest covers every field. It is checked before an emit writes
+  anything and before it has a projection or digest: unsafe classes, a missing recipe, overlay or
+  rule id, or a value of the wrong type, such as a contract value given as a string or a
+  `rule_precedence` given as a set, fail with the emitter's stable constraint codes. The grid
+  classes (`GRID_CLASS_BY_COLUMNS`, `GRID_SPAN_CLASS_BY_COLUMNS`) are not registry fields and stay
+  fixed.
 
 - `lift_html(..., profile="agent")` lifts a rendered page for an agent that reads and operates it.
   It keeps form controls, labels, ARIA roles, tab stops, and ViewSpec `data-action-*` attributes;
@@ -195,6 +274,89 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+
+- The `agents` extra now needs `mcp>=1.30`. `FastMCP.resource()` takes `meta` from 1.26, and before
+  1.30 a settings warning reaches the stderr that `viewspec mcp --json` keeps for its failure report.
+- `--freerange` on an IntentBundle or a compiled directory now fails with
+  `APP_FREERANGE_TARGET_UNSUPPORTED`, in place of a general request error, and IntentBundle proof
+  reports record `checks.freerange: "not_applicable"`. `--pretext` on a target without a probe fails
+  with `APP_PRETEXT_TARGET_UNSUPPORTED`.
+- `--install` on an `html-tailwind` source now runs the browser proof. It used to do nothing.
+- The CLI is five commands. `init` replaces `init-intent`, `init-app`, and `init-design`
+  (`viewspec init [intent|app|design]`). `compile` now also compiles an AppBundle, replacing
+  `compile-app`. `check` now also validates a source file, replacing `validate-intent` and
+  `validate-app`. `prove` takes the source as an argument and also verifies a compiled directory,
+  replacing `prove --intent`, `prove-app`, `verify`, and `verify-host`.
+- `viewspec studio` is now a small loopback preview that rebuilds and reloads when the source or
+  `DESIGN.md` changes. It no longer starts a background daemon: it runs until interrupted.
+- `viewspec.__all__` is now the 13 names in the README: `IntentBundle`, `AppBundle`, `ASTBundle`,
+  `ViewSpecBuilder`, `compile`, `compile_mcp_app`, `check`, `prove`, `load_design_system`,
+  `DesignSystemContext`, `ViewSpecError`, `ERROR_CODES`, and `__version__`. The concrete errors stay
+  importable from `viewspec`. `compile()` now also accepts an `AppBundle`; `prove()` now takes a
+  source path first.
+- The three React dependency seeds pin `vite` 8.3.5, replacing 8.0.16, which carried a HIGH
+  advisory, and declare the `source-map-js>=1.2.2` floor as an npm override.
+- Lists and dicts rendered as text use compact JSON separators, `["Ann","Bob"]` and `{"a":1}`
+  instead of `["Ann", "Bob"]` and `{"a": 1}`, so page text and artifact hashes change for every
+  bundle that binds such a value.
+- Dependabot opens one grouped minor-and-patch pull request a week for pip, the three npm seeds
+  and GitHub Actions, and groups each ecosystem's security updates into one pull request, so an
+  npm security fix updates the seeds together. It proposes no semver-major version update
+  and never proposes the packages pinned as contracts in the code, tests or workflows;
+  `CONTRIBUTING.md` gives the hand-bump steps for a major update in each ecosystem and for each
+  of those packages. Pip version updates move the exact pins
+  (`versioning-strategy: increase-if-necessary`) and leave the dependency ranges in
+  `pyproject.toml`, the minimum versions the package asks of its users, alone while they allow
+  the new release.
+  `cryptography` allows up to 52.x. The classifiers declare Linux and macOS; CI runs on
+  Linux plus a Windows job that checks the corpus goldens, and does not exercise macOS.
+- The source archive ships `tests/`, `conformance/`, `proto/`, the changelog, the contributing
+  guide and the security policy, so it carries the library tests, the conformance corpus and the
+  schema source. The full suite still needs a git checkout: some tests import or read
+  `scripts/`, `demos/`, `docs/`, `examples/`, `integrations/` or `.github/`, or the root files
+  `requirements-ci.txt` and `.pre-commit-config.yaml`, none of which the archive includes.
+  The package version is read from `src/viewspec/_version.py` alone.
+- The protobuf schema source is committed as `proto/universal_ui.proto` with a regeneration
+  script and a typed `.pyi` stub next to `py.typed`; CI checks the source against the generated
+  code. The `dev` extra pins `grpcio-tools` 1.80.0, which bundles protoc 31.1 and
+  ships wheels for Python 3.11 through 3.14.
+- Internal planning notes moved to `docs/internal/`; `docs/README.md` indexes the documentation;
+  README states the evaluated version of its evidence, the supported platforms and the
+  compatibility horizon (D-2 to D-7, H-1). `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` were added
+  (H-2); the release checklist tags and publishes each release (R-7) and says that the site
+  deploy does not wait for the PyPI check.
+- The Pretext E2E workflow now pins npm to its major.minor line (10.9) instead of the exact patch
+  release 10.9.8. Each Node release bundles one npm version, so a later Node patch bump that moves
+  npm within 10.9 no longer needs a separate npm edit. The job still requires a plain
+  major.minor.patch npm version, and Python, Node, Bun and Playwright stay pinned exactly.
+- The Pretext E2E result contract now requires at least three tests with none failed, errored or
+  skipped, instead of an exact count, so adding an e2e test no longer fails the gate.
+- The single-column product surface detector matches its primary role the way the workspace
+  detector does. A role now counts as primary when any of its words is `main` or `primary`,
+  ignoring case, where every character other than an ASCII letter or digit separates words;
+  before, only the exact roles `main`, `primary`, `primary_column` and `workspace_primary` did.
+  `Main`, `Primary Column`, `primary-column` and `main_content` now match, and so do `not_main`,
+  `non-primary`, `main-nav`, `main_navigation` and `primary-footer`, as they already did inside a
+  workspace; `domain`, `remain` and `mainstream` do not. This changes compiled output: a bundle
+  whose root has a single child region, a `stack` whose role newly matches, and no other regions
+  now compiles to the `single_column_v1` product surface. Its HTML and TSX output, on all three
+  targets, gains product-role styling for the page shell, the column and the dashboard, form,
+  detail and hero motifs in it, and, when the root has a one-line `title` that no binding shows
+  and the column holds no `hero`, an implicit page header that shows that title. Recompile such
+  bundles and review the output. No corpus output changes.
+- The React Tailwind recipe tables (`RECIPE_BY_KEY` and the rest) are read once, at import, into
+  `DEFAULT_TAILWIND_RECIPE_REGISTRY`. Reassigning or editing them afterwards changes neither what
+  the emitter writes nor what `viewspec check` accepts or `viewspec prove` reports.
+  `viewspec check` and `check_artifact_dir()` verify React Tailwind artifacts against the default
+  registry, so an artifact whose classes came from another registry fails them with
+  `TAILWIND_INVENTORY_MISMATCH`.
+- Generated React apps start from React and React DOM 19.3.1 (was 19.2.7), Tailwind CSS and
+  `@tailwindcss/vite` 4.3.3 (was 4.3.0), `@vitejs/plugin-react` 6.1.2 (was 6.0.2), `@types/react`
+  and `@types/react-dom` 19.3.0 (was 19.2.16 and 19.2.3), and `@types/node` 25.9.9 (was 25.5.0).
+  The shipped template's `package.json` and lockfile change, so the hashes of every generated
+  React app's package files change too. The other two React dependency seeds move to the same
+  versions of the packages they declare.
+
 - Releases reach PyPI through `.github/workflows/publish.yml` and PyPI Trusted Publishing. A
   maintainer starts it with the id of the SDK Reliability run that built the release, and it uploads
   that run's exact wheel and sdist once a reviewer approves the `pypi` environment. No PyPI token is
@@ -251,7 +413,53 @@ All notable changes to ViewSpec are documented in this file. The format follows
   of `editorial_product` `text-rose-700`; and `premium_saas` comparison items sit on white cards. The
   Tailwind recipe registry digest changes with the overlays.
 
+### Removed
+
+
+- The hosted SaaS client and everything built on it: `compile_remote`, `compile_auto`,
+  `compile_app_remote`, `compile_artifact_remote`, the hosted verification client, signed usage
+  receipts (`verify_usage_receipt`, `verify_signed_receipt`), `CompilerAPIError`, `DesignRequest`,
+  `CompileResponse`, `ViewSpecBuilder.attach_design()`, and the `remote` extra. The `cryptography`
+  and `httpx` dependencies are gone. SwiftUI and Flutter were hosted-only, so they are gone too.
+- IntentPatch and Converge: `viewspec patch-targets`, `patch-preview`, `patch-apply`, and every
+  `converge-*` command, with their Python APIs and published schemas. Regenerate a bundle or apply a
+  standard JSON Patch, then run `viewspec check`.
+- Review, private Share, and creation rooms: `viewspec review*`, `studio-create`, `studio-accept`,
+  `studio-agent-task`, `studio-share-prepare`, `.vsreview` archives, and Studio's Comment and Approve
+  loop, `--compare`, `--share`, and `--brief`.
+- Every MCP tool except `init`, `compile`, `check`, `prove`, and `studio`. `init-agent`,
+  `export-agent-assets`, and `check-agent-assets` are gone; the agent prompt and schemas stay
+  published and importable.
+- `viewspec doctor`, `lift`, `diff`, `diff-intent`, `diff-app`, `verify-host`, and `verify --repair-out`.
+- 247 names from `viewspec.__all__`. Modules such as `viewspec.agent` and `viewspec.intent_tools`
+  remain importable but are internal. `load_design_system()` no longer accepts `lint`.
+- The `HOSTED_ONLY_FIELD` validation code: those fields are now rejected as `UNKNOWN_FIELD`.
+- `demos/launch-assets/` and the Git LFS migration script that was to move them.
+- The agent UI evaluation harness, the Studio production canary, the refinement scorecards, the
+  human study protocol, and the internal audit and planning documents.
+
 ### Fixed
+
+
+- The Pretext probe no longer reports `line_count_mismatch` for a line Chromium wraps inside the
+  probe's 4 pixel fit tolerance, which failed healthy text. This also changes the probe that
+  `react-tailwind-app` generates.
+- `--force` refuses an output directory that holds the source or DESIGN.md. It used to delete them
+  along with the old output.
+- The landing page's section headings render at their designed 25px to 40px. A missing space around
+  `+` in `calc()` made every `h2` inherit the 16px body size. A static check and a browser test now
+  cover this. The `.sub` and `.lead` rules failed the same way; they are removed and stay at 16px.
+- Non-ASCII text in list and dict bindings renders as UTF-8 instead of `\u` escapes.
+- The declared protobuf requirement matches the generated schema: `protobuf>=6.31.1,<8`. The
+  package did not import with protobuf 5.x.
+- The local review daemon no longer answers an agent poll with `REVIEW_SERVER_START_FAILED` when a
+  temporary file or candidate directory disappears while the session storage is being sized:
+  the size walk skips entries that vanish between listing and inspection and still rejects
+  symbolic links.
+- The React Tailwind emitter no longer writes to another module's globals: it assigned seven
+  attributes on `recipes.py` on every call. Emits with different recipe registries can run at the
+  same time, and `tailwind_recipe_registry_digest()` no longer depends on names that earlier code
+  reassigned. Compiled output and the default registry digest are unchanged.
 
 - `prove` measures contrast from the compiled artifact. It used to report `a11y_contrast: "passed"`
   from a table of colour pairs chosen by profile name, without reading the colours the artifact was
@@ -436,231 +644,6 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Security
 
-- A refused `viewspec prove` no longer writes into an output directory it does not own, so the
-  `--force` it recommends can no longer delete that directory. It used to write `proof_report.json`,
-  `PROOF.md` and `support_bundle.json` (for an AppBundle, `app_proof_report.json`, `APP_PROOF.md`
-  and `app_support_bundle.json`) into the `--out` directory it had just refused, and those files
-  are what `--force` takes as proof that a directory is ViewSpec's: the next `--force` removed the
-  directory and everything in it. The CLI and the MCP `prove` tool both did this after
-  `PROVE_OUTPUT_EXISTS`, an unknown target or kind, an internal error, or a mistyped AppBundle
-  path. A proof now writes report files into its output directory only when it created that
-  directory, or when the directory was already empty or held a ViewSpec output. Otherwise it writes
-  nothing there, and an IntentBundle proof writes only a `--report-out` file outside it.
-  `PROVE_OUTPUT_EXISTS` and `APP_PROOF_OUTPUT_EXISTS` offer `--force` only for a directory it would
-  replace, and otherwise ask for a new `--out`. An AppBundle proof refused on an empty directory now
-  writes its report there, as an IntentBundle proof does.
-
-## [0.4.0] - 2026-11-01
-
-ViewSpec is now a local, open-source compiler with no hosted service and a much smaller surface.
-This is a breaking release; `docs/compatibility.md` allows that before 1.0.
-
-### Added
-
-- `viewspec.compile_mcp_app()` and the `mcp-app` compile target turn an `IntentBundle` into an
-  [MCP Apps](docs/mcp-apps.md) `ui://` resource. `viewspec compile --target mcp-app` takes `--uri`
-  and `--action-tool ACTION=TOOL` and writes `mcp_app.json` beside the artifact, and the MCP
-  `compile` tool takes `uri` and `action_tools`. A pinned bridge handles the host handshake and
-  sizing, sends actions as `tools/call`, `ui/message`, or `ui/update-model-context`, and applies
-  `structuredContent.viewspecBindings` from tool results. `viewspec check` pins the bridge and
-  enforces a 120,000 byte ceiling (`MCP_APP_BRIDGE_MISMATCH`, `MCP_APP_TOO_LARGE`). Other
-  `html-tailwind` output is byte-identical.
-- `viewspec.mcp_apps.register_mcp_app()` publishes the resource on a FastMCP server and returns a
-  decorator for the tools linked to it, including view-only tools through `visibility=["app"]`.
-- `MCPAppArtifact.render()` lets a tool return a new bundle, so a tool result can change how many
-  rows a view shows. Each render is compiled and checked on the server and arrives as
-  `structuredContent.viewspecRoot`. The bridge swaps it in, keeps typed text, focus, and running
-  actions, and refuses any root holding a tag or attribute the emitter cannot write, or a `style`
-  that `check` would refuse. MCP App documents now always carry the action runtime, because a render
-  can bring a view its first action.
-- `examples/mcp_app_incident_console.py`, and a CI job that runs compiled apps against the
-  `@modelcontextprotocol/ext-apps` SDK host in Chromium.
-- `viewspec prove` now proves `html-tailwind` and `mcp-app` in Chromium at the three canonical
-  viewports, on a source with `--install` or `--pretext` and on a compiled directory, where both used
-  to report `indeterminate`. Nothing is built: a packaged harness with its own lockfile serves
-  html-tailwind from a loopback port and mounts an MCP App in the ext-apps `AppBridge`, in a sandboxed
-  iframe under the default CSP. It runs the manifest DOM, grid and span, aesthetic layout, overflow,
-  overlap, and accessibility checks, and an MCP App must also finish `ui/initialize` and take its own
-  compiled root through the tool-result path. `--target mcp-app` joins `viewspec prove`, whose source
-  proofs now exit `1` for a nonconformant browser run.
-- `--pretext` works on `html-tailwind` and `mcp-app`. The pinned `@chenglou/pretext` `0.0.8` reaches
-  the page by evaluation, so the document and its pinned bridge stay byte-identical.
-- `viewspec prove --render FILE`, `prove(renders=...)`, and the MCP `prove` tool's `renders` send
-  `app.render()` results through a live view and prove each swapped root
-  (`PROVE_RENDER_INVALID`). A root the bridge refuses is nonconformant.
-- `viewspec.ViewSpecError`, the base of `CompilerInputError`, `UnsupportedMotifError`,
-  `DesignSystemError`, `AppBundleError`, and the stable-code errors.
-- `viewspec mcp` is rebuilt as a thin stdio server with exactly five tools, `init`, `compile`,
-  `check`, `prove`, and `studio`, over the same code as the CLI. It keeps the `agents` extra
-  (`mcp>=1.30,<2`), confines every path to its working directory unless `--allow-outside-cwd` is
-  passed, and returns failures as reports with a code and a fix. The `studio` tool runs one
-  background preview and returns its URL. The server ends promptly on SIGTERM or SIGINT and removes
-  the preview's build directory.
-- `viewspec.check()`, and the `viewspec.AppBundle` class with `load()`, `from_json()`, and `to_json()`.
-- `viewspec check` on a compiled AppBundle directory checks every screen and compares the files
-  above the screens with the hashes in their manifest. It used to fail, because the provenance
-  manifests live one level down.
-- Golden `artifact_hash`, `semantic_digest` and file hashes for every conformance corpus case and
-  local target in `tests/fixtures/corpus_goldens.json`, checked on Linux and Windows in CI; the
-  React app manifest writes POSIX paths on every platform.
-- The default test suite skips, with exact reasons, the tests that need installed Node seeds, full
-  git history or a Playwright browser; drift tests cover the landing page;
-  the release and corpus scripts have smoke tests.
-- Documentation tests: every error code cited in the docs exists in the registry, and the Claude
-  Code skill matches the managed instructions.
-- `compile(bundle, design=...)` and `compile_html(html, design=...)` accept an `os.PathLike`, such
-  as `pathlib.Path("DESIGN.md")`, and read it as a DESIGN.md file; `compile()` applies
-  `strict_design` to it. For `compile()`, a `str` is still DESIGN.md content and never
-  touches the filesystem: `compile()` does not open it, read it or check whether a file by that
-  name exists, so a `str` taken from a request can neither make `compile()` read a local file nor
-  reveal which local paths exist. `compile(bundle, design="DESIGN.md")` still fails with
-  `DesignSystemError` ("must begin with YAML front matter"); that error now carries an exception
-  note that says to pass `pathlib.Path`, the same note for every one-line `str`.
-- `TailwindRecipeRegistry`, a read-only set of the React Tailwind emitter's recipe tables, and
-  `DEFAULT_TAILWIND_RECIPE_REGISTRY`, the checked-in one. `ReactTailwindTsxEmitter`,
-  `emit_compiler_result`, both `resolve_manifest_recipe_metadata` functions,
-  `tailwind_recipe_registry_projection`, `tailwind_recipe_registry_digest` and
-  `react_contrast_report` take an optional `recipe_registry=` keyword (default
-  `DEFAULT_TAILWIND_RECIPE_REGISTRY`); build a variant with `dataclasses.replace`. A registry
-  copies its tables into read-only mappings and tuples when it is built (contract values given as
-  a set in sorted order), and its digest covers every field. It is checked before an emit writes
-  anything and before it has a projection or digest: unsafe classes, a missing recipe, overlay or
-  rule id, or a value of the wrong type, such as a contract value given as a string or a
-  `rule_precedence` given as a set, fail with the emitter's stable constraint codes. The grid
-  classes (`GRID_CLASS_BY_COLUMNS`, `GRID_SPAN_CLASS_BY_COLUMNS`) are not registry fields and stay
-  fixed.
-
-### Changed
-
-- The `agents` extra now needs `mcp>=1.30`. `FastMCP.resource()` takes `meta` from 1.26, and before
-  1.30 a settings warning reaches the stderr that `viewspec mcp --json` keeps for its failure report.
-- `--freerange` on an IntentBundle or a compiled directory now fails with
-  `APP_FREERANGE_TARGET_UNSUPPORTED`, in place of a general request error, and IntentBundle proof
-  reports record `checks.freerange: "not_applicable"`. `--pretext` on a target without a probe fails
-  with `APP_PRETEXT_TARGET_UNSUPPORTED`.
-- `--install` on an `html-tailwind` source now runs the browser proof. It used to do nothing.
-- The CLI is five commands. `init` replaces `init-intent`, `init-app`, and `init-design`
-  (`viewspec init [intent|app|design]`). `compile` now also compiles an AppBundle, replacing
-  `compile-app`. `check` now also validates a source file, replacing `validate-intent` and
-  `validate-app`. `prove` takes the source as an argument and also verifies a compiled directory,
-  replacing `prove --intent`, `prove-app`, `verify`, and `verify-host`.
-- `viewspec studio` is now a small loopback preview that rebuilds and reloads when the source or
-  `DESIGN.md` changes. It no longer starts a background daemon: it runs until interrupted.
-- `viewspec.__all__` is now the 13 names in the README: `IntentBundle`, `AppBundle`, `ASTBundle`,
-  `ViewSpecBuilder`, `compile`, `compile_mcp_app`, `check`, `prove`, `load_design_system`,
-  `DesignSystemContext`, `ViewSpecError`, `ERROR_CODES`, and `__version__`. The concrete errors stay
-  importable from `viewspec`. `compile()` now also accepts an `AppBundle`; `prove()` now takes a
-  source path first.
-- The three React dependency seeds pin `vite` 8.3.5, replacing 8.0.16, which carried a HIGH
-  advisory, and declare the `source-map-js>=1.2.2` floor as an npm override.
-- Lists and dicts rendered as text use compact JSON separators, `["Ann","Bob"]` and `{"a":1}`
-  instead of `["Ann", "Bob"]` and `{"a": 1}`, so page text and artifact hashes change for every
-  bundle that binds such a value.
-- Dependabot opens one grouped minor-and-patch pull request a week for pip, the three npm seeds
-  and GitHub Actions, and groups each ecosystem's security updates into one pull request, so an
-  npm security fix updates the seeds together. It proposes no semver-major version update
-  and never proposes the packages pinned as contracts in the code, tests or workflows;
-  `CONTRIBUTING.md` gives the hand-bump steps for a major update in each ecosystem and for each
-  of those packages. Pip version updates move the exact pins
-  (`versioning-strategy: increase-if-necessary`) and leave the dependency ranges in
-  `pyproject.toml`, the minimum versions the package asks of its users, alone while they allow
-  the new release.
-  `cryptography` allows up to 52.x. The classifiers declare Linux and macOS; CI runs on
-  Linux plus a Windows job that checks the corpus goldens, and does not exercise macOS.
-- The source archive ships `tests/`, `conformance/`, `proto/`, the changelog, the contributing
-  guide and the security policy, so it carries the library tests, the conformance corpus and the
-  schema source. The full suite still needs a git checkout: some tests import or read
-  `scripts/`, `demos/`, `docs/`, `examples/`, `integrations/` or `.github/`, or the root files
-  `requirements-ci.txt` and `.pre-commit-config.yaml`, none of which the archive includes.
-  The package version is read from `src/viewspec/_version.py` alone.
-- The protobuf schema source is committed as `proto/universal_ui.proto` with a regeneration
-  script and a typed `.pyi` stub next to `py.typed`; CI checks the source against the generated
-  code. The `dev` extra pins `grpcio-tools` 1.80.0, which bundles protoc 31.1 and
-  ships wheels for Python 3.11 through 3.14.
-- Internal planning notes moved to `docs/internal/`; `docs/README.md` indexes the documentation;
-  README states the evaluated version of its evidence, the supported platforms and the
-  compatibility horizon (D-2 to D-7, H-1). `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` were added
-  (H-2); the release checklist tags and publishes each release (R-7) and says that the site
-  deploy does not wait for the PyPI check.
-- The Pretext E2E workflow now pins npm to its major.minor line (10.9) instead of the exact patch
-  release 10.9.8. Each Node release bundles one npm version, so a later Node patch bump that moves
-  npm within 10.9 no longer needs a separate npm edit. The job still requires a plain
-  major.minor.patch npm version, and Python, Node, Bun and Playwright stay pinned exactly.
-- The Pretext E2E result contract now requires at least three tests with none failed, errored or
-  skipped, instead of an exact count, so adding an e2e test no longer fails the gate.
-- The single-column product surface detector matches its primary role the way the workspace
-  detector does. A role now counts as primary when any of its words is `main` or `primary`,
-  ignoring case, where every character other than an ASCII letter or digit separates words;
-  before, only the exact roles `main`, `primary`, `primary_column` and `workspace_primary` did.
-  `Main`, `Primary Column`, `primary-column` and `main_content` now match, and so do `not_main`,
-  `non-primary`, `main-nav`, `main_navigation` and `primary-footer`, as they already did inside a
-  workspace; `domain`, `remain` and `mainstream` do not. This changes compiled output: a bundle
-  whose root has a single child region, a `stack` whose role newly matches, and no other regions
-  now compiles to the `single_column_v1` product surface. Its HTML and TSX output, on all three
-  targets, gains product-role styling for the page shell, the column and the dashboard, form,
-  detail and hero motifs in it, and, when the root has a one-line `title` that no binding shows
-  and the column holds no `hero`, an implicit page header that shows that title. Recompile such
-  bundles and review the output. No corpus output changes.
-- The React Tailwind recipe tables (`RECIPE_BY_KEY` and the rest) are read once, at import, into
-  `DEFAULT_TAILWIND_RECIPE_REGISTRY`. Reassigning or editing them afterwards changes neither what
-  the emitter writes nor what `viewspec check` accepts or `viewspec prove` reports.
-  `viewspec check` and `check_artifact_dir()` verify React Tailwind artifacts against the default
-  registry, so an artifact whose classes came from another registry fails them with
-  `TAILWIND_INVENTORY_MISMATCH`.
-- Generated React apps start from React and React DOM 19.3.1 (was 19.2.7), Tailwind CSS and
-  `@tailwindcss/vite` 4.3.3 (was 4.3.0), `@vitejs/plugin-react` 6.1.2 (was 6.0.2), `@types/react`
-  and `@types/react-dom` 19.3.0 (was 19.2.16 and 19.2.3), and `@types/node` 25.9.9 (was 25.5.0).
-  The shipped template's `package.json` and lockfile change, so the hashes of every generated
-  React app's package files change too. The other two React dependency seeds move to the same
-  versions of the packages they declare.
-
-### Removed
-
-- The hosted SaaS client and everything built on it: `compile_remote`, `compile_auto`,
-  `compile_app_remote`, `compile_artifact_remote`, the hosted verification client, signed usage
-  receipts (`verify_usage_receipt`, `verify_signed_receipt`), `CompilerAPIError`, `DesignRequest`,
-  `CompileResponse`, `ViewSpecBuilder.attach_design()`, and the `remote` extra. The `cryptography`
-  and `httpx` dependencies are gone. SwiftUI and Flutter were hosted-only, so they are gone too.
-- IntentPatch and Converge: `viewspec patch-targets`, `patch-preview`, `patch-apply`, and every
-  `converge-*` command, with their Python APIs and published schemas. Regenerate a bundle or apply a
-  standard JSON Patch, then run `viewspec check`.
-- Review, private Share, and creation rooms: `viewspec review*`, `studio-create`, `studio-accept`,
-  `studio-agent-task`, `studio-share-prepare`, `.vsreview` archives, and Studio's Comment and Approve
-  loop, `--compare`, `--share`, and `--brief`.
-- Every MCP tool except `init`, `compile`, `check`, `prove`, and `studio`. `init-agent`,
-  `export-agent-assets`, and `check-agent-assets` are gone; the agent prompt and schemas stay
-  published and importable.
-- `viewspec doctor`, `lift`, `diff`, `diff-intent`, `diff-app`, `verify-host`, and `verify --repair-out`.
-- 247 names from `viewspec.__all__`. Modules such as `viewspec.agent` and `viewspec.intent_tools`
-  remain importable but are internal. `load_design_system()` no longer accepts `lint`.
-- The `HOSTED_ONLY_FIELD` validation code: those fields are now rejected as `UNKNOWN_FIELD`.
-- `demos/launch-assets/` and the Git LFS migration script that was to move them.
-- The agent UI evaluation harness, the Studio production canary, the refinement scorecards, the
-  human study protocol, and the internal audit and planning documents.
-
-### Fixed
-
-- The Pretext probe no longer reports `line_count_mismatch` for a line Chromium wraps inside the
-  probe's 4 pixel fit tolerance, which failed healthy text. This also changes the probe that
-  `react-tailwind-app` generates.
-- `--force` refuses an output directory that holds the source or DESIGN.md. It used to delete them
-  along with the old output.
-- The landing page's section headings render at their designed 25px to 40px. A missing space around
-  `+` in `calc()` made every `h2` inherit the 16px body size. A static check and a browser test now
-  cover this. The `.sub` and `.lead` rules failed the same way; they are removed and stay at 16px.
-- Non-ASCII text in list and dict bindings renders as UTF-8 instead of `\u` escapes.
-- The declared protobuf requirement matches the generated schema: `protobuf>=6.31.1,<8`. The
-  package did not import with protobuf 5.x.
-- The local review daemon no longer answers an agent poll with `REVIEW_SERVER_START_FAILED` when a
-  temporary file or candidate directory disappears while the session storage is being sized:
-  the size walk skips entries that vanish between listing and inspection and still rejects
-  symbolic links.
-- The React Tailwind emitter no longer writes to another module's globals: it assigned seven
-  attributes on `recipes.py` on every call. Emits with different recipe registries can run at the
-  same time, and `tailwind_recipe_registry_digest()` no longer depends on names that earlier code
-  reassigned. Compiled output and the default registry digest are unchanged.
-
-### Security
 
 - `viewspec check` rejects inline event handlers (`CHECK_INLINE_EVENT_HANDLER`), `javascript:`,
   `vbscript:` and non-image `data:` URL schemes on every URL-bearing attribute
@@ -679,6 +662,20 @@ This is a breaking release; `docs/compatibility.md` allows that before 1.0.
   artifacts fail closed unless every element carries a manifest node id with the exact attribute
   set (`CHECK_RAW_HTML_DOM_UNGOVERNED`). The `<style>`, `<script>` and `<meta>` scans are linear
   with a block cap (`CHECK_SCAN_LIMIT_EXCEEDED`) instead of quadratic.
+
+- A refused `viewspec prove` no longer writes into an output directory it does not own, so the
+  `--force` it recommends can no longer delete that directory. It used to write `proof_report.json`,
+  `PROOF.md` and `support_bundle.json` (for an AppBundle, `app_proof_report.json`, `APP_PROOF.md`
+  and `app_support_bundle.json`) into the `--out` directory it had just refused, and those files
+  are what `--force` takes as proof that a directory is ViewSpec's: the next `--force` removed the
+  directory and everything in it. The CLI and the MCP `prove` tool both did this after
+  `PROVE_OUTPUT_EXISTS`, an unknown target or kind, an internal error, or a mistyped AppBundle
+  path. A proof now writes report files into its output directory only when it created that
+  directory, or when the directory was already empty or held a ViewSpec output. Otherwise it writes
+  nothing there, and an IntentBundle proof writes only a `--report-out` file outside it.
+  `PROVE_OUTPUT_EXISTS` and `APP_PROOF_OUTPUT_EXISTS` offer `--force` only for a directory it would
+  replace, and otherwise ask for a new `--out`. An AppBundle proof refused on an empty directory now
+  writes its report there, as an IntentBundle proof does.
 
 ## [0.3.0b12] - 2026-10-14
 
