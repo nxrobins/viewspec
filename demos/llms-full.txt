@@ -6,7 +6,7 @@ ViewSpec is an agent-native app compiler, an agent-native UI compiler, a semanti
 
 ViewSpec is free, MIT licensed, and runs locally. There is no hosted service, account, API key, or paid tier.
 
-Current public SDK version: `0.4.0`.
+Current public SDK version: `0.4.1`.
 
 Install the current SDK with `python -m pip install viewspec`.
 
