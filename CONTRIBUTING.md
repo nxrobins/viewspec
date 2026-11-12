@@ -128,8 +128,10 @@ default. `--structured-output` sends a structured-output copy of the SDK schema 
 kind, and `--schema PATH` sends that file as given. The provider may reject `--structured-output`
 while the SDK schemas hold JSON maps. The weekly `agent-eval.yml` workflow runs the eval and
 uploads the output directory as an artifact. The scheduled workflow reads the repository variable
-`VIEWSPEC_EVAL_MODEL` and the secret `ANTHROPIC_API_KEY`. It is separate from the release gate and
-blocks nothing.
+`VIEWSPEC_EVAL_MODEL` and the secret `ANTHROPIC_API_KEY`. Until both are set, the scheduled run
+skips: a notice names what is missing, and the run stays green. A manual run never skips. It always
+has a model id, and it fails when the secret is missing. The workflow is separate from the release
+gate and blocks nothing.
 
 ### Pinned CI dependencies
 

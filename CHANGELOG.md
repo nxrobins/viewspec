@@ -7,6 +7,14 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The weekly `agent-eval.yml` workflow skips until the repository variable `VIEWSPEC_EVAL_MODEL`
+  and the secret `ANTHROPIC_API_KEY` are both set. A new `preflight` job records what is missing in
+  a notice, the eval job is skipped, and the run stays green. Before, every scheduled run without
+  them exited 2 and showed red. A manual run still fails when the secret is missing, so a person who
+  starts a run is told when it did not happen.
+
 ## [0.4.1] - 2026-11-12
 
 Fixes to the agent lift, which 0.4.0 was the first release to ship.
