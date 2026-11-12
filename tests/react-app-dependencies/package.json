@@ -5,12 +5,12 @@
   "description": "Pinned dependency seed for generated React app proofs, including Pretext and Freerange.",
   "dependencies": {
     "@chenglou/pretext": "0.0.8",
-    "@tailwindcss/vite": "4.3.3",
-    "@vitejs/plugin-react": "6.1.2",
+    "@tailwindcss/vite": "4.3.5",
+    "@vitejs/plugin-react": "6.2.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "tailwindcss": "4.3.3",
-    "vite": "8.3.5"
+    "tailwindcss": "4.3.5",
+    "vite": "8.3.6"
   },
   "devDependencies": {
     "@chenglou/freerange": "0.0.1",
