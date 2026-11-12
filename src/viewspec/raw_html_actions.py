@@ -16,7 +16,7 @@ import binascii
 import datetime
 import mimetypes
 import re
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -28,6 +28,7 @@ from viewspec.raw_html_agent import (
     form_fields,
     form_tool_names,
 )
+from viewspec.raw_html_patterns import MAX_PATTERN_VALUE_LENGTH, bounded_pattern
 
 if TYPE_CHECKING:
     from viewspec.raw_html import HtmlLiftResult
@@ -516,82 +517,14 @@ def _length_problem(control: HtmlControl, value: str) -> str | None:
     return None
 
 
-# A quantified group ("(a+)+", "(\\w|\\s)*") can make Python's backtracking ``re`` run for an
-# unbounded time on a value made to defeat it. Such a pattern, from a page the agent does not
-# trust, is left to the browser, which reports its refusal through the step's ``invalid`` list.
-RISKY_PATTERN_RE = re.compile(r"\)\s*[*+{]")
-MAX_PATTERN_LENGTH = 200
-MAX_PATTERN_VALUE_LENGTH = 1000
-# Quantifiers in a row that can each take part of the same text backtrack polynomially without any
-# group: "[a-z]+.*[a-z]+.*x" on 1000 letters tries about n**k splits for k such quantifiers, and
-# "a?" * 20 + "a" * 20 tries 2**20. On a 1000-character value, two take milliseconds, three up to
-# 0.4 s, and four more than 20 s (CPython 3.15), so more than two is left to the browser.
-MAX_CHOICE_QUANTIFIERS = 2
-# A quantifier as written, with its lazy "?" or possessive "+": "*", "+?", "{2,}", "{,5}", "{3}".
-# "{}" is not one; Python reads it as text.
-QUANTIFIER_RE = re.compile(r"(?:[*+?]|\{(?!\})\d*(?:,\d*)?\})[?+]?")
-
-
-def _quantifiers(pattern: str) -> Iterator[str]:
-    """Each quantifier in ``pattern``, as QUANTIFIER_RE reads it. A mark after a backslash or inside a
-    character class is text, and the "?" that opens a group's syntax ("(?:", "(?=") is not one."""
-
-    index, in_class = 0, False
-    while index < len(pattern):
-        char = pattern[index]
-        if char == "\\":
-            index += 2
-        elif in_class:
-            in_class = char != "]"
-            index += 1
-        elif char == "[":
-            index += 1
-            index += pattern.startswith("^", index)
-            index += pattern.startswith("]", index)  # A "]" first in a class is text.
-            in_class = True
-        elif char == "(":
-            index += 1 + pattern.startswith("?", index + 1)
-        elif match := QUANTIFIER_RE.match(pattern, index):
-            yield match.group()
-            index = match.end()
-        else:
-            index += 1
-
-
-def _leaves_choice(quantifier: str) -> bool:
-    """Whether ``quantifier`` (as ``_quantifiers`` yields it) lets the matcher try more than one
-    length of text, so a failed match can come back to it and try another.
-
-    A lazy one ("+?") still backtracks, only in the other order. A possessive one ("++") does not, but
-    it counts too: JavaScript has no possessive quantifiers, so in the browser the pattern means
-    something else, and leaving it to the browser is the safe side. A range counts unless its two
-    ends are the same: "{1,3}" leaves three lengths to try, "{3}" and "{3,3}" only one.
-    """
-
-    base = quantifier[:-1] if len(quantifier) > 1 and quantifier[-1] in "?+" else quantifier
-    if not base.startswith("{"):
-        return True  # "*", "+", "?"
-    low, comma, high = base[1:-1].partition(",")
-    if not comma:
-        return False  # "{3}": exactly that many.
-    return not high or int(low or 0) != int(high)  # "{2,}" and "{,}" are open; "{,5}" is "{0,5}".
-
-
 def _pattern_problem(control: HtmlControl, value: str) -> str | None:
     pattern = control.pattern
     if not pattern or not value:
         return None
-    if (
-        len(pattern) > MAX_PATTERN_LENGTH
-        or len(value) > MAX_PATTERN_VALUE_LENGTH
-        or RISKY_PATTERN_RE.search(pattern)
-        or sum(_leaves_choice(quantifier) for quantifier in _quantifiers(pattern)) > MAX_CHOICE_QUANTIFIERS
-    ):
-        return None  # Left to the browser: a pattern that could backtrack without bound, or a long one.
-    try:
-        matched = re.fullmatch(pattern, value)
-    except re.error:
-        return None  # A pattern Python cannot read is left to the browser.
+    regex = bounded_pattern(pattern) if len(value) <= MAX_PATTERN_VALUE_LENGTH else None
+    if regex is None:
+        return None  # Left to the browser: a pattern that could backtrack without bound, or a long value.
+    matched = regex.fullmatch(value)
     return None if matched else f"{_shown(control, value)} does not match the pattern {pattern}."
 
 

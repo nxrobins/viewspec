@@ -91,9 +91,29 @@ What the agent profile adds:
 What it never keeps:
 
 - The value of a hidden input (`HTML_HIDDEN_INPUT_DROPPED`).
-- The value of a password field, of a field whose `autocomplete` is a password, one-time code, or
-  card token, or of a field whose `name` or `id` looks like a password, token, CVC, or card number.
-  The value becomes `[redacted]` (`HTML_VALUE_REDACTED`).
+- The value of a field it takes for a secret. The value becomes `[redacted]`
+  (`HTML_VALUE_REDACTED`). A text field or a `<textarea>` is taken for a secret when:
+  - its `type` is `password`;
+  - its `autocomplete` is a password, a one-time code, or a card token;
+  - its `name`, `id`, `aria-label`, `placeholder`, or `title` names a secret; or
+  - its label does: a `<label for>`, a label around it, or the elements of its `aria-labelledby`,
+    when that text is 60 characters or shorter. Such a field also gets `data-lift-secret="true"`,
+    and a browser-side snapshot can set that attribute itself.
+- The value of a URL parameter whose name names a secret, in the query or the fragment of an
+  `href`, `src`, or `action` (`?token=...` becomes `?token=%5Bredacted%5D`).
+
+A name is read as whole words, split at `_`, `-`, spaces, digits, and capital letters, so `apiKey`,
+`api_key`, and "API key" are the same two words, `businessName` does not contain `ssn`, and
+`passenger_type` does not contain `pass`. `SECRET_WORDS` and `SECRET_PHRASES` in
+`viewspec/raw_html_agent.py` hold the words. Checkboxes, radio buttons, buttons, and range, colour,
+and file inputs are not read this way: their values are the page author's, not text a person typed.
+
+The rule reads names, not values. A secret in a field named for something else (`notes`, `field_7`),
+a label in a language other than English, and a secret shown as page text are all kept. Treat a
+lift as holding whatever the page shows.
+
+What it also removes:
+
 - Script, style, event handlers, `formaction`, and unsafe URLs, as in the compile profile. A form
   `action` must be relative or `http(s)`.
 

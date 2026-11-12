@@ -7,6 +7,35 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- The agent lift (`lift_html(..., profile="agent")`) no longer keeps the value of a field named
+  `api_key`, `apiKey`, `access_key`, `private_key`, `auth`, `pin`, `pwd`, `iban`, or `mfa_code`. The
+  secret rule now reads a field's name as whole words, and also reads its `aria-label`,
+  `placeholder`, `title`, and label. 0.4.0 kept these values in the lift, in the form's tool schema
+  as `default`, and in diffs.
+- The agent lift redacts the value of a URL parameter whose name names a secret (`?token=...`,
+  `#access_token=...`) in `href`, `src`, and `action`.
+- `plan_form_call` no longer runs a page's `pattern` when it holds enough alternatives to backtrack
+  for seconds or longer, and no longer raises `OverflowError` on a pattern with a repeat count too
+  large for Python. Such a pattern is left to the browser and is left out of the form's tool schema.
+
+### Fixed
+
+- The agent lift no longer redacts `businessName` (it contains "ssn") or a radio group named
+  `passenger_type` (it contains "pass"), whose options were all `[redacted]` and could not be
+  chosen. Choices, buttons, and range, colour, and file inputs are never redacted by name.
+- Lifting a page of many forms or many unlabelled fields, and `diff_lifts` on a page of many
+  controls, now take time in proportion to the page: 10,000 one-field forms lift in 0.3 s (was
+  10 s), and a diff of two 10,000-item lists takes 0.15 s (was 45 s).
+- A control's name and its group's name are cut at 200 characters, so one long label around many
+  fields no longer multiplies into the lift (66 MB of JSON from a 26 KB page before, 2.7 MB now).
+
+### Changed
+
+- The README no longer says the lift "never keeps a secret value". It states the rule and its
+  limits, and says which two rows of the lift's measurements compare the lift with itself.
+
 ## [0.4.0] - 2026-11-11
 
 ViewSpec is now a local, open-source compiler with no hosted service and a much smaller surface.

@@ -266,3 +266,13 @@ def test_hidden_ids_cover_every_way_to_hide():
     )
     hidden_text = {node.text for node in lift.nodes if node.id in hidden_ids(lift.nodes)}
     assert hidden_text >= {"a", "b", "c"} and "d" not in hidden_text
+
+
+def test_controls_that_match_by_ref_pair_in_order_when_many_share_a_name():
+    def page(label: str):
+        items = "".join(f'<button data-lift-ref="e{index}">{label}</button>' for index in range(300))
+        return _lift(f"<div>{items}</div>")
+
+    diff = diff_lifts(page("Buy"), page("Add"))
+    assert len(diff.changed) == 300 and not diff.added and not diff.removed
+    assert [change.after.ref for change in diff.changed] == [f"e{index}" for index in range(300)]

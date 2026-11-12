@@ -8,12 +8,12 @@ import json
 import os
 import re
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from viewspec._version import __version__
 from viewspec.design_md import DesignSystemContext, load_design_system
@@ -21,6 +21,7 @@ from viewspec.emitters._write import write_artifact_set
 from viewspec.raw_html_agent import (
     AGENT_HINT_ATTR_PREFIX,
     AGENT_VIEWSPEC_DATA_ATTRS,
+    HINT_SECRET,
     HtmlControl,
     HtmlForm,
     HtmlMessage,
@@ -28,6 +29,8 @@ from viewspec.raw_html_agent import (
     form_tool_names,
     form_tool_schema,
     is_sensitive_control,
+    label_secret_ids,
+    names_a_secret,
 )
 
 MAX_HTML_INPUT_BYTES = 5_000_000
@@ -485,8 +488,8 @@ def lift_html(
     ``profile="compile"`` (the default) is the sanitizer policy of ``compile_html()``.
     ``profile="agent"`` is for agents that read and operate a rendered page. It also keeps form
     controls, labels, ARIA roles, tab stops, and ViewSpec ``data-action-*`` attributes; it adds
-    ``action`` and ``field`` roles, ``controls``, and ``forms``; and it never keeps a password,
-    a one-time code, a card number, or a hidden input value. A browser-side snapshot can add
+    ``action`` and ``field`` roles, ``controls``, and ``forms``; and it does not keep a hidden input's
+    value or the value of a field whose type, ``autocomplete``, name, or label marks it as a secret. A browser-side snapshot can add
     ``data-lift-hidden`` and ``data-lift-clickable`` hints, which this profile reads.
     """
 
@@ -497,6 +500,8 @@ def lift_html(
     parser.feed(html)
     parser.close()
     nodes = _freeze_nodes(parser.root)
+    if profile == "agent":
+        nodes = _redact_labelled_secrets(nodes, parser.diagnostics)
     source_hash = hashlib.sha256("\n".join(_source_token(node) for node in nodes).encode("utf-8")).hexdigest()
     controls: tuple[HtmlControl, ...] = ()
     forms: tuple[HtmlForm, ...] = ()
@@ -753,6 +758,16 @@ def _sanitize_agent_attrs(
                     }
                 )
                 continue
+            shown = _redact_url_secrets(normalized)
+            if shown != normalized:
+                normalized = shown
+                diagnostics.append(
+                    {
+                        "severity": "info",
+                        "code": "HTML_VALUE_REDACTED",
+                        "message": f"Redacted the value of a secret parameter in the {name} URL of <{tag}>.",
+                    }
+                )
             if _is_external_http_url(normalized):
                 kind = {"href": "link", "src": "image", "action": "form"}[name]
                 external_refs.append({"kind": kind, "attr": name, "url": normalized, "behavior": "agent_read"})
@@ -768,6 +783,59 @@ def _sanitize_agent_attrs(
             }
         )
     return sanitized
+
+
+def _redact_labelled_secrets(nodes: list[LiftNode], diagnostics: list[dict[str, str]]) -> list[LiftNode]:
+    """Redact the fields that only a label marks as secret ("API key"), and mark them with
+    ``data-lift-secret``. A label is known only once the whole page is read, so this runs after the
+    parser, and before anything is derived from the nodes."""
+
+    secret_ids = label_secret_ids(nodes)
+    if not secret_ids:
+        return nodes
+    redacted: list[LiftNode] = []
+    for node in nodes:
+        if node.id in secret_ids:
+            attrs = {**node.attrs, HINT_SECRET: "true"}
+            if attrs.get("value"):
+                attrs["value"] = REDACTED_VALUE
+            held = node.tag == "textarea" and bool(node.text)
+            node = replace(
+                node,
+                attrs=dict(sorted(attrs.items())),
+                text=REDACTED_VALUE if held else node.text,
+                text_runs=(REDACTED_VALUE,) if held else node.text_runs,
+            )
+            diagnostics.append(
+                {
+                    "severity": "info",
+                    "code": "HTML_VALUE_REDACTED",
+                    "message": f"Redacted the value of a <{node.tag}> field whose label names a secret.",
+                }
+            )
+        redacted.append(node)
+    return redacted
+
+
+# What stands in a URL for the value of a parameter whose name names a secret: "[redacted]", encoded.
+REDACTED_URL_VALUE = "%5Bredacted%5D"
+
+
+def _redact_url_secrets(url: str) -> str:
+    """``url`` without the values of the query and fragment parameters whose names name a secret
+    ("?token=...", "#access_token=..."). The names and every other parameter stay."""
+
+    head, mark, fragment = url.partition("#")
+    path, question, query = head.partition("?")
+
+    def redact(pairs: str) -> str:
+        kept: list[str] = []
+        for pair in pairs.split("&"):
+            name, equals, value = pair.partition("=")
+            kept.append(f"{name}={REDACTED_URL_VALUE}" if equals and value and names_a_secret(unquote(name)) else pair)
+        return "&".join(kept)
+
+    return f"{path}{question}{redact(query)}{mark}{redact(fragment) if '=' in fragment else fragment}"
 
 
 def _safe_url(value: str, *, attr: str) -> bool:
