@@ -15,7 +15,7 @@ All notable changes to ViewSpec are documented in this file. The format follows
   them exited 2 and showed red. A manual run still fails when the secret is missing, so a person who
   starts a run is told when it did not happen.
 
-## [0.4.1] - 2026-11-12
+## [0.4.1] - 2026-11-15
 
 Fixes to the agent lift, which 0.4.0 was the first release to ship.
 
