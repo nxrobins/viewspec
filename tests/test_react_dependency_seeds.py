@@ -119,6 +119,26 @@ def test_playwright_pins_outside_the_seeds_follow_the_seeds():
         assert set(pins) == {version}, (relative, pins)
 
 
+def test_the_browser_bridge_installs_the_playwright_the_seeds_pin():
+    # experiments/browser-agent-probe has a lockfile of its own, so that bridge.js loads Playwright
+    # from beside it, as it does when an agent host starts the MCP server. Dependabot does not see
+    # it, so it moves by hand with the seeds: one version is one Chromium build for every CI job,
+    # and its lock entries are the bytes the seeds install.
+    probe = ROOT / "experiments" / "browser-agent-probe"
+    manifest = json.loads((probe / "package.json").read_text())
+    lock = json.loads((probe / "package-lock.json").read_text())
+    seed_lock = _seeds()[0][2]["packages"]
+
+    assert manifest["devDependencies"] == {"playwright": _shared_pin("@playwright/test")}
+    assert lock["lockfileVersion"] == 3
+    assert lock["packages"][""]["devDependencies"] == manifest["devDependencies"]
+    installed = {name: package for name, package in lock["packages"].items() if name}
+    assert {"node_modules/playwright", "node_modules/playwright-core"} <= set(installed)
+    for name, package in installed.items():
+        for key in ("version", "resolved", "integrity"):
+            assert package[key] == seed_lock[name][key], (name, key)
+
+
 def test_hand_bumped_seed_pins_match_the_code_that_pins_them():
     # Dependabot never bumps these either: the code pins the exact artifacts the seeds install.
     assert _shared_pin("typescript") == FREERANGE_TYPESCRIPT_VERSION

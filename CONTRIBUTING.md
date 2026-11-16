@@ -61,6 +61,17 @@ the full test suite does not run on Windows.
    VIEWSPEC_RUN_STUDIO_E2E=1 python -m pytest -q -m e2e tests/test_studio_inspector_e2e.py
    ```
 
+   The browser bridge in `experiments/browser-agent-probe` pins a Playwright of its own, which
+   `bridge.js` loads from beside it. Its two scripts check one capability at a time, and the opt-in
+   suite runs whole agent tasks through its MCP server:
+
+   ```bash
+   (cd experiments/browser-agent-probe && npm ci --ignore-scripts && npx playwright install chromium)
+   python experiments/browser-agent-probe/demo_agent.py
+   python experiments/browser-agent-probe/demo_mcp.py
+   VIEWSPEC_RUN_BROWSER_BRIDGE_E2E=1 python -m pytest -q -m e2e tests/test_browser_bridge_e2e.py
+   ```
+
 3. **Optional runtimes.** Bun 1.x is only needed for the opt-in Freerange proof and its e2e
    scenarios; ViewSpec never installs it. Nothing in the default suite needs network access.
 
@@ -306,7 +317,10 @@ string as well (`git grep -nF <old version>`): error messages, tests and root fi
   `npm install --save-dev --save-exact --ignore-scripts @playwright/test@<version>` in each of the
   three seeds, then set the same version in `PLAYWRIGHT_VERSION` in
   `.github/workflows/pretext-e2e.yml` and in `docs/release-checklist.md`
-  (`tests/test_react_dependency_seeds.py` checks both). The new
+  (`tests/test_react_dependency_seeds.py` checks both). The browser bridge has a lockfile of its
+  own that the same test holds to the seeds: run
+  `npm install --save-dev --save-exact --ignore-scripts playwright@<version>` in
+  `experiments/browser-agent-probe`. The new
   release usually expects a new Chromium build: reinstall it as in the development setup, refresh
   the goldens, and run the full suite; `pretext-e2e.yml` runs on the pull request. The template
   ships the pin to every generated app, so add a changelog entry.

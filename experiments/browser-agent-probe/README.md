@@ -3,13 +3,18 @@
 An experiment. Can the ViewSpec agent lift give a browser agent a small, complete model of a live
 page, and can the agent act on what it reads?
 
-This folder is not part of the ViewSpec package and has no CI. The pieces it uses from the package
-are tested there:
+This folder is not part of the ViewSpec package. The pieces it uses from the package are tested
+there:
 
 - `lift_html(..., profile="agent")` reads controls and forms (`tests/test_raw_html_agent_lift.py`).
 - `viewspec.raw_html_actions` plans actions and form tool calls (`tests/test_raw_html_agent_actions.py`).
 
 See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile).
+
+The bridge and the MCP server run in CI on every pull request, in Chromium on Python 3.11: the
+`browser_bridge` job of `.github/workflows/ci.yml` runs `demo_agent.py`, `demo_mcp.py`, and the
+agent tasks in `tests/test_browser_bridge_e2e.py`. See [Checked in CI](#checked-in-ci). The two
+evals that open real sites (`apg_eval.py`, `real_sites_eval.py`) and `probe.py` are run by hand.
 
 ## The loop
 
@@ -397,7 +402,12 @@ call(tool="checkout", arguments={"email": "bo@example.com", "ship": "express", "
 
 ## Run it
 
-You need the package (`pip install -e .`), Node, and Playwright for Node with Chromium.
+You need the package with its `agents` extra (`pip install -e ".[agents]"`), Node, and Playwright
+for Node with Chromium. The folder pins the Playwright that CI uses:
+
+```bash
+(cd experiments/browser-agent-probe && npm ci --ignore-scripts && npx playwright install chromium)
+```
 
 ```bash
 python experiments/browser-agent-probe/demo_agent.py
@@ -419,6 +429,38 @@ with BrowserSession() as session:  # block_writes=True by default
     session.call("checkout", {"email": "bo@example.com", "ship": "express", "terms": True})
     print(session.blocked_writes())  # the form post, stopped
 ```
+
+## Checked in CI
+
+`demo_agent.py` and `demo_mcp.py` check one capability at a time. `tests/test_browser_bridge_e2e.py`
+checks whole tasks. Each one gives an agent a goal a person would ask for, and passes only when the
+page ends up where the goal says:
+
+| Task | It is completed when |
+|---|---|
+| Order three lamps with a promo code, a card, and a new password | the stopped post to `/orders` holds the order, with the password redacted |
+| Place an order after a refused form call and a bad email | nothing was sent until the request was right, and then it was sent once |
+| Add one product of 300 to the cart | the page says that product was added, and its button reads "Added" |
+| Add two products whose buttons have the same name | the cart count is 2, and both products are named in turn |
+| Open post 75 of an infinite feed | the browser is on `/post/75` |
+| Find a stay, then hire a car for the same days | both stopped posts hold the dates, each as its own picker writes them |
+| Apply for a job with a CV and two photos | the stopped multipart post names the three files and their sizes |
+| Save an invoice and an export of the orders | the download folder holds exactly those two files, byte for byte |
+| Refresh a page that redraws itself, then export | the export link shows, reached from the first reading of the page |
+| Open an article from search suggestions | the browser is on that article, not the two with longer titles |
+
+The agent is scripted, because the test suite never calls a model, but it is held to what a model
+would have. It starts `mcp_browser_server.py` over stdio as an agent host does, uses only `observe`,
+`act`, and `call`, and takes every handle from the view text of a result. Each task gets a server
+and a browser of its own. One rule is shared by every task (`unmet`): what must hold for every tool
+call on the way to the outcome.
+
+```bash
+VIEWSPEC_RUN_BROWSER_BRIDGE_E2E=1 python -m pytest -q -m e2e tests/test_browser_bridge_e2e.py
+```
+
+Without the variable the tasks skip. CI sets it, and `tests/test_ci_config.py` checks that the job
+sets the variable the suite reads, so the tasks cannot be skipped there unseen.
 
 ## Results on the fixtures
 
