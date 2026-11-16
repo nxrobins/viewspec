@@ -1,12 +1,15 @@
 """A compact, agent-facing text view of an agent-profile lift, and slices of it.
 
 Each control gets a numbered handle (``[7]``). An agent reads the view and acts by handle; the session
-maps the handle back to the control, its ref, and its locator. A long view is read in slices
-(``view_page``): by offset and limit, or only the lines that contain some text.
+maps the handle back to the control, its ref, and its locator. A control that the page shows but a
+person could not use now ends with ``blocked``. A long view is read in slices (``view_page``): by
+offset and limit, or only the lines that contain some text.
 """
 
 from __future__ import annotations
 
+from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -19,7 +22,10 @@ TEXT_PREVIEW = 70
 OPTION_PREVIEW = 8
 
 
-def control_line(handle: int, control: HtmlControl) -> str:
+def control_line(handle: int, control: HtmlControl, *, blocked: bool = False) -> str:
+    """One control as a line of the view. ``blocked``: the page shows it, but a person could not use
+    it now (see ``view_lines``)."""
+
     label = control.name or control.field_name or "(unnamed)"
     line = f"[{handle}] {control.control} {label[:TEXT_PREVIEW]!r}"
     if control.kind == "field":
@@ -66,6 +72,8 @@ def control_line(handle: int, control: HtmlControl) -> str:
         line += f" sorted {control.sort}"
     if control.disabled:
         line += " disabled"
+    if blocked:
+        line += " blocked"
     return line
 
 
@@ -83,7 +91,7 @@ FIND_BLOCK = 30  # The most lines a matching heading brings with it from its sec
 
 @dataclass(frozen=True)
 class ViewLine:
-    """One line of the view. ``kind`` is message, group, form, row, control, heading, or value.
+    """One line of the view. ``kind`` is blocked, message, group, form, row, control, heading, or value.
 
     ``node_id`` is the lifted node the line shows. ``heading_id`` is the node id of the heading whose
     section holds the line (for a heading line: the heading of the section around it). ``form_id`` is
@@ -129,14 +137,23 @@ class _Sections:
             scope = self.scope(scope)
 
 
-def view_lines(lift: HtmlLiftResult) -> tuple[list[ViewLine], dict[int, HtmlControl]]:
+def view_lines(
+    lift: HtmlLiftResult, *, blocked: Mapping[str, str] | None = None
+) -> tuple[list[ViewLine], dict[int, HtmlControl]]:
     """Build the view as lines, and return the control behind each handle.
 
     The view lists messages (alerts, status, live regions), forms, headings, controls, values, table
     rows, and repeated groups in document order. Handles count controls from 1 in document order, so
     the same page gives the same handles.
+
+    ``blocked`` maps the node id of a control to why a person could not use it now: a dialog covers
+    it, or the page has switched it off. The lift cannot know this (it depends on what the browser
+    draws over what), so the browser session supplies it. Such a control keeps its line and its
+    handle, since the agent may need to read it, and the line ends with ``blocked``. The view then
+    opens with one line per reason, so the agent knows what to deal with first.
     """
 
+    blocked = blocked or {}
     group_of: dict[str, tuple[str, ...]] = {}
     for group in lift.group_candidates:
         if len(group) >= VIEW_GROUP_MIN:
@@ -186,7 +203,8 @@ def view_lines(lift: HtmlLiftResult) -> tuple[list[ViewLine], dict[int, HtmlCont
             control = controls[node.id]
             handle = len(handles) + 1
             handles[handle] = control
-            add(control_line(handle, control), "control", node.id, handle=handle, form_id=control.form_id)
+            line = control_line(handle, control, blocked=node.id in blocked)
+            add(line, "control", node.id, handle=handle, form_id=control.form_id)
             continue
         role = roles.get(node.id)
         if role is None:
@@ -195,7 +213,17 @@ def view_lines(lift: HtmlLiftResult) -> tuple[list[ViewLine], dict[int, HtmlCont
             add(f"{node.tag.upper()} {role.text[:TEXT_PREVIEW]}", "heading", node.id)
         elif role.role == "value":
             add(f"value {role.text}", "value", node.id)
-    return lines, handles
+    return [*_blocked_notices(lines, blocked), *lines], handles
+
+
+def _blocked_notices(lines: list[ViewLine], blocked: Mapping[str, str]) -> list[ViewLine]:
+    """One line per reason that controls in the view are blocked, most controls first."""
+
+    reasons = Counter(blocked[line.node_id] for line in lines if line.kind == "control" and line.node_id in blocked)
+    return [
+        ViewLine(f"blocked {count} control{'' if count == 1 else 's'}: {reason}", "blocked", "")
+        for reason, count in reasons.most_common()
+    ]
 
 
 def page_view(lift: HtmlLiftResult) -> tuple[str, dict[int, HtmlControl]]:

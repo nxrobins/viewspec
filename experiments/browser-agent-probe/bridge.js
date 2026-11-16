@@ -10,7 +10,8 @@
 //   aria      {}                           Playwright's ARIA snapshot of the body
 //   reload    {}                           reload the page
 //   locate    {requests: [{key, ref, role, name}]}
-//                                          a verified locator for each ref (see below)
+//                                          for each ref: a verified locator, its identity (tag, name,
+//                                          and the items around it), and what blocks it, if anything
 //   act       {op, ref, locator, end_ref, end_locator, value, values, files}
 //                                          run one planned step (see below)
 //   writes    {}                           the writes and navigations that were stopped
@@ -180,11 +181,14 @@ async function settle() {
 
 async function snapshot({ collect_secrets: collectSecrets = false }) {
   await ensureLibrary();
+  // Playwright reports both new documents and same-document history/hash navigations. Keep the
+  // generation from before the snapshot: a route change during observation must expire it too.
+  const navigationId = mainNavigations;
   const result = await page.evaluate(
     ([selector, secrets]) => window.__viewspecLift.snapshot(selector, secrets),
     [INTERACTIVE_SELECTOR, collectSecrets],
   );
-  return { url: page.url(), title: await page.title(), ...result };
+  return { url: page.url(), title: await page.title(), ...result, navigationId };
 }
 
 // ---- Locators -----------------------------------------------------------------------------------
@@ -294,8 +298,8 @@ async function locateOne(request, frameCache, info) {
 // Most locators are checked in the page, in one call: a stable attribute or a content anchor that
 // matches only this element there. Playwright checks the rest (role and name, exact text, a path
 // across a shadow root), one by one. A locator is used only when a ref has gone stale, and then
-// Playwright must find exactly one element with the same tag and name, so a page-checked locator
-// that Playwright reads differently fails safely.
+// only one by attribute or anchor, and only if the one element it finds has the control's identity
+// (see resolveTarget), so a page-checked locator that Playwright reads differently fails safely.
 async function locate({ requests }) {
   await ensureLibrary();
   const infos = await page.evaluate(
@@ -312,52 +316,106 @@ async function locate({ requests }) {
     } else {
       results[request.key] = await locateOne(request, frameCache, info || { connected: false });
     }
+    // What the control is, and what stops a person from using it now: read in the page, with the
+    // same code that checks them before a step runs.
+    results[request.key].identity = (info && info.identity) || null;
+    results[request.key].blocked = (info && info.blocked) || null;
   }
   return results;
 }
 
 // ---- Actions ------------------------------------------------------------------------------------
-// The exact element (by ref) is used while it is still in the page. If the page replaced it (a
-// re-render or a navigation), the saved locator finds its successor, and the tag must still match.
+// What a step acts on is the control the view showed, not whatever sits where it was. Its identity
+// (see lift_inpage.js) is its tag, its name, and the items around it: the card or row it belongs to.
+//
+//   by ref    the same element, while it still reads the same and sits in the same items;
+//   by css    a stable attribute or a content anchor that finds one element with that identity;
+//   by name   the one visible element with that identity, wherever the page drew it.
+//
+// A position (a structural path, "the third button") is never trusted: after a re-render it finds
+// whatever is third now. When several elements have the identity, the step is refused rather than
+// one of them picked.
+const quoted = (text) => JSON.stringify(text === null || text === undefined ? "" : text);
+function describeIdentity(identity) {
+  const what = identity.name === null ? `the <${identity.tag}>` : quoted(identity.name);
+  return identity.items.length ? `${what} in ${quoted(identity.items[0].label)}` : what;
+}
 
 async function resolveTarget(ref, spec) {
   await ensureLibrary();
+  // A spec from an older caller has no identity: its tag and name stand in for one.
+  const identity =
+    spec && (spec.identity || (spec.tag ? { tag: spec.tag, name: spec.expect_name ?? null, items: [] } : null));
+  let rewritten = null; // The item the page has written around the element since the view.
   if (ref) {
     const handle = await page.evaluateHandle((r) => window.__viewspecLift.get(r), ref);
     const element = handle.asElement();
-    if (element) return { target: element, resolvedBy: "ref" };
-    await handle.dispose();
-  }
-  const locator = spec ? buildLocator(spec) : null;
-  if (locator && (await locator.count()) === 1) {
-    // The page replaced the element. Its locator found one element; act on it only if it is still
-    // the same kind of control with the same name, so a changed page cannot redirect the action.
-    const found = await locator.evaluate((el) => ({
-      tag: el.tagName.toLowerCase(),
-      name: window.top.__viewspecLift.nameOf(el),
-    }));
-    const normal = (text) => (text || "").toLowerCase().replace(/\s+/g, " ").trim();
-    if (spec.tag && found.tag !== spec.tag) {
-      throw new Error(`drift: the locator now finds a <${found.tag}>, not a <${spec.tag}>`);
+    if (element) {
+      const change = identity
+        ? await page.evaluate(([r, id]) => window.__viewspecLift.changedSince(r, id), [ref, identity])
+        : null;
+      if (!change) return { target: element, resolvedBy: "ref" };
+      await handle.dispose();
+      if (change.kind === "name") {
+        throw new Error(`drift: the control read as ${quoted(identity.name)} now reads ${quoted(change.now)}`);
+      }
+      // The same element now belongs to another item (a list that reuses its elements). The control
+      // the view showed may be in the page all the same, in the element that holds its item now.
+      // (An element that left the page between the two calls is looked for like any other.)
+      if (change.kind === "item") rewritten = change.now;
+    } else {
+      await handle.dispose();
     }
-    if (spec.expect_name && normal(found.name) !== normal(spec.expect_name)) {
-      throw new Error(`drift: the locator now finds ${JSON.stringify(found.name)}, not ${JSON.stringify(spec.expect_name)}`);
-    }
-    return { target: locator, resolvedBy: spec.strategy };
   }
-  if (spec && spec.tag && spec.expect_name) {
-    // The page replaced the element with one its saved locator does not match (Wikipedia mounts a
-    // search box with no id over the one the server sent). Take the one visible element with the
-    // same tag and the same name: what the drift guard would accept from any locator.
-    const handle = await page.evaluateHandle(
-      ([tag, name]) => window.__viewspecLift.byTagAndName(tag, name),
-      [spec.tag, spec.expect_name],
-    );
-    const element = handle.asElement();
+  if (!identity) throw new Error(`stale: the control ${ref} is no longer in the page`);
+  if (rewritten === null && spec.strategy === "css" && (spec.kind === "attr" || spec.kind === "anchored")) {
+    const locator = buildLocator(spec);
+    const count = await locator.count().catch(() => 0);
+    if (count === 1) {
+      const differs = await locator
+        .evaluate((el, id) => window.top.__viewspecLift.differsFrom(el, id), identity)
+        .catch(() => "gone");
+      if (differs === null) return { target: locator, resolvedBy: "css" };
+      // The locator finds something else now. It is not trusted; the identity decides.
+    }
+  }
+  const what = describeIdentity(identity);
+  const found = await page.evaluate((id) => window.__viewspecLift.successor(id), identity);
+  if (found.state === "one") {
+    const element = await handleOf(found.ref);
     if (element) return { target: element, resolvedBy: "name" };
-    await handle.dispose();
   }
-  throw new Error(`stale: neither ref ${ref} nor its locator finds the element`);
+  if (found.state === "many") {
+    throw new Error(`ambiguous: ${found.count} controls on the page are ${what}, and nothing tells them apart`);
+  }
+  if (found.state === "moved") {
+    const places = found.items.length ? ` in ${found.items.map(quoted).join(", ")}` : " elsewhere";
+    throw new Error(`drift: ${what} is gone; the page shows ${quoted(identity.name)}${places}`);
+  }
+  if (rewritten !== null) {
+    const now = rewritten ? `belongs to ${quoted(rewritten)}` : "belongs to another item";
+    throw new Error(`drift: the element read as ${what} now ${now}`);
+  }
+  throw new Error(`stale: ${what} is no longer in the page`);
+}
+
+// A control can be read without being usable: a dialog covers it, or the page has switched it off.
+// Refuse at once and say what is in the way, rather than wait for a click that cannot land.
+const KEY_OPS = new Set(["fill", "select", "choose", "choose_date", "choose_date_range"]);
+async function refuseIfBlocked(target, op) {
+  if (op === "scroll" || op === "submit") return;
+  const check = (settled) =>
+    target
+      .evaluate((el, [keys, inView]) => window.top.__viewspecLift.blockedNow(el, keys, inView), [KEY_OPS.has(op), settled])
+      .catch(() => null);
+  // First what no scroll can change: an inert section, a dialog over the whole page. A control in
+  // such a place may not scroll into view at all. Then, with the control in view, what is over it.
+  let blocked = await check(false);
+  if (!blocked) {
+    await target.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => {});
+    blocked = await check(true);
+  }
+  if (blocked) throw new Error(`blocked: ${quoted(blocked.name)} is ${blocked.reason}`);
 }
 
 // The element to click to open a control: the control itself, or, when a person could not see or hit
@@ -741,13 +799,28 @@ async function upload(target, files) {
   return { verified: JSON.stringify(names) === JSON.stringify(payload.map((f) => f.name)), chosen: names.join(", ") };
 }
 
-async function act({ op, ref, locator: spec, end_ref: endRef, end_locator: endSpec, value, values, files, wait_ms: waitMs = 2500 }) {
+function requireObservation(navigationId) {
+  if (!Number.isInteger(navigationId) || navigationId !== mainNavigations) {
+    throw new Error("stale-view: the page navigated or changed route since this view; observe it and plan again");
+  }
+}
+
+async function act({
+  op, ref, locator: spec, end_ref: endRef, end_locator: endSpec, value, values, files,
+  wait_ms: waitMs = 2500, navigation_id: navigationId,
+}) {
+  // A surviving DOM node and an identical name do not identify the same product on another route.
+  // Check every step here, including form steps and scrolling, rather than once per Python plan.
+  requireObservation(navigationId);
   if (op === "scroll" && !ref && !spec) {
     const result = await scroll(null, value, waitMs);
     return { resolved_by: "page", verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
   }
   const { target, resolvedBy } = await resolveTarget(ref, spec);
+  await refuseIfBlocked(target, op);
   await page.evaluate(() => window.__viewspecLift.takeInvalid()).catch(() => []); // Forget earlier refusals.
+  // Resolving and scrolling can yield to page code. Refuse if it changed routes in the meantime.
+  requireObservation(navigationId);
   const navigationsBefore = mainNavigations;
   const urlBefore = page.url();
   let verified = null;
@@ -792,12 +865,16 @@ async function act({ op, ref, locator: spec, end_ref: endRef, end_locator: endSp
     // An error the step raised on purpose ("download: no download started") stands. Anything else
     // that broke after the page loaded a new document (a click that submits a search) broke because
     // the in-page library the step was using is gone: say that, not what failed inside.
-    const deliberate = /^(choose|choose_date|choose_date_range|upload|download|drift|stale|navigated):/.test(
-      String(error.message || ""),
-    );
+    const text = String(error.message || "");
+    const deliberate =
+      /^(choose|choose_date|choose_date_range|upload|download|drift|stale|ambiguous|blocked|navigated):/.test(text);
     if (mainNavigations !== navigationsBefore && !deliberate) {
       throw new Error(`navigated: the page loaded a new document during ${op}, before the step finished; observe it and plan again`);
     }
+    // Playwright waited for the pointer to reach the control and gave up: its log names what took
+    // the click instead (something small that refuseIfBlocked does not count as a cover).
+    const taker = deliberate ? null : /-\s*(<[^\n]*?)\s+intercepts pointer events/.exec(text);
+    if (taker) throw new Error(`blocked: the pointer cannot reach the control; ${taker[1].slice(0, 120)} is over it`);
     throw error;
   }
   await settle();

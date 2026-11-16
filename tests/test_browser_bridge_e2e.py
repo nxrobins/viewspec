@@ -128,6 +128,19 @@ def handle(result: dict[str, Any], name: str) -> int:
     return int(match.group(1))
 
 
+def handle_under(result: dict[str, Any], item: str, name: str) -> int:
+    """The handle of the first control with this name below the text ``item`` in a result's view:
+    how an agent reads "the Add to cart of Globe lamp" when every card has that button."""
+
+    _, found, below = result["view"].partition(item)
+    assert found, f"no {item!r} in the view:\n{result['view']}"
+    return handle({"view": below}, name)
+
+
+def codes(result: dict[str, Any]) -> list[str]:
+    return [error["code"] for error in result["errors"]]
+
+
 def sent(result: dict[str, Any], path: str) -> dict[str, Any]:
     """The form fields of the one request this result says the bridge stopped, a POST to ``path``."""
 
@@ -381,6 +394,140 @@ async def open_an_article_from_search_suggestions(agent: Agent) -> None:
     assert opened["navigated"] and urlsplit(opened["url"]).path == "/wiki/Alan_Turing"
 
 
+# The tasks below are about what a handle means. Four cards on market.html have the same two
+# buttons, so "Add to cart" names nothing: the card around the button does. A step must reach the
+# control the agent read, in the item it read it in, or be refused. It must never reach another one.
+
+
+@task("Sort the lamps by price, then add the Globe lamp to the cart. Plan both from the first reading.")
+async def add_the_right_product_after_the_list_is_rebuilt(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/market.html")
+    first = page["observation_id"]
+    # Sorting builds the list again: every element is new, and Globe lamp moves from third to last.
+    # The third card is Arc lamp now, so a step that goes by position buys the wrong lamp.
+    await agent.act(action="click", handle=handle(page, "Sort by price"), observation_id=first)
+    added = await agent.act(
+        action="click", handle=handle_under(page, "Globe lamp", "Add to cart"), observation_id=first
+    )
+
+    assert added["steps"][0]["resolved_by"] != "ref"
+    assert "message status 'Globe lamp added to cart'" in added["changes"]["lines"]
+    assert "message status 'Cart: Globe lamp'" in added["view"]
+
+
+@task("Sort the lamps by name, then add the Globe lamp to the cart. Plan both from the first reading.")
+async def add_the_right_product_after_the_cards_are_reused(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/market.html")
+    first = page["observation_id"]
+    # This sort keeps every element and writes another product into each card. The button the agent
+    # read is still on the page, and it belongs to Clamp lamp now.
+    await agent.act(action="click", handle=handle(page, "Sort by name"), observation_id=first)
+    added = await agent.act(
+        action="click", handle=handle_under(page, "Globe lamp", "Add to cart"), observation_id=first
+    )
+
+    assert added["steps"][0]["resolved_by"] == "name"
+    assert "message status 'Globe lamp added to cart'" in added["changes"]["lines"]
+    assert "message status 'Cart: Globe lamp'" in added["view"]
+
+
+@task("Sort the lamps by price, then go to the next page. Plan both from the first reading.")
+async def choose_between_two_next_page_buttons(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/market.html")
+    first = page["observation_id"]
+    await agent.act(action="click", handle=handle(page, "Sort by price"), observation_id=first)
+    # The page has a "Next page" above the list and one below, and it has drawn both again. Nothing
+    # says which of them the agent read, so the server does not pick one.
+    guess = await agent.act(
+        refusal_expected=True, action="click", handle=handle(page, "Next page"), observation_id=first
+    )
+    turned = await agent.act(action="click", handle=handle(guess, "Next page"))
+
+    assert codes(guess) == ["BROWSER_TARGET_AMBIGUOUS"]
+    assert '2 controls on the page are "Next page"' in guess["errors"][0]["message"]
+    assert re.search(r"^value 1$", guess["view"], re.MULTILINE), "the refused step turned the page"
+    assert re.search(r"^value 2$", turned["view"], re.MULTILINE)
+
+
+@task("Save the Globe lamp for later, then show the saved items. Plan both from the first reading.")
+async def use_a_button_whose_label_counts(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/market.html")
+    first = page["observation_id"]
+    saved = await agent.act(action="click", handle=handle_under(page, "Globe lamp", "Save"), observation_id=first)
+    # The button read "Saved items (0)" and reads "Saved items (1)" now. It is the same button: a
+    # label that counts must not make a control unusable.
+    shown = await agent.act(action="click", handle=handle(page, "Saved items (0)"), observation_id=first)
+
+    assert "message status 'Globe lamp saved for later'" in saved["changes"]["lines"]
+    assert re.search(r"^\[\d+\] button 'Saved items \(1\)'$", saved["view"], re.MULTILINE)
+    assert shown["steps"][0]["resolved_by"] == "ref"
+    assert "message status 'Showing 1 saved item'" in shown["changes"]["lines"]
+
+
+@task("Add one Arc lamp to the cart. The step may be sent twice; the cart must hold one.")
+async def add_once_when_the_step_is_sent_twice(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/shop.html")
+    first = page["observation_id"]
+    add = handle_under(page, "Arc lamp", "Add to cart")
+    added = await agent.act(action="click", handle=add, observation_id=first)
+    # The button the agent read as "Add to cart" reads "Added" now. It is not the control the agent
+    # asked for any more, so the second click is refused at once.
+    again = await agent.act(refusal_expected=True, action="click", handle=add, observation_id=first)
+
+    assert "message status 'Arc lamp added to cart'" in added["changes"]["lines"]
+    assert codes(again) == ["BROWSER_TARGET_DRIFT"]
+    assert 'read as "Add to cart" now reads "Added"' in again["errors"][0]["message"]
+    assert re.search(r"^value 1$", again["view"], re.MULTILINE), "the cart does not hold exactly one"
+
+
+# These two are about the difference between a control the agent can read and one it can use.
+
+
+@task("Add the Globe lamp to the cart. An offers dialog is open over the page: decline it.")
+async def decline_a_dialog_that_covers_the_page(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/market.html")
+    opened = await agent.act(action="click", handle=handle(page, "Show offers"))
+    # The view lists every control, as before, and says which of them the dialog covers.
+    hasty = await agent.act(
+        refusal_expected=True, action="click", handle=handle_under(opened, "Globe lamp", "Add to cart")
+    )
+    closed = await agent.act(action="click", handle=handle(hasty, "No thanks"))
+    added = await agent.act(action="click", handle=handle_under(closed, "Globe lamp", "Add to cart"))
+
+    lines = opened["view"].splitlines()
+    assert lines[0] == 'blocked 19 controls: covered by dialog "Weekly offers"'
+    usable = [line for line in lines if line.startswith("[") and not line.endswith(" blocked")]
+    assert [line.split("'")[1] for line in usable] == ["Subscribe", "No thanks"]
+    assert codes(hasty) == ["BROWSER_TARGET_BLOCKED"]
+    assert '"Add to cart" is covered by dialog "Weekly offers"' in hasty["errors"][0]["message"]
+    assert "message status 'Cart: empty'" in hasty["view"], "the refused step reached the page"
+    assert "message status 'Offers closed'" in closed["changes"]["lines"]
+    assert "message status 'Cart: Globe lamp'" in added["view"]
+
+
+@task("Check out with a Globe lamp, and place the order. The page lets you once the cart holds something.")
+async def check_out_once_the_page_allows_it(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/market.html")
+    # Both controls are on the page from the start, and neither can be used: the link ignores the
+    # pointer, and the order summary is inert. The view says so, and so does a step that tries.
+    early = await agent.act(refusal_expected=True, action="click", handle=handle(page, "Checkout"))
+    added = await agent.act(action="click", handle=handle_under(early, "Globe lamp", "Add to cart"))
+    started = await agent.act(action="click", handle=handle(added, "Checkout"))
+    placed = await agent.act(action="click", handle=handle(started, "Place order"))
+
+    assert page["view"].splitlines()[:2] == [
+        "blocked 1 control: switched off: it ignores the pointer",
+        "blocked 1 control: inert: the page has switched this part off",
+    ]
+    assert re.search(r"^\[\d+\] link 'Checkout' -> #checkout blocked$", page["view"], re.MULTILINE)
+    assert re.search(r"^\[\d+\] button 'Place order' blocked$", page["view"], re.MULTILINE)
+    assert codes(early) == ["BROWSER_TARGET_BLOCKED"]
+    assert '"Checkout" is switched off' in early["errors"][0]["message"]
+    assert "blocked" not in added["view"]
+    assert "message status 'Checking out: Globe lamp'" in started["changes"]["lines"]
+    assert "message status 'Order placed: Globe lamp'" in placed["changes"]["lines"]
+
+
 # ---- running them -----------------------------------------------------------------------------------
 
 
@@ -435,4 +582,41 @@ def test_an_agent_completes_the_task(task: Task, site: str, tmp_path: Path) -> N
     print(f"goal: {task.goal}")
     run = asyncio.run(_attempt(task, site, tmp_path))
 
+    assert unmet(run) == []
+
+
+@pytest.mark.parametrize("route", ["push", "replace", "hash", "back", "state", "roundtrip"])
+def test_old_observation_cannot_act_after_a_product_route_change(route: str, site: str, tmp_path: Path) -> None:
+    async def play(agent: Agent) -> None:
+        page = await agent.observe(url=f"{agent.base}/spa_product.html?route={route}")
+        first = page["observation_id"]
+        current_product = "Arc lamp" if route in {"back", "roundtrip"} else "Globe lamp"
+        route_button = "View Arc lamp" if route == "back" else "View Globe lamp"
+        changed = await agent.act(action="click", handle=handle(page, route_button))
+        assert f"H1 {current_product}" in changed["view"]
+        # The input, button and form are exactly the same DOM nodes on the new product route.
+        # Returning to the original URL (or changing only history state) must also expire the view.
+        stale_click = await agent.act(
+            refusal_expected=True, action="click", handle=handle(page, "Add to cart"), observation_id=first
+        )
+        stale_form = await agent.call(
+            refusal_expected=True, tool="order_product", arguments={"quantity": 2}, observation_id=first
+        )
+        stale_scroll = await agent.act(refusal_expected=True, action="scroll", value="end", observation_id=first)
+        assert codes(stale_scroll) == ["BROWSER_OBSERVATION_STALE"]
+        for refused in (stale_click, stale_form):
+            assert codes(refused) == ["BROWSER_OBSERVATION_STALE"]
+            assert "message status 'Cart: empty'" in refused["view"]
+            assert "message status 'Orders: empty'" in refused["view"]
+            assert "'Quantity' = '1'" in refused["view"], "the stale form call filled the new product's field"
+        if route in {"state", "roundtrip"}:
+            assert changed["url"] == page["url"], "this case must defeat a URL-equality guard"
+        fresh = await agent.observe()
+        added = await agent.act(action="click", handle=handle(fresh, "Add to cart"))
+        ordered = await agent.call(tool="order_product", arguments={"quantity": 2})
+        assert f"message status 'Cart: {current_product}'" in added["view"]
+        assert f"message status 'Orders: {current_product} x 2'" in ordered["view"]
+
+    case = Task("Use only a fresh observation after changing product routes", play, ())
+    run = asyncio.run(_attempt(case, site, tmp_path))
     assert unmet(run) == []

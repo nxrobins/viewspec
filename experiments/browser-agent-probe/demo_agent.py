@@ -325,15 +325,30 @@ def spa(session: BrowserSession, base: str) -> None:
     clock = [node.text for node in session.observe().lift.nodes if "refresh" in node.text]
     check(bool(clock) and clock[0].endswith("(refresh 2)"), "a click from the old view reached the new Refresh button")
 
-    # Simulate a layout change: the saved locator for Refresh now finds the Export control.
-    locator = old.locators[old.handles[refresh].node_id]
-    old.locators[old.handles[refresh].node_id] = {**locator, "css": "#root > main > div > div", "tag": "div"}
+    # Simulate a layout change: the saved locator for Refresh now finds the Export control. What a
+    # locator finds is not trusted. The control's identity decides: its tag, its name, and its item.
+    node_id = old.handles[refresh].node_id
+    locator = old.locators[node_id]
+    old.locators[node_id] = {**locator, "strategy": "css", "kind": "attr", "css": "#root > main > div > div"}
+    moved = session.run(plan_control_action(old.handles[refresh], "click"), observation=old)
+    show(moved)
+    clock = [node.text for node in session.observe().lift.nodes if "refresh" in node.text]
+    check(
+        moved[0].resolved_by == "name" and bool(clock) and clock[0].endswith("(refresh 3)"),
+        "a locator that now finds another control is not followed: the click reached Refresh by its identity",
+    )
+
+    # Simulate a control that was read in an item the page no longer shows. A control with the same
+    # name elsewhere is not that control.
+    identity = {**locator["identity"], "items": [{"tag": "li", "label": "Archived reports"}]}
+    old.locators[node_id] = {**locator, "identity": identity}
     try:
         session.run(plan_control_action(old.handles[refresh], "click"), observation=old)
-        check(False, "the drift guard refuses a changed target")
+        check(False, "a control whose item is gone is refused")
     except BridgeError as error:
         print(f"  !!  {error}")
-        check("drift" in str(error), "the drift guard refuses to click a control with another name")
+        check("drift" in str(error), "a control read in one item is not swapped for its namesake elsewhere")
+    old.locators[node_id] = locator
 
 
 def viewspec_page(session: BrowserSession, base: str) -> None:
@@ -372,6 +387,12 @@ def choosing(session: BrowserSession, base: str) -> None:
             print(f"  !!  {error}")
             check(words in str(error), f"{value!r} is refused: {words}")
         check(session.observe().handles[country].value == "Japan", "and the field still holds Japan")
+
+    # A refused choice puts back the text it typed over, and the page answers that as it answers any
+    # typing: 300 ms later its list opens again, with Japan. Wait for that here. Otherwise it lands
+    # in one of the diffs below, and which one depends on how fast this machine is.
+    late = session.wait(ChangeCondition.from_json({"change": "any"}), session.observe(), timeout_ms=2000)
+    print(f"  ..  waited {late.waited_ms} ms for the page to answer the text that was put back")
 
     city = handle_named(session, "Pickup city")
     before = session.observe()

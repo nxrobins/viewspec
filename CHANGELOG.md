@@ -11,7 +11,7 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 - CI runs the browser bridge in `experiments/browser-agent-probe`. The new `browser_bridge` job of
   `ci.yml` runs `demo_agent.py` and `demo_mcp.py` in Chromium on Python 3.11, then
-  `tests/test_browser_bridge_e2e.py`: ten whole agent tasks through the experiment's MCP server,
+  `tests/test_browser_bridge_e2e.py`: twenty-three whole agent task cases through the experiment's MCP server,
   each judged by its outcome (the order that was posted, the file that was saved, the page that was
   opened). The suite is opt-in (`VIEWSPEC_RUN_BROWSER_BRIDGE_E2E=1`). The experiment now pins its
   own Playwright in a lockfile, at the version the React seeds pin.
@@ -26,11 +26,28 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- The browser bridge expires observations after SPA history and hash navigations, including
+  returning to the original URL and history-state changes at the same URL. Old clicks, form calls,
+  and scrolls are refused with `BROWSER_OBSERVATION_STALE` before they can act on a different
+  product, even when its button and form reuse the same DOM elements. Six browser regressions
+  check the refusal and recovery through a fresh observation.
 - The experiment's MCP server (`experiments/browser-agent-probe/mcp_browser_server.py`) starts
   again. Since 0.4.1 it failed at import, because it used `SENSITIVE_NAME_RE`, which that release
   replaced with `names_a_secret`. On Python 3.11 it also failed while the MCP SDK built its tool
   schemas, because it declared them with `typing.TypedDict`. The experiment had no CI, so neither
   showed.
+- In the browser bridge experiment, a step can no longer land on another item's control after the
+  page redraws itself. Each control now has an identity: its tag, its name, and the card, row, or
+  list item around it. A step acts only on an element with that identity. Before, a handle for
+  "Add to cart" in one card could add another product: when the page built its list again in a new
+  order, the step went to whatever sat at the old position, and when the page wrote other products
+  into the same elements, it went to the old element. When several elements have the identity, the
+  step is refused (`BROWSER_TARGET_AMBIGUOUS`) and none is picked.
+- The bridge's view marks a control that is on the page but cannot be used: one that a dialog
+  covers, one in an `inert` section, or one that ignores the pointer. Its line ends with `blocked`,
+  and the view opens with what is in the way. A step on such a control is refused at once with the
+  reason (`BROWSER_TARGET_BLOCKED`). Before, the view showed it like any other control, and the
+  step waited five seconds and reported a timeout.
 
 ## [0.4.1] - 2026-11-15
 

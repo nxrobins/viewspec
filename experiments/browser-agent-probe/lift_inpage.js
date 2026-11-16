@@ -22,7 +22,8 @@
   const TEST_ID_ATTRS = ["data-testid", "data-test", "data-qa", "data-cy", "data-action-id"];
 
   // A new document (a real navigation) installs a new library and gets a new id. A hash change or a
-  // pushState route change keeps the document, its id, and its refs.
+  // pushState route change keeps the document, its id, and its refs. The bridge tracks navigation
+  // generations separately, so those surviving refs cannot authorize a step from an earlier route.
   const docId = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
   // ---- Refs -------------------------------------------------------------------------------------
@@ -332,18 +333,6 @@
     return roots;
   }
 
-  // The one visible element with this tag and this accessible name, in the document and its open
-  // shadow roots, or null when there is none or more than one. The drift guard's own criterion,
-  // used to find a control again when the page replaced it and its saved locator finds nothing.
-  function byTagAndName(tag, name) {
-    const want = norm(name);
-    const hits = [];
-    for (const root of rootsOf(document)) {
-      for (const el of root.querySelectorAll(tag)) if (shown(el) && norm(nameOf(el)) === want) hits.push(el);
-    }
-    return hits.length === 1 ? hits[0] : null;
-  }
-
   function matchesIn(roots, css) {
     try {
       return roots.flatMap((root) => [...root.querySelectorAll(css)]);
@@ -451,8 +440,378 @@
     return list;
   }
 
-  // Where an element is: its frame chain (outermost first) and its CSS candidates.
-  function describe(ref) {
+  // ---- Identity: the item a control belongs to --------------------------------------------------
+  // A ref names a DOM element, and a structural path names a position. Neither says which product an
+  // "Add to cart" button is for: a page can write another product into the same elements, or build
+  // its list again in another order. The repeated item around the control says it (a card, a table
+  // row, a list item), with the text that tells that item from its neighbours.
+  //
+  // An identity is { tag, name, items }: the control's tag and accessible name, and up to three items
+  // around it, innermost first, each { tag, label }. It is read here when the page is observed and
+  // checked here before a step runs, so both readings name things the same way.
+  const ITEM_TAGS = new Set(["LI", "TR", "ARTICLE", "SECTION", "FIELDSET", "DETAILS", "FORM"]);
+  const ITEM_ROLES = new Set(["listitem", "row", "article", "group", "region", "treeitem", "option"]);
+  const GENERIC_TAGS = new Set(["DIV", "SPAN"]);
+  // Tags that only mark up a phrase: the text around them belongs to the same piece.
+  const PHRASE_TAGS = new Set(["B", "STRONG", "I", "EM", "U", "MARK", "SMALL", "SUB", "SUP", "CODE", "ABBR", "BDI", "TIME"]);
+  const MAX_ITEMS = 3;
+  const MAX_CHUNKS = 8;
+  const MAX_CHUNK_NODES = 400;
+  const MAX_NEIGHBOUR_STEPS = 20;
+
+  const parentOf = (el) => el.parentElement || el.getRootNode().host || null;
+  const firstClass = (el) => (el.getAttribute("class") || "").trim().split(/\s+/)[0];
+  const firstRole = (el) => (el.getAttribute("role") || "").trim().toLowerCase().split(" ")[0];
+  const newCache = () => ({ chunks: new Map(), labels: new Map() });
+
+  // Whether two siblings are the same kind of thing: two list items, two rows, two custom elements
+  // of one kind. A <div> or a <span> says nothing by its tag, so it also needs the same first class.
+  function alike(a, b) {
+    if (a.tagName !== b.tagName) return false;
+    if (ITEM_TAGS.has(a.tagName) || a.tagName.includes("-")) return true;
+    const role = firstRole(a);
+    if (ITEM_ROLES.has(role)) return firstRole(b) === role;
+    return GENERIC_TAGS.has(a.tagName) && firstClass(a) === firstClass(b);
+  }
+
+  // The nearest sibling of the same kind on each side.
+  function neighbours(el) {
+    const found = [];
+    for (const step of ["previousElementSibling", "nextElementSibling"]) {
+      let node = el[step];
+      for (let steps = 0; node && steps < MAX_NEIGHBOUR_STEPS; steps++, node = node[step]) {
+        if (alike(el, node)) {
+          found.push(node);
+          break;
+        }
+      }
+    }
+    return found;
+  }
+
+  // The first pieces of text in an item, its heading first: what a person reads to tell which item
+  // this is. A piece is the text of the element that holds it (a link, a cell, a paragraph), read
+  // through <b> and other phrase marks, or an image's alt text.
+  function chunksOf(item, cache = newCache()) {
+    if (cache.chunks.has(item)) return cache.chunks.get(item);
+    const chunks = [];
+    const seen = new Set();
+    let budget = MAX_CHUNK_NODES;
+    let taken = null; // The element whose whole text the last piece took.
+    const add = (text) => {
+      const value = clean(String(text || "").slice(0, 400));
+      if (!value || seen.has(norm(value))) return;
+      seen.add(norm(value));
+      chunks.push(value);
+    };
+    const visit = (node) => {
+      if (budget-- <= 0 || chunks.length >= MAX_CHUNKS) return;
+      if (node.nodeType === 3) {
+        if (!node.data.trim() || (taken && taken.contains(node))) return;
+        let holder = node.parentElement;
+        while (holder && holder !== item && PHRASE_TAGS.has(holder.tagName) && holder.parentElement !== item) {
+          holder = holder.parentElement;
+        }
+        if (!holder || holder === item) return add(node.data);
+        taken = holder;
+        return add(holder.textContent);
+      }
+      if (node.nodeType !== 1 || SKIP.has(node.tagName) || node.namespaceURI !== "http://www.w3.org/1999/xhtml") return;
+      if (node.hidden || node.getAttribute("aria-hidden") === "true") return;
+      if (node.tagName === "IMG") return add(node.getAttribute("alt"));
+      if (typeof node.checkVisibility === "function" && !node.checkVisibility({ visibilityProperty: true })) {
+        if (node.ownerDocument.defaultView.getComputedStyle(node).display !== "contents") return;
+      }
+      for (const child of composedChildren(node)) visit(child);
+    };
+    const heading = item.querySelector("h1,h2,h3,h4,h5,h6,[role=heading]");
+    if (heading) add(heading.textContent);
+    visit(item);
+    cache.chunks.set(item, chunks);
+    return chunks;
+  }
+
+  // The text that tells a repeated item from its neighbours: its first piece that neither neighbour
+  // has, or else its first piece. Empty for an element that is not one of several of a kind.
+  function itemLabel(el, cache) {
+    if (cache.labels.has(el)) return cache.labels.get(el);
+    let label = "";
+    const near = neighbours(el);
+    if (near.length) {
+      const mine = chunksOf(el, cache);
+      const theirs = new Set(near.flatMap((other) => chunksOf(other, cache)).map(norm));
+      label = mine.find((chunk) => !theirs.has(norm(chunk))) || mine[0] || "";
+    }
+    cache.labels.set(el, label);
+    return label;
+  }
+
+  // The items around an element, innermost first. An item whose label is the control's own name adds
+  // nothing (a title link names itself), so it is left out.
+  function itemsOf(el, name, cache = newCache()) {
+    const own = norm(name);
+    const items = [];
+    for (let node = parentOf(el); node && node.tagName !== "BODY" && items.length < MAX_ITEMS; node = parentOf(node)) {
+      const label = itemLabel(node, cache);
+      if (label && norm(label) !== own) items.push({ tag: node.tagName.toLowerCase(), label });
+    }
+    return items;
+  }
+
+  function identityOf(el, cache = newCache()) {
+    // A form has no short name of its own: its text is everything in it.
+    const name = el.tagName === "FORM" ? null : nameOf(el);
+    return { tag: el.tagName.toLowerCase(), name, items: itemsOf(el, name || "", cache) };
+  }
+
+  // Whether an element still sits in the items it was read in: for each item, innermost first, an
+  // ancestor with that tag that still shows the item's label among its first pieces of text. The
+  // label only has to be there, so a badge the page adds to the item later changes nothing.
+  function inItems(el, items) {
+    const cache = newCache();
+    let node = parentOf(el);
+    for (const item of items) {
+      const want = norm(item.label);
+      while (node && !(node.tagName.toLowerCase() === item.tag && chunksOf(node, cache).some((chunk) => norm(chunk) === want))) {
+        node = parentOf(node);
+      }
+      if (!node) return false;
+      node = parentOf(node);
+    }
+    return true;
+  }
+
+  // A name without its numbers. A button that counts ("Resend code (59s)", "Like 1,204") is still the
+  // same button a moment later, so the name of an element that is still in the page is compared
+  // without them. The label of an item is compared exactly: "Order 1042" is not "Order 1043".
+  const skeleton = (text) => norm(text).replace(/\d[\d.,:]*/g, "#");
+
+  // What has changed about an element that is still in the page, since ``identity`` was read: null,
+  // or { kind: "name", now } when it reads as something else, or { kind: "item", now } when the page
+  // has written another item around it.
+  function changedSince(ref, identity) {
+    const el = get(ref);
+    if (!el) return { kind: "gone", now: "" };
+    const now = nameOf(el);
+    if (identity.name !== null && skeleton(now) !== skeleton(identity.name)) return { kind: "name", now };
+    if (inItems(el, identity.items)) return null;
+    const items = itemsOf(el, now);
+    return { kind: "item", now: items.length ? items[0].label : "" };
+  }
+
+  // How an element differs from an identity, as a phrase for an error, or null when it fits.
+  function differsFrom(el, identity) {
+    const tag = el.tagName.toLowerCase();
+    if (tag !== identity.tag) return `a <${tag}>, not a <${identity.tag}>`;
+    if (identity.name !== null && norm(nameOf(el)) !== norm(identity.name)) {
+      return `${JSON.stringify(nameOf(el))}, not ${JSON.stringify(identity.name)}`;
+    }
+    return inItems(el, identity.items) ? null : `a control outside ${JSON.stringify(identity.items[0].label)}`;
+  }
+
+  // The control that an identity names, when the element it was read from is gone or holds another
+  // item now: among the visible elements with the same tag and name, the ones in the same items.
+  //   { state: "one", ref }      exactly one: it is the control
+  //   { state: "many", count }   several, and nothing tells them apart
+  //   { state: "moved", items }  none, but the same control shows in other items (their labels)
+  //   { state: "none" }          nothing with that tag and name shows
+  function successor(identity) {
+    const want = identity.name === null ? null : norm(identity.name);
+    const named = [];
+    for (const root of rootsDeep(document)) {
+      for (const el of root.querySelectorAll(CSS.escape(identity.tag))) {
+        if (shown(el) && (want === null || norm(nameOf(el)) === want)) named.push(el);
+      }
+    }
+    const fits = named.filter((el) => inItems(el, identity.items));
+    if (fits.length === 1) return { state: "one", ref: refOf(fits[0]) };
+    if (fits.length > 1) return { state: "many", count: fits.length };
+    if (!named.length) return { state: "none" };
+    const labels = named.map((el) => itemsOf(el, identity.name || "")[0]).filter(Boolean).map((item) => item.label);
+    return { state: "moved", count: named.length, items: [...new Set(labels)].slice(0, 4) };
+  }
+
+  // ---- Whether a person could use a control now ---------------------------------------------------
+  // A control can be on the page, and readable, without being usable: a dialog covers it, the page
+  // has switched its section off (inert), or it ignores the pointer. ``blockedBy`` says which, as a
+  // short phrase, or null when nothing here stops a person (or this page cannot tell).
+  //
+  // Three things stop every kind of step: an inert ancestor, a modal <dialog> the control is not in,
+  // and layers that cover the whole viewport (a dialog and its backdrop) without holding the control.
+  // Two more stop a step that needs the pointer, but not typing into a field, which a person can
+  // reach with the Tab key: something drawn over the control's middle, and pointer-events: none.
+  const DIALOG = 'dialog,[role="dialog"],[role="alertdialog"],[aria-modal="true"]';
+  const MIN_HIT_PX = 4;
+  const COVER_AREA_RATIO = 4;
+  const styleOf = (el) => el.ownerDocument.defaultView.getComputedStyle(el);
+  const frameOf = (doc) => {
+    try {
+      return (doc.defaultView && doc.defaultView.frameElement) || null;
+    } catch (error) {
+      return null; // A cross-origin parent.
+    }
+  };
+  // Whether ``outer`` holds ``inner``, through shadow roots and same-origin frames.
+  function holds(outer, inner) {
+    for (let node = inner; node; node = parentOf(node) || frameOf(node.ownerDocument)) if (node === outer) return true;
+    return false;
+  }
+  // The element on top at a point of a document's viewport, inside open shadow roots.
+  function topAt(doc, x, y) {
+    let hit = doc.elementFromPoint(x, y);
+    while (hit && hit.shadowRoot) {
+      const inner = hit.shadowRoot.elementFromPoint(x, y);
+      if (!inner || inner === hit) break;
+      hit = inner;
+    }
+    return hit;
+  }
+  // The nearest ancestor (or the element itself) that stays put while the page scrolls: one that is
+  // fixed to the viewport, or sticky. Null for an element that moves with the page.
+  function pinnedOf(el, sticky = true) {
+    for (let node = el; node && node.nodeType === 1; node = parentOf(node)) {
+      const position = styleOf(node).position;
+      if (position === "fixed" || (sticky && position === "sticky")) return node;
+    }
+    return null;
+  }
+  // The layer an element is drawn in: the nearest dialog around it, or else what pins it to the
+  // viewport. Null for an element in the page's own flow.
+  function layerOf(el, sticky = false) {
+    return el.closest(DIALOG) || pinnedOf(el, sticky);
+  }
+  // The layers that cover the whole viewport of a document, or null when the page shows through
+  // anywhere: nine points, and a layer on top at every one.
+  function pageCover(doc) {
+    const view = doc.defaultView;
+    const layers = new Set();
+    for (const fx of [0.1, 0.5, 0.9]) {
+      for (const fy of [0.1, 0.5, 0.9]) {
+        const hit = topAt(doc, view.innerWidth * fx, view.innerHeight * fy);
+        const layer = hit ? layerOf(hit) : null;
+        if (!layer) return null;
+        layers.add(layer);
+      }
+    }
+    return [...layers];
+  }
+  // A name for what is in the way: the dialog it belongs to (or the one dialog that shows, for a bare
+  // backdrop), the control it is, or "an overlay" with its first words.
+  function coverName(cover) {
+    const dialog =
+      cover.closest(DIALOG) || [...cover.ownerDocument.querySelectorAll(DIALOG)].find((candidate) => shown(candidate));
+    if (dialog && (holds(dialog, cover) || !chunksOf(cover).length)) {
+      const label = dialog.getAttribute("aria-label") || (dialog.getAttribute("aria-labelledby") ? nameOf(dialog) : "");
+      const name = clean(label) || chunksOf(dialog)[0] || "";
+      return name ? `dialog ${JSON.stringify(name)}` : "a dialog";
+    }
+    if (controlLike(cover)) return `${kindOf(cover)} ${JSON.stringify(nameOf(cover))}`;
+    const text = chunksOf(cover)[0];
+    return text ? `an overlay (${JSON.stringify(text)})` : "an overlay";
+  }
+  // What is drawn over an element at a point, or null: not the element, anything in it or around it,
+  // or its own label, but a layer it is not part of, or something much larger than it (an open menu,
+  // a link stretched over a card). A mark the size of the control (a ripple, a floating label) is not
+  // an obstacle.
+  function coverAt(el, box, x, y) {
+    const hit = topAt(el.ownerDocument, x, y);
+    if (!hit || holds(el, hit) || holds(hit, el)) return null;
+    const label = el.closest("label");
+    if ((label && holds(label, hit)) || [...(el.labels || [])].some((own) => holds(own, hit))) return null;
+    const layer = layerOf(hit, true);
+    if (layer && !holds(layer, el)) return layer;
+    let top = hit;
+    while (parentOf(top) && !holds(parentOf(top), el)) top = parentOf(top);
+    const rect = top.getBoundingClientRect();
+    return rect.width * rect.height >= COVER_AREA_RATIO * box.width * box.height ? top : null;
+  }
+  const typeable = (el) =>
+    (el.tagName === "INPUT" && !/^(checkbox|radio|button|submit|reset|image|range|color)$/i.test(el.type)) ||
+    el.tagName === "TEXTAREA" ||
+    el.tagName === "SELECT" ||
+    el.isContentEditable;
+
+  // ``keys``: the step types into the control or sets its value (a person could Tab to it).
+  // ``settled``: the control has just been scrolled into view, so a fixed or sticky bar over it
+  // counts. Before that, such a bar says nothing: a scroll would move the control out from under it.
+  function blockedBy(el, { keys = false, settled = false, cover = undefined } = {}) {
+    for (let node = el; node; node = parentOf(node) || frameOf(node.ownerDocument)) {
+      if (node.hasAttribute("inert")) return "inert: the page has switched this part off";
+    }
+    const top = el.ownerDocument.defaultView.top.document;
+    let modal = null;
+    try {
+      modal = top.querySelector("dialog:modal");
+    } catch (error) {
+      modal = null; // A browser without :modal.
+    }
+    if (modal && !holds(modal, el)) return `covered by ${coverName(modal)}`;
+    const hit = hitTest(el);
+    const layers = cover === undefined ? pageCover(top) : cover;
+    if (layers && !layers.some((layer) => holds(layer, el))) {
+      // Something covers the whole viewport, and the control is not in it. In view, the control's
+      // own middle says whether it is under the cover or over it (a dialog beside its backdrop).
+      // Out of view, it is under the cover unless its own layer is the one on top.
+      const own = hit ? null : layerOf(el);
+      if (hit ? hit.over : !(own && onTop(own))) {
+        return `covered by ${coverName(layers.find((layer) => layer.matches(DIALOG)) || (hit && hit.over) || layers[0])}`;
+      }
+    }
+    if (keys && typeable(el)) return null;
+    if (styleOf(el).pointerEvents === "none" && !(el.labels && el.labels.length) && !el.closest("label")) {
+      return "switched off: it ignores the pointer";
+    }
+    return hit && hit.over && (settled || !pinnedOf(hit.over)) ? `covered by ${coverName(hit.over)}` : null;
+  }
+
+  // What is drawn over the middle of an element's first box, where a click would land, through each
+  // frame around it: { over } (null when nothing is), or null when this page cannot tell, because
+  // the element is out of view or too small to hit.
+  function hitTest(el) {
+    let target = el;
+    let box = el.getClientRects()[0] || el.getBoundingClientRect();
+    if (box.width < MIN_HIT_PX || box.height < MIN_HIT_PX) return null;
+    let x = box.left + box.width / 2;
+    let y = box.top + box.height / 2;
+    for (;;) {
+      const view = target.ownerDocument.defaultView;
+      if (x < 0 || y < 0 || x >= view.innerWidth || y >= view.innerHeight) return null;
+      const over = coverAt(target, box, x, y);
+      if (over) return { over };
+      const frame = frameOf(target.ownerDocument);
+      if (!frame) return { over: null };
+      const outer = frame.getBoundingClientRect();
+      x += outer.left + frame.clientLeft;
+      y += outer.top + frame.clientTop;
+      box = outer;
+      target = frame;
+    }
+  }
+
+  // Whether a layer is the one on top, at the middle of the part of it that is in view.
+  function onTop(layer) {
+    const view = layer.ownerDocument.defaultView;
+    const rect = layer.getBoundingClientRect();
+    const left = Math.max(rect.left, 0);
+    const top = Math.max(rect.top, 0);
+    const right = Math.min(rect.right, view.innerWidth);
+    const bottom = Math.min(rect.bottom, view.innerHeight);
+    if (right - left < 1 || bottom - top < 1) return false;
+    const hit = topAt(layer.ownerDocument, (left + right) / 2, (top + bottom) / 2);
+    return Boolean(hit) && holds(layer, hit);
+  }
+
+  // Whether a step can use an element now: null, or the reason and the control's name for the
+  // error. ``settled``: the step has just scrolled the element into view.
+  function blockedNow(el, keys, settled) {
+    const fileInput = el.tagName === "INPUT" && el.type === "file"; // Files are set without the pointer.
+    const reason = blockedBy(el, { keys: keys || fileInput, settled });
+    return reason ? { reason, name: nameOf(el) } : null;
+  }
+
+  // Where an element is: its frame chain (outermost first) and its CSS candidates; what it is (its
+  // identity); and what stops a person from using it now (``blocked``), if anything does.
+  function describe(ref, cache = newCache(), cover = undefined) {
     const el = get(ref);
     if (!el) return { connected: false };
     const frames = [];
@@ -462,7 +821,14 @@
       frames.unshift({ ref: refOf(frame), candidates: candidates(frame) });
       doc = frame.ownerDocument;
     }
-    return { connected: true, tag: el.tagName.toLowerCase(), frames, candidates: candidates(el) };
+    return {
+      connected: true,
+      tag: el.tagName.toLowerCase(),
+      frames,
+      candidates: candidates(el),
+      identity: identityOf(el, cache),
+      blocked: el.tagName === "FORM" ? null : blockedBy(el, { keys: typeable(el), cover }),
+    };
   }
 
   // Describe many elements in one call. For each, ``css`` (and ``frames``) is the first candidate this
@@ -470,8 +836,10 @@
   // Where this page cannot tell, ``css`` is null and the caller asks Playwright.
   function locateAll(refs) {
     const out = {};
+    const cache = newCache();
+    const cover = pageCover(document);
     for (const ref of refs) {
-      const info = describe(ref);
+      const info = describe(ref, cache, cover);
       if (!info.connected) {
         out[ref] = info;
         continue;
@@ -994,7 +1362,10 @@
     refOf,
     get,
     nameOf,
-    byTagAndName,
+    changedSince,
+    differsFrom,
+    successor,
+    blockedNow,
     nextChange,
     findOption,
     showsChoice,

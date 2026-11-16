@@ -79,7 +79,10 @@ INSTRUCTIONS = (
     "that updates after a delay (a server answer) shows nothing at first: pass wait_for, for example "
     '{"change": "message"} or {"text": "Order placed"}, and the tool reads the page again as it '
     "changes, until that shows or timeout_ms ends; wait.met says which. Writes may be blocked: a submitted "
-    "form then shows 'Write blocked', and blocked_writes lists what would have been sent."
+    "form then shows 'Write blocked', and blocked_writes lists what would have been sent. A control line "
+    "that ends with 'blocked' is on the page but cannot be used now; the first lines of the view say what "
+    "is in the way (a dialog over the page, for example). Deal with that first. A handle names one control "
+    "in one item: if the page redraws itself, the step still goes to that item's control, or is refused."
 )
 DEFAULT_TIMEOUT_MS = 5000
 DEFAULT_VIEW_LIMIT = 200
@@ -157,7 +160,9 @@ class BrowserTools:
 
         Returns ``view``: the page as text, one line per message, heading, value, table row, or
         control. Each control line starts with a handle such as [7], then its kind, name, and state
-        (value, [x] for checked, options, required, secret, disabled). ``form_tools`` describes each
+        (value, [x] for checked, options, required, secret, disabled). A line that ends with
+        ``blocked`` is a control you can read but not use now: something covers it, or the page has
+        switched it off. The view then opens with ``blocked N controls: <why>``. ``form_tools`` describes each
         form as a tool for ``call``. ``observation_id`` names this reading; its handles stay valid for
         ``act``. With ``since`` (an earlier ``observation_id``, and no ``url``), ``changes`` lists what
         changed on the page since that reading, for a page that updates by itself.
@@ -477,12 +482,8 @@ class BrowserTools:
                 current.pop("_note")
             except BridgeError:
                 current = None
-            return tool_error_response(
-                _bridge_code(error),
-                str(error),
-                "Read the new view, then act again with its handles.",
-                data=current,
-            )
+            code = _bridge_code(error)
+            return tool_error_response(code, str(error), _bridge_fix(code), data=current)
         summary = "Nothing to do: the control is already in that state." if not steps else _summary(results)
         if condition is None:
             result = self._observe_result(summary, since=observation)
@@ -708,6 +709,10 @@ def _bridge_code(error: BridgeError) -> str:
         return "BROWSER_DOWNLOAD_FAILED"
     if message.startswith("drift:"):
         return "BROWSER_TARGET_DRIFT"
+    if message.startswith("ambiguous:"):
+        return "BROWSER_TARGET_AMBIGUOUS"
+    if message.startswith("blocked:"):
+        return "BROWSER_TARGET_BLOCKED"
     if message.startswith("stale:"):
         return "BROWSER_TARGET_STALE"
     if "did not run" in message or message.startswith("navigated:"):
@@ -715,6 +720,28 @@ def _bridge_code(error: BridgeError) -> str:
     if "Timeout" in message or "timeout" in message:
         return "BROWSER_TIMEOUT"
     return "BROWSER_ERROR"
+
+
+# What to do about a step the bridge refused because of the control it was aimed at. The view that
+# comes back with the error is the page as it is now. "This step" and not "nothing": in a form call,
+# the steps before the refused one have run.
+_TARGET_FIXES = {
+    "BROWSER_TARGET_DRIFT": (
+        "The page changed under this view, and this step was not run. Find the control in the new view "
+        "and use its handle."
+    ),
+    "BROWSER_TARGET_AMBIGUOUS": (
+        "This step was not run. Pick the control you mean in the new view, by the lines around it, and use its handle."
+    ),
+    "BROWSER_TARGET_BLOCKED": (
+        "This step was not run. Deal with what is in the way first (close or answer it; its controls "
+        "are the ones not marked blocked), then act again."
+    ),
+}
+
+
+def _bridge_fix(code: str) -> str:
+    return _TARGET_FIXES.get(code, "Read the new view, then act again with its handles.")
 
 
 def build_server(tools: BrowserTools) -> Any:

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture market</title>
+<style>
+  .veil { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); }
+  .sheet { position: fixed; top: 20%; left: 30%; width: 40%; background: #fff; padding: 16px; }
+  .off { pointer-events: none; opacity: 0.5; }
+</style>
+</head>
+<body>
+<!-- A results page that redraws itself, as a client-rendered shop does. Every card has the same two
+     buttons, and nothing but the card around a button says which product it is for. The page has
+     two "Next page" buttons, above and below the list, and nothing at all tells those apart.
+
+     "Sort by price" builds the page again from scratch: every element is replaced, in a new order.
+     "Sort by name" keeps every element and writes another product into each card, as a framework
+     that reuses its elements does. "Saved items (0)" counts in its own label. "Show offers" opens a
+     dialog over the page. Until the cart holds something, "Checkout" ignores the pointer and the
+     order summary is inert: both are on the page, and neither can be used. -->
+<div id="root"></div>
+<p role="status" id="cart-status"></p>
+<p role="status" id="cart">Cart: empty</p>
+<section id="summary" inert>
+  <h2>Order summary</h2>
+  <button id="place">Place order</button>
+</section>
+<script>
+  const products = [
+    { name: "Arc lamp", price: 49 },
+    { name: "Clamp lamp", price: 29 },
+    { name: "Globe lamp", price: 65 },
+    { name: "Reading lamp", price: 38 },
+  ];
+  const root = document.getElementById("root");
+  const cart = [];
+  const saved = [];
+  let page = 1;
+
+  const say = (text) => (document.getElementById("cart-status").textContent = text);
+  const slug = (product) => product.name.toLowerCase().replace(/\s+/g, "-");
+  const card = (product) => `
+      <li class="card">
+        <div class="info"><a class="title" href="#${slug(product)}">${product.name}</a> <span class="price">$${product.price}.00</span></div>
+        <div class="actions"><button class="add">Add to cart</button> <button class="save">Save</button></div>
+      </li>`;
+  const pager = () => `<div class="pager"><button class="next">Next page</button></div>`;
+
+  function render(order) {
+    root.innerHTML = `
+    <main>
+      <h1>Lamps</h1>
+      <div class="bar">
+        <button id="by-price">Sort by price</button>
+        <button id="by-name">Sort by name</button>
+        <button id="offers">Show offers</button>
+        <button id="saved">Saved items (${saved.length})</button>
+        <a id="checkout" class="${cart.length ? "" : "off"}" href="#checkout">Checkout</a>
+      </div>
+      ${pager()}
+      <ul class="results">${order.map(card).join("")}</ul>
+      ${pager()}
+      <p>Page <span id="page">${page}</span></p>
+    </main>`;
+  }
+
+  // One listener for the whole page, so a card that is drawn again still works.
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("button, a");
+    if (!button) return;
+    if (button.classList.contains("add")) {
+      const name = button.closest("li").querySelector(".title").textContent;
+      cart.push(name);
+      document.getElementById("cart").textContent = `Cart: ${cart.join(", ")}`;
+      document.getElementById("checkout").classList.remove("off");
+      document.getElementById("summary").inert = false;
+      say(`${name} added to cart`);
+    } else if (button.classList.contains("save")) {
+      const name = button.closest("li").querySelector(".title").textContent;
+      saved.push(name);
+      document.getElementById("saved").textContent = `Saved items (${saved.length})`;
+      say(`${name} saved for later`);
+    } else if (button.id === "saved") {
+      say(`Showing ${saved.length} saved item${saved.length === 1 ? "" : "s"}`);
+    } else if (button.id === "by-price") {
+      render([...products].sort((a, b) => a.price - b.price));
+    } else if (button.id === "by-name") {
+      // Reuse every card: only the text inside it changes.
+      const order = [...products].sort((a, b) => b.name.localeCompare(a.name));
+      document.querySelectorAll(".card").forEach((item, index) => {
+        item.querySelector(".title").textContent = order[index].name;
+        item.querySelector(".title").setAttribute("href", `#${slug(order[index])}`);
+        item.querySelector(".price").textContent = `$${order[index].price}.00`;
+      });
+    } else if (button.classList.contains("next")) {
+      page += 1;
+      document.getElementById("page").textContent = String(page);
+    } else if (button.id === "checkout") {
+      event.preventDefault();
+      say(`Checking out: ${cart.join(", ")}`);
+    } else if (button.id === "place") {
+      say(`Order placed: ${cart.join(", ")}`);
+    } else if (button.id === "offers") {
+      document.body.insertAdjacentHTML(
+        "beforeend",
+        `<div class="veil"></div>
+         <div class="sheet" role="dialog" aria-modal="true" aria-label="Weekly offers">
+           <p>Get 10% off your first order.</p>
+           <button id="subscribe">Subscribe</button> <button id="dismiss">No thanks</button>
+         </div>`,
+      );
+    } else if (button.id === "dismiss" || button.id === "subscribe") {
+      document.querySelector(".veil").remove();
+      document.querySelector(".sheet").remove();
+      say(button.id === "subscribe" ? "Subscribed to offers" : "Offers closed");
+    }
+  });
+  render(products);
+</script>
+</body>
+</html>
