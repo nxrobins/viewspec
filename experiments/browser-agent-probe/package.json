@@ -1,0 +1,7 @@
+{
+  "name": "viewspec-browser-agent-probe",
+  "private": true,
+  "devDependencies": {
+    "playwright": "1.60.0"
+  }
+}

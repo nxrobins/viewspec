@@ -328,5 +328,5 @@ itself; a browser driver reads the page again as it changes and asks `met()` eac
 
 The input must be the rendered DOM, not the server HTML, for pages that build their content with
 script. `outerHTML` shows the values a page loaded with, not what the user typed, so copy the live
-state into attributes first. `experiments/browser-agent-probe/render_pages.js` shows one way to do
+state into attributes first. `experiments/browser-agent-probe/lift_inpage.js` shows one way to do
 this. It also flattens open shadow roots and same-origin iframes into the snapshot.

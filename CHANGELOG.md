@@ -7,6 +7,15 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- CI runs the browser bridge in `experiments/browser-agent-probe`. The new `browser_bridge` job of
+  `ci.yml` runs `demo_agent.py` and `demo_mcp.py` in Chromium on Python 3.11, then
+  `tests/test_browser_bridge_e2e.py`: ten whole agent tasks through the experiment's MCP server,
+  each judged by its outcome (the order that was posted, the file that was saved, the page that was
+  opened). The suite is opt-in (`VIEWSPEC_RUN_BROWSER_BRIDGE_E2E=1`). The experiment now pins its
+  own Playwright in a lockfile, at the version the React seeds pin.
+
 ### Changed
 
 - The weekly `agent-eval.yml` workflow skips until the repository variable `VIEWSPEC_EVAL_MODEL`
@@ -14,6 +23,14 @@ All notable changes to ViewSpec are documented in this file. The format follows
   a notice, the eval job is skipped, and the run stays green. Before, every scheduled run without
   them exited 2 and showed red. A manual run still fails when the secret is missing, so a person who
   starts a run is told when it did not happen.
+
+### Fixed
+
+- The experiment's MCP server (`experiments/browser-agent-probe/mcp_browser_server.py`) starts
+  again. Since 0.4.1 it failed at import, because it used `SENSITIVE_NAME_RE`, which that release
+  replaced with `names_a_secret`. On Python 3.11 it also failed while the MCP SDK built its tool
+  schemas, because it declared them with `typing.TypedDict`. The experiment had no CI, so neither
+  showed.
 
 ## [0.4.1] - 2026-11-15
 

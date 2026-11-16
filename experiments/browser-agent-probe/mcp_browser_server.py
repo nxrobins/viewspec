@@ -36,7 +36,7 @@ import sys
 import threading
 from pathlib import Path
 from types import FrameType
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from agent_session import (
@@ -50,6 +50,7 @@ from agent_session import (
     request_fields,
 )
 from page_view import view_page
+from typing_extensions import TypedDict
 
 from viewspec.local_tools_response import tool_error_response, tool_response
 from viewspec.raw_html_actions import (
@@ -61,7 +62,7 @@ from viewspec.raw_html_actions import (
     plan_form_call,
     plan_scroll,
 )
-from viewspec.raw_html_agent import SENSITIVE_NAME_RE, form_fields, form_tool_names
+from viewspec.raw_html_agent import form_fields, form_tool_names, names_a_secret
 from viewspec.raw_html_diff import ChangeCondition
 
 SERVER_NAME = "viewspec-browser"
@@ -579,7 +580,7 @@ class BrowserTools:
         fields = request_fields(write)
         if fields:
             shown["form_fields"] = {
-                key: REDACTED if key in self._secret_fields or SENSITIVE_NAME_RE.search(key) else value
+                key: REDACTED if key in self._secret_fields or names_a_secret(key) else value
                 for key, value in fields.items()
             }
         elif write.get("post_data") or write.get("post_data_b64"):

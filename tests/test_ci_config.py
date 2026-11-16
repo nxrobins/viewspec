@@ -16,6 +16,8 @@ from typing import Any
 import pytest
 import yaml
 
+from tests.test_browser_bridge_e2e import E2E_OPT_IN as BRIDGE_E2E_OPT_IN
+from tests.test_browser_bridge_e2e import PROBE as BRIDGE_PROBE
 from tests.test_react_dependency_seeds import SEEDS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -461,6 +463,26 @@ def test_protobuf_floor_job_installs_the_declared_floor() -> None:
     # move with it: a pin below the new floor makes the job's install unresolvable.
     assert floor is not None, requirement
     assert re.findall(r"protobuf==([0-9][0-9A-Za-z.]*)", commands) == [floor.group(1)]
+
+
+def test_browser_bridge_job_switches_on_the_suites_it_runs() -> None:
+    job = _load("ci.yml")["jobs"]["browser_bridge"]
+    steps = job["steps"]
+    probe = BRIDGE_PROBE.relative_to(ROOT).as_posix()
+    commands = [step.get("run", "") for step in steps]
+
+    # Playwright comes from the experiment's own lockfile, without install hooks, and nothing sets
+    # NODE_PATH: bridge.js has to find the copy beside it, as it does under an agent host.
+    assert [step["run"] for step in steps if step.get("working-directory") == probe][0] == "npm ci --ignore-scripts"
+    assert "NODE_PATH" not in yaml.safe_dump(job)
+    # The experiment's two scripts exit 1 on their first failed check.
+    for script in ("demo_agent.py", "demo_mcp.py"):
+        assert f"python {probe}/{script}" in commands
+    # The task suite skips, and so passes, unless its opt-in is set. The job sets the variable the
+    # suite reads, so renaming one without the other fails here instead of skipping every task.
+    (suite,) = [step for step in steps if "tests/test_browser_bridge_e2e.py" in step.get("run", "")]
+    assert suite["env"] == {BRIDGE_E2E_OPT_IN: "1"}
+    assert "-m e2e" in suite["run"]
 
 
 # --- Dependabot -------------------------------------------------------------------------------
