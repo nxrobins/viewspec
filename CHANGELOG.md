@@ -23,7 +23,7 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 - CI runs the browser bridge in `experiments/browser-agent-probe`. The new `browser_bridge` job of
   `ci.yml` runs `demo_agent.py` and `demo_mcp.py` in Chromium on Python 3.11, then
-  `tests/test_browser_bridge_e2e.py`: thirty whole agent task cases through the experiment's MCP server,
+  `tests/test_browser_bridge_e2e.py`: thirty-four whole agent task cases through the experiment's MCP server,
   each judged by its outcome (the order that was posted, the file that was saved, the page that was
   opened). The suite is opt-in (`VIEWSPEC_RUN_BROWSER_BRIDGE_E2E=1`). The experiment now pins its
   own Playwright in a lockfile, at the version the React seeds pin.
@@ -66,6 +66,11 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- A dismissed `confirm` or `prompt` in the browser bridge no longer marks an action `failed` and
+  safe to retry. An observed effect still counts as `succeeded`; without other evidence, the
+  result is `uncertain` / `may_repeat`. Four browser regressions place an order before asking
+  about an optional receipt and check that the server receives exactly one order, through both
+  clicks and form calls with either kind of dialog.
 - The browser bridge expires observations after SPA history and hash navigations, including
   returning to the original URL and history-state changes at the same URL. Old clicks, form calls,
   and scrolls are refused with `BROWSER_OBSERVATION_STALE` before they can act on a different

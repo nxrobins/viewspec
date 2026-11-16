@@ -8,15 +8,15 @@ took effect, not about whether the page's answer was good news:
                every step was checked on its control, or the page answered (a change in the view, a
                request that was sent, a saved file, a new tab, an alert);
     failed     it did not take effect: the request was refused, the browser would not send the
-               form, a control does not hold what was set, or the page asked a question and got no
-               for an answer;
+               form, or a control does not hold what was set;
     uncertain  it ran, and nothing shows whether it worked, or what the agent waited for did not
                show. ``page`` then says what the page did meanwhile: ``busy`` (a request the action
                started is still in flight), ``reacted`` (it changed, in a way the view does not
                show or the agent did not wait for), or ``quiet`` (no DOM change and no request).
 
 ``retry`` says whether repeating the same request could do the thing twice: ``not_needed``,
-``safe`` (nothing happened, or the action only sets a state), or ``may_repeat``.
+``safe`` (nothing happened, or the action only sets a state), or ``may_repeat``. Dismissing a
+question does not prove the action was canceled: it may have taken effect before the dialog.
 
 ``noted_messages`` and ``address_lines`` find what a comparison of two readings misses: a message
 the page showed again, one that came and went in between, and a new address in the same document.
@@ -153,7 +153,13 @@ def outcome_of(result: Mapping[str, Any], activity: Mapping[str, Any] | None = N
     """
 
     steps: Sequence[Mapping[str, Any]] = result.get("steps") or []
-    acts_again = any((step.get("step") or {}).get("op") not in SETS_A_STATE for step in steps)
+    dialogs = [*(item for step in steps for item in step.get("dialogs") or []), *(result.get("dialogs") or [])]
+    asked = [
+        item for item in dialogs if item.get("type") in {"confirm", "prompt"} and item.get("answer") == "dismissed"
+    ]
+    # Even a field's handler may perform work before asking a question. A dismissed dialog is
+    # evidence that page code ran, not that its effects were canceled or rolled back.
+    acts_again = bool(asked) or any((step.get("step") or {}).get("op") not in SETS_A_STATE for step in steps)
     if not result.get("ok"):
         return _refused(result, acts_again)
 
@@ -161,33 +167,25 @@ def outcome_of(result: Mapping[str, Any], activity: Mapping[str, Any] | None = N
     invalid = [field for step in steps for field in step.get("invalid") or []]
     if invalid:
         reasons = "; ".join(f"{field.get('name') or 'a field'}: {field.get('message', '')}" for field in invalid)
-        return _made(FAILED, f"The browser did not send the form: {reasons}", SAFE)
+        return _made(FAILED, f"The browser did not send the form: {reasons}", MAY_REPEAT if asked else SAFE)
     stopped = result.get("blocked_navigations") or []
     if stopped:
         where = stopped[0].get("url", "another site")
-        return _made(FAILED, f"It tried to leave for {where}, which this server does not allow. The page stayed.", SAFE)
+        return _made(
+            FAILED,
+            f"It tried to leave for {where}, which this server does not allow. The page stayed.",
+            MAY_REPEAT if asked else SAFE,
+        )
     unheld = [step for step in steps if step.get("verified") is False]
     if unheld:
         op = (unheld[0].get("step") or {}).get("op")
-        retry = SAFE if op in SETS_A_STATE else MAY_REPEAT
+        retry = SAFE if op in SETS_A_STATE and not asked else MAY_REPEAT
         return _made(FAILED, f"{_name(unheld[0])} did not hold: the control does not show it afterwards.", retry)
 
     # ---- What the agent waited for is its own test of success. ------------------------------------
     wait = result.get("wait")
     if wait and wait.get("met"):
         return _made(SUCCEEDED, f"The page showed what was waited for: {wait.get('for', 'the change')}.", NOT_NEEDED)
-    dialogs = [*(item for step in steps for item in step.get("dialogs") or []), *(result.get("dialogs") or [])]
-    asked = [
-        item for item in dialogs if item.get("type") in {"confirm", "prompt"} and item.get("answer") == "dismissed"
-    ]
-    if asked:
-        question = _clip(asked[0].get("message", ""), TEXT_PREVIEW)
-        return _made(
-            FAILED,
-            f"The page asked {question!r} ({asked[0].get('type')}) and the bridge dismissed it, as it "
-            "dismisses every such box, so the page took the answer as no.",
-            SAFE,
-        )
     changes = result.get("changes") or {}
     lines = [] if changes.get("empty", True) else _answers(changes, steps)
     changed = bool(lines)
@@ -208,7 +206,7 @@ def outcome_of(result: Mapping[str, Any], activity: Mapping[str, Any] | None = N
     # ---- The bridge saw the effect. ---------------------------------------------------------------
     if result.get("navigated") or changes.get("new_document"):
         return _made(SUCCEEDED, f"The page navigated to {result.get('url', 'a new address')}.", NOT_NEEDED)
-    if steps and all(step.get("verified") is True for step in steps):
+    if steps and not asked and all(step.get("verified") is True for step in steps):
         what = _name(steps[0]) if len(steps) == 1 else f"Each of the {len(steps)} steps"
         return _made(SUCCEEDED, f"{what} was checked on its control afterwards.", NOT_NEEDED)
     if changed:
@@ -233,6 +231,15 @@ def outcome_of(result: Mapping[str, Any], activity: Mapping[str, Any] | None = N
     if alerts:
         said = _clip(alerts[0].get("message", ""), TEXT_PREVIEW)
         return _made(SUCCEEDED, f"The page answered with an alert: {said!r}.", NOT_NEEDED)
+    if asked:
+        question = _clip(asked[0].get("message", ""), TEXT_PREVIEW)
+        return _made(
+            UNCERTAIN,
+            f"The bridge dismissed {question!r} ({asked[0].get('type')}). That does not prove the action "
+            "was canceled; it may already have taken effect. Check the page before repeating it.",
+            MAY_REPEAT,
+            _page_state(activity, False),
+        )
     if not steps:
         return _made(SUCCEEDED, "Nothing to do: the control was already in that state.", NOT_NEEDED)
 

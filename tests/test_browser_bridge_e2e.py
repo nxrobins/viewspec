@@ -13,8 +13,9 @@ a server and a browser of its own, so no task sees another's page.
 
 Set ``VIEWSPEC_RUN_BROWSER_BRIDGE_E2E=1`` after ``npm ci --ignore-scripts`` and ``npx playwright
 install chromium`` in ``experiments/browser-agent-probe``. It needs the ``agents`` extra for the MCP
-client, and it fails rather than skips without it. Writes stay blocked, as they are by default, so a
-task that sends a form is judged by the request the bridge stopped.
+client, and it fails rather than skips without it. Writes normally stay blocked, so a task that sends
+a form is judged by the request the bridge stopped. The receipt-dialog regressions allow writes
+to the local fixture server to count completed orders and catch duplicates caused by retry advice.
 """
 
 from __future__ import annotations
@@ -605,7 +606,7 @@ async def tell_what_did_not_happen(agent: Agent) -> None:
     page = await agent.observe(url=f"{agent.base}/outcomes.html")
     # The page asks "Delete this draft?" in a browser dialog, which is not in the page, and the
     # bridge dismisses it. Unreported, that reads as a click that did nothing.
-    deleted = await agent.act(expect="failed", action="click", handle=handle(page, "Delete draft"))
+    deleted = await agent.act(expect="uncertain", action="click", handle=handle(page, "Delete draft"))
     # This button has no handler at all.
     refreshed = await agent.act(expect="uncertain", action="click", handle=handle(deleted, "Refresh badge"))
     helped = await agent.act(action="click", handle=handle(refreshed, "Help"))
@@ -613,7 +614,7 @@ async def tell_what_did_not_happen(agent: Agent) -> None:
     assert deleted["steps"][0].get("dialogs") == [
         {"type": "confirm", "message": "Delete this draft?", "answer": "dismissed"}
     ]
-    assert "'Delete this draft?'" in deleted["outcome"]["reason"] and deleted["outcome"]["retry"] == "safe"
+    assert "'Delete this draft?'" in deleted["outcome"]["reason"] and deleted["outcome"]["retry"] == "may_repeat"
     assert "Draft deleted" not in deleted["view"]
     assert (refreshed["outcome"]["page"], refreshed["outcome"]["retry"]) == ("quiet", "may_repeat")
     assert refreshed["steps"][0]["reaction"] == {"mutations": 0, "requests": 0, "pending": 0}
@@ -679,8 +680,8 @@ async def stay_on_the_allowed_site_when_a_link_opens_a_new_tab(agent: Agent) -> 
 # ---- running them -----------------------------------------------------------------------------------
 
 SLOW_ANSWER_S = 1.5  # How long the server holds back slow.json, which outcomes.html asks for.
-# What must never reach the site: a write (every task runs with writes blocked), and a request
-# for the site under another name (every task allows one origin, 127.0.0.1 with the site's port).
+# Requests the site received: normally none, because writes are blocked and only 127.0.0.1 with
+# the site's port is allowed. The receipt-dialog regressions enable writes and expect one order.
 RECEIVED: list[str] = []
 
 
@@ -717,7 +718,7 @@ def site() -> Iterator[str]:
     server.server_close()
 
 
-async def _attempt(task: Task, base: str, folder: Path) -> Run:
+async def _attempt(task: Task, base: str, folder: Path, *, allow_writes: bool = False) -> Run:
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
@@ -729,7 +730,16 @@ async def _attempt(task: Task, base: str, folder: Path) -> Run:
     env = {key: os.environ[key] for key in ("PLAYWRIGHT_BROWSERS_PATH",) if key in os.environ}
     params = StdioServerParameters(
         command=sys.executable,
-        args=[str(SERVER), "--allow-origin", base, "--upload-dir", str(uploads), "--download-dir", str(downloads)],
+        args=[
+            str(SERVER),
+            "--allow-origin",
+            base,
+            "--upload-dir",
+            str(uploads),
+            "--download-dir",
+            str(downloads),
+            *(["--allow-writes"] if allow_writes else []),
+        ],
         env=env,
     )
     run = Run(task.goal, task.secrets)
@@ -754,6 +764,39 @@ def test_an_agent_completes_the_task(task: Task, site: str, tmp_path: Path) -> N
 
     assert unmet(run) == []
     assert RECEIVED == [], "a write or a request for another origin got past the bridge to the site"
+
+
+@pytest.mark.parametrize("dialog", ["confirm", "prompt"])
+@pytest.mark.parametrize("tool", ["act", "call"])
+def test_dismissing_a_receipt_dialog_cannot_make_a_completed_order_safe_to_retry(
+    dialog: str, tool: str, site: str, tmp_path: Path
+) -> None:
+    async def play(agent: Agent) -> None:
+        page = await agent.observe(url=f"{agent.base}/order_receipt.html?dialog={dialog}")
+
+        async def place(current: dict[str, Any]) -> dict[str, Any]:
+            if tool == "call":
+                return await agent.call(tool="order", arguments={"quantity": 2})
+            return await agent.act(action="click", handle=handle(current, "Place order"))
+
+        placed = await place(page)
+        assert placed["steps"][-1]["dialogs"] == [
+            {"type": dialog, "message": "Also email a receipt?", "answer": "dismissed"}
+        ]
+        assert "message status 'Order placed'" in placed["changes"]["lines"]
+        # Follow the old retry advice if it returns: the server must catch the duplicate order,
+        # not merely a different label in the result. All writes stay on this local fixture site.
+        if placed["outcome"]["retry"] == "safe":
+            await place(placed)
+        assert RECEIVED == ["POST /orders"], "retry advice duplicated an already completed order"
+        assert (placed["outcome"]["status"], placed["outcome"]["retry"]) == ("succeeded", "not_needed")
+
+    RECEIVED.clear()
+    run = asyncio.run(
+        _attempt(Task("Place one order, without emailing a receipt.", play, ()), site, tmp_path, allow_writes=True)
+    )
+    assert unmet(run) == []
+    assert RECEIVED == ["POST /orders"]
 
 
 @pytest.mark.parametrize("route", ["push", "replace", "hash", "back", "state", "roundtrip"])

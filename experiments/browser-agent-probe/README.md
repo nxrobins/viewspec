@@ -397,15 +397,21 @@ news. "Card declined" is an answer.
 | `status` | Means | When |
 |---|---|---|
 | `succeeded` | The bridge saw the effect. | What the agent waited for showed; the page navigated; every step was checked on its control (`verified`); or the page answered: `changes` is not empty, a request was sent (and blocked), a file was saved, a tab opened, an alert was raised. |
-| `failed` | It did not take effect. | The request was refused (`ok` is false); the browser would not send the form (`invalid`); a control does not hold what was set (`verified` is false); the origin allowlist stopped the navigation; or the page asked a question in a `confirm` or `prompt` box, which the bridge dismisses. |
-| `uncertain` | It ran, and nothing shows whether it worked. | A click with no answer; a wait that was not met; a step that stopped part-way (a timeout, a plan the page interrupted by navigating). |
+| `failed` | It did not take effect. | The request was refused (`ok` is false); the browser would not send the form (`invalid`); a control does not hold what was set (`verified` is false); or the origin allowlist stopped the navigation. |
+| `uncertain` | It ran, and nothing shows whether it worked. | A click with no answer; a dismissed question with no other evidence of an effect; a wait that was not met; a step that stopped part-way (a timeout, a plan the page interrupted by navigating). |
 
 The rules are tried in order. First what cannot have worked: a refusal, a form the browser would
 not send, a navigation the allowlist stopped, a control that does not hold its value. Then what the
 agent waited for, which is its own test of success: a wait that was met is `succeeded`, and one that
-was not met is `uncertain` whatever else the page did. A dismissed question comes between those two.
+was not met is `uncertain` whatever else the page did.
 Last come the other signs of an effect. `reason` is one line, and names the evidence: the first line
 of `changes`, the question the page asked, the field the browser refused.
+
+A dismissed `confirm` or `prompt` never proves that an action was canceled. An order may already
+have completed before the page asks whether to email a receipt. An observed effect still counts
+as `succeeded` / `not_needed`. Without other evidence, dismissal is `uncertain` / `may_repeat`,
+even when a field holds what the step set: its handler may have acted too. A refusal after a
+dismissed question also cannot make repeating the request `safe`.
 
 One kind of change is not a sign of an effect: a field that now holds what a step set, when the
 step was checked on it. After `call` fills in a form and submits it, `changes` lists the new
@@ -448,7 +454,7 @@ On the fixture `outcomes.html`, through the MCP tools:
 | Look up (two properties set 400 ms later), `wait_for {"change": "any"}` | both fields, after about 520 ms | `succeeded` |
 | Jump to notes (a `#hash` link) | `address /outcomes.html -> /outcomes.html#notes` | `succeeded` |
 | Refresh badge (a button with no handler) | `no change` | `uncertain`, `quiet` |
-| Delete draft (the page asks with `confirm()`) | `no change` | `failed`, with the question |
+| Delete draft (the page asks with `confirm()`) | `no change` | `uncertain`, `may_repeat`, with the question |
 | Help (a link with `target="_blank"`) | `no change` | `succeeded`, with the tab's address |
 | Publish (the server takes over a second), no wait | `no change` | `uncertain`, `busy` |
 | Publish, `wait_for {"change": "message"}` | `message status 'Published'` | `succeeded` |
@@ -655,18 +661,21 @@ page ends up where the goal says:
 | Sort a table by name, then by age | each result names the rows in their new order, though no text and no control changed |
 | Save a draft twice, then copy its link | the second "Saved" is reported as shown again and meets a wait for a message; the toast is reported after it has gone |
 | Look up a postcode whose answer sets two properties | the wait ends when the page answers (under 4 s of a 10 s limit), and the changes name both fields; a `#hash` link then reports the new address |
-| Delete a draft, press a button that does nothing, open the help | the delete is `failed` with the question the page asked; the button is `uncertain` and `quiet`; the help is `succeeded` with the tab's address, and the agent is still on its page |
+| Delete a draft, press a button that does nothing, open the help | the delete is `uncertain` / `may_repeat` with the question the page asked; the button is `uncertain` and `quiet`; the help is `succeeded` with the tab's address, and the agent is still on its page |
 | Publish while the server takes 1.5 s, then publish again | the first result is `uncertain` and `busy`; a wait shows the answer; the second answer, the same word again, meets its wait only once the server has answered |
 | Order through a form that posts into a new tab | the stopped post is in the result of the call itself, marked `new_tab`, with the order's fields; the page stays |
 | Open a link that leads to another origin in a new tab | the navigation is stopped and listed, marked `new_tab`; the outcome is `failed`; the agent is still on its page |
+| Place an order, then dismiss its optional receipt dialog (click/form call, confirm/prompt) | the local server receives exactly one order; the observed completion stays `succeeded` / `not_needed`, so retry advice never duplicates it |
 
 The agent is scripted, because the test suite never calls a model, but it is held to what a model
 would have. It starts `mcp_browser_server.py` over stdio as an agent host does, uses only `observe`,
 `act`, and `call`, and takes every handle from the view text of a result. Each task gets a server
-and a browser of its own. The site is a judge too: writes are blocked and one origin is allowed for
-every task, so a task fails if the site receives a write, or a request under another name
-(`localhost` for `127.0.0.1`). One rule is shared by every task (`unmet`): what must hold for every tool
-call on the way to the outcome. Part of it is what each result says the action did: an `act` or
+and a browser of its own. The site is a judge too: in the usual tasks, writes are blocked and one
+origin is allowed, so a task fails if the site receives a write, or a request under another name
+(`localhost` for `127.0.0.1`). The four receipt-dialog regressions explicitly allow writes to the
+local fixture server and assert that it receives exactly one order. One rule is shared by every
+task (`unmet`): what must hold for every tool call on the way to the outcome. Part of it is what
+each result says the action did: an `act` or
 `call` that ran must have the outcome `succeeded`, and a refused one `failed`, unless the task
 expects another. So every task checks the outcome rule, not only the five written for it.
 

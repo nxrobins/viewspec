@@ -121,14 +121,54 @@ def test_a_navigation_the_server_stopped_failed() -> None:
     assert "https://other.example/" in outcome["reason"]
 
 
-def test_a_question_the_bridge_dismissed_failed_and_the_reason_quotes_it() -> None:
+def test_a_dismissed_question_cannot_prove_the_action_was_canceled() -> None:
     outcome = _rule().outcome_of(_result(_step("click", "Delete draft", dialogs=[CONFIRM])), QUIET)
 
-    assert (outcome["status"], outcome["retry"]) == ("failed", "safe")
+    assert (outcome["status"], outcome["retry"], outcome["page"]) == ("uncertain", "may_repeat", "quiet")
     assert "'Delete this draft?' (confirm)" in outcome["reason"]
     # A box raised while the bridge waited is reported beside the steps, and counts the same.
     late = _result(_step("click", "Delete draft"), dialogs=[{**CONFIRM, "type": "prompt"}])
-    assert _outcome(late, QUIET) == ("failed", "safe", None)
+    assert _outcome(late, QUIET) == ("uncertain", "may_repeat", "quiet")
+
+
+@pytest.mark.parametrize("kind", ["confirm", "prompt"])
+def test_a_dismissed_receipt_question_does_not_override_a_completed_order(kind: str) -> None:
+    dialog = {"type": kind, "message": "Also email a receipt?", "answer": "dismissed"}
+    placed = _result(_step("click", "Place order", dialogs=[dialog]), lines=("message status 'Order placed'",))
+
+    assert _outcome(placed, REACTED) == ("succeeded", "not_needed", None)
+    assert "Order placed" in _rule().outcome_of(placed, REACTED)["reason"]
+
+
+def test_a_dismissed_question_with_no_visible_answer_may_follow_an_order() -> None:
+    placed = _result(_step("click", "Place order", dialogs=[CONFIRM]))
+
+    # A request may have completed without leaving anything in the view, or still be in flight.
+    assert _outcome(placed, REACTED) == ("uncertain", "may_repeat", "reacted")
+    assert _outcome(placed, BUSY) == ("uncertain", "may_repeat", "busy")
+    # A verified field value does not rule out side effects in its input/change handler either.
+    typed = _result(_step("fill", "Email", True, dialogs=[CONFIRM]))
+    assert _outcome(typed, QUIET) == ("uncertain", "may_repeat", "quiet")
+    assert _outcome({**typed, "wait": UNMET}, BUSY) == ("uncertain", "may_repeat", "busy")
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"invalid": [{"name": "Email", "message": "Required"}]},
+        {"verified": False},
+    ],
+)
+def test_a_refused_field_after_a_dismissed_question_does_not_make_retry_safe(extra: dict[str, Any]) -> None:
+    result = _result(_step("fill", "Email", dialogs=[CONFIRM], **extra))
+
+    assert _outcome(result)[1] == "may_repeat"
+
+
+def test_a_stopped_navigation_after_a_dismissed_question_does_not_make_retry_safe() -> None:
+    result = _result(_step(dialogs=[CONFIRM]), blocked_navigations=[{"url": "https://other.example/"}])
+
+    assert _outcome(result)[1] == "may_repeat"
 
 
 # ---- succeeded: the bridge saw the effect ------------------------------------------------------------

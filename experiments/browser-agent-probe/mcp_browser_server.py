@@ -306,9 +306,10 @@ class BrowserTools:
 
         ``outcome`` says whether the action took effect. ``status`` is ``succeeded`` (the wait was
         met, the page navigated, the control holds what was set, or the page answered), ``failed``
-        (refused, the browser would not send the form, or the page asked a question such as "Delete
-        this draft?" and the box was dismissed), or ``uncertain`` (it ran and nothing shows whether
-        it worked, or what you waited for did not show). ``reason`` is one line. ``retry`` is
+        (refused or the browser would not send the form), or ``uncertain`` (it ran and nothing shows
+        whether it worked, or what you waited for did not show). Dismissing a ``confirm`` or ``prompt``
+        does not prove the action was canceled: without other evidence it is ``uncertain`` and
+        ``may_repeat``; an observed effect still counts. ``reason`` is one line. ``retry`` is
         ``not_needed``, ``safe``, or ``may_repeat`` (repeating it could do the thing twice). When
         uncertain, ``page`` is ``busy`` (a request the action started is still in flight: wait),
         ``reacted``, or ``quiet`` (no DOM change and no request: it may have done nothing).
