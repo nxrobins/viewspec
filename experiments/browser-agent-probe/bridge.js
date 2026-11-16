@@ -6,7 +6,8 @@
 // Commands:
 //   open      {url, block_writes, allowed_origins, download_dir}
 //                                          load a page; returns its status and server HTML
-//   snapshot  {collect_secrets}            the composed-tree snapshot (see lift_inpage.js)
+//   snapshot  {collect_secrets}            the composed-tree snapshot (see lift_inpage.js), with what
+//                                          the page wrote into its message regions and how busy it is
 //   aria      {}                           Playwright's ARIA snapshot of the body
 //   reload    {}                           reload the page
 //   locate    {requests: [{key, ref, role, name}]}
@@ -14,9 +15,11 @@
 //                                          and the items around it), and what blocks it, if anything
 //   act       {op, ref, locator, end_ref, end_locator, value, values, files}
 //                                          run one planned step (see below)
-//   writes    {}                           the writes and navigations that were stopped
+//   writes    {}                           the writes and navigations that were stopped, the dialogs
+//                                          the page raised, and the tabs it opened
 //   document  {}                           the id of the current document (see lift_inpage.js)
-//   wait_change {timeout_ms}               wait until the DOM changes or the page navigates
+//   wait_change {timeout_ms}               wait until the DOM changes, a field holds something else,
+//                                          or the page navigates
 //   confirm   {items: [{key, ref, locator}]}
 //                                          ask Playwright whether each locator finds exactly the
 //                                          element its ref names (the probe checks page-checked ones)
@@ -32,6 +35,11 @@
 // With download_dir, a "download" step saves the file a click downloads in that folder, under a
 // safe name the page cannot turn into a path, and never over another file. Without it, nothing is
 // saved. A download that any other step starts is not saved either; the step reports its name.
+//
+// A step also reports what the page did in answer that no reading of the page shows: the dialogs it
+// raised (alert, confirm, prompt), which are dismissed as Playwright dismisses them by default; the
+// tabs it opened, which are closed and not followed; and how much it reacted (DOM mutations, and
+// requests started and still in flight).
 
 const crypto = require("crypto");
 const fs = require("fs");
@@ -97,6 +105,13 @@ let downloadDir = null;
 let expectingDownload = false;
 let strayDownloads = [];
 let navigationRequests = 0;
+// What the page did that a reading of it does not show. Each dialog and each opened tab has a
+// sequence number, and so has each request, so a step can report the ones that came after it began.
+let dialogs = [];
+let popups = [];
+let eventSeq = 0;
+let requestSeq = 0;
+let pendingRequests = new Map(); // A request still in flight -> its sequence number.
 
 const escapeHtml = (text) =>
   String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -142,6 +157,7 @@ async function open({ url, block_writes: blockWrites = true, allowed_origins: al
   page.on("framenavigated", (frame) => {
     if (frame === page.mainFrame()) mainNavigations += 1;
   });
+  await watchPageEvents(page);
   const allowed = allowedOrigins && allowedOrigins.length ? new Set(allowedOrigins) : null;
   if (blockWrites || allowed) {
     await page.route("**/*", async (route) => {
@@ -174,6 +190,44 @@ async function open({ url, block_writes: blockWrites = true, allowed_origins: al
   return { url: page.url(), status: response ? response.status() : null, static_html: response ? await response.text() : "" };
 }
 
+// Record the dialogs a page raises, the tabs it opens, and the requests it has in flight.
+async function watchPageEvents(target) {
+  dialogs = [];
+  popups = [];
+  pendingRequests = new Map();
+  target.on("dialog", async (dialog) => {
+    // What Playwright does when nothing listens: leave a page that asks before it unloads, and
+    // dismiss every other box. A listener must do it itself, or the page waits for ever.
+    const leave = dialog.type() === "beforeunload";
+    dialogs.push({
+      seq: ++eventSeq,
+      type: dialog.type(),
+      message: dialog.message().slice(0, 500),
+      answer: leave ? "accepted" : "dismissed",
+    });
+    await (leave ? dialog.accept() : dialog.dismiss()).catch(() => {});
+  });
+  // Chromium says that a page asks for a new window as it asks (window.open, a link with a target,
+  // a form), with the address. Playwright's own "popup" event comes only once the new page has an
+  // answer from its server, which can be long after the step that opened it has returned.
+  let asked = false;
+  try {
+    const cdp = await target.context().newCDPSession(target);
+    await cdp.send("Page.enable");
+    cdp.on("Page.windowOpen", (event) => popups.push({ seq: ++eventSeq, url: event.url }));
+    asked = true;
+  } catch (error) {
+    // Not Chromium: fall back to the address the new page has when Playwright reports it.
+  }
+  target.on("popup", (popup) => {
+    if (!asked) popups.push({ seq: ++eventSeq, url: popup.url() });
+    popup.close().catch(() => {}); // The agent reads one page. A tab it cannot see is not kept.
+  });
+  target.on("request", (request) => pendingRequests.set(request, ++requestSeq));
+  target.on("requestfinished", (request) => pendingRequests.delete(request));
+  target.on("requestfailed", (request) => pendingRequests.delete(request));
+}
+
 async function settle() {
   await page.waitForLoadState("load", { timeout: 10000 }).catch(() => {});
   await page.waitForLoadState("networkidle", { timeout: 3000 }).catch(() => {});
@@ -188,7 +242,14 @@ async function snapshot({ collect_secrets: collectSecrets = false }) {
     ([selector, secrets]) => window.__viewspecLift.snapshot(selector, secrets),
     [INTERACTIVE_SELECTOR, collectSecrets],
   );
-  return { url: page.url(), title: await page.title(), ...result, navigationId };
+  // How busy the page is: DOM mutations so far in this document, requests so far, and the sequence
+  // numbers of the requests still in flight.
+  const activity = {
+    mutations: result.recorder.mutations,
+    requests: requestSeq,
+    pending: [...pendingRequests.values()],
+  };
+  return { url: page.url(), title: await page.title(), ...result, navigationId, activity };
 }
 
 // ---- Locators -----------------------------------------------------------------------------------
@@ -799,6 +860,20 @@ async function upload(target, files) {
   return { verified: JSON.stringify(names) === JSON.stringify(payload.map((f) => f.name)), chosen: names.join(", ") };
 }
 
+// Run a step that the bridge drives through the page's own widgets (a list it opens and types in,
+// a calendar it pages through, a scroll it waits on). What those widgets say on the way and take
+// back again is how the step works, not the page's answer, so the notes of it are marked as asides
+// (see the recorder in lift_inpage.js). A message that is still on the page afterwards is reported
+// like any other.
+async function asAside(run) {
+  const from = await page.evaluate(() => window.__viewspecLift.noteSeq()).catch(() => null);
+  try {
+    return await run();
+  } finally {
+    if (from !== null) await page.evaluate((seq) => window.__viewspecLift.asideSince(seq), from).catch(() => {});
+  }
+}
+
 function requireObservation(navigationId) {
   if (!Number.isInteger(navigationId) || navigationId !== mainNavigations) {
     throw new Error("stale-view: the page navigated or changed route since this view; observe it and plan again");
@@ -813,12 +888,17 @@ async function act({
   // Check every step here, including form steps and scrolling, rather than once per Python plan.
   requireObservation(navigationId);
   if (op === "scroll" && !ref && !spec) {
-    const result = await scroll(null, value, waitMs);
+    const result = await asAside(() => scroll(null, value, waitMs));
     return { resolved_by: "page", verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
   }
   const { target, resolvedBy } = await resolveTarget(ref, spec);
   await refuseIfBlocked(target, op);
-  await page.evaluate(() => window.__viewspecLift.takeInvalid()).catch(() => []); // Forget earlier refusals.
+  // Forget earlier refusals, and mark where the page is, to tell afterwards what this step made it do.
+  const mutationMark = await page
+    .evaluate(() => (window.__viewspecLift.takeInvalid(), window.__viewspecLift.mutationCount()))
+    .catch(() => null);
+  const requestMark = requestSeq;
+  const eventMark = eventSeq;
   // Resolving and scrolling can yield to page code. Refuse if it changed routes in the meantime.
   requireObservation(navigationId);
   const navigationsBefore = mainNavigations;
@@ -842,19 +922,19 @@ async function act({
       await target.selectOption(values, options);
       verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasSelected(el, v), values);
     } else if (op === "choose") {
-      ({ verified, chosen } = await choose(target, value, spec));
+      ({ verified, chosen } = await asAside(() => choose(target, value, spec)));
     } else if (op === "upload") {
       ({ verified, chosen } = await upload(target, files));
     } else if (op === "download") {
       ({ verified, chosen, download: saved } = await download(target));
     } else if (op === "choose_date") {
-      ({ verified, chosen } = await chooseDate(target, value));
+      ({ verified, chosen } = await asAside(() => chooseDate(target, value)));
     } else if (op === "choose_date_range") {
       const end = endRef || endSpec ? (await resolveTarget(endRef, endSpec)).target : null;
-      ({ verified, chosen } = await chooseDateRange(target, end, value));
+      ({ verified, chosen } = await asAside(() => chooseDateRange(target, end, value)));
     } else if (op === "scroll") {
       const liveRef = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
-      const result = await scroll(liveRef, value, waitMs);
+      const result = await asAside(() => scroll(liveRef, value, waitMs));
       return { resolved_by: resolvedBy, verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
     } else if (op === "submit") {
       await target.evaluate((form) => form.requestSubmit());
@@ -882,6 +962,14 @@ async function act({
   // new page the library is gone, and the form was sent, so there is nothing to report.
   const invalid =
     op === "click" || op === "submit" ? await page.evaluate(() => window.__viewspecLift.takeInvalid()).catch(() => []) : [];
+  // What the page did in answer. On a new document the count began again, so it says nothing.
+  const mutationsNow = await page.evaluate(() => window.__viewspecLift.mutationCount()).catch(() => null);
+  const sameDocument = mutationMark !== null && mutationsNow !== null && mutationsNow.doc === mutationMark.doc;
+  const reaction = {
+    mutations: sameDocument ? mutationsNow.mutations - mutationMark.mutations : null,
+    requests: requestSeq - requestMark,
+    pending: [...pendingRequests.values()].filter((seq) => seq > requestMark).length,
+  };
   const noPage = navigationRequests !== requestsBefore && mainNavigations === navigationsBefore;
   if (op !== "download" && noPage && !strayDownloads.length) {
     // The step asked for a page that never loaded: often a file that downloads instead. Its
@@ -895,13 +983,20 @@ async function act({
     download: saved,
     unsaved_downloads: await dropStrayDownloads(),
     invalid,
+    reaction,
+    dialogs: dialogs.filter((item) => item.seq > eventMark),
+    opened: popups.filter((item) => item.seq > eventMark),
+    mutation_mark: mutationMark ? mutationMark.mutations : null,
+    request_mark: requestMark,
     navigated: mainNavigations !== navigationsBefore,
     url_before: urlBefore,
     url: page.url(),
   };
 }
 
-// Wait for the next change: a DOM change anywhere in the composed tree, or a navigation. Returns
+// Wait for the next change: a DOM change anywhere in the composed tree, a field that holds
+// something else, or a navigation. A change the page made since the last snapshot counts: the caller
+// read the page, did not find what it waits for, and only then began to wait. Returns
 // { reason: "mutation" | "navigation" | "timeout" }. The caller reads the page again and decides
 // whether the change is the one it waits for.
 async function waitChange({ timeout_ms: timeoutMs = 5000 }) {
@@ -912,7 +1007,7 @@ async function waitChange({ timeout_ms: timeoutMs = 5000 }) {
     .then(() => "navigation")
     .catch(() => "timeout");
   const mutation = page
-    .evaluate((ms) => window.__viewspecLift.nextChange(ms), limit)
+    .evaluate((ms) => window.__viewspecLift.nextChange(ms, true), limit)
     .then((changed) => (changed ? "mutation" : "timeout"))
     .catch(() => "navigation"); // The page went away while it was being watched.
   const reason = await Promise.race([navigation, mutation]);
@@ -943,7 +1038,7 @@ const COMMANDS = {
     await settle();
     return { url: page.url() };
   },
-  writes: async () => ({ writes, navigations }),
+  writes: async () => ({ writes, navigations, dialogs, popups }),
   document: async () => {
     await ensureLibrary();
     return { doc_id: await page.evaluate(() => window.__viewspecLift.docId), url: page.url() };

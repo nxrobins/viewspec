@@ -11,10 +11,38 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 - CI runs the browser bridge in `experiments/browser-agent-probe`. The new `browser_bridge` job of
   `ci.yml` runs `demo_agent.py` and `demo_mcp.py` in Chromium on Python 3.11, then
-  `tests/test_browser_bridge_e2e.py`: twenty-three whole agent task cases through the experiment's MCP server,
+  `tests/test_browser_bridge_e2e.py`: twenty-eight whole agent task cases through the experiment's MCP server,
   each judged by its outcome (the order that was posted, the file that was saved, the page that was
   opened). The suite is opt-in (`VIEWSPEC_RUN_BROWSER_BRIDGE_E2E=1`). The experiment now pins its
   own Playwright in a lockfile, at the version the React seeds pin.
+- `diff_lifts` reports the same items in another order: a table sorted by a column, a list ranked
+  again. `LiftDiff.reordered` holds a `Reorder` for each run of siblings with the same tag whose
+  order differs, by the text the user sees in each, and `lines()` shows it as
+  `reordered 3x <tr>: 'Ana 36', 'Bo 41', 'Cy 29'`, right after the messages. `to_json()` has
+  `reordered`, and `ChangeCondition` `{"change": "any"}` is met by it. Before, a sort that only
+  moved rows gave an empty diff, because page text was compared without its order. An item that
+  was added, removed, or rewritten is not part of a reorder.
+- In the browser bridge experiment, every `act` and `call` result says whether the action took
+  effect. `outcome.status` is `succeeded` (the bridge saw the effect), `failed` (it did not take
+  effect), or `uncertain` (it ran and nothing shows whether it worked, or what the agent waited
+  for did not show). `outcome.reason` is one line, `outcome.retry` says whether repeating the
+  request is `not_needed`, `safe`, or `may_repeat` (it could do the thing twice), and for an
+  uncertain outcome `outcome.page` says what the page did meanwhile: `busy` (a request the action
+  started is still in flight), `reacted`, or `quiet`. A refused request has an outcome too. Before,
+  `ok` was true for a form the browser would not send and for a click that did nothing, and
+  nothing told a page that was still working from one that had not reacted. A field that holds
+  what a checked step set does not count as the page's answer, so a form call whose submit shows
+  nothing is `uncertain`, not `succeeded`.
+- The bridge reports what a page does in answer that no reading of the page shows. A step lists
+  the dialogs the page raised (`dialogs`, with the question and how it was answered), the tabs it
+  opened (`opened`; they are closed and not followed), and how much the page did (`reaction`: DOM
+  mutations, requests started, requests still in flight). Before, Playwright dismissed a
+  `confirm()` unseen, so a cancelled delete looked like a click that did nothing.
+- The bridge's `changes` report a message that the page showed again (`message status 'Saved'
+  (shown again)`), one that came and went between two readings (`(shown, now gone)`), and a new
+  address or title in the same document (`address /page -> /page#notes`). The page keeps a note of
+  every write into a message region. `wait_for {"change": "message"}` is met by a repeated message,
+  and `{"change": "any"}` by all of these.
 
 ### Changed
 
@@ -48,6 +76,11 @@ All notable changes to ViewSpec are documented in this file. The format follows
   and the view opens with what is in the way. A step on such a control is refused at once with the
   reason (`BROWSER_TARGET_BLOCKED`). Before, the view showed it like any other control, and the
   step waited five seconds and reported a timeout.
+- A wait in the browser bridge wakes when a script answers by setting only a property (`.value`,
+  `.checked`), which changes no DOM. While it waits, the bridge hashes what the page's fields hold,
+  every 100 ms; no value is kept. Before, such a wait ran to its timeout: on the fixture, 10 s for
+  an answer that came after 400 ms. A wait also wakes for a change the page made between the last
+  reading and the start of the wait, which it used to miss until the next change.
 
 ## [0.4.1] - 2026-11-15
 

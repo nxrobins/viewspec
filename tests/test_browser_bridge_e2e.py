@@ -28,6 +28,7 @@ import os
 import re
 import sys
 import threading
+import time
 from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -62,6 +63,9 @@ class Turn:
     result: dict[str, Any]
     # The task made this call to be refused: a request the server must stop before the browser acts.
     refusal_expected: bool = False
+    # What the task expects ``outcome.status`` of an act or call to be, when it is not the usual one:
+    # "succeeded" for a request that ran, "failed" for one made to be refused.
+    outcome_expected: str | None = None
 
 
 @dataclass
@@ -83,10 +87,12 @@ class Agent:
         self.uploads = uploads
         self.downloads = downloads
 
-    async def use(self, tool: str, /, *, refusal_expected: bool = False, **arguments: Any) -> dict[str, Any]:
+    async def use(
+        self, tool: str, /, *, refusal_expected: bool = False, expect: str | None = None, **arguments: Any
+    ) -> dict[str, Any]:
         reply = await self._session.call_tool(tool, arguments)
         result = reply.structuredContent or json.loads(reply.content[0].text)
-        self.run.turns.append(Turn(tool, arguments, result, refusal_expected))
+        self.run.turns.append(Turn(tool, arguments, result, refusal_expected, expect))
         # Printed for the captured output of a failing test. Values are left out: some are secrets.
         outcome = "ok" if result["ok"] else "refused " + ", ".join(error["code"] for error in result["errors"])
         print(f"{len(self.run.turns):>2}  {tool}({', '.join(arguments)}) {outcome}: {result['summary']}")
@@ -169,6 +175,13 @@ def unmet(run: Run) -> list[str]:
         # The server keeps ok true for an unmet wait; on a fixture the wait is part of the task.
         if turn.result.get("wait", {}).get("met") is False:
             reasons.append(f"{where}: the wait was not met")
+        # Every act and call says whether it took effect, and says what the task counts on: a
+        # request that ran succeeded, and a refused one failed, unless the task expects otherwise.
+        if turn.tool != "observe":
+            wanted = turn.outcome_expected or ("failed" if turn.refusal_expected else "succeeded")
+            outcome = turn.result.get("outcome") or {}
+            if outcome.get("status") != wanted:
+                reasons.append(f"{where}: outcome {outcome.get('status')}, not {wanted}: {outcome.get('reason')}")
         text = json.dumps(turn.result)
         reasons += [f"{where}: a secret came back" for secret in run.secrets if secret in text]
     return reasons
@@ -225,7 +238,7 @@ async def recover_from_refusals(agent: Agent) -> None:
     guess = await agent.call(refusal_expected=True, tool="checkout", arguments={"ship": "overnight", "colour": "red"})
     # A bad email typed by hand, as a person can. The browser refuses to send the form and says why.
     typed = await agent.act(action="fill", handle=handle(page, "Email"), value="bo")
-    stopped = await agent.act(action="click", handle=handle(typed, "Place order"))
+    stopped = await agent.act(expect="failed", action="click", handle=handle(typed, "Place order"))
     done = await agent.call(
         tool="checkout",
         arguments={"email": "bo@example.com", "ship": "express", "terms": True},
@@ -241,6 +254,7 @@ async def recover_from_refusals(agent: Agent) -> None:
     assert "Nothing was done" in guess["summary"]
     assert not stopped["navigated"]
     assert "Email" in {field["name"] for field in stopped["steps"][0]["invalid"]}
+    assert stopped["outcome"]["retry"] == "safe" and "did not send the form" in stopped["outcome"]["reason"]
     # Nothing was sent until the request was right, and then it was sent once.
     assert all("blocked_writes" not in turn.result for turn in agent.run.turns[:-1])
     fields = sent(done, "/orders")
@@ -528,12 +542,120 @@ async def check_out_once_the_page_allows_it(agent: Agent) -> None:
     assert "message status 'Order placed: Globe lamp'" in placed["changes"]["lines"]
 
 
+# The tasks below are about what a result says an action did. On outcomes.html each control answers
+# in a way that two readings of the page do not show: the same rows in another order, the same
+# message again, a toast that is gone, two properties set by a script, a question in a browser
+# dialog, a new tab, an answer that is still on its way. The agent must be told which it was, and
+# whether the action succeeded, failed, or cannot be told, before it decides to act again.
+
+
+@task("Sort the team by name, then by age, and read the order each time.")
+async def read_a_table_after_it_is_sorted(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/outcomes.html")
+    # Each sort moves the same three rows. No text and no control is new or gone.
+    by_name = await agent.act(action="click", handle=handle(page, "Name"))
+    by_age = await agent.act(action="click", handle=handle(by_name, "Age"))
+
+    assert by_name["changes"]["lines"] == ["reordered 3x <tr>: 'Ana 36', 'Bo 41', 'Cy 29'"]
+    assert by_age["changes"]["lines"] == ["reordered 3x <tr>: 'Cy 29', 'Ana 36', 'Bo 41'"]
+    assert "reordered 3x <tr>" in by_name["outcome"]["reason"]
+    rows = [line for line in by_age["view"].splitlines() if line.startswith("row ")]
+    assert rows == ["row Name | Age", "row Cy | 29", "row Ana | 36", "row Bo | 41"]
+
+
+@task("Save the draft twice, and be sure the second save happened. Then copy its link.")
+async def tell_a_repeated_message_from_no_answer(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/outcomes.html")
+    first = await agent.act(action="click", handle=handle(page, "Save"))
+    # The status line says "Saved" already, and the page writes "Saved" into it again.
+    second = await agent.act(action="click", handle=handle(first, "Save"), wait_for={"change": "message"})
+    # The toast is on the page for 300 ms. The agent reads the page after it has gone.
+    copied = await agent.act(action="click", handle=handle(second, "Copy link"), wait_for={"gone": "Link copied"})
+
+    assert first["changes"]["lines"] == ["message status 'Saved'"]
+    assert second["changes"]["lines"] == ["message status 'Saved' (shown again)"]
+    assert "message status 'Saved'" in second["view"]
+    assert copied["changes"]["lines"] == ["message status 'Link copied' (shown, now gone)"]
+    assert "Link copied" not in copied["view"]
+
+
+@task("Look up the city for postcode 1100, wait for the page to fill it in, then jump to the notes.")
+async def wait_for_an_answer_that_sets_only_properties(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/outcomes.html")
+    typed = await agent.act(action="fill", handle=handle(page, "Postcode"), value="1100")
+    # The answer comes 400 ms later, as two properties a script sets: no element and no attribute
+    # changes, so nothing wakes a wait that only watches the DOM.
+    found = await agent.act(
+        action="click", handle=handle(typed, "Look up"), wait_for={"change": "any"}, timeout_ms=10000
+    )
+    jumped = await agent.act(action="click", handle=handle(found, "Jump to notes"))
+
+    assert found["wait"]["waited_ms"] < 4000, "the wait ended at its timeout, not when the page answered"
+    assert [line.split("] ", 1)[1] for line in found["changes"]["lines"]] == [
+        "text 'City': value '' -> 'Lisbon'",
+        "checkbox 'Address verified': checked false -> true",
+    ]
+    assert re.search(r"^\[\d+\] checkbox 'Address verified' \[x\]$", found["view"], re.MULTILINE)
+    assert jumped["changes"]["lines"] == ["address /outcomes.html -> /outcomes.html#notes"]
+    assert jumped["url"].endswith("/outcomes.html#notes")
+
+
+@task("Delete the draft, refresh the badge, and open the help. Say which of them did anything.")
+async def tell_what_did_not_happen(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/outcomes.html")
+    # The page asks "Delete this draft?" in a browser dialog, which is not in the page, and the
+    # bridge dismisses it. Unreported, that reads as a click that did nothing.
+    deleted = await agent.act(expect="failed", action="click", handle=handle(page, "Delete draft"))
+    # This button has no handler at all.
+    refreshed = await agent.act(expect="uncertain", action="click", handle=handle(deleted, "Refresh badge"))
+    helped = await agent.act(action="click", handle=handle(refreshed, "Help"))
+
+    assert deleted["steps"][0].get("dialogs") == [
+        {"type": "confirm", "message": "Delete this draft?", "answer": "dismissed"}
+    ]
+    assert "'Delete this draft?'" in deleted["outcome"]["reason"] and deleted["outcome"]["retry"] == "safe"
+    assert "Draft deleted" not in deleted["view"]
+    assert (refreshed["outcome"]["page"], refreshed["outcome"]["retry"]) == ("quiet", "may_repeat")
+    assert refreshed["steps"][0]["reaction"] == {"mutations": 0, "requests": 0, "pending": 0}
+    assert helped["steps"][0]["opened"] == [f"{agent.base}/outcomes_help.html"]
+    assert helped["url"] == page["url"] and "H1 Team" in helped["view"], "the agent left the page it was on"
+
+
+@task(
+    "Publish the draft, then publish it once more. The server takes over a second to answer: wait "
+    "for the answer, and never press Publish again only because nothing showed."
+)
+async def wait_for_the_server_instead_of_acting_twice(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/outcomes.html")
+    # Nothing on the page changes until the server answers. The result must say that the page is
+    # still working, which is what tells an agent to wait and not to click again.
+    sent = await agent.act(expect="uncertain", action="click", handle=handle(page, "Publish"))
+    answered = await agent.observe(since=sent["observation_id"], wait_for={"change": "message"}, timeout_ms=10000)
+    again = await agent.act(
+        action="click", handle=handle(answered, "Publish"), wait_for={"change": "message"}, timeout_ms=10000
+    )
+
+    assert sent["changes"]["lines"] == ["no change"] and sent["steps"][0].get("reaction", {}).get("pending") == 1
+    assert (sent["outcome"]["page"], sent["outcome"]["retry"]) == ("busy", "may_repeat")
+    assert answered["changes"]["lines"] == ["message status 'Published'"]
+    # The second answer is the same word in the same place. It is a message all the same.
+    assert again["changes"]["lines"] == ["message status 'Published' (shown again)"]
+    assert again["wait"]["waited_ms"] >= 1000, "the wait was met before the server answered"
+
+
 # ---- running them -----------------------------------------------------------------------------------
+
+SLOW_ANSWER_S = 1.5  # How long the server holds back slow.json, which outcomes.html asks for.
 
 
 class _QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format: str, *args: object) -> None:
         return
+
+    def do_GET(self) -> None:
+        if urlsplit(self.path).path == "/slow.json":
+            time.sleep(SLOW_ANSWER_S)  # A server that takes its time: the page is still working.
+        super().do_GET()
 
 
 @pytest.fixture(scope="module")

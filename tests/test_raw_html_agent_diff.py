@@ -158,6 +158,110 @@ def test_a_message_shown_again_is_not_new():
     assert diff_lifts(before, twice).messages == (("alert", "Required"),)
 
 
+# ---- The same items in another order -----------------------------------------------------------------
+
+
+def _table(*rows: str, refs: bool = True) -> str:
+    """A table of people, one "Name Age" row each. With ``refs``, a person's row keeps its snapshot
+    ref wherever it stands, as a row does when a sort moves it."""
+
+    ref = {"Bo": "e11", "Ana": "e12", "Cy": "e13", "Di": "e14"}
+    cells = ""
+    for row in rows:
+        name, age = row.split()
+        attr = f' data-lift-ref="{ref[name]}"' if refs else ""
+        cells += f"<tr{attr}><td>{name}</td><td>{age}</td></tr>"
+    return f'<h1>Team</h1><table><tbody data-lift-ref="e10">{cells}</tbody></table>'
+
+
+def test_a_sort_that_only_moves_rows_is_reported():
+    before = _lift(_table("Bo 41", "Ana 36", "Cy 29"))
+    after = _lift(_table("Ana 36", "Bo 41", "Cy 29"))
+    diff = diff_lifts(before, after)
+
+    assert diff.lines() == ["reordered 3x <tr>: 'Ana 36', 'Bo 41', 'Cy 29'"]
+    assert not diff.empty and not diff.text_added and not diff.text_removed
+    [reorder] = diff.to_json()["reordered"]
+    assert reorder["tag"] == "tr" and reorder["before"] == ["Bo 41", "Ana 36", "Cy 29"]
+    assert ChangeCondition.from_json({"change": "any"}).met(before, after)
+    assert not ChangeCondition.from_json({"change": "message"}).met(before, after)
+    assert diff_lifts(after, after).reordered == ()
+
+
+def test_a_list_the_page_built_again_is_compared_by_what_its_items_say():
+    # No refs at all, as in a list rebuilt from new elements: the parent is found by its place.
+    before = _lift(_table("Bo 41", "Ana 36", "Cy 29", refs=False))
+    after = _lift(_table("Cy 29", "Ana 36", "Bo 41", refs=False))
+
+    assert diff_lifts(before, after).lines() == ["reordered 3x <tr>: 'Cy 29', 'Ana 36', 'Bo 41'"]
+
+
+def test_an_item_added_removed_or_rewritten_is_not_a_reorder():
+    before = _lift(_table("Bo 41", "Ana 36", "Cy 29"))
+
+    added = diff_lifts(before, _lift(_table("Di 52", "Bo 41", "Ana 36", "Cy 29")))
+    removed = diff_lifts(before, _lift(_table("Bo 41", "Cy 29")))
+    rewritten = diff_lifts(before, _lift(_table("Bo 42", "Ana 36", "Cy 29")))
+    assert added.reordered == () and removed.reordered == () and rewritten.reordered == ()
+    assert not added.empty and not removed.empty and not rewritten.empty  # The text diff has them.
+
+    # Added and moved at once: the rows both lifts show are compared, the new one is left out.
+    both = diff_lifts(before, _lift(_table("Di 52", "Cy 29", "Bo 41", "Ana 36")))
+    assert [(r.items, r.was) for r in both.reordered] == [(("Cy 29", "Bo 41", "Ana 36"), ("Bo 41", "Ana 36", "Cy 29"))]
+
+
+def test_copies_of_one_text_are_compared_only_when_none_came_or_went():
+    def listing(*items: str):
+        return _lift("<ul>" + "".join(f"<li>{item}</li>" for item in items) + "</ul>")
+
+    # Two rows read the same. With both still there, the row between them can be seen to move.
+    moved = diff_lifts(listing("Ana", "Sold out", "Sold out"), listing("Sold out", "Sold out", "Ana"))
+    assert moved.lines() == ["reordered 3x <li>: 'Sold out', 'Sold out', 'Ana'"]
+    # One copy went away. Whether the first or the second, nothing says, so it is not called a move.
+    fewer = diff_lifts(listing("Sold out", "Ana", "Sold out"), listing("Ana", "Sold out"))
+    assert fewer.reordered == ()
+
+
+def test_only_the_outermost_reorder_is_reported():
+    def board(*columns: tuple[str, str, str]) -> str:
+        cards = "".join(
+            f"<section><h2>{name}</h2><ul><li>{a}</li><li>{b}</li></ul></section>" for name, a, b in columns
+        )
+        return f"<main>{cards}</main>"
+
+    before = _lift(board(("Todo", "Write", "Test"), ("Done", "Plan", "Ship")))
+    # The two columns swap places, so each list now sits where the other was.
+    after = _lift(board(("Done", "Plan", "Ship"), ("Todo", "Write", "Test")))
+
+    assert diff_lifts(before, after).lines() == ["reordered 2x <section>: 'Done Plan Ship', 'Todo Write Test'"]
+
+
+def test_hidden_items_and_options_are_not_reordered_items():
+    before = _lift(
+        "<ul><li>Ana</li><li hidden>Zed</li><li>Bo</li></ul>"
+        '<select aria-label="Size" data-lift-ref="e1"><option>S</option><option>M</option></select>'
+    )
+    after = _lift(
+        "<ul><li hidden>Zed</li><li>Ana</li><li>Bo</li></ul>"
+        '<select aria-label="Size" data-lift-ref="e1"><option>M</option><option>S</option></select>'
+    )
+    diff = diff_lifts(before, after)
+
+    # The hidden item moved, which no user can see. The options moved, and the control says so.
+    assert diff.reordered == ()
+    assert [change.fields["options"] for change in diff.changed] == [(["S", "M"], ["M", "S"])]
+
+
+def test_a_long_reorder_line_names_a_few_items_and_counts_the_rest():
+    def listing(order: list[int]):
+        return _lift("<ol>" + "".join(f"<li>Item {n} {'x' * 60}</li>" for n in order) + "</ol>")
+
+    [line] = diff_lifts(listing(list(range(10))), listing(list(reversed(range(10))))).lines()
+
+    assert line.startswith("reordered 10x <li>: 'Item 9 xxx") and line.endswith("…', … 4 more")
+    assert line.count("'Item ") == 6 and len(line) < 320
+
+
 def test_diff_needs_agent_lifts():
     with pytest.raises(ValueError, match="profile='agent'"):
         diff_lifts(lift_html("<p>x</p>"), _lift("<p>x</p>"))

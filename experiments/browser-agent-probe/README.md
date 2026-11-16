@@ -28,9 +28,10 @@ evals that open real sites (`apg_eval.py`, `real_sites_eval.py`) and `probe.py` 
 
 | File | What it does |
 |---|---|
-| `lift_inpage.js` | In-page library. Gives every element a ref (`e17`) that stays the same while the element is in the page. Snapshots the composed tree (open shadow roots, slots, same-origin iframes) with live form state, and never copies a secret value. Lists the visible controls (the ground truth). Proposes CSS candidates for an element. |
-| `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and by default **blocks writes**: a form post or any other non-GET request is recorded and answered with a stub page. With an origin allowlist, it also stops navigations to other origins. |
+| `lift_inpage.js` | In-page library. Gives every element a ref (`e17`) that stays the same while the element is in the page. Snapshots the composed tree (open shadow roots, slots, same-origin iframes) with live form state, and never copies a secret value. Lists the visible controls (the ground truth). Proposes CSS candidates for an element. Keeps a note of every write into a message region, and counts DOM mutations (the recorder). |
+| `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and by default **blocks writes**: a form post or any other non-GET request is recorded and answered with a stub page. With an origin allowlist, it also stops navigations to other origins. Reports the dialogs a page raises, the tabs it opens, and the requests it has in flight. |
 | `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `wait(condition, since, timeout_ms)`, `scroll(step, until, timeout_ms)`, `blocked_writes()`, `blocked_navigations()`. `BrowserSession(download_dir=...)` names the folder for downloads. `changes(before, after)`: what changed between two observations. |
+| `action_outcome.py` | The rule for what an action did: `succeeded`, `failed`, or `uncertain`, why, and whether a retry could do it twice. It imports only the standard library, and `tests/test_browser_bridge_outcome.py` checks it without a browser. See [Outcomes](#outcomes). |
 | `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). An action's ARIA state shows on its line: `pressed`, `selected`, `expanded` or `collapsed`. |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
@@ -314,6 +315,37 @@ value never appears: a card number fill shows `no change`. If the page loaded a 
 result is `new_document: true` and one line naming the new page, because a diff would list the whole
 page.
 
+Three kinds of change leave both readings with the same text and the same controls. They are
+reported too:
+
+```text
+message status 'Saved' (shown again)
+message status 'Link copied' (shown, now gone)
+address /outcomes.html -> /outcomes.html#notes
+reordered 3x <tr>: 'Ana 36', 'Bo 41', 'Cy 29'
+```
+
+- **The same items in another order.** A sort that moves a table's rows adds no text and removes
+  none. `diff_lifts` compares the order of siblings with the same tag under each parent, by what each
+  item says, and reports the items that both readings show when their order differs. An item that
+  was added, removed, or rewritten is not part of a reorder; the text lines have it. A list that the
+  page built again from new elements still compares, because an item is its text.
+- **A message shown again, or shown and taken away.** A status line that says "Saved" a second
+  time reads the same before and after, and a toast that lasts 300 ms may be gone before the page
+  is read. The page keeps a note of every write into a message region (`role="alert"`, `status`,
+  `log`, `alertdialog`, or `aria-live`), of a region that is added already holding text, and of one
+  that was hidden and now shows. `changes` reports a note as `(shown again)` when the message was
+  already on the page, and as `(shown, now gone)` when it is not on the page any more. A page that
+  draws itself again (takes a region out and puts one like it back in one go) has not said
+  anything, and is not reported.
+- **A new address in the same document.** A `#hash` link or a route that a script pushes changes
+  the address, and perhaps the title, and nothing else.
+
+What a widget says while the bridge itself drives it is left out: a calendar's month title as
+`select` pages through it, "5 results" as it types into a combobox, "Loading…" during a scroll. That
+is how the step works, not the page's answer. A message such a step leaves on the page is reported
+like any other.
+
 ### Waiting
 
 Right after an action, a page that answers after a delay (a server call, a timer) has not changed
@@ -322,18 +354,104 @@ agent names, with the package's `ChangeCondition`:
 
 | `wait_for` | Waits until |
 |---|---|
-| `{"change": "any"}` | anything in the diff |
-| `{"change": "message"}` | a new message (alert, status, live region) |
+| `{"change": "any"}` | anything in `changes`: the diff, a message shown again or shown and gone, a new address |
+| `{"change": "message"}` | a new message (alert, status, live region), or one shown again or shown and gone |
 | `{"change": "navigation"}` | a new document |
 | `{"text": "Order placed"}` | the text is on the page |
 | `{"gone": "Loading"}` | the text is no longer on the page |
 | `{"control": "Apply", "enabled": true}` | the control is on the page, and enabled (or disabled) |
 
-It does not poll on a timer. After each reading that does not meet the condition, the bridge
-watches the DOM with a `MutationObserver` on the document, every open shadow root, and every
+It does not read the page on a timer. After each reading that does not meet the condition, the
+bridge watches the DOM with a `MutationObserver` on the document, every open shadow root, and every
 same-origin iframe, and wakes on the first change (once the DOM is quiet for 100 ms, or 500 ms after
 the first change) or on a navigation. Then the page is read again. On the fixtures, a link that
 shows 600 ms after a click is found in about 700 ms with 2 readings. The longest wait is 30 s.
+
+Two changes are no DOM change, and wake a wait all the same:
+
+- **A script that sets only a property.** `input.value = "Lisbon"` and `box.checked = true` change
+  no attribute and no element. While it waits, the bridge hashes what every `input`, `textarea`, and
+  `select` holds, every 100 ms, and wakes when the hash differs. Only the hash is kept, so no value
+  is held, a secret one included. On the fixture, a lookup that answers 400 ms after the click by
+  setting two properties is found in about 520 ms; before, the wait ran to its timeout.
+- **A change between the reading and the wait.** The page is read, the condition is not met, and
+  only then does the wait begin. A change in that gap used to be missed until the next one. The
+  wait now compares the page with what the last reading saw (the recorder's mutation count and the
+  field hash), and wakes at once when they differ.
+
+### Outcomes
+
+After an action, an agent must decide whether to go on, wait, or try again. A view and a list of
+changes do not settle that: a click that changed nothing may have failed, may still be working, or
+may have done something that does not show. Every `act` and `call` result therefore carries
+`outcome`:
+
+```json
+{"status": "uncertain", "page": "busy", "retry": "may_repeat",
+ "reason": "click 'Publish' ran, and the view shows no answer. 1 request it started is still in flight: wait for the answer (wait_for) before you repeat it."}
+```
+
+`status` is about whether the action took effect, not about whether the page's answer was good
+news. "Card declined" is an answer.
+
+| `status` | Means | When |
+|---|---|---|
+| `succeeded` | The bridge saw the effect. | What the agent waited for showed; the page navigated; every step was checked on its control (`verified`); or the page answered: `changes` is not empty, a request was sent (and blocked), a file was saved, a tab opened, an alert was raised. |
+| `failed` | It did not take effect. | The request was refused (`ok` is false); the browser would not send the form (`invalid`); a control does not hold what was set (`verified` is false); the origin allowlist stopped the navigation; or the page asked a question in a `confirm` or `prompt` box, which the bridge dismisses. |
+| `uncertain` | It ran, and nothing shows whether it worked. | A click with no answer; a wait that was not met; a step that stopped part-way (a timeout, a plan the page interrupted by navigating). |
+
+The rules are tried in order. First what cannot have worked: a refusal, a form the browser would
+not send, a navigation the allowlist stopped, a control that does not hold its value. Then what the
+agent waited for, which is its own test of success: a wait that was met is `succeeded`, and one that
+was not met is `uncertain` whatever else the page did. A dismissed question comes between those two.
+Last come the other signs of an effect. `reason` is one line, and names the evidence: the first line
+of `changes`, the question the page asked, the field the browser refused.
+
+One kind of change is not a sign of an effect: a field that now holds what a step set, when the
+step was checked on it. After `call` fills in a form and submits it, `changes` lists the new
+values. They say what the call typed, not what the submit did, so they do not make the outcome
+`succeeded`; a message, a request that went out, or a navigation does.
+
+`retry` says whether repeating the same request could do the thing twice:
+
+| `retry` | Means |
+|---|---|
+| `not_needed` | It succeeded. |
+| `safe` | Nothing happened, or the action only sets a state (`fill`, `check`, `uncheck`, `select`, `scroll`): doing it again changes nothing more. Deal with the reason first. |
+| `may_repeat` | A click, a submit, a choice from a list, an upload, or a download ran, or may have. Repeating it may act twice: look at the page first. |
+
+When `status` is `uncertain`, `page` says what the page did from the action to the reading, so the
+agent can choose between waiting and trying again:
+
+| `page` | Means | What to do |
+|---|---|---|
+| `busy` | A request the action started is still in flight. | Wait: `wait_for`, or `observe(since=..., wait_for=...)`. |
+| `reacted` | The DOM changed or a request finished, and the view shows nothing of it; or the page changed, and not in the way the agent waited for. | Read the view. |
+| `quiet` | No DOM change and no request. | The action may have done nothing. |
+
+The facts behind this are on each step. `reaction` counts what the page did during the step: DOM
+`mutations` (from the recorder), `requests` started, and how many of those are still `pending`.
+`dialogs` lists the boxes the page raised, with the question: `{"type": "confirm", "message": "Delete
+this draft?", "answer": "dismissed"}`. Playwright dismisses a dialog nobody listens for, so a
+cancelled delete used to look like a click that did nothing. The bridge still dismisses every box
+(and lets a page that asks before it unloads go), and now says so. `opened` lists the address of
+each tab the page opened; the tab is closed, not followed, and the agent stays on its page. A box or
+a tab that comes later, while the bridge waits or between two tool calls, is listed beside `steps`.
+
+On the fixture `outcomes.html`, through the MCP tools:
+
+| Action | `changes` | `outcome` |
+|---|---|---|
+| Sort the table (the rows move) | `reordered 3x <tr>: 'Ana 36', 'Bo 41', 'Cy 29'` | `succeeded` |
+| Save, a second time | `message status 'Saved' (shown again)` | `succeeded` |
+| Copy link (a toast, gone in 300 ms), read after it has gone | `message status 'Link copied' (shown, now gone)` | `succeeded` |
+| Look up (two properties set 400 ms later), `wait_for {"change": "any"}` | both fields, after about 520 ms | `succeeded` |
+| Jump to notes (a `#hash` link) | `address /outcomes.html -> /outcomes.html#notes` | `succeeded` |
+| Refresh badge (a button with no handler) | `no change` | `uncertain`, `quiet` |
+| Delete draft (the page asks with `confirm()`) | `no change` | `failed`, with the question |
+| Help (a link with `target="_blank"`) | `no change` | `succeeded`, with the tab's address |
+| Publish (the server takes over a second), no wait | `no change` | `uncertain`, `busy` |
+| Publish, `wait_for {"change": "message"}` | `message status 'Published'` | `succeeded` |
 
 ### Long pages
 
@@ -376,6 +494,16 @@ the fields that failed their constraints and why), `navigated`, the new view, an
 needs no extra `observe`. With `wait_for`, the result also has `wait`: what it waited for, `met`,
 and `waited_ms`. A wait that is not met is not an error: the action is done, `ok` stays true, and the
 summary says the change did not show, so the agent does not repeat an action that may have worked.
+
+`act` and `call` results also carry `outcome`: `status` (`succeeded`, `failed`, or `uncertain`),
+`reason`, `retry` (`not_needed`, `safe`, or `may_repeat`), and, when uncertain, `page` (`busy`,
+`reacted`, or `quiet`). See [Outcomes](#outcomes). `ok` says that the request was accepted and run;
+`outcome` says what came of it, so `ok` can be true and the outcome `failed` (the browser would not
+send the form). A refused request has an outcome too, and when some steps of a plan ran before the
+refusal, `steps` lists them. Each step has `reaction` (`mutations`, `requests`, `pending`), and,
+when there are any, `dialogs` (the boxes the page raised and how they were answered) and `opened`
+(the tabs it opened). `observe` results list the `dialogs` and `opened` tabs that came since the
+last result.
 A `wait_for` that is not valid is refused before the browser does anything (`AGENT_WAIT_INVALID`). When writes
 are blocked, `blocked_writes` lists each stopped request with its form fields; secret fields are
 `[redacted]`, and a file is its name, size, and type. `blocked_navigations` lists each navigation the
@@ -520,12 +648,19 @@ page ends up where the goal says:
 | Add a product while a dialog covers the page | the view marks 19 controls blocked and names the dialog; the step is refused until it is declined |
 | Check out once the cart holds something | "Checkout" and "Place order" are marked blocked and refused, then usable |
 | Switch product routes while reusing the button and form (six navigation variants) | old clicks, form calls, and scrolls are refused without changing the cart or form; a fresh view acts on the current product |
+| Sort a table by name, then by age | each result names the rows in their new order, though no text and no control changed |
+| Save a draft twice, then copy its link | the second "Saved" is reported as shown again and meets a wait for a message; the toast is reported after it has gone |
+| Look up a postcode whose answer sets two properties | the wait ends when the page answers (under 4 s of a 10 s limit), and the changes name both fields; a `#hash` link then reports the new address |
+| Delete a draft, press a button that does nothing, open the help | the delete is `failed` with the question the page asked; the button is `uncertain` and `quiet`; the help is `succeeded` with the tab's address, and the agent is still on its page |
+| Publish while the server takes 1.5 s, then publish again | the first result is `uncertain` and `busy`; a wait shows the answer; the second answer, the same word again, meets its wait only once the server has answered |
 
 The agent is scripted, because the test suite never calls a model, but it is held to what a model
 would have. It starts `mcp_browser_server.py` over stdio as an agent host does, uses only `observe`,
 `act`, and `call`, and takes every handle from the view text of a result. Each task gets a server
 and a browser of its own. One rule is shared by every task (`unmet`): what must hold for every tool
-call on the way to the outcome.
+call on the way to the outcome. Part of it is what each result says the action did: an `act` or
+`call` that ran must have the outcome `succeeded`, and a refused one `failed`, unless the task
+expects another. So every task checks the outcome rule, not only the five written for it.
 
 ```bash
 VIEWSPEC_RUN_BROWSER_BRIDGE_E2E=1 python -m pytest -q -m e2e tests/test_browser_bridge_e2e.py
@@ -711,6 +846,14 @@ header's `aria-sort`; the grid button is not. The collapsed card is `inert`, so 
 marked `blocked` in the view (nine on that page), and a step on one is refused at once with that
 reason instead of after 5 s.
 
+The same run on 16 November 2026, on the bridge before and after it reported reorders and repeated
+messages: 60 of 62 actions on each, with the same result for every action, and the same lines in
+`changes` for 63 of the 66 controls tried. The three that differ are the cases above that the diff
+could not see. The sortable table's "First Name" and the data grid's "Date" now show the rows in
+their new order, beside the header's `aria-sort` (`reordered 4x <tr>: 'Sara James Cardinal, Inc.
+457 First St.…', ...`). A carousel's tab now also shows the slide title that its live region held
+on the way (`(shown, now gone)`).
+
 What the run changed in the lift: `aria-labelledby` lets a referenced element contribute its own
 `aria-label`; content that is `aria-hidden` gives no name, so a `title` does; a date combobox is a
 date field; controls carry `pressed`, `selected`, `expanded`, and `sort`; and `fill` on a
@@ -779,7 +922,32 @@ select-only `div` combobox is refused before the browser acts.
   it too, and the step is not verified.
 - A diff matches controls by ref, then by unique name, then by place. A control that the page
   re-rendered and also renamed and moved is reported as removed and added.
-- A message that the page shows again with the same text is not reported as new.
+- The page's notes of its messages begin with the first reading of a document, and the last 48 are
+  kept. A page that writes more than that between two readings loses the oldest.
+- A page that writes the same words into its status line on every action is reported as showing
+  them again every time. So is a page that takes a message region out and puts one like it back in
+  two goes (after an `await`), which is a redraw and not a new message.
+- What a widget says and takes back while the bridge drives it (`select` on a custom list or a
+  date, `scroll`) is not reported, so a toast that answers such a step and is gone before the page
+  is read is missed. A message it leaves on the page is reported.
+- A reorder is found among siblings with the same tag under one parent, by their text. A card moved
+  to another column, or grid cells that swap between two rows, change parents and are not reported
+  as a reorder (the text of both rows changes, which the diff does show). Items that differ only in
+  a picture cannot be told apart.
+- Every dialog is dismissed: `confirm` answers no and `prompt` answers nothing. The agent is told
+  what the page asked and cannot answer yes, so an action behind a `confirm` cannot be completed.
+- A tab the page opens is reported by its address and closed. The agent cannot read it. **A new tab
+  is outside `block_writes` and the origin allowlist**: both are set on the page, not on the tabs it
+  opens, so a form with `target="_blank"` that posts is sent to the server, and a link with
+  `target="_blank"` loads another origin, before the tab is closed. The step reports the address in
+  `opened`; `blocked_writes` and `blocked_navigations` stay empty. This was so before tabs were
+  reported.
+- `succeeded` means that the bridge saw an effect, not that it was the one the agent wanted. A
+  page that changes by itself (a clock, a ticker) or shows a tooltip when the pointer arrives
+  counts as an answer. Pass `wait_for` to name the effect.
+- `quiet` covers the time from the action to the reading, which is often under 100 ms. A handler
+  that answers after a timer, with no request in between, reads as `quiet` at first. `busy` counts
+  HTTP requests that began after the action; a message over a WebSocket is not one.
 - `upload` sets files the way a file chooser does. A drop zone that takes files only by drag and drop,
   or a page that reads files another way, is not reached. A chooser that only a keyboard event opens
   is not either.
@@ -790,8 +958,10 @@ select-only `div` combobox is refused before the browser acts.
 - A download must start within 4 seconds of the click. A page that prepares a file for longer (a
   "your export is being prepared" message) needs a `wait_for` first, then a download of the link it
   shows.
-- A wait wakes on DOM changes and navigations. A change that only sets a property (text typed into a
-  field by script) does not wake it; the next DOM change or the timeout does.
+- A wait wakes on DOM changes, navigations, and a change in what a native field holds. A custom
+  widget that keeps its state only in script, and shows it on a canvas or not at all, does not wake
+  it. A change in a secret field wakes the wait, and the reading that follows shows nothing, since
+  the lift never holds a secret value.
 
 ## Next steps
 
