@@ -29,7 +29,7 @@ evals that open real sites (`apg_eval.py`, `real_sites_eval.py`) and `probe.py` 
 | File | What it does |
 |---|---|
 | `lift_inpage.js` | In-page library. Gives every element a ref (`e17`) that stays the same while the element is in the page. Snapshots the composed tree (open shadow roots, slots, same-origin iframes) with live form state, and never copies a secret value. Lists the visible controls (the ground truth). Proposes CSS candidates for an element. Keeps a note of every write into a message region, and counts DOM mutations (the recorder). |
-| `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and by default **blocks writes**: a form post or any other non-GET request is recorded and answered with a stub page. With an origin allowlist, it also stops navigations to other origins. Reports the dialogs a page raises, the tabs it opens, and the requests it has in flight. |
+| `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and by default **blocks writes**: a form post or any other non-GET request is recorded and answered with a stub page. With an origin allowlist, it also stops navigations to other origins. Both hold for the page and for the tabs it opens. Reports the dialogs a page raises, the tabs it opens, and the requests it has in flight. |
 | `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `wait(condition, since, timeout_ms)`, `scroll(step, until, timeout_ms)`, `blocked_writes()`, `blocked_navigations()`. `BrowserSession(download_dir=...)` names the folder for downloads. `changes(before, after)`: what changed between two observations. |
 | `action_outcome.py` | The rule for what an action did: `succeeded`, `failed`, or `uncertain`, why, and whether a retry could do it twice. It imports only the standard library, and `tests/test_browser_bridge_outcome.py` checks it without a browser. See [Outcomes](#outcomes). |
 | `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). An action's ARIA state shows on its line: `pressed`, `selected`, `expanded` or `collapsed`. |
@@ -507,7 +507,8 @@ last result.
 A `wait_for` that is not valid is refused before the browser does anything (`AGENT_WAIT_INVALID`). When writes
 are blocked, `blocked_writes` lists each stopped request with its form fields; secret fields are
 `[redacted]`, and a file is its name, size, and type. `blocked_navigations` lists each navigation the
-origin allowlist stopped.
+origin allowlist stopped. A request that a tab the page opened made, not the page itself, has
+`new_tab: true` in either list, and is reported in the result of the step that opened the tab.
 
 A request that the page cannot take is refused before the browser does anything, and the result
 says so. A refused form call names each problem: `{"argument": "ship", "problem": "invalid", ...}`.
@@ -527,10 +528,13 @@ and `BROWSER_ERROR`.
 **Safety is set by whoever starts the server, never by the agent:**
 
 - Writes are blocked unless the server is started with `--allow-writes`. `act` and `call` then carry
-  `destructiveHint: false`.
+  `destructiveHint: false`. A write is blocked wherever the page sends it from: a form that posts
+  into a new tab (`target="_blank"`), or a script in a tab the page opened, is stopped like a post
+  from the page itself.
 - `--allow-origin URL` (repeatable) limits the pages the agent can open, and stops a click or a
   script from taking it to another origin. The stopped navigation is answered with HTTP 204, so the
-  page stays where it was.
+  page stays where it was. A link or `window.open` that opens another origin in a new tab is stopped
+  too; that tab gets a page that says so, and is closed.
 - `--upload-dir DIR` is the only folder the agent may upload files from by path. Without it, the agent
   can send file contents only. A path that leads out of the folder (`../`, an absolute path, or a
   link) is refused.
@@ -653,11 +657,15 @@ page ends up where the goal says:
 | Look up a postcode whose answer sets two properties | the wait ends when the page answers (under 4 s of a 10 s limit), and the changes name both fields; a `#hash` link then reports the new address |
 | Delete a draft, press a button that does nothing, open the help | the delete is `failed` with the question the page asked; the button is `uncertain` and `quiet`; the help is `succeeded` with the tab's address, and the agent is still on its page |
 | Publish while the server takes 1.5 s, then publish again | the first result is `uncertain` and `busy`; a wait shows the answer; the second answer, the same word again, meets its wait only once the server has answered |
+| Order through a form that posts into a new tab | the stopped post is in the result of the call itself, marked `new_tab`, with the order's fields; the page stays |
+| Open a link that leads to another origin in a new tab | the navigation is stopped and listed, marked `new_tab`; the outcome is `failed`; the agent is still on its page |
 
 The agent is scripted, because the test suite never calls a model, but it is held to what a model
 would have. It starts `mcp_browser_server.py` over stdio as an agent host does, uses only `observe`,
 `act`, and `call`, and takes every handle from the view text of a result. Each task gets a server
-and a browser of its own. One rule is shared by every task (`unmet`): what must hold for every tool
+and a browser of its own. The site is a judge too: writes are blocked and one origin is allowed for
+every task, so a task fails if the site receives a write, or a request under another name
+(`localhost` for `127.0.0.1`). One rule is shared by every task (`unmet`): what must hold for every tool
 call on the way to the outcome. Part of it is what each result says the action did: an `act` or
 `call` that ran must have the outcome `succeeded`, and a refused one `failed`, unless the task
 expects another. So every task checks the outcome rule, not only the five written for it.
@@ -936,12 +944,17 @@ select-only `div` combobox is refused before the browser acts.
   a picture cannot be told apart.
 - Every dialog is dismissed: `confirm` answers no and `prompt` answers nothing. The agent is told
   what the page asked and cannot answer yes, so an action behind a `confirm` cannot be completed.
-- A tab the page opens is reported by its address and closed. The agent cannot read it. **A new tab
-  is outside `block_writes` and the origin allowlist**: both are set on the page, not on the tabs it
-  opens, so a form with `target="_blank"` that posts is sent to the server, and a link with
-  `target="_blank"` loads another origin, before the tab is closed. The step reports the address in
-  `opened`; `blocked_writes` and `blocked_navigations` stay empty. This was so before tabs were
-  reported.
+- A tab the page opens is reported by its address and closed. The agent cannot read it. Its
+  requests are checked like the page's own, so a write from it is stopped and a navigation to
+  another origin is stopped. A step waits up to 2 s for the request of a tab it opened, so that its
+  own result lists what was stopped; a tab that takes longer is still stopped, and is listed in a
+  later result.
+- **The origin allowlist does not follow redirects.** It checks the address a navigation asks for.
+  When a link leads to an allowed origin whose server answers with a redirect to another origin, the
+  browser follows it, in the page and in a new tab, and `blocked_navigations` stays empty: Playwright
+  does not hand a redirect to the code that checks requests. The agent can end up on an origin that
+  is not allowed; `url` in the result says where it is. Write blocking is not affected: a write to
+  any origin is stopped before it is sent.
 - `succeeded` means that the bridge saw an effect, not that it was the one the agent wanted. A
   page that changes by itself (a clock, a ticker) or shows a tooltip when the pointer arrives
   counts as an answer. Pass `wait_for` to name the effect.

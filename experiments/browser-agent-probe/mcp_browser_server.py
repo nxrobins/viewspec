@@ -24,6 +24,8 @@ Safety is set by whoever starts the server, never by the agent:
   GET, HEAD, or OPTIONS is recorded and answered with a stub page. Results list each blocked write
   with its form fields; secret fields are shown as ``[redacted]``.
 - With ``--allow-origin``, the agent can only open, and only navigate to, those origins.
+- Both hold for the tabs a page opens (a link or a form with ``target="_blank"``, ``window.open``):
+  what a new tab asks for is checked like the page's own requests, and marked ``new_tab``.
 - No result contains a secret value: the lift never keeps one, and logged steps redact them.
 
 This server is not ``viewspec mcp``. That server makes no network calls; this one drives a browser
@@ -663,6 +665,8 @@ class BrowserTools:
         """A blocked request, with secret form fields redacted. A body that is not a form is not shown."""
 
         shown: dict[str, Any] = {"method": write["method"], "url": write["url"]}
+        if write.get("new_tab"):
+            shown["new_tab"] = True  # A tab the page opened sent it, not the page the agent reads.
         fields = request_fields(write)
         if fields:
             shown["form_fields"] = {

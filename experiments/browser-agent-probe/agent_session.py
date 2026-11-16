@@ -15,7 +15,8 @@ cannot move a step to another item's control; and it refuses a control that a di
 page has switched off, and says what is in the way.
 
 By default the session blocks writes: a form post or any other non-GET request is recorded and
-answered with a stub page, so an agent can complete a real form without changing anything.
+answered with a stub page, so an agent can complete a real form without changing anything. That
+holds for the page and for every tab it opens.
 
 ``changes(before, after)`` says what an action changed. Besides the diff of the two readings it
 reports what no two readings can show: a message the page showed again, one that came and went in

@@ -7,11 +7,23 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- In the browser bridge experiment, write blocking and the origin allowlist now cover the tabs a
+  page opens. Both were set on the page alone, and a new tab is another page: a form with
+  `target="_blank"` that posts was sent to the server with `block_writes` on, a script in a new tab
+  could post, and a link or `window.open` could load an origin that `--allow-origin` did not
+  allow. `blocked_writes` and `blocked_navigations` stayed empty. Requests are now checked on the
+  browser context, so a new tab's requests are stopped and listed like the page's own, with
+  `new_tab: true`, in the result of the step that opened the tab. Two agent tasks check it, and
+  every agent task now fails if the test site receives a write or a request for another origin.
+  Not covered: a server redirect from an allowed origin to another origin is still followed.
+
 ### Added
 
 - CI runs the browser bridge in `experiments/browser-agent-probe`. The new `browser_bridge` job of
   `ci.yml` runs `demo_agent.py` and `demo_mcp.py` in Chromium on Python 3.11, then
-  `tests/test_browser_bridge_e2e.py`: twenty-eight whole agent task cases through the experiment's MCP server,
+  `tests/test_browser_bridge_e2e.py`: thirty whole agent task cases through the experiment's MCP server,
   each judged by its outcome (the order that was posted, the file that was saved, the page that was
   opened). The suite is opt-in (`VIEWSPEC_RUN_BROWSER_BRIDGE_E2E=1`). The experiment now pins its
   own Playwright in a lockfile, at the version the React seeds pin.

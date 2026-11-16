@@ -643,9 +643,45 @@ async def wait_for_the_server_instead_of_acting_twice(agent: Agent) -> None:
     assert again["wait"]["waited_ms"] >= 1000, "the wait was met before the server answered"
 
 
+# These two are about where a page sends things. A guard that is set on the page the agent reads
+# does not see a tab that the page opens, and newtab.html sends its order, and its visitors, through
+# one. Writes are blocked and one origin is allowed for every task here, so for both the site itself
+# is the judge: it must receive nothing (see ``test_an_agent_completes_the_task``).
+
+
+@task("Order two Arc lamps. The shop opens its receipt in a new tab.")
+async def order_through_a_form_that_opens_a_new_tab(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/newtab.html")
+    done = await agent.call(tool="order", arguments={"quantity": 2})
+
+    assert done.get("blocked_writes"), "the order that went out through a new tab was not stopped"
+    assert sent(done, "/orders") == {"item": "Arc lamp", "quantity": "2"}
+    assert done["blocked_writes"][0].get("new_tab") is True
+    assert done["steps"][-1]["opened"] == [f"{agent.base}/orders"]
+    # The result that reports the tab is the one that reports what was stopped in it, and its
+    # reason is the request, not the quantity that the call itself typed.
+    assert f"POST {agent.base}/orders" in done["outcome"]["reason"]
+    assert done["url"] == page["url"] and "'Quantity' = '2'" in done["view"]
+
+
+@task("Open the partner offers. This server allows the shop's own site and no other.")
+async def stay_on_the_allowed_site_when_a_link_opens_a_new_tab(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/newtab.html")
+    left = await agent.act(expect="failed", action="click", handle=handle(page, "Partner offers"))
+
+    partner = f"http://localhost:{urlsplit(agent.base).port}/outcomes_help.html"
+    assert left.get("blocked_navigations") == [{"url": partner, "reason": "origin not allowed", "new_tab": True}]
+    assert left["steps"][0]["opened"] == [partner]
+    assert partner in left["outcome"]["reason"] and left["outcome"]["retry"] == "safe"
+    assert left["url"] == page["url"] and "H1 Order" in left["view"]
+
+
 # ---- running them -----------------------------------------------------------------------------------
 
 SLOW_ANSWER_S = 1.5  # How long the server holds back slow.json, which outcomes.html asks for.
+# What must never reach the site: a write (every task runs with writes blocked), and a request
+# for the site under another name (every task allows one origin, 127.0.0.1 with the site's port).
+RECEIVED: list[str] = []
 
 
 class _QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -653,9 +689,20 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
         return
 
     def do_GET(self) -> None:
+        host = self.headers.get("Host", "")
+        if not host.startswith("127.0.0.1:"):
+            RECEIVED.append(f"GET {self.path} as {host}")
         if urlsplit(self.path).path == "/slow.json":
             time.sleep(SLOW_ANSWER_S)  # A server that takes its time: the page is still working.
         super().do_GET()
+
+    def do_POST(self) -> None:
+        self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        RECEIVED.append(f"POST {self.path}")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"<!doctype html><title>Stored</title><p>Stored</p>")
 
 
 @pytest.fixture(scope="module")
@@ -702,9 +749,11 @@ async def _attempt(task: Task, base: str, folder: Path) -> Run:
 @pytest.mark.parametrize("task", TASKS, ids=[task.play.__name__ for task in TASKS])
 def test_an_agent_completes_the_task(task: Task, site: str, tmp_path: Path) -> None:
     print(f"goal: {task.goal}")
+    RECEIVED.clear()
     run = asyncio.run(_attempt(task, site, tmp_path))
 
     assert unmet(run) == []
+    assert RECEIVED == [], "a write or a request for another origin got past the bridge to the site"
 
 
 @pytest.mark.parametrize("route", ["push", "replace", "hash", "back", "state", "roundtrip"])

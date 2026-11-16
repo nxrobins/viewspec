@@ -32,6 +32,9 @@
 // With allowed_origins (for example ["https://shop.example"]), a top-level navigation to any other
 // origin is stopped and recorded, so a click cannot take the agent off the sites it may use.
 //
+// Both hold for the page and for every tab it opens (a link or a form with target="_blank",
+// window.open): the requests of a new tab are checked like the page's own, and marked new_tab.
+//
 // With download_dir, a "download" step saves the file a click downloads in that folder, under a
 // safe name the page cannot turn into a path, and never over another file. Without it, nothing is
 // saved. A download that any other step starts is not saved either; the step reports its name.
@@ -112,6 +115,11 @@ let popups = [];
 let eventSeq = 0;
 let requestSeq = 0;
 let pendingRequests = new Map(); // A request still in flight -> its sequence number.
+// Whether requests are checked at all (block_writes or allowed_origins), and how many requests for
+// a page of their own the tabs that the page opened have made so far.
+let routing = false;
+let tabRequests = 0;
+const TAB_REQUEST_TIMEOUT = 2000;
 
 const escapeHtml = (text) =>
   String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -159,15 +167,26 @@ async function open({ url, block_writes: blockWrites = true, allowed_origins: al
   });
   await watchPageEvents(page);
   const allowed = allowedOrigins && allowedOrigins.length ? new Set(allowedOrigins) : null;
-  if (blockWrites || allowed) {
-    await page.route("**/*", async (route) => {
+  routing = Boolean(blockWrites || allowed);
+  tabRequests = 0;
+  if (routing) {
+    // The route is on the context, not on the page. A tab that the page opens is another page of
+    // the same context, and a route on the page alone never sees its requests: a form that posts
+    // into a new tab was sent, and a link that opens one could leave the allowed origins. The
+    // context is this page's own (browser.newPage makes one for each page) and goes when it closes.
+    const main = page;
+    await page.context().route("**/*", async (route) => {
       const request = route.request();
-      const topLevel = request.isNavigationRequest() && request.frame() === page.mainFrame();
-      if (allowed && topLevel && !allowed.has(originOf(request.url()))) {
-        navigations.push({ url: request.url(), reason: "origin not allowed" });
+      const from = placeOf(request, main);
+      const mark = from.main ? {} : { new_tab: true };
+      if (from.top && !from.main) tabRequests += 1;
+      if (allowed && from.top && !allowed.has(originOf(request.url()))) {
+        navigations.push({ url: request.url(), reason: "origin not allowed", ...mark });
         // A 204 answer to a navigation leaves the page where it is. Aborting it instead would make
         // Chromium show an error page, and the agent would lose the page it was on.
-        return route.fulfill({ status: 204, body: "" });
+        if (from.main) return route.fulfill({ status: 204, body: "" });
+        // A new tab has no page to stay on. It gets one that says so, and is closed once it loads.
+        return route.fulfill({ status: 200, contentType: "text/html", body: stubPage("Navigation blocked", request) });
       }
       if (!blockWrites || SAFE_METHODS.has(request.method())) return route.continue();
       const buffer = request.postDataBuffer();
@@ -178,16 +197,49 @@ async function open({ url, block_writes: blockWrites = true, allowed_origins: al
         content_type: request.headers()["content-type"] || null,
         post_data: request.postData(),
         post_data_b64: buffer ? buffer.toString("base64") : null,
+        ...mark,
       });
-      const body =
-        "<!doctype html><title>Blocked</title><h1>Write blocked</h1>" +
-        `<p>${escapeHtml(request.method())} ${escapeHtml(request.url())}</p>`;
-      return route.fulfill({ status: 200, contentType: "text/html", body });
+      return route.fulfill({ status: 200, contentType: "text/html", body: stubPage("Write blocked", request) });
     });
   }
   const response = await page.goto(url, { waitUntil: "load", timeout: 30000 });
   await settle();
   return { url: page.url(), status: response ? response.status() : null, static_html: response ? await response.text() : "" };
+}
+
+// The small page that answers a request the bridge stopped.
+function stubPage(heading, request) {
+  return (
+    `<!doctype html><title>Blocked</title><h1>${escapeHtml(heading)}</h1>` +
+    `<p>${escapeHtml(request.method())} ${escapeHtml(request.url())}</p>`
+  );
+}
+
+// Where a request comes from. ``top``: it asks for the page of a tab itself, not for a frame in it
+// or for something a page loads. ``main``: it belongs to the page the agent reads, not to a tab that
+// page opened.
+function placeOf(request, main) {
+  let frame = null;
+  try {
+    frame = request.frame();
+  } catch (error) {
+    // Playwright has no page yet for the first request of a new tab, and no frame at all for a
+    // request that a service worker makes.
+  }
+  if (frame) return { top: request.isNavigationRequest() && frame.parentFrame() === null, main: frame.page() === main };
+  const worker = typeof request.serviceWorker === "function" && request.serviceWorker();
+  return { top: !worker && request.isNavigationRequest(), main: Boolean(worker) };
+}
+
+// A tab asks for its page a moment after the click that opened it has returned. Wait until the
+// requests of the tabs this step opened have been checked (and stopped, if they are writes or leave
+// the allowed origins), so that the step which opened a tab is the one whose result reports what
+// was stopped. The wait is bounded: nothing is let through for the lack of it.
+async function tabRequestsChecked(count) {
+  const deadline = Date.now() + TAB_REQUEST_TIMEOUT;
+  while (routing && tabRequests < count && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
 }
 
 // Record the dialogs a page raises, the tabs it opens, and the requests it has in flight.
@@ -899,6 +951,7 @@ async function act({
     .catch(() => null);
   const requestMark = requestSeq;
   const eventMark = eventSeq;
+  const tabMark = tabRequests;
   // Resolving and scrolling can yield to page code. Refuse if it changed routes in the meantime.
   requireObservation(navigationId);
   const navigationsBefore = mainNavigations;
@@ -970,6 +1023,8 @@ async function act({
     requests: requestSeq - requestMark,
     pending: [...pendingRequests.values()].filter((seq) => seq > requestMark).length,
   };
+  const opened = popups.filter((item) => item.seq > eventMark);
+  await tabRequestsChecked(tabMark + opened.filter((item) => /^https?:/i.test(item.url)).length);
   const noPage = navigationRequests !== requestsBefore && mainNavigations === navigationsBefore;
   if (op !== "download" && noPage && !strayDownloads.length) {
     // The step asked for a page that never loaded: often a file that downloads instead. Its
@@ -985,7 +1040,7 @@ async function act({
     invalid,
     reaction,
     dialogs: dialogs.filter((item) => item.seq > eventMark),
-    opened: popups.filter((item) => item.seq > eventMark),
+    opened,
     mutation_mark: mutationMark ? mutationMark.mutations : null,
     request_mark: requestMark,
     navigated: mainNavigations !== navigationsBefore,
