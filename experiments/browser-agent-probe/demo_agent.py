@@ -388,6 +388,12 @@ def choosing(session: BrowserSession, base: str) -> None:
             check(words in str(error), f"{value!r} is refused: {words}")
         check(session.observe().handles[country].value == "Japan", "and the field still holds Japan")
 
+    # A refused choice puts back the text it typed over, and the page answers that as it answers any
+    # typing: 300 ms later its list opens again, with Japan. Wait for that here. Otherwise it lands
+    # in one of the diffs below, and which one depends on how fast this machine is.
+    late = session.wait(ChangeCondition.from_json({"change": "any"}), session.observe(), timeout_ms=2000)
+    print(f"  ..  waited {late.waited_ms} ms for the page to answer the text that was put back")
+
     city = handle_named(session, "Pickup city")
     before = session.observe()
     lisbon = session.act(city, "select", "Lis")
