@@ -66,6 +66,7 @@ class Observation:
     interactive: list[dict[str, str]]
     action_ids: int
     doc_id: str
+    navigation_id: int
     secrets: list[str] = field(default_factory=list, repr=False)
     # Node id -> why a person could not use that control when the page was read ("covered by ...").
     blocked: dict[str, str] = field(default_factory=dict)
@@ -340,6 +341,7 @@ class BrowserSession:
             interactive=snap["interactive"],
             action_ids=snap["actionIds"],
             doc_id=snap["docId"],
+            navigation_id=snap["navigationId"],
             secrets=snap.get("secrets", []),
         )
         return self.observation
@@ -398,7 +400,7 @@ class BrowserSession:
         """
 
         observation = observation or self._current()
-        if step.ref is not None and self._call("document")["doc_id"] != observation.doc_id:
+        if self._call("document")["doc_id"] != observation.doc_id:
             raise BridgeError(
                 "stale-view: the page has loaded a new document since this view; observe it and plan again"
             )
@@ -416,6 +418,7 @@ class BrowserSession:
             wait = max(300, min(SCROLL_WAIT_MS, limit - elapsed))
             reply = self._call(
                 "act",
+                navigation_id=observation.navigation_id,
                 op="scroll",
                 ref=step.ref,
                 locator=locator,
@@ -478,8 +481,8 @@ class BrowserSession:
 
         observation = observation or self._current()
         if self._call("document")["doc_id"] != observation.doc_id:
-            # Refs and locators describe a document that is gone. A control with the same name on the
-            # new page is a different control, so refuse rather than guess.
+            # Document ids also distinguish observations from different browser sessions, whose
+            # navigation counters may happen to match. The bridge checks the counter on every step.
             raise BridgeError(
                 "stale-view: the page has loaded a new document since this view; observe it and plan again"
             )
@@ -491,6 +494,7 @@ class BrowserSession:
             end_locator = observation.locators.get(step.end_node_id) if step.end_node_id else None
             reply = self._call(
                 "act",
+                navigation_id=observation.navigation_id,
                 op=step.op,
                 ref=step.ref,
                 locator=locator,

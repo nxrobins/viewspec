@@ -583,3 +583,40 @@ def test_an_agent_completes_the_task(task: Task, site: str, tmp_path: Path) -> N
     run = asyncio.run(_attempt(task, site, tmp_path))
 
     assert unmet(run) == []
+
+
+@pytest.mark.parametrize("route", ["push", "replace", "hash", "back", "state", "roundtrip"])
+def test_old_observation_cannot_act_after_a_product_route_change(route: str, site: str, tmp_path: Path) -> None:
+    async def play(agent: Agent) -> None:
+        page = await agent.observe(url=f"{agent.base}/spa_product.html?route={route}")
+        first = page["observation_id"]
+        current_product = "Arc lamp" if route in {"back", "roundtrip"} else "Globe lamp"
+        route_button = "View Arc lamp" if route == "back" else "View Globe lamp"
+        changed = await agent.act(action="click", handle=handle(page, route_button))
+        assert f"H1 {current_product}" in changed["view"]
+        # The input, button and form are exactly the same DOM nodes on the new product route.
+        # Returning to the original URL (or changing only history state) must also expire the view.
+        stale_click = await agent.act(
+            refusal_expected=True, action="click", handle=handle(page, "Add to cart"), observation_id=first
+        )
+        stale_form = await agent.call(
+            refusal_expected=True, tool="order_product", arguments={"quantity": 2}, observation_id=first
+        )
+        stale_scroll = await agent.act(refusal_expected=True, action="scroll", value="end", observation_id=first)
+        assert codes(stale_scroll) == ["BROWSER_OBSERVATION_STALE"]
+        for refused in (stale_click, stale_form):
+            assert codes(refused) == ["BROWSER_OBSERVATION_STALE"]
+            assert "message status 'Cart: empty'" in refused["view"]
+            assert "message status 'Orders: empty'" in refused["view"]
+            assert "'Quantity' = '1'" in refused["view"], "the stale form call filled the new product's field"
+        if route in {"state", "roundtrip"}:
+            assert changed["url"] == page["url"], "this case must defeat a URL-equality guard"
+        fresh = await agent.observe()
+        added = await agent.act(action="click", handle=handle(fresh, "Add to cart"))
+        ordered = await agent.call(tool="order_product", arguments={"quantity": 2})
+        assert f"message status 'Cart: {current_product}'" in added["view"]
+        assert f"message status 'Orders: {current_product} x 2'" in ordered["view"]
+
+    case = Task("Use only a fresh observation after changing product routes", play, ())
+    run = asyncio.run(_attempt(case, site, tmp_path))
+    assert unmet(run) == []

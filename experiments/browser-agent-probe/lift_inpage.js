@@ -22,7 +22,8 @@
   const TEST_ID_ATTRS = ["data-testid", "data-test", "data-qa", "data-cy", "data-action-id"];
 
   // A new document (a real navigation) installs a new library and gets a new id. A hash change or a
-  // pushState route change keeps the document, its id, and its refs.
+  // pushState route change keeps the document, its id, and its refs. The bridge tracks navigation
+  // generations separately, so those surviving refs cannot authorize a step from an earlier route.
   const docId = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
   // ---- Refs -------------------------------------------------------------------------------------

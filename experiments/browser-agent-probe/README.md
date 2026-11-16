@@ -149,10 +149,12 @@ form the browser refuses, the browser says why only in a tooltip that is not in 
 bridge records the `invalid` events it fires and the step reports them: `invalid: [{"name":
 "Email", "message": "Please include an '@' in the email address."}]`, and the form was not sent.
 
-Each document gets a random id when the in-page library is installed. A step planned from a view of
-an earlier document (the page has navigated since) is refused (`stale-view`): a control with the same
-name on the new page is a different control. A hash change or a `pushState` route change keeps the
-document, so steps from a single-page app's earlier view still run.
+Each observation records the bridge's top-level navigation generation. Every step, including form
+steps and scrolling, checks that generation before acting. A new document or a same-document
+navigation (`pushState`, `replaceState`, hash navigation, or history traversal) expires earlier
+observations (`BROWSER_OBSERVATION_STALE`), even if the page reuses the same button or returns to
+the original URL. Observe again before acting on the new route. Ordinary rerenders without a
+navigation keep the observation usable, subject to the control's identity and blocked checks.
 
 ### Choosing from a custom list
 
@@ -517,6 +519,7 @@ page ends up where the goal says:
 | Add one product when the step is sent twice | the second click, on a button that now reads "Added", is refused; the cart holds one |
 | Add a product while a dialog covers the page | the view marks 19 controls blocked and names the dialog; the step is refused until it is declined |
 | Check out once the cart holds something | "Checkout" and "Place order" are marked blocked and refused, then usable |
+| Switch product routes while reusing the button and form (six navigation variants) | old clicks, form calls, and scrolls are refused without changing the cart or form; a fresh view acts on the current product |
 
 The agent is scripted, because the test suite never calls a model, but it is held to what a model
 would have. It starts `mcp_browser_server.py` over stdio as an agent host does, uses only `observe`,
@@ -721,10 +724,9 @@ select-only `div` combobox is refused before the browser acts.
   labels is named by the short text written beside it, which the browser's accessibility tree does
   not do; the in-page library names it the same way, so the drift guard still agrees.
 - A ref lasts while its element is in the page. After a navigation, observe again.
-- A control's identity is its tag, its name, and the items around it. A control in no repeated item
-  (a product page with one "Add to cart") has only its tag and name, so when a single-page app shows
-  another product without loading a new document, a step from the earlier view reaches the new
-  product's button. Observe again after a route change.
+- Top-level history and hash navigations expire observations. A page that replaces a standalone
+  product without any browser navigation is still distinguished only by the control's tag, name,
+  and surrounding items; the bridge does not infer application routes from arbitrary DOM changes.
 - An item is told apart by one piece of text. If that text changes by itself between the view and
   the step (a countdown that comes first in a card with no heading), the step is refused as drift,
   again and again. Two items with the same text throughout cannot be told apart; a step on a control

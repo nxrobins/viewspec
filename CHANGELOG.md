@@ -11,7 +11,7 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 - CI runs the browser bridge in `experiments/browser-agent-probe`. The new `browser_bridge` job of
   `ci.yml` runs `demo_agent.py` and `demo_mcp.py` in Chromium on Python 3.11, then
-  `tests/test_browser_bridge_e2e.py`: seventeen whole agent tasks through the experiment's MCP server,
+  `tests/test_browser_bridge_e2e.py`: twenty-three whole agent task cases through the experiment's MCP server,
   each judged by its outcome (the order that was posted, the file that was saved, the page that was
   opened). The suite is opt-in (`VIEWSPEC_RUN_BROWSER_BRIDGE_E2E=1`). The experiment now pins its
   own Playwright in a lockfile, at the version the React seeds pin.
@@ -26,6 +26,11 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- The browser bridge expires observations after SPA history and hash navigations, including
+  returning to the original URL and history-state changes at the same URL. Old clicks, form calls,
+  and scrolls are refused with `BROWSER_OBSERVATION_STALE` before they can act on a different
+  product, even when its button and form reuse the same DOM elements. Six browser regressions
+  check the refusal and recovery through a fresh observation.
 - The experiment's MCP server (`experiments/browser-agent-probe/mcp_browser_server.py`) starts
   again. Since 0.4.1 it failed at import, because it used `SENSITIVE_NAME_RE`, which that release
   replaced with `names_a_secret`. On Python 3.11 it also failed while the MCP SDK built its tool

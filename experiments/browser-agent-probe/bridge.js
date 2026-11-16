@@ -181,11 +181,14 @@ async function settle() {
 
 async function snapshot({ collect_secrets: collectSecrets = false }) {
   await ensureLibrary();
+  // Playwright reports both new documents and same-document history/hash navigations. Keep the
+  // generation from before the snapshot: a route change during observation must expire it too.
+  const navigationId = mainNavigations;
   const result = await page.evaluate(
     ([selector, secrets]) => window.__viewspecLift.snapshot(selector, secrets),
     [INTERACTIVE_SELECTOR, collectSecrets],
   );
-  return { url: page.url(), title: await page.title(), ...result };
+  return { url: page.url(), title: await page.title(), ...result, navigationId };
 }
 
 // ---- Locators -----------------------------------------------------------------------------------
@@ -796,7 +799,19 @@ async function upload(target, files) {
   return { verified: JSON.stringify(names) === JSON.stringify(payload.map((f) => f.name)), chosen: names.join(", ") };
 }
 
-async function act({ op, ref, locator: spec, end_ref: endRef, end_locator: endSpec, value, values, files, wait_ms: waitMs = 2500 }) {
+function requireObservation(navigationId) {
+  if (!Number.isInteger(navigationId) || navigationId !== mainNavigations) {
+    throw new Error("stale-view: the page navigated or changed route since this view; observe it and plan again");
+  }
+}
+
+async function act({
+  op, ref, locator: spec, end_ref: endRef, end_locator: endSpec, value, values, files,
+  wait_ms: waitMs = 2500, navigation_id: navigationId,
+}) {
+  // A surviving DOM node and an identical name do not identify the same product on another route.
+  // Check every step here, including form steps and scrolling, rather than once per Python plan.
+  requireObservation(navigationId);
   if (op === "scroll" && !ref && !spec) {
     const result = await scroll(null, value, waitMs);
     return { resolved_by: "page", verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
@@ -804,6 +819,8 @@ async function act({ op, ref, locator: spec, end_ref: endRef, end_locator: endSp
   const { target, resolvedBy } = await resolveTarget(ref, spec);
   await refuseIfBlocked(target, op);
   await page.evaluate(() => window.__viewspecLift.takeInvalid()).catch(() => []); // Forget earlier refusals.
+  // Resolving and scrolling can yield to page code. Refuse if it changed routes in the meantime.
+  requireObservation(navigationId);
   const navigationsBefore = mainNavigations;
   const urlBefore = page.url();
   let verified = null;

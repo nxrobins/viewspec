@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Fixture SPA product</title>
+<body>
+<!-- A product route reuses every DOM element, including the one Add to cart button and form.
+     There are no repeated cards for the bridge's item identity to distinguish. -->
+<main>
+  <h1 id="product">Arc lamp</h1>
+  <button id="add">Add to cart</button>
+  <form aria-label="Order product">
+    <label>Quantity <input name="quantity" type="number" min="1" value="1"></label>
+    <button type="submit">Place order</button>
+  </form>
+  <button id="route">View Globe lamp</button>
+  <p role="status" id="cart">Cart: empty</p>
+  <p role="status" id="orders">Orders: empty</p>
+</main>
+<script>
+  const mode = new URLSearchParams(location.search).get("route");
+  const originalUrl = location.href;
+  let product = "Arc lamp";
+  const cart = [];
+  const render = (name) => {
+    product = name;
+    document.getElementById("product").textContent = name;
+  };
+  history.replaceState({ product }, "");
+  window.addEventListener("popstate", (event) => render(event.state?.product || "Arc lamp"));
+  if (mode === "back") {
+    history.pushState({ product: "Globe lamp" }, "", `${originalUrl}&product=globe`);
+    render("Globe lamp");
+    document.getElementById("route").textContent = "View Arc lamp";
+  }
+  document.getElementById("route").onclick = () => {
+    if (mode === "back") return history.back();
+    if (mode === "hash") location.hash = "globe";
+    else if (mode === "replace") history.replaceState({ product: "Globe lamp" }, "", `${originalUrl}&product=globe`);
+    else history.pushState({ product: "Globe lamp" }, "", mode === "state" ? originalUrl : `${originalUrl}&product=globe`);
+    render("Globe lamp");
+    if (mode === "roundtrip") {
+      history.pushState({ product: "Arc lamp" }, "", originalUrl);
+      render("Arc lamp");
+    }
+  };
+  document.getElementById("add").onclick = () => {
+    cart.push(product);
+    document.getElementById("cart").textContent = `Cart: ${cart.join(", ")}`;
+  };
+  document.querySelector("form").onsubmit = (event) => {
+    event.preventDefault();
+    document.getElementById("orders").textContent = `Orders: ${product} x ${event.target.elements.quantity.value}`;
+  };
+</script>
+</body>
+</html>
