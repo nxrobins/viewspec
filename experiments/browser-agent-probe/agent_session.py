@@ -8,8 +8,11 @@
     call     plan a whole form tool call (``plan_form_call``) and run it
 
 Every request goes through the package planner first, so a bad request fails before the browser
-does anything. Each step names its element by ref (exact, while the element is in the page) and by
-a verified locator (frame chain + CSS, or role + name), which finds it again after a re-render.
+does anything. Each step names its element by ref (exact, while the element is in the page) and
+carries the control's identity: its tag, its name, and the items around it (the card or row it
+belongs to). The bridge acts only on an element with that identity, so a page that redraws itself
+cannot move a step to another item's control; and it refuses a control that a dialog covers or the
+page has switched off, and says what is in the way.
 
 By default the session blocks writes: a form post or any other non-GET request is recorded and
 answered with a stub page, so an agent can complete a real form without changing anything.
@@ -64,6 +67,8 @@ class Observation:
     action_ids: int
     doc_id: str
     secrets: list[str] = field(default_factory=list, repr=False)
+    # Node id -> why a person could not use that control when the page was read ("covered by ...").
+    blocked: dict[str, str] = field(default_factory=dict)
 
     def handle_of(self, node_id: str) -> int | None:
         return next((handle for handle, control in self.handles.items() if control.node_id == node_id), None)
@@ -302,8 +307,6 @@ class BrowserSession:
 
         snap = self._call("snapshot", collect_secrets=collect_secrets)
         lift = lift_html(snap["html"], profile="agent")
-        lines, handles = view_lines(lift)
-        view = "\n".join(line.text for line in lines)
         locators: dict[str, dict[str, Any]] = {}
         if locate:
             requests = [
@@ -319,6 +322,11 @@ class BrowserSession:
             expected |= {f.node_id: ("form", None) for f in lift.forms}
             for node_id, locator in locators.items():
                 locator["tag"], locator["expect_name"] = expected[node_id]
+        # A control a person could not use now (a dialog covers it, or the page has switched it off),
+        # and why. The page is asked, not the lift: the answer depends on what is drawn over what.
+        blocked = {node_id: locator["blocked"] for node_id, locator in locators.items() if locator.get("blocked")}
+        lines, handles = view_lines(lift, blocked=blocked)
+        view = "\n".join(line.text for line in lines)
         self.observation = Observation(
             url=snap["url"],
             title=snap["title"],
@@ -328,6 +336,7 @@ class BrowserSession:
             lines=lines,
             handles=handles,
             locators=locators,
+            blocked=blocked,
             interactive=snap["interactive"],
             action_ids=snap["actionIds"],
             doc_id=snap["docId"],
@@ -409,7 +418,7 @@ class BrowserSession:
                 "act",
                 op="scroll",
                 ref=step.ref,
-                locator=locator if locator and locator.get("strategy") else None,
+                locator=locator,
                 value=step.value,
                 wait_ms=wait,
             )
@@ -476,15 +485,17 @@ class BrowserSession:
             )
         results: list[StepResult] = []
         for step in steps:
+            # The locator goes along even when it has no selector: it carries the control's identity,
+            # which the bridge checks on the element it acts on, however it finds it.
             locator = observation.locators.get(step.node_id)
             end_locator = observation.locators.get(step.end_node_id) if step.end_node_id else None
             reply = self._call(
                 "act",
                 op=step.op,
                 ref=step.ref,
-                locator=locator if locator and locator.get("strategy") else None,
+                locator=locator,
                 end_ref=step.end_ref,
-                end_locator=end_locator if end_locator and end_locator.get("strategy") else None,
+                end_locator=end_locator,
                 value=step.value,
                 values=list(step.values),
                 files=[

@@ -36,7 +36,7 @@ evals that open real sites (`apg_eval.py`, `real_sites_eval.py`) and `probe.py` 
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
 | `apg_eval.py` | Opens every W3C ARIA Authoring Practices example page and acts once on one control of each kind inside the example, as an agent would; reports which widget patterns the lift can operate. |
 | `real_sites_eval.py` | Re-runs the real-site tasks that found the lift's bugs (Wikipedia, python.org, gov.uk, react-select, flatpickr, jQuery UI, httpbin, and more), one browser per case. |
-| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 120 checks on the fixtures. |
+| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 121 checks on the fixtures. |
 | `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 100 checks. |
 
 ### Locators
@@ -59,23 +59,83 @@ The page checks kinds 1 and 2 itself, for all controls in one call: it queries t
 open shadow root as Playwright CSS does, and counts `:has-text()` matches by text. Playwright checks
 only the rest (role and name, exact text, a path that crosses a shadow root), one by one. On the
 675-control catalog this takes a reading from 9.7 s to 0.9 s. A locator is used only when a ref has
-gone stale, and then Playwright must find exactly one element with the same tag and name, so a
-locator that Playwright reads differently fails safely. When the saved locator finds nothing (the
-page replaced the element with one of its own, as Wikipedia mounts a search box with no id), the one
-visible element with the same tag and the same name is taken: what the drift guard would accept from
-any locator. The probe asks Playwright to confirm every
-page-checked locator; on the fixtures it confirms 761 of 761.
+gone stale, and then only kinds 1 and 2, and only if the one element it finds has the control's
+identity (see below), so a locator that Playwright reads differently fails safely. Kinds 3 to 5 say
+what a control is called or where it was, not which one it is, so they are never followed after a
+re-render. The probe asks Playwright to confirm every page-checked locator; on the fixtures it
+confirms 787 of 787.
 
 ### Acting
 
 `act` and `call` plan in Python first (`plan_control_action`, `plan_form_call`), so a bad request fails
-before the browser does anything. Then each step finds its element:
+before the browser does anything. Then each step finds its element, and it must be the control the
+agent read, not whatever sits where that control was.
 
-- **by ref** while the element is still in the page: the exact element the agent read;
-- **by its saved locator** when the page has replaced the element (a re-render). The element that the
-  locator finds must have the same tag and the same accessible name. If it does not, the step is
-  refused (`drift: the locator now finds "Export", not "Refresh"`), so a changed page cannot redirect
-  a click.
+**Identity.** A ref names a DOM element, and a structural path names a position. Neither says which
+product an "Add to cart" button is for: a page can write another product into the same elements, or
+build its list again in another order. So at each observation the page also records every control's
+identity:
+
+- its **tag** and its **accessible name**;
+- the **items** around it, up to three, innermost first: each ancestor that is one of several of a
+  kind (a list item, a table row, an article, a section, a fieldset, a form, a custom element, a
+  `listitem` or `row` role, or a `<div>` or `<span>` next to one with the same first class), with
+  the text that tells it from its neighbours. That text is the item's first piece of text that
+  neither neighbour has, its heading first: `{"tag": "li", "label": "Globe lamp"}`.
+
+The same in-page code reads the identity and checks it before a step, so the two readings name
+things the same way. A step then finds its element:
+
+- **by ref**, the exact element the agent read, while it still reads the same and sits in the same
+  items. Its name is compared without its numbers, so a button that counts ("Saved items (1)",
+  "Resend code (59s)") stays usable; an item's label is compared exactly, so "Order 1042" is never
+  "Order 1043". An element that reads as something else is refused
+  (`drift: the control read as "Add to cart" now reads "Added"`).
+- **by css**, when the element is gone: a stable attribute or a content anchor that finds exactly one
+  element, and that element has the identity.
+- **by name**, otherwise: the one visible element with that tag, that name, and those items, wherever
+  the page drew it. This is how a step follows its item through a list that was sorted, whether the
+  page built new elements or wrote the products into the old ones.
+
+A step is refused, and nothing is done, when the identity fits no element or more than one:
+
+| Refusal | When | Code |
+|---|---|---|
+| `ambiguous: 2 controls on the page are "Next page", and nothing tells them apart` | several elements have the identity; the bridge does not pick one | `BROWSER_TARGET_AMBIGUOUS` |
+| `drift: "Add to cart" in "Globe lamp" is gone; the page shows "Add to cart" in "Arc lamp", "Clamp lamp"` | the control shows, but not in the item it was read in | `BROWSER_TARGET_DRIFT` |
+| `stale: "Export" is no longer in the page` | nothing with that tag and name shows | `BROWSER_TARGET_STALE` |
+
+The error comes with the view of the page as it is now, so the agent picks the control again there.
+
+**Readable is not usable.** A control can be on the page, and in the view, when a person could not
+use it. The page says so for every control at each observation, and again before a step runs:
+
+- an ancestor is `inert`, or a modal `<dialog>` is open and the control is not in it;
+- layers cover the whole viewport (a dialog and its backdrop) and the control is not in one of them;
+- for a step that needs the pointer: something is drawn over the middle of the control (a layer it
+  is not part of, or an element at least four times its size, such as an open menu), or the control
+  has `pointer-events: none`. Typing into a field is not stopped by these, since a person can reach
+  a field with the Tab key.
+
+In the view such a control keeps its line and its handle and ends with `blocked`, and the view opens
+with what is in the way:
+
+```text
+blocked 19 controls: covered by dialog "Weekly offers"
+blocked 1 control: inert: the page has switched this part off
+H1 Lamps
+[1] button 'Sort by price' blocked
+...
+[21] button 'Subscribe'
+[22] button 'No thanks'
+```
+
+A step on a blocked control is refused at once (`BROWSER_TARGET_BLOCKED`,
+`blocked: "Add to cart" is covered by dialog "Weekly offers"`), where it used to wait five seconds
+for a click that could not land. Before the check the control is scrolled into view, so a sticky
+header over it does not count; in the view, where nothing is scrolled, a fixed or sticky bar over a
+control is not reported either. When Playwright itself gives up on a click because something small
+took it, the error names that element.
 
 The bridge checks each fill, check, and select in the page and returns only true or false, so a
 secret value never comes back. If a step navigates the page before the plan is done, the session
@@ -123,7 +183,7 @@ bridge types the value and picks the suggestion that shows, or refuses when no l
 that shows a description under its title is named by the title, its first line, so "Alan Turing"
 is one option, not the three that start with it. When the page replaces the field while it is typed
 into (a typeahead that mounts over the search box), the bridge follows it to the new element by its
-saved locator or by its tag and name, and goes on.
+identity, and goes on.
 
 If two or more options match, or none shows, the step is refused with the names the list showed, the
 typed text is put back, and the list is closed with Escape:
@@ -328,7 +388,9 @@ Other codes: `BROWSER_NO_PAGE`, `BROWSER_INVALID_REQUEST`, `BROWSER_HANDLE_REQUI
 opened), `BROWSER_DOWNLOAD_NOT_ALLOWED` (no download folder), `BROWSER_DOWNLOAD_NONE` (the click
 started no download), `BROWSER_DOWNLOAD_TOO_LARGE`, `BROWSER_DOWNLOAD_FAILED`,
 `BROWSER_OBSERVATION_UNKNOWN` (the server
-keeps the last 8 observations), `BROWSER_OBSERVATION_STALE`, `BROWSER_TARGET_DRIFT`,
+keeps the last 8 observations), `BROWSER_OBSERVATION_STALE`, `BROWSER_TARGET_DRIFT` (the control is
+not what the view showed, or not where), `BROWSER_TARGET_AMBIGUOUS` (several controls could be the
+one the view showed), `BROWSER_TARGET_BLOCKED` (the control is covered or switched off),
 `BROWSER_TARGET_STALE`, `BROWSER_PLAN_INTERRUPTED`, `BROWSER_ORIGIN_NOT_ALLOWED`, `BROWSER_TIMEOUT`,
 and `BROWSER_ERROR`.
 
@@ -448,6 +510,13 @@ page ends up where the goal says:
 | Save an invoice and an export of the orders | the download folder holds exactly those two files, byte for byte |
 | Refresh a page that redraws itself, then export | the export link shows, reached from the first reading of the page |
 | Open an article from search suggestions | the browser is on that article, not the two with longer titles |
+| Sort a list (the page builds it again), then add one product | the cart holds that product, though another now sits where it was |
+| Sort a list (the page reuses its elements), then add one product | the cart holds that product, though its button now belongs to another |
+| Sort, then go to the next page, with two "Next page" buttons | the first step is refused as ambiguous and turns no page; the second turns one |
+| Save a product, then press a button whose label counts the saves | the button is still the same control after its label changed |
+| Add one product when the step is sent twice | the second click, on a button that now reads "Added", is refused; the cart holds one |
+| Add a product while a dialog covers the page | the view marks 19 controls blocked and names the dialog; the step is refused until it is declined |
+| Check out once the cart holds something | "Checkout" and "Place order" are marked blocked and refused, then usable |
 
 The agent is scripted, because the test suite never calls a model, but it is held to what a model
 would have. It starts `mcp_browser_server.py` over stdio as an agent host does, uses only `observe`,
@@ -473,6 +542,7 @@ sets the variable the suite reads, so the tasks cannot be skipped there unseen.
 | checkout | 245 | 170 | 17 | 1/17 | 17/17 | 17/17 | 18/18 | 18/18 | 1 | True | 0 |
 | downloads | 296 | 110 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 0 | True | 0 |
 | feed | 860 | 310 | 41 | 40/41 | 41/41 | 41/41 | 41/41 | 41/41 | 0 | True | 0 |
+| market | 235 | 206 | 20 | 20/20 | 20/20 | 20/20 | 20/20 | 20/20 | 0 | True | 0 |
 | search | 51 | 34 | 2 | 1/2 | 2/2 | 2/2 | 2/2 | 2/2 | 1 | True | 0 |
 | shop | 254 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
 | spa | 138 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 6/6 | 0 | True | 0 |
@@ -480,8 +550,8 @@ sets the variable the suite reads, so the tasks cannot be skipped there unseen.
 | upload | 57 | 49 | 4 | 2/4 | 4/4 | 4/4 | 4/4 | 4/4 | 1 | True | 0 |
 | viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
 
-- **agent cov** matches by element (ref), not by name: 783 of 783 visible controls. **same name**: the
-  lift names all 783 as the browser does.
+- **agent cov** matches by element (ref), not by name: 803 of 803 visible controls. **same name**: the
+  lift names all 803 as the browser does.
 - **located**: every control has a locator (the agent lift also finds 2 pointer-only clickables).
   Kinds on the four small fixtures, for 41 controls and 2 forms: 30 stable attribute, 4 content
   anchor, 4 role and name, 4 exact text, and 1 structural path (a form with no name). On the catalog:
@@ -494,7 +564,7 @@ sets the variable the suite reads, so the tasks cannot be skipped there unseen.
 - **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
   schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
-`demo_agent.py` (120 checks, all pass):
+`demo_agent.py` (121 checks, all pass):
 
 - **checkout:** a click inside the web component's shadow DOM changes the quantity from 2 to 3. Fills
   inside the payment iframe are verified, and the next snapshot does not contain the card number. A
@@ -505,7 +575,8 @@ sets the variable the suite reads, so the tasks cannot be skipped there unseen.
   and a click on Place order are blocked by the browser, and the step says so: Email, "Please include
   an '@' in the email address".
 - **spa:** after the page replaces every element, steps from the old view still land (by CSS and by
-  role). A simulated layout change is refused by the drift guard.
+  name). A saved locator that is made to find another control is not followed: the click reaches the
+  right one by its identity. A control whose item is made to be gone is refused as drift.
 - **viewspec_orders:** the agent clicks the ViewSpec action `#refund`, found as `#dom-action_refund`.
 - **changes:** after each checkout and shop action, the diff names exactly what changed: the
   quantity 2 to 3, `no change` after the card fill, the promo field added when its `<details>`
@@ -633,7 +704,9 @@ were clicks on a grid cell and a tab panel, which focus and change nothing; two 
 a button inside a card collapsed with `overflow: hidden`, which the lift takes for visible and the
 browser cannot click (the step waits 5 s and refuses); two changed only the order of a table's rows
 or a grid's cells, which the diff could not see. The sort button is now seen through the column
-header's `aria-sort`; the grid button is not.
+header's `aria-sort`; the grid button is not. The collapsed card is `inert`, so its controls are now
+marked `blocked` in the view (nine on that page), and a step on one is refused at once with that
+reason instead of after 5 s.
 
 What the run changed in the lift: `aria-labelledby` lets a referenced element contribute its own
 `aria-label`; content that is `aria-hidden` gives no name, so a `title` does; a date combobox is a
@@ -648,9 +721,17 @@ select-only `div` combobox is refused before the browser acts.
   labels is named by the short text written beside it, which the browser's accessibility tree does
   not do; the in-page library names it the same way, so the drift guard still agrees.
 - A ref lasts while its element is in the page. After a navigation, observe again.
-- The drift guard checks the tag and the name. Two items with the same name (two "Add to cart"
-  buttons) can still swap places after a re-render; content-anchored locators make this less likely,
-  not impossible.
+- A control's identity is its tag, its name, and the items around it. A control in no repeated item
+  (a product page with one "Add to cart") has only its tag and name, so when a single-page app shows
+  another product without loading a new document, a step from the earlier view reaches the new
+  product's button. Observe again after a route change.
+- An item is told apart by one piece of text. If that text changes by itself between the view and
+  the step (a countdown that comes first in a card with no heading), the step is refused as drift,
+  again and again. Two items with the same text throughout cannot be told apart; a step on a control
+  in one of them is refused as ambiguous once its element is gone.
+- `blocked` is about what a pointer can reach. A dialog marked `aria-modal` with no backdrop leaves
+  the page behind it usable by a pointer, so its controls are not marked. A fixed or sticky bar over
+  a control is only found when a step scrolls the control into view.
 - `choose` types the value key by key, so a list that filters as you type reacts to each key and
   may ask its server once per key. Options must have `role="option"`; a list that renders only
   the options in view (a virtual list) shows only those.
