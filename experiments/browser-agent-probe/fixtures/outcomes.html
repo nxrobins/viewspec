@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture outcomes</title>
+</head>
+<body>
+<!-- A page whose answers are easy to miss. Each control here does something that changes no
+     control and adds no new text, so a reading before and a reading after look the same unless the
+     reader knows where to look.
+
+     "Name" and "Age" sort the table by moving its rows: the same rows, in another order.
+     "Save" writes "Saved" into the status line every time: the same message, shown again.
+     "Copy link" shows a toast that is gone 300 ms later.
+     "Look up" answers 400 ms later by setting two properties (a field's value, a checkbox's
+     checked): no attribute and no element changes.
+     "Jump to notes" changes only the address. "Refresh badge" does nothing at all.
+     "Delete draft" asks first, with the browser's own confirm box. "Help" opens a new tab.
+     "Publish" asks the server for slow.json and says "Published" when the answer comes. The test
+     server holds that answer back for a second; a static file server gives it at once. -->
+<main>
+  <h1>Team</h1>
+  <table>
+    <thead><tr><th><button id="by-name">Name</button></th><th><button id="by-age">Age</button></th></tr></thead>
+    <tbody id="people">
+      <tr><td>Bo</td><td>41</td></tr>
+      <tr><td>Ana</td><td>36</td></tr>
+      <tr><td>Cy</td><td>29</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Draft</h2>
+  <label>Title <input id="title" name="title" value="Q3 plan"></label>
+  <button id="save">Save</button>
+  <button id="copy">Copy link</button>
+  <button id="delete">Delete draft</button>
+  <button id="publish">Publish</button>
+  <p role="status" id="draft-status"></p>
+
+  <h2>Address</h2>
+  <label>Postcode <input id="postcode" name="postcode"></label>
+  <button id="lookup">Look up</button>
+  <label>City <input id="city" name="city"></label>
+  <label><input type="checkbox" id="verified"> Address verified</label>
+
+  <h2 id="notes">Notes</h2>
+  <a href="#notes">Jump to notes</a>
+  <a href="outcomes_help.html" target="_blank" id="help">Help</a>
+  <button id="noop">Refresh badge</button>
+</main>
+<script>
+  const people = document.getElementById("people");
+  const status = document.getElementById("draft-status");
+  const sortBy = (column, numeric) => {
+    const rows = [...people.rows].sort((a, b) => {
+      const [x, y] = [a.cells[column].textContent, b.cells[column].textContent];
+      return numeric ? Number(x) - Number(y) : x.localeCompare(y);
+    });
+    rows.forEach((row) => people.appendChild(row)); // The same rows, moved.
+  };
+  document.getElementById("by-name").addEventListener("click", () => sortBy(0, false));
+  document.getElementById("by-age").addEventListener("click", () => sortBy(1, true));
+
+  document.getElementById("save").addEventListener("click", () => {
+    status.textContent = "Saved";
+  });
+  document.getElementById("copy").addEventListener("click", () => {
+    const toast = document.createElement("div");
+    toast.setAttribute("role", "status");
+    toast.textContent = "Link copied";
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 300);
+  });
+  document.getElementById("delete").addEventListener("click", () => {
+    if (confirm("Delete this draft?")) status.textContent = "Draft deleted";
+  });
+  document.getElementById("publish").addEventListener("click", async () => {
+    await fetch("slow.json");
+    status.textContent = "Published";
+  });
+  document.getElementById("lookup").addEventListener("click", () => {
+    setTimeout(() => {
+      document.getElementById("city").value = "Lisbon";
+      document.getElementById("verified").checked = true;
+    }, 400);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture new tab</title>
+</head>
+<body>
+<!-- A page that sends things through a new tab, where a guard set on the page alone does not look.
+
+     "Place order" posts the form into a new tab (target="_blank"): the shop shows its receipt
+     beside the order page, which stays as it is.
+     "Partner offers" opens another origin in a new tab. The other origin is this same server
+     under its other name (localhost for 127.0.0.1, or the reverse), so the fixture needs no
+     second server, and a browser that is allowed this origin only must not ask it for anything. -->
+<main>
+  <h1>Order</h1>
+  <form method="post" action="/orders" target="_blank" aria-label="Order">
+    <label>Item <input name="item" value="Arc lamp"></label>
+    <label>Quantity <input name="quantity" type="number" value="1" min="1"></label>
+    <button>Place order</button>
+  </form>
+  <a id="partner" href="#" target="_blank">Partner offers</a>
+</main>
+<script>
+  const otherName = location.hostname === "localhost" ? "127.0.0.1" : "localhost";
+  document.getElementById("partner").href = `${location.protocol}//${otherName}:${location.port}/outcomes_help.html`;
+</script>
+</body>
+</html>

@@ -6,6 +6,7 @@
 - controls that appeared or went away (a dialog opened, a section expanded, a row was deleted);
 - page text that appeared or went away (a heading, a price, a label);
 - messages that appeared (``role="alert"``, ``role="status"``, ``aria-live``): "Email is required";
+- repeated siblings that are now in another order (a table sorted by a column, a list re-ranked);
 - forms that appeared or went away.
 
 Controls are matched in three passes: by snapshot ``ref`` (the same element in the browser), then by
@@ -24,10 +25,18 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from viewspec.raw_html_actions import AgentActionError
-from viewspec.raw_html_agent import HtmlControl, form_tool_names, visible_text
+from viewspec.raw_html_agent import (
+    HINT_REF,
+    HtmlControl,
+    form_tool_names,
+    hidden_ids,
+    is_inline,
+    join_text,
+    visible_text,
+)
 
 if TYPE_CHECKING:
-    from viewspec.raw_html import HtmlLiftResult
+    from viewspec.raw_html import HtmlLiftResult, LiftNode
 
 CONTENT_ROLES = ("heading", "value", "prose", "label")
 COMPARED_FIELDS = (
@@ -47,6 +56,11 @@ COMPARED_FIELDS = (
     "sort",
 )
 TEXT_PREVIEW = 80
+# A reorder line names this many items, each cut to this many characters.
+REORDER_ITEMS = 6
+REORDER_ITEM_PREVIEW = 40
+# An <option> is part of its control, whose ``options`` field already reports a new order.
+UNORDERED_TAGS = frozenset({"option", "optgroup"})
 
 
 @dataclass(frozen=True)
@@ -68,6 +82,25 @@ class ControlChange:
 
 
 @dataclass(frozen=True)
+class Reorder:
+    """Repeated siblings (table rows, list items, cards) that the page now shows in another order.
+
+    ``items`` is the visible text of each item in the order ``after`` shows them, and ``was`` the
+    same items in the order ``before`` showed them. Only items that both lifts show are compared, so
+    an item that was added, removed, or rewritten is never part of a reorder. ``node_id`` is their
+    parent in ``after``.
+    """
+
+    node_id: str
+    tag: str
+    items: tuple[str, ...]
+    was: tuple[str, ...]
+
+    def to_json(self) -> dict[str, Any]:
+        return {"node_id": self.node_id, "tag": self.tag, "items": list(self.items), "before": list(self.was)}
+
+
+@dataclass(frozen=True)
 class LiftDiff:
     changed: tuple[ControlChange, ...] = ()
     added: tuple[HtmlControl, ...] = ()
@@ -75,6 +108,7 @@ class LiftDiff:
     text_added: tuple[tuple[str, str], ...] = ()
     text_removed: tuple[tuple[str, str], ...] = ()
     messages: tuple[tuple[str, str], ...] = ()
+    reordered: tuple[Reorder, ...] = ()
     forms_added: tuple[str, ...] = ()
     forms_removed: tuple[str, ...] = ()
     same_layout: bool = True
@@ -89,6 +123,7 @@ class LiftDiff:
             or self.text_added
             or self.text_removed
             or self.messages
+            or self.reordered
             or self.forms_added
             or self.forms_removed
         )
@@ -104,6 +139,7 @@ class LiftDiff:
             "text_added": [{"role": role, "text": text} for role, text in self.text_added],
             "text_removed": [{"role": role, "text": text} for role, text in self.text_removed],
             "messages": [{"kind": kind, "text": text} for kind, text in self.messages],
+            "reordered": [reorder.to_json() for reorder in self.reordered],
             "forms_added": list(self.forms_added),
             "forms_removed": list(self.forms_removed),
         }
@@ -118,6 +154,11 @@ class LiftDiff:
         lines: list[str] = []
         for kind, text in self.messages:
             lines.append(f"message {kind} {_short(text)!r}")
+        for reorder in self.reordered:
+            shown = [repr(_short(item, REORDER_ITEM_PREVIEW)) for item in reorder.items[:REORDER_ITEMS]]
+            more = len(reorder.items) - len(shown)
+            tail = f", … {more} more" if more > 0 else ""
+            lines.append(f"reordered {len(reorder.items)}x <{reorder.tag}>: {', '.join(shown)}{tail}")
         for change in self.changed:
             parts = [f"{name} {_show(old)} -> {_show(new)}" for name, (old, new) in change.fields.items()]
             lines.append(f"changed {tag(change.after)}{change.after.control} {change.after.name!r}: {'; '.join(parts)}")
@@ -172,11 +213,84 @@ def diff_lifts(before: HtmlLiftResult, after: HtmlLiftResult) -> LiftDiff:
         text_added=tuple(_ordered(after_text - before_text, _content(after))),
         text_removed=tuple(_ordered(before_text - after_text, _content(before))),
         messages=tuple(new_messages),
+        reordered=tuple(_reorders(before, after)),
         forms_added=tuple(sorted(after_forms - before_forms)),
         forms_removed=tuple(sorted(before_forms - after_forms)),
         same_layout=before.topology_fingerprint.hex == after.topology_fingerprint.hex,
         unchanged=len(pairs) - len(changed),
     )
+
+
+class _Siblings:
+    """The visible text of each node of a lift, and its nodes by snapshot ref."""
+
+    def __init__(self, lift: HtmlLiftResult) -> None:
+        self.by_id = {node.id: node for node in lift.nodes}
+        self.by_ref = {node.attrs[HINT_REF]: node for node in lift.nodes if node.attrs.get(HINT_REF)}
+        self.hidden = hidden_ids(lift.nodes)
+        self._raw: dict[str, str] = {}
+
+    def text(self, node: LiftNode) -> str:
+        return " ".join(self._raw_text(node).split())
+
+    def _raw_text(self, node: LiftNode) -> str:
+        if node.id not in self._raw:
+            children: list[tuple[bool, str | None]] = []
+            for child_id in node.child_ids:
+                child = self.by_id[child_id]
+                children.append((is_inline(child), None if child.id in self.hidden else self._raw_text(child)))
+            self._raw[node.id] = join_text(node, children)
+        return self._raw[node.id]
+
+    def items(self, parent: LiftNode) -> dict[str, list[str]]:
+        """The text of each visible child that shows any, by tag, in page order."""
+
+        by_tag: dict[str, list[str]] = {}
+        for child_id in parent.child_ids:
+            child = self.by_id[child_id]
+            if child.id in self.hidden or child.tag in UNORDERED_TAGS:
+                continue
+            text = self.text(child)
+            if text:
+                by_tag.setdefault(child.tag, []).append(text)
+        return by_tag
+
+
+def _reorders(before: HtmlLiftResult, after: HtmlLiftResult) -> list[Reorder]:
+    """Siblings with the same tag that both lifts show, in another order now.
+
+    An item is its visible text, so a list the page built again from new elements still compares. A
+    parent is found in ``before`` by its snapshot ref, or else by its place in the page. Only texts
+    that occur as often before as after are compared: when a text was added or removed, which of
+    its copies moved cannot be told. Under a parent that was reordered nothing more is reported:
+    its items moved, and what is inside them moved with them.
+    """
+
+    if before.source_hash == after.source_hash:
+        return []
+    old, new = _Siblings(before), _Siblings(after)
+    found: list[Reorder] = []
+    moved: set[str] = set()
+    for parent in after.nodes:
+        if parent.parent_id in moved:
+            moved.add(parent.id)
+            continue
+        if len(parent.child_ids) < 2 or parent.id in new.hidden:
+            continue
+        ref = parent.attrs.get(HINT_REF)
+        earlier = (old.by_ref.get(ref) if ref else None) or old.by_id.get(parent.id)
+        if earlier is None or earlier.tag != parent.tag or earlier.id in old.hidden:
+            continue
+        was_by_tag = old.items(earlier)
+        for tag, now in new.items(parent).items():
+            was = was_by_tag.get(tag, [])
+            was_counts, now_counts = Counter(was), Counter(now)
+            was_kept = tuple(text for text in was if was_counts[text] == now_counts[text])
+            now_kept = tuple(text for text in now if was_counts[text] == now_counts[text])
+            if len(now_kept) >= 2 and was_kept != now_kept:
+                found.append(Reorder(parent.id, tag, now_kept, was_kept))
+                moved.add(parent.id)
+    return found
 
 
 def _match(
@@ -259,8 +373,8 @@ def _control_json(control: HtmlControl) -> dict[str, Any]:
     return {"node_id": control.node_id, "ref": control.ref, "control": control.control, "name": control.name}
 
 
-def _short(text: str) -> str:
-    return text if len(text) <= TEXT_PREVIEW else text[: TEXT_PREVIEW - 1] + "…"
+def _short(text: str, limit: int = TEXT_PREVIEW) -> str:
+    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 def _show(value: Any) -> str:
@@ -281,7 +395,7 @@ class ChangeCondition:
 
     ``kind`` is one of:
 
-    - ``any``: anything in ``diff_lifts(before, after)``;
+    - ``any``: anything in ``diff_lifts(before, after)``, a new order of the same items included;
     - ``message``: a new message (alert, status, live region);
     - ``navigation``: a new document. Lifts cannot show this; the caller, who knows the document,
       decides it, and ``met()`` returns False;
@@ -370,4 +484,4 @@ def _page_text(lift: HtmlLiftResult) -> str:
     return "\n".join(" ".join(part.split()) for part in parts).casefold()
 
 
-__all__ = ["ChangeCondition", "ControlChange", "LiftDiff", "diff_lifts"]
+__all__ = ["ChangeCondition", "ControlChange", "LiftDiff", "Reorder", "diff_lifts"]

@@ -13,8 +13,9 @@ a server and a browser of its own, so no task sees another's page.
 
 Set ``VIEWSPEC_RUN_BROWSER_BRIDGE_E2E=1`` after ``npm ci --ignore-scripts`` and ``npx playwright
 install chromium`` in ``experiments/browser-agent-probe``. It needs the ``agents`` extra for the MCP
-client, and it fails rather than skips without it. Writes stay blocked, as they are by default, so a
-task that sends a form is judged by the request the bridge stopped.
+client, and it fails rather than skips without it. Writes normally stay blocked, so a task that sends
+a form is judged by the request the bridge stopped. The receipt-dialog regressions allow writes
+to the local fixture server to count completed orders and catch duplicates caused by retry advice.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ import os
 import re
 import sys
 import threading
+import time
 from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -62,6 +64,9 @@ class Turn:
     result: dict[str, Any]
     # The task made this call to be refused: a request the server must stop before the browser acts.
     refusal_expected: bool = False
+    # What the task expects ``outcome.status`` of an act or call to be, when it is not the usual one:
+    # "succeeded" for a request that ran, "failed" for one made to be refused.
+    outcome_expected: str | None = None
 
 
 @dataclass
@@ -83,10 +88,12 @@ class Agent:
         self.uploads = uploads
         self.downloads = downloads
 
-    async def use(self, tool: str, /, *, refusal_expected: bool = False, **arguments: Any) -> dict[str, Any]:
+    async def use(
+        self, tool: str, /, *, refusal_expected: bool = False, expect: str | None = None, **arguments: Any
+    ) -> dict[str, Any]:
         reply = await self._session.call_tool(tool, arguments)
         result = reply.structuredContent or json.loads(reply.content[0].text)
-        self.run.turns.append(Turn(tool, arguments, result, refusal_expected))
+        self.run.turns.append(Turn(tool, arguments, result, refusal_expected, expect))
         # Printed for the captured output of a failing test. Values are left out: some are secrets.
         outcome = "ok" if result["ok"] else "refused " + ", ".join(error["code"] for error in result["errors"])
         print(f"{len(self.run.turns):>2}  {tool}({', '.join(arguments)}) {outcome}: {result['summary']}")
@@ -169,6 +176,13 @@ def unmet(run: Run) -> list[str]:
         # The server keeps ok true for an unmet wait; on a fixture the wait is part of the task.
         if turn.result.get("wait", {}).get("met") is False:
             reasons.append(f"{where}: the wait was not met")
+        # Every act and call says whether it took effect, and says what the task counts on: a
+        # request that ran succeeded, and a refused one failed, unless the task expects otherwise.
+        if turn.tool != "observe":
+            wanted = turn.outcome_expected or ("failed" if turn.refusal_expected else "succeeded")
+            outcome = turn.result.get("outcome") or {}
+            if outcome.get("status") != wanted:
+                reasons.append(f"{where}: outcome {outcome.get('status')}, not {wanted}: {outcome.get('reason')}")
         text = json.dumps(turn.result)
         reasons += [f"{where}: a secret came back" for secret in run.secrets if secret in text]
     return reasons
@@ -225,7 +239,7 @@ async def recover_from_refusals(agent: Agent) -> None:
     guess = await agent.call(refusal_expected=True, tool="checkout", arguments={"ship": "overnight", "colour": "red"})
     # A bad email typed by hand, as a person can. The browser refuses to send the form and says why.
     typed = await agent.act(action="fill", handle=handle(page, "Email"), value="bo")
-    stopped = await agent.act(action="click", handle=handle(typed, "Place order"))
+    stopped = await agent.act(expect="failed", action="click", handle=handle(typed, "Place order"))
     done = await agent.call(
         tool="checkout",
         arguments={"email": "bo@example.com", "ship": "express", "terms": True},
@@ -241,6 +255,7 @@ async def recover_from_refusals(agent: Agent) -> None:
     assert "Nothing was done" in guess["summary"]
     assert not stopped["navigated"]
     assert "Email" in {field["name"] for field in stopped["steps"][0]["invalid"]}
+    assert stopped["outcome"]["retry"] == "safe" and "did not send the form" in stopped["outcome"]["reason"]
     # Nothing was sent until the request was right, and then it was sent once.
     assert all("blocked_writes" not in turn.result for turn in agent.run.turns[:-1])
     fields = sent(done, "/orders")
@@ -528,12 +543,167 @@ async def check_out_once_the_page_allows_it(agent: Agent) -> None:
     assert "message status 'Order placed: Globe lamp'" in placed["changes"]["lines"]
 
 
+# The tasks below are about what a result says an action did. On outcomes.html each control answers
+# in a way that two readings of the page do not show: the same rows in another order, the same
+# message again, a toast that is gone, two properties set by a script, a question in a browser
+# dialog, a new tab, an answer that is still on its way. The agent must be told which it was, and
+# whether the action succeeded, failed, or cannot be told, before it decides to act again.
+
+
+@task("Sort the team by name, then by age, and read the order each time.")
+async def read_a_table_after_it_is_sorted(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/outcomes.html")
+    # Each sort moves the same three rows. No text and no control is new or gone.
+    by_name = await agent.act(action="click", handle=handle(page, "Name"))
+    by_age = await agent.act(action="click", handle=handle(by_name, "Age"))
+
+    assert by_name["changes"]["lines"] == ["reordered 3x <tr>: 'Ana 36', 'Bo 41', 'Cy 29'"]
+    assert by_age["changes"]["lines"] == ["reordered 3x <tr>: 'Cy 29', 'Ana 36', 'Bo 41'"]
+    assert "reordered 3x <tr>" in by_name["outcome"]["reason"]
+    rows = [line for line in by_age["view"].splitlines() if line.startswith("row ")]
+    assert rows == ["row Name | Age", "row Cy | 29", "row Ana | 36", "row Bo | 41"]
+
+
+@task("Save the draft twice, and be sure the second save happened. Then copy its link.")
+async def tell_a_repeated_message_from_no_answer(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/outcomes.html")
+    first = await agent.act(action="click", handle=handle(page, "Save"))
+    # The status line says "Saved" already, and the page writes "Saved" into it again.
+    second = await agent.act(action="click", handle=handle(first, "Save"), wait_for={"change": "message"})
+    # The toast is on the page for 300 ms. The agent reads the page after it has gone.
+    copied = await agent.act(action="click", handle=handle(second, "Copy link"), wait_for={"gone": "Link copied"})
+
+    assert first["changes"]["lines"] == ["message status 'Saved'"]
+    assert second["changes"]["lines"] == ["message status 'Saved' (shown again)"]
+    assert "message status 'Saved'" in second["view"]
+    assert copied["changes"]["lines"] == ["message status 'Link copied' (shown, now gone)"]
+    assert "Link copied" not in copied["view"]
+
+
+@task("Look up the city for postcode 1100, wait for the page to fill it in, then jump to the notes.")
+async def wait_for_an_answer_that_sets_only_properties(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/outcomes.html")
+    typed = await agent.act(action="fill", handle=handle(page, "Postcode"), value="1100")
+    # The answer comes 400 ms later, as two properties a script sets: no element and no attribute
+    # changes, so nothing wakes a wait that only watches the DOM.
+    found = await agent.act(
+        action="click", handle=handle(typed, "Look up"), wait_for={"change": "any"}, timeout_ms=10000
+    )
+    jumped = await agent.act(action="click", handle=handle(found, "Jump to notes"))
+
+    assert found["wait"]["waited_ms"] < 4000, "the wait ended at its timeout, not when the page answered"
+    assert [line.split("] ", 1)[1] for line in found["changes"]["lines"]] == [
+        "text 'City': value '' -> 'Lisbon'",
+        "checkbox 'Address verified': checked false -> true",
+    ]
+    assert re.search(r"^\[\d+\] checkbox 'Address verified' \[x\]$", found["view"], re.MULTILINE)
+    assert jumped["changes"]["lines"] == ["address /outcomes.html -> /outcomes.html#notes"]
+    assert jumped["url"].endswith("/outcomes.html#notes")
+
+
+@task("Delete the draft, refresh the badge, and open the help. Say which of them did anything.")
+async def tell_what_did_not_happen(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/outcomes.html")
+    # The page asks "Delete this draft?" in a browser dialog, which is not in the page, and the
+    # bridge dismisses it. Unreported, that reads as a click that did nothing.
+    deleted = await agent.act(expect="uncertain", action="click", handle=handle(page, "Delete draft"))
+    # This button has no handler at all.
+    refreshed = await agent.act(expect="uncertain", action="click", handle=handle(deleted, "Refresh badge"))
+    helped = await agent.act(action="click", handle=handle(refreshed, "Help"))
+
+    assert deleted["steps"][0].get("dialogs") == [
+        {"type": "confirm", "message": "Delete this draft?", "answer": "dismissed"}
+    ]
+    assert "'Delete this draft?'" in deleted["outcome"]["reason"] and deleted["outcome"]["retry"] == "may_repeat"
+    assert "Draft deleted" not in deleted["view"]
+    assert (refreshed["outcome"]["page"], refreshed["outcome"]["retry"]) == ("quiet", "may_repeat")
+    assert refreshed["steps"][0]["reaction"] == {"mutations": 0, "requests": 0, "pending": 0}
+    assert helped["steps"][0]["opened"] == [f"{agent.base}/outcomes_help.html"]
+    assert helped["url"] == page["url"] and "H1 Team" in helped["view"], "the agent left the page it was on"
+
+
+@task(
+    "Publish the draft, then publish it once more. The server takes over a second to answer: wait "
+    "for the answer, and never press Publish again only because nothing showed."
+)
+async def wait_for_the_server_instead_of_acting_twice(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/outcomes.html")
+    # Nothing on the page changes until the server answers. The result must say that the page is
+    # still working, which is what tells an agent to wait and not to click again.
+    sent = await agent.act(expect="uncertain", action="click", handle=handle(page, "Publish"))
+    answered = await agent.observe(since=sent["observation_id"], wait_for={"change": "message"}, timeout_ms=10000)
+    again = await agent.act(
+        action="click", handle=handle(answered, "Publish"), wait_for={"change": "message"}, timeout_ms=10000
+    )
+
+    assert sent["changes"]["lines"] == ["no change"] and sent["steps"][0].get("reaction", {}).get("pending") == 1
+    assert (sent["outcome"]["page"], sent["outcome"]["retry"]) == ("busy", "may_repeat")
+    assert answered["changes"]["lines"] == ["message status 'Published'"]
+    # The second answer is the same word in the same place. It is a message all the same.
+    assert again["changes"]["lines"] == ["message status 'Published' (shown again)"]
+    assert again["wait"]["waited_ms"] >= 1000, "the wait was met before the server answered"
+
+
+# These two are about where a page sends things. A guard that is set on the page the agent reads
+# does not see a tab that the page opens, and newtab.html sends its order, and its visitors, through
+# one. Writes are blocked and one origin is allowed for every task here, so for both the site itself
+# is the judge: it must receive nothing (see ``test_an_agent_completes_the_task``).
+
+
+@task("Order two Arc lamps. The shop opens its receipt in a new tab.")
+async def order_through_a_form_that_opens_a_new_tab(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/newtab.html")
+    done = await agent.call(tool="order", arguments={"quantity": 2})
+
+    assert done.get("blocked_writes"), "the order that went out through a new tab was not stopped"
+    assert sent(done, "/orders") == {"item": "Arc lamp", "quantity": "2"}
+    assert done["blocked_writes"][0].get("new_tab") is True
+    assert done["steps"][-1]["opened"] == [f"{agent.base}/orders"]
+    # The result that reports the tab is the one that reports what was stopped in it, and its
+    # reason is the request, not the quantity that the call itself typed.
+    assert f"POST {agent.base}/orders" in done["outcome"]["reason"]
+    assert done["url"] == page["url"] and "'Quantity' = '2'" in done["view"]
+
+
+@task("Open the partner offers. This server allows the shop's own site and no other.")
+async def stay_on_the_allowed_site_when_a_link_opens_a_new_tab(agent: Agent) -> None:
+    page = await agent.observe(url=f"{agent.base}/newtab.html")
+    left = await agent.act(expect="failed", action="click", handle=handle(page, "Partner offers"))
+
+    partner = f"http://localhost:{urlsplit(agent.base).port}/outcomes_help.html"
+    assert left.get("blocked_navigations") == [{"url": partner, "reason": "origin not allowed", "new_tab": True}]
+    assert left["steps"][0]["opened"] == [partner]
+    assert partner in left["outcome"]["reason"] and left["outcome"]["retry"] == "safe"
+    assert left["url"] == page["url"] and "H1 Order" in left["view"]
+
+
 # ---- running them -----------------------------------------------------------------------------------
+
+SLOW_ANSWER_S = 1.5  # How long the server holds back slow.json, which outcomes.html asks for.
+# Requests the site received: normally none, because writes are blocked and only 127.0.0.1 with
+# the site's port is allowed. The receipt-dialog regressions enable writes and expect one order.
+RECEIVED: list[str] = []
 
 
 class _QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format: str, *args: object) -> None:
         return
+
+    def do_GET(self) -> None:
+        host = self.headers.get("Host", "")
+        if not host.startswith("127.0.0.1:"):
+            RECEIVED.append(f"GET {self.path} as {host}")
+        if urlsplit(self.path).path == "/slow.json":
+            time.sleep(SLOW_ANSWER_S)  # A server that takes its time: the page is still working.
+        super().do_GET()
+
+    def do_POST(self) -> None:
+        self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        RECEIVED.append(f"POST {self.path}")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"<!doctype html><title>Stored</title><p>Stored</p>")
 
 
 @pytest.fixture(scope="module")
@@ -548,7 +718,7 @@ def site() -> Iterator[str]:
     server.server_close()
 
 
-async def _attempt(task: Task, base: str, folder: Path) -> Run:
+async def _attempt(task: Task, base: str, folder: Path, *, allow_writes: bool = False) -> Run:
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
@@ -560,7 +730,16 @@ async def _attempt(task: Task, base: str, folder: Path) -> Run:
     env = {key: os.environ[key] for key in ("PLAYWRIGHT_BROWSERS_PATH",) if key in os.environ}
     params = StdioServerParameters(
         command=sys.executable,
-        args=[str(SERVER), "--allow-origin", base, "--upload-dir", str(uploads), "--download-dir", str(downloads)],
+        args=[
+            str(SERVER),
+            "--allow-origin",
+            base,
+            "--upload-dir",
+            str(uploads),
+            "--download-dir",
+            str(downloads),
+            *(["--allow-writes"] if allow_writes else []),
+        ],
         env=env,
     )
     run = Run(task.goal, task.secrets)
@@ -580,9 +759,44 @@ async def _attempt(task: Task, base: str, folder: Path) -> Run:
 @pytest.mark.parametrize("task", TASKS, ids=[task.play.__name__ for task in TASKS])
 def test_an_agent_completes_the_task(task: Task, site: str, tmp_path: Path) -> None:
     print(f"goal: {task.goal}")
+    RECEIVED.clear()
     run = asyncio.run(_attempt(task, site, tmp_path))
 
     assert unmet(run) == []
+    assert RECEIVED == [], "a write or a request for another origin got past the bridge to the site"
+
+
+@pytest.mark.parametrize("dialog", ["confirm", "prompt"])
+@pytest.mark.parametrize("tool", ["act", "call"])
+def test_dismissing_a_receipt_dialog_cannot_make_a_completed_order_safe_to_retry(
+    dialog: str, tool: str, site: str, tmp_path: Path
+) -> None:
+    async def play(agent: Agent) -> None:
+        page = await agent.observe(url=f"{agent.base}/order_receipt.html?dialog={dialog}")
+
+        async def place(current: dict[str, Any]) -> dict[str, Any]:
+            if tool == "call":
+                return await agent.call(tool="order", arguments={"quantity": 2})
+            return await agent.act(action="click", handle=handle(current, "Place order"))
+
+        placed = await place(page)
+        assert placed["steps"][-1]["dialogs"] == [
+            {"type": dialog, "message": "Also email a receipt?", "answer": "dismissed"}
+        ]
+        assert "message status 'Order placed'" in placed["changes"]["lines"]
+        # Follow the old retry advice if it returns: the server must catch the duplicate order,
+        # not merely a different label in the result. All writes stay on this local fixture site.
+        if placed["outcome"]["retry"] == "safe":
+            await place(placed)
+        assert RECEIVED == ["POST /orders"], "retry advice duplicated an already completed order"
+        assert (placed["outcome"]["status"], placed["outcome"]["retry"]) == ("succeeded", "not_needed")
+
+    RECEIVED.clear()
+    run = asyncio.run(
+        _attempt(Task("Place one order, without emailing a receipt.", play, ()), site, tmp_path, allow_writes=True)
+    )
+    assert unmet(run) == []
+    assert RECEIVED == ["POST /orders"]
 
 
 @pytest.mark.parametrize("route", ["push", "replace", "hash", "back", "state", "roundtrip"])

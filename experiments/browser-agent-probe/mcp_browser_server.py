@@ -14,12 +14,18 @@ Three tools, served over stdio:
 view. A handle belongs to the observation that showed it; pass ``observation_id`` to act from an
 older one, and a re-rendered element is found again by its saved locator, or the step is refused.
 
+Each ``act`` and ``call`` result also carries ``outcome``: whether the action took effect
+(``succeeded``, ``failed``, or ``uncertain``), why, and whether repeating it could do it twice
+(``action_outcome``). A refused request has one too.
+
 Safety is set by whoever starts the server, never by the agent:
 
 - Writes are blocked unless ``--allow-writes`` is given: a form post or any other request that is not
   GET, HEAD, or OPTIONS is recorded and answered with a stub page. Results list each blocked write
   with its form fields; secret fields are shown as ``[redacted]``.
 - With ``--allow-origin``, the agent can only open, and only navigate to, those origins.
+- Both hold for the tabs a page opens (a link or a form with ``target="_blank"``, ``window.open``):
+  what a new tab asks for is checked like the page's own requests, and marked ``new_tab``.
 - No result contains a secret value: the lift never keeps one, and logged steps redact them.
 
 This server is not ``viewspec mcp``. That server makes no network calls; this one drives a browser
@@ -30,15 +36,19 @@ from __future__ import annotations
 
 import argparse
 import base64
+import functools
 import os
 import signal
 import sys
 import threading
+import time
+from collections.abc import Callable
 from pathlib import Path
 from types import FrameType
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
+from action_outcome import outcome_of, scroll_outcome
 from agent_session import (
     BridgeError,
     BrowserSession,
@@ -47,6 +57,7 @@ from agent_session import (
     StepResult,
     WaitResult,
     changes,
+    dialog_json,
     request_fields,
 )
 from page_view import view_page
@@ -82,7 +93,12 @@ INSTRUCTIONS = (
     "form then shows 'Write blocked', and blocked_writes lists what would have been sent. A control line "
     "that ends with 'blocked' is on the page but cannot be used now; the first lines of the view say what "
     "is in the way (a dialog over the page, for example). Deal with that first. A handle names one control "
-    "in one item: if the page redraws itself, the step still goes to that item's control, or is refused."
+    "in one item: if the page redraws itself, the step still goes to that item's control, or is refused. "
+    "Every act and call result has outcome: status says whether the action took effect (succeeded, failed, "
+    "or uncertain), reason says why, and retry says whether repeating it is not_needed, safe, or may_repeat "
+    "(it could do the thing twice). When uncertain, page says what the page did meanwhile: busy (a request "
+    "is still in flight: wait, with wait_for or observe), reacted, or quiet (nothing reacted). Read outcome "
+    "before you repeat an action."
 )
 DEFAULT_TIMEOUT_MS = 5000
 DEFAULT_VIEW_LIMIT = 200
@@ -116,6 +132,19 @@ class WaitFor(TypedDict, total=False):
     enabled: bool
 
 
+def _judged(tool: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
+    """Give a tool's result an ``outcome`` when it has none yet: a request that was refused before
+    any step ran. A result of steps that ran gets its outcome where the page's activity is known."""
+
+    @functools.wraps(tool)
+    def judged(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        result = tool(*args, **kwargs)
+        result.setdefault("outcome", outcome_of(result))
+        return result
+
+    return judged
+
+
 class BrowserTools:
     """The three tools, over one browser session that starts on the first ``observe``."""
 
@@ -134,7 +163,10 @@ class BrowserTools:
         self._session: BrowserSession | None = None
         self._history: dict[int, Observation] = {}
         self._latest = 0
-        self._reported = {"writes": 0, "navigations": 0}
+        # How far each of the bridge's records has been reported: a count, or for dialogs and
+        # opened tabs ("events") the highest sequence number.
+        self._reported = {"writes": 0, "navigations": 0, "events": 0}
+        self._on_steps: frozenset[int] = frozenset()  # Dialogs and tabs that the latest steps report.
         self._secret_fields: set[str] = set()
         self._lock = threading.Lock()
 
@@ -205,7 +237,7 @@ class BrowserTools:
                         return refused
                     session = self._browser()
                     session.open(url)
-                    self._reported = {"writes": 0, "navigations": 0}
+                    self._reported |= {"writes": 0, "navigations": 0}
                     if condition is None:
                         return self._observe_result("Observed the page.", paging=paging)
                     base = session.observe(locate=False)
@@ -224,6 +256,7 @@ class BrowserTools:
             except BridgeError as error:
                 return _error(_bridge_code(error), str(error), "Check the url, or observe again.")
 
+    @_judged
     def act(
         self,
         action: Literal["click", "fill", "check", "uncheck", "select", "scroll", "upload", "download"],
@@ -270,6 +303,20 @@ class BrowserTools:
         ``timeout_ms``, for ``{"change": "any" | "message" | "navigation"}``, ``{"text": "..."}``,
         ``{"gone": "..."}``, or ``{"control": "...", "enabled": true}``. The action is done either way;
         ``wait.met`` says whether the change showed. Do not repeat the action only because it is false.
+
+        ``outcome`` says whether the action took effect. ``status`` is ``succeeded`` (the wait was
+        met, the page navigated, the control holds what was set, or the page answered), ``failed``
+        (refused or the browser would not send the form), or ``uncertain`` (it ran and nothing shows
+        whether it worked, or what you waited for did not show). Dismissing a ``confirm`` or ``prompt``
+        does not prove the action was canceled: without other evidence it is ``uncertain`` and
+        ``may_repeat``; an observed effect still counts. ``reason`` is one line. ``retry`` is
+        ``not_needed``, ``safe``, or ``may_repeat`` (repeating it could do the thing twice). When
+        uncertain, ``page`` is ``busy`` (a request the action started is still in flight: wait),
+        ``reacted``, or ``quiet`` (no DOM change and no request: it may have done nothing).
+        ``steps[0].dialogs`` lists the boxes the page raised (they are always dismissed),
+        ``steps[0].opened`` the tabs it opened (they are closed, not followed), and
+        ``steps[0].reaction`` how much the page did. In ``changes``, ``(shown again)`` marks a message
+        the page repeated, and ``(shown, now gone)`` one that came and went.
         """
 
         with self._lock:
@@ -311,6 +358,7 @@ class BrowserTools:
                 return error.result
             return self._run(steps, observation, condition, timeout_ms)
 
+    @_judged
     def call(
         self,
         tool: str,
@@ -325,7 +373,8 @@ class BrowserTools:
         ``tool`` is a name from ``form_tools``; ``arguments`` follows its ``input_schema``. Arguments you
         leave out keep the value the page shows. ``submit=false`` only fills the form. Every problem
         with the arguments is reported at once, before the browser does anything. ``wait_for`` and
-        ``timeout_ms`` work as for ``act``, for example ``{"text": "Order placed"}``.
+        ``timeout_ms`` work as for ``act``, for example ``{"text": "Order placed"}``, and so does
+        ``outcome``: ``failed`` when the browser would not send the form.
         """
 
         with self._lock:
@@ -463,6 +512,7 @@ class BrowserTools:
         data = self._observe_data(since=observation)
         result = tool_response(True, _join(_scroll_summary(scrolled), data.pop("_note")), data=data)
         result["scroll"] = scrolled.to_json()
+        result["outcome"] = scroll_outcome(result["scroll"])
         return result
 
     def _run(
@@ -473,17 +523,23 @@ class BrowserTools:
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
     ) -> dict[str, Any]:
         session = self._browser()
+        started = time.monotonic()
         try:
             results = session.run(steps, observation=observation) if steps else []
         except BridgeError as error:
             # Some steps may have run; show the agent the page as it is now, if it can be read.
+            self._on_steps = frozenset(seq for item in error.steps for seq in item.event_seqs)
             try:
                 current: dict[str, Any] | None = self._observe_data(since=observation)
                 current.pop("_note")
             except BridgeError:
                 current = None
             code = _bridge_code(error)
-            return tool_error_response(code, str(error), _bridge_fix(code), data=current)
+            refused = tool_error_response(code, str(error), _bridge_fix(code), data=current)
+            if error.steps:
+                refused["steps"] = [item.to_json() for item in error.steps]  # The ones that ran.
+            return refused
+        self._on_steps = frozenset(seq for item in results for seq in item.event_seqs)
         summary = "Nothing to do: the control is already in that state." if not steps else _summary(results)
         if condition is None:
             result = self._observe_result(summary, since=observation)
@@ -491,11 +547,29 @@ class BrowserTools:
             try:
                 waited = session.wait(condition, observation, timeout_ms=timeout_ms)
             except BridgeError as error:
-                return _error(_bridge_code(error), str(error), "Observe the page, then decide.")
+                refused = _error(_bridge_code(error), str(error), "Observe the page, then decide.")
+                refused["steps"] = [item.to_json() for item in results]  # They ran; the reading failed.
+                return refused
             result = self._waited_result(summary, waited, since=observation, acted=bool(steps))
         result["steps"] = [item.to_json() for item in results]
         result["navigated"] = any(item.navigated for item in results)
+        result["outcome"] = outcome_of(result, self._activity(results, observation, started))
         return result
+
+    def _activity(self, results: list[StepResult], before: Observation, started: float) -> dict[str, Any] | None:
+        """What the page did from the first step to the reading just made: DOM mutations (None on a
+        new document, where the count began again), requests started, and those still in flight."""
+
+        if not results:
+            return None
+        first, now = results[0], self._history[self._latest]
+        counted = now.doc_id == before.doc_id and first.mutation_mark is not None
+        return {
+            "mutations": now.activity["mutations"] - first.mutation_mark if counted else None,
+            "requests": now.activity["requests"] - first.request_mark,
+            "pending": sum(1 for seq in now.activity["pending"] if seq > first.request_mark),
+            "watched_ms": int((time.monotonic() - started) * 1000),
+        }
 
     def _observe_result(
         self, summary: str, *, since: Observation | None = None, paging: dict[str, Any] | None = None
@@ -565,19 +639,35 @@ class BrowserTools:
         data: dict[str, Any] = {"url": observation.url, "title": observation.title, **view, "_note": note}
         if since is not None:
             data["changes"] = changes(since, observation)
-        writes = session.blocked_writes()
-        navigations = session.blocked_navigations()
+        records = session.records()
+        writes, navigations = records["writes"], records["navigations"]
         if len(writes) > self._reported["writes"]:
             data["blocked_writes"] = [self._redact_write(w) for w in writes[self._reported["writes"] :]]
         if len(navigations) > self._reported["navigations"]:
             data["blocked_navigations"] = navigations[self._reported["navigations"] :]
-        self._reported = {"writes": len(writes), "navigations": len(navigations)}
+        # Dialogs the page raised and tabs it opened that no step reports: they came while the
+        # bridge waited, or between two tool calls (a timer, a late answer).
+        events = [*records["dialogs"], *records["popups"]]
+        unreported = {e["seq"] for e in events if e["seq"] > self._reported["events"]} - self._on_steps
+        late_dialogs = [dialog_json(item) for item in records["dialogs"] if item["seq"] in unreported]
+        late_tabs = [item["url"] for item in records["popups"] if item["seq"] in unreported]
+        if late_dialogs:
+            data["dialogs"] = late_dialogs
+        if late_tabs:
+            data["opened"] = late_tabs
+        self._reported = {
+            "writes": len(writes),
+            "navigations": len(navigations),
+            "events": max([self._reported["events"], *(e["seq"] for e in events)]),
+        }
         return data
 
     def _redact_write(self, write: dict[str, Any]) -> dict[str, Any]:
         """A blocked request, with secret form fields redacted. A body that is not a form is not shown."""
 
         shown: dict[str, Any] = {"method": write["method"], "url": write["url"]}
+        if write.get("new_tab"):
+            shown["new_tab"] = True  # A tab the page opened sent it, not the page the agent reads.
         fields = request_fields(write)
         if fields:
             shown["form_fields"] = {
@@ -631,6 +721,11 @@ def _summary(results: list[StepResult]) -> str:
         if item.invalid:
             reasons = "; ".join(f"{field['name'] or 'a field'}: {field['message']}" for field in item.invalid)
             tail += f" The browser did not send the form: {reasons}"
+        for dialog in item.dialogs:
+            tail += f" The page raised a {dialog['type']} box, {dialog['message']!r}; it was {dialog['answer']}."
+        if item.opened:
+            urls = ", ".join(tab["url"] for tab in item.opened)
+            tail += f" It opened a new tab ({urls}), which was closed and not followed."
     return f"Did {len(results)} step(s): {'; '.join(parts)}.{tail}"
 
 

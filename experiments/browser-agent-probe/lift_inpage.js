@@ -315,6 +315,8 @@
     const [root] = copy(document.documentElement, { hidden: false, clickable: false, inside: false });
     const payload = { html: "<!doctype html>" + root.outerHTML, interactive, actionIds, docId };
     if (collectSecrets) payload.secrets = secrets;
+    // What the page wrote into its message regions, and how much it has changed (see the recorder).
+    payload.recorder = markReading();
     return payload;
   }
 
@@ -873,10 +875,250 @@
     return roots;
   }
 
-  // Resolve true after the DOM changes, once it has been quiet for 100 ms (or 500 ms after the first
-  // change, for a page that never stops changing), or false after timeoutMs with no change. A change
-  // that only sets a property (typed text) is not a DOM change.
-  function nextChange(timeoutMs) {
+  // ---- What the page did between two readings: the recorder -------------------------------------
+  // Two readings of a page show what differs between them. They cannot show a status line that
+  // said "Saved" a second time, or a toast that came and went in between. One MutationObserver per
+  // root, kept for the life of the document, can. It does two things.
+  //
+  // It notes every write into a message region: the regions the lift calls messages (role alert,
+  // alertdialog, log, or status, or aria-live polite or assertive; the outermost, when one holds
+  // another), a region added to the page already holding text, and one that was hidden and now
+  // shows. Each note has a sequence number. The last NOTE_LIMIT are kept, and reading them does not
+  // clear them: a wait reads the page several times between the two readings that a diff compares.
+  //
+  // It counts DOM mutations, so a step can say whether the page reacted to it at all, and a wait
+  // can tell that the page changed between a reading and the moment the wait began.
+  //
+  // Some steps the bridge drives through the page's own widgets: it opens a list and types in it,
+  // pages through a calendar, scrolls and waits for more to load. What those widgets say on the way
+  // and take back again (a calendar's month title, "5 results", "Loading…") is how the step works,
+  // not the page's answer to it. The bridge marks the notes written during such a step as asides.
+  const NOTE_LIMIT = 48;
+  const NOTE_TEXT = 300; // A note keeps this much of what a region says.
+  const NOTE_WALK = 4000; // And reads at most this many elements to find it.
+  const MESSAGE_ROLES = new Set(["alert", "alertdialog", "log", "status"]);
+  const REGION =
+    '[role~="alert" i],[role~="alertdialog" i],[role~="log" i],[role~="status" i],[aria-live="polite" i],[aria-live="assertive" i]';
+  const CONTROL_CONTENT = new Set(["INPUT", "OPTION", "OPTGROUP", "SELECT", "TEXTAREA"]);
+  const recorder = {
+    mutations: 0,
+    seq: 0,
+    notes: [],
+    said: new WeakMap(), // Region -> the text it showed when the recorder last looked ("" when hidden).
+    watched: new WeakSet(),
+    observers: [],
+    reading: null, // { mutations, fields } at the last snapshot.
+  };
+
+  // The lift's rule (raw_html_agent._message_kind): the first role, or else aria-live.
+  function regionKind(el) {
+    const role = (el.getAttribute("role") || "").trim().toLowerCase().split(" ")[0];
+    if (MESSAGE_ROLES.has(role)) return role;
+    const live = (el.getAttribute("aria-live") || "").trim().toLowerCase();
+    return live === "polite" || live === "assertive" ? "live" : null;
+  }
+  // The element above a node in the tree the user sees: through a slot, a shadow root, or a frame.
+  function composedParent(node) {
+    if (node.assignedSlot) return node.assignedSlot;
+    if (node.parentElement) return node.parentElement;
+    const root = node.getRootNode();
+    if (root.host) return root.host;
+    try {
+      return root.defaultView && root.defaultView.frameElement;
+    } catch (error) {
+      return null;
+    }
+  }
+  // The outermost message region that holds a node (or is it), or null.
+  function regionOf(node) {
+    let found = null;
+    for (let el = node.nodeType === 1 ? node : composedParent(node); el; el = composedParent(el)) {
+      if (regionKind(el)) found = el;
+    }
+    return found;
+  }
+  // Hidden as the lift sees it: the hidden attribute, aria-hidden, or no box (the snapshot's test).
+  function unseen(el) {
+    if (el.hasAttribute("hidden") || (el.getAttribute("aria-hidden") || "").toLowerCase() === "true") return true;
+    if (NO_BOX.has(el.tagName)) return false;
+    if (typeof el.checkVisibility !== "function") return el.getClientRects().length === 0;
+    return !el.checkVisibility({ visibilityProperty: true }) && getComputedStyle(el).display !== "contents";
+  }
+  // A region's text as the lift reads a message: what the user sees in it, without what its fields
+  // hold; "" for a region the user cannot see. Only the start of a long text is read (NOTE_TEXT
+  // characters, NOTE_WALK elements): a page may mark its whole content as a live region, and the
+  // recorder runs on every change the page makes.
+  function regionText(region) {
+    for (let el = region; el; el = composedParent(el)) if (unseen(el)) return "";
+    let left = NOTE_WALK;
+    let length = 0;
+    const walk = (node) => {
+      let out = "";
+      for (const child of composedChildren(node)) {
+        if (left <= 0 || length > 2 * NOTE_TEXT) break;
+        if (child.nodeType === 3) {
+          out += child.data;
+          length += child.data.trim().length;
+        }
+        if (child.nodeType !== 1 || SKIP.has(child.tagName) || CONTROL_CONTENT.has(child.tagName)) continue;
+        left -= 1;
+        if (unseen(child)) continue;
+        const text = walk(child);
+        out += /^inline/.test(getComputedStyle(child).display) ? text : `\n${text}\n`;
+      }
+      return out;
+    };
+    return walk(region).replace(/\s+/g, " ").trim().slice(0, NOTE_TEXT);
+  }
+  // Every outermost message region in or at an element (or in a root).
+  function regionsIn(node) {
+    const found = new Set();
+    if (node.nodeType === 1 && regionKind(node)) found.add(regionOf(node));
+    if (node.querySelectorAll) for (const el of node.querySelectorAll(REGION)) if (regionKind(el)) found.add(regionOf(el));
+    return found;
+  }
+
+  // Look at a region again. ``written``: the page wrote into it, so what it says counts as said
+  // again even when the words are the same. Otherwise only a region that says something else than
+  // it did (one that was hidden and now shows) is noted.
+  function look(region, written) {
+    const kind = regionKind(region);
+    const text = kind ? regionText(region) : "";
+    const before = recorder.said.get(region);
+    recorder.said.set(region, text);
+    if (!text || (!written && before === text)) return;
+    const ref = refOf(region);
+    // A region that says the same words again and again (a clock the page draws every second) keeps
+    // one note, the latest, and does not push the other regions' notes out.
+    const last = recorder.notes.findLast((note) => note.ref === ref);
+    if (last && last.text === text) recorder.notes.splice(recorder.notes.indexOf(last), 1);
+    recorder.seq += 1;
+    recorder.notes.push({ seq: recorder.seq, ref, kind, text });
+    if (recorder.notes.length > NOTE_LIMIT) recorder.notes.shift();
+  }
+
+  function onRecords(records) {
+    recorder.mutations += records.length;
+    const written = new Set(); // Regions the page wrote into.
+    const added = new Set(); // Regions that came into the page.
+    const touched = new Set(); // Regions that an attribute may have shown, hidden, or made.
+    const redrawn = new Map(); // "kind\ntext" of each region that left the page -> how many.
+    for (const record of records) {
+      if (record.type === "attributes") {
+        for (const region of regionsIn(record.target)) touched.add(region);
+        const around = regionOf(record.target);
+        if (around) touched.add(around);
+        continue;
+      }
+      const around = regionOf(record.target);
+      if (around) {
+        written.add(around);
+        continue;
+      }
+      for (const node of record.removedNodes) {
+        if (node.nodeType !== 1) continue;
+        for (const el of [node, ...node.querySelectorAll(REGION)]) {
+          const text = recorder.said.get(el);
+          if (!text) continue;
+          const key = `${regionKind(el)}\n${text}`;
+          redrawn.set(key, (redrawn.get(key) || 0) + 1);
+        }
+      }
+      for (const node of record.addedNodes) {
+        if (node.nodeType === 1 && node.isConnected) for (const region of regionsIn(node)) added.add(region);
+      }
+    }
+    for (const region of added) {
+      // A page that draws itself again takes a region out and puts one like it back, in one go. That
+      // is the same message still showing, not the page saying it again.
+      const key = `${regionKind(region)}\n${regionText(region)}`;
+      if (!written.has(region) && redrawn.get(key) > 0) {
+        redrawn.set(key, redrawn.get(key) - 1);
+        recorder.said.set(region, regionText(region));
+      } else {
+        look(region, true);
+      }
+    }
+    for (const region of written) if (!added.has(region) && region.isConnected) look(region, true);
+    for (const region of touched) if (!added.has(region) && !written.has(region) && region.isConnected) look(region, false);
+  }
+
+  // Watch every root that is not watched yet, and remember what each region in it says.
+  function watch(roots) {
+    for (const root of roots) {
+      if (recorder.watched.has(root)) continue;
+      recorder.watched.add(root);
+      const observer = new MutationObserver(onRecords);
+      observer.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
+      recorder.observers.push(observer);
+      for (const region of regionsIn(root)) if (!recorder.said.has(region)) recorder.said.set(region, regionText(region));
+    }
+  }
+  // Take in the mutations the browser has queued for the recorder and not yet delivered.
+  function flush() {
+    for (const observer of recorder.observers) {
+      const records = observer.takeRecords();
+      if (records.length) onRecords(records);
+    }
+  }
+  // How many DOM mutations this document has had since the recorder began, with the document's id:
+  // a count from another document says nothing about this one.
+  function mutationCount() {
+    flush();
+    return { doc: docId, mutations: recorder.mutations };
+  }
+  // The sequence number of the latest note, and a way to mark every note after one as an aside.
+  function noteSeq() {
+    flush();
+    return recorder.seq;
+  }
+  function asideSince(seq) {
+    flush();
+    for (const note of recorder.notes) if (note.seq > seq) note.aside = true;
+  }
+
+  // A hash of what the fields hold. A script can answer by setting only .value or .checked, which
+  // changes no attribute and no element, so no observer sees it. Only the hash is kept: a field's
+  // value, a secret one too, is read to be hashed and never held.
+  function fieldState(roots) {
+    let hash = 2166136261;
+    const mix = (text) => {
+      for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+      hash = Math.imul(hash ^ 0x1f, 16777619); // Between fields, so "ab" + "c" is not "a" + "bc".
+    };
+    for (const root of roots) {
+      for (const el of root.querySelectorAll("input,textarea,select")) {
+        if (el.tagName === "SELECT") {
+          mix(el.multiple ? [...el.selectedOptions].map((option) => option.index).join(",") : String(el.selectedIndex));
+        } else {
+          mix(String(el.value));
+          if (el.tagName === "INPUT") mix(el.checked ? "1" : "0");
+        }
+      }
+    }
+    return hash >>> 0;
+  }
+
+  // Called by each snapshot. Returns the notes and the mutation count, and keeps what this reading
+  // saw, so a wait that begins later can tell whether the page has changed since.
+  function markReading() {
+    const roots = rootsDeep(document);
+    watch(roots);
+    flush();
+    // What each region says now, for one that showed or hid with no mutation (a style sheet did it).
+    for (const root of roots) for (const region of regionsIn(root)) recorder.said.set(region, regionText(region));
+    recorder.reading = { mutations: recorder.mutations, fields: fieldState(roots) };
+    return { seq: recorder.seq, notes: recorder.notes.slice(), mutations: recorder.mutations };
+  }
+
+  // Resolve true after the page changes, once it has been quiet for 100 ms (or 500 ms after the
+  // first change, for a page that never stops changing), or false after timeoutMs with no change.
+  // A change is a DOM change, or a field that holds something else: every FIELD_POLL_MS the fields
+  // are hashed again, because a script that sets only a property (.value, .checked) changes no DOM.
+  // With ``sinceReading``, a change the page made after the last snapshot and before this call
+  // counts too: the caller read the page, saw nothing, and only then began to wait.
+  const FIELD_POLL_MS = 100;
+  function nextChange(timeoutMs, sinceReading = false) {
     return new Promise((resolve) => {
       const observers = [];
       const timers = {};
@@ -885,6 +1127,7 @@
         if (done) return;
         done = true;
         observers.forEach((observer) => observer.disconnect());
+        clearInterval(timers.fields);
         Object.values(timers).forEach(clearTimeout);
         resolve(changed);
       };
@@ -893,11 +1136,22 @@
         clearTimeout(timers.quiet);
         timers.quiet = setTimeout(() => finish(true), 100);
       };
-      for (const root of rootsDeep(document)) {
+      const roots = rootsDeep(document);
+      for (const root of roots) {
         const observer = new MutationObserver(onChange);
         observer.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
         observers.push(observer);
       }
+      const reading = sinceReading ? recorder.reading : null;
+      let fields = reading ? reading.fields : fieldState(roots);
+      const fieldsChanged = () => {
+        const now = fieldState(roots);
+        if (now === fields) return false;
+        fields = now;
+        return true;
+      };
+      if (reading && (mutationCount().mutations !== reading.mutations || fieldsChanged())) onChange();
+      timers.fields = setInterval(() => fieldsChanged() && onChange(), FIELD_POLL_MS);
       timers.limit = setTimeout(() => finish(false), Math.max(0, timeoutMs));
     });
   }
@@ -1353,9 +1607,14 @@
     return invalidEvents.splice(0).filter((item) => !seen.has(item.ref) && seen.add(item.ref));
   }
 
+  watch(rootsDeep(document));
+
   window.__viewspecLift = {
     docId,
     takeInvalid,
+    mutationCount,
+    noteSeq,
+    asideSince,
     snapshot,
     describe,
     locateAll,

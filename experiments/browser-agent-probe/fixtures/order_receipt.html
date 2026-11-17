@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Order with optional receipt</title></head>
+<body>
+<h1>Order</h1>
+<form id="order" aria-label="Order">
+  <label>Quantity <input name="quantity" type="number" value="2" min="1"></label>
+  <button type="submit">Place order</button>
+</form>
+<p id="status" role="status"></p>
+<script>
+  document.getElementById("order").addEventListener("submit", (event) => {
+    event.preventDefault();
+    // Keep the server's completed order and the optional dialog inside the action, so this test
+    // exercises the immediate outcome rule without a wait_for that would override it.
+    const request = new XMLHttpRequest();
+    request.open("POST", "/orders", false);
+    request.send(new URLSearchParams(new FormData(event.target)));
+    if (request.status !== 200) throw new Error("The fixture order was not placed");
+    document.getElementById("status").textContent = "Order placed";
+    const kind = new URLSearchParams(location.search).get("dialog");
+    if (kind === "prompt") window.prompt("Also email a receipt?");
+    else window.confirm("Also email a receipt?");
+  });
+</script>
+</body>
+</html>

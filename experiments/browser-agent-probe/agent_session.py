@@ -15,7 +15,14 @@ cannot move a step to another item's control; and it refuses a control that a di
 page has switched off, and says what is in the way.
 
 By default the session blocks writes: a form post or any other non-GET request is recorded and
-answered with a stub page, so an agent can complete a real form without changing anything.
+answered with a stub page, so an agent can complete a real form without changing anything. That
+holds for the page and for every tab it opens.
+
+``changes(before, after)`` says what an action changed. Besides the diff of the two readings it
+reports what no two readings can show: a message the page showed again, one that came and went in
+between (the page keeps a note of every write into a message region), and a new address in the
+same document. Each step also says what the page did in answer: the dialogs it raised, the tabs it
+opened, and how much it reacted.
 
 This is an experiment. It is not part of the ViewSpec package or its guarantees.
 """
@@ -35,12 +42,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs
 
+from action_outcome import address_lines, message_lines, noted_messages
 from page_view import ViewLine, view_lines
 
 from viewspec.raw_html import HtmlLiftResult, lift_html
 from viewspec.raw_html_actions import ActionStep, plan_control_action, plan_form_call
-from viewspec.raw_html_agent import HtmlControl, control_aria_role
-from viewspec.raw_html_diff import ChangeCondition, diff_lifts
+from viewspec.raw_html_agent import HINT_REF, HtmlControl, control_aria_role
+from viewspec.raw_html_diff import ChangeCondition, LiftDiff, diff_lifts
 
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE / "bridge.js"
@@ -50,7 +58,14 @@ MAX_SCROLLS = 30
 
 
 class BridgeError(RuntimeError):
-    """The browser could not do what was asked."""
+    """The browser could not do what was asked. ``steps`` holds the steps of the plan that ran
+    before the one that could not."""
+
+    steps: list[StepResult]
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.steps = []
 
 
 @dataclass
@@ -70,6 +85,12 @@ class Observation:
     secrets: list[str] = field(default_factory=list, repr=False)
     # Node id -> why a person could not use that control when the page was read ("covered by ...").
     blocked: dict[str, str] = field(default_factory=dict)
+    # The page recorder's notes, one for each write into a message region ({seq, ref, kind, text}),
+    # and its sequence number at this reading: a later reading's notes above it came in between.
+    notes: tuple[dict[str, Any], ...] = ()
+    note_seq: int = 0
+    # How busy the page was: DOM mutations and requests so far, and the requests still in flight.
+    activity: dict[str, Any] = field(default_factory=dict)
 
     def handle_of(self, node_id: str) -> int | None:
         return next((handle for handle, control in self.handles.items() if control.node_id == node_id), None)
@@ -89,6 +110,21 @@ class StepResult:
     # Fields the browser refused when this click or submit tried to send a form, and why:
     # [{"name": "Email", "message": "Please include an '@' in the email address."}]. The form was not sent.
     invalid: tuple[dict[str, str], ...] = ()
+    # What the page did in answer that a reading of it does not show. ``dialogs``: the boxes it
+    # raised, [{"seq", "type": "confirm", "message": "Delete this draft?", "answer": "dismissed"}].
+    # ``opened``: the tabs it opened, [{"seq", "url"}]; they are closed, not followed. ``reaction``:
+    # {"mutations": DOM changes (None on a new document), "requests": started, "pending": of those,
+    # still in flight} when the step ended.
+    dialogs: tuple[dict[str, Any], ...] = ()
+    opened: tuple[dict[str, Any], ...] = ()
+    reaction: dict[str, Any] | None = None
+    # Where the page's counts stood when the step began, to measure a later reading against.
+    mutation_mark: int | None = None
+    request_mark: int = 0
+
+    @property
+    def event_seqs(self) -> frozenset[int]:
+        return frozenset(item["seq"] for item in (*self.dialogs, *self.opened))
 
     def to_json(self) -> dict[str, Any]:
         payload = {
@@ -106,7 +142,19 @@ class StepResult:
             payload["unsaved_downloads"] = list(self.unsaved_downloads)
         if self.invalid:
             payload["invalid"] = [{"name": item["name"], "message": item["message"]} for item in self.invalid]
+        if self.dialogs:
+            payload["dialogs"] = [dialog_json(item) for item in self.dialogs]
+        if self.opened:
+            payload["opened"] = [item["url"] for item in self.opened]
+        if self.reaction is not None:
+            payload["reaction"] = dict(self.reaction)
         return payload
+
+
+def dialog_json(dialog: dict[str, Any]) -> dict[str, str]:
+    """A dialog the page raised, as an agent is told of it."""
+
+    return {"type": dialog["type"], "message": dialog["message"], "answer": dialog["answer"]}
 
 
 @dataclass
@@ -211,7 +259,9 @@ def condition_met(condition: ChangeCondition, since: Observation, current: Obser
     """Whether ``current`` shows the change, compared with ``since``.
 
     Only the session knows when the document changed: that is ``navigation``. After a navigation,
-    ``any`` is met, and ``message`` is met by any message on the new page.
+    ``any`` is met, and ``message`` is met by any message on the new page. In the same document,
+    ``message`` is also met by a message the page showed again or showed and took away, and ``any``
+    by those and by a new address or title: none of them is in the diff of the two lifts.
     """
 
     new_document = current.doc_id != since.doc_id
@@ -221,7 +271,30 @@ def condition_met(condition: ChangeCondition, since: Observation, current: Obser
         return True
     if new_document and condition.kind == "message":
         return bool(current.lift.messages)
-    return condition.met(since.lift, current.lift)
+    if condition.kind not in {"any", "message"}:
+        return condition.met(since.lift, current.lift)
+    diff = diff_lifts(since.lift, current.lift)
+    if diff.messages or _noted(since, current, diff):
+        return True
+    return condition.kind == "any" and (not diff.empty or bool(_moved(since, current)))
+
+
+def _noted(before: Observation, after: Observation, diff: LiftDiff) -> list[tuple[str, str, str]]:
+    """Messages the page wrote between two readings of one document that their diff does not show."""
+
+    if not any(note["seq"] > before.note_seq for note in after.notes):
+        return []
+    regions = {message.node_id: (message.kind, message.text) for message in after.lift.messages}
+    shown = {
+        node.attrs[HINT_REF]: regions[node.id]
+        for node in after.lift.nodes
+        if node.id in regions and node.attrs.get(HINT_REF)
+    }
+    return noted_messages(after.notes, since=before.note_seq, shown=shown, new=diff.messages)
+
+
+def _moved(before: Observation, after: Observation) -> list[str]:
+    return address_lines(before.url, after.url, before.title, after.title)
 
 
 def changes(before: Observation, after: Observation) -> dict[str, Any]:
@@ -229,12 +302,20 @@ def changes(before: Observation, after: Observation) -> dict[str, Any]:
 
     Handles in the lines are those of ``after``. After a navigation to a new document a diff means
     nothing, so the result only says that the page is new.
+
+    Messages come first: the new ones, then those the page showed again (``(shown again)``) or
+    showed and took away (``(shown, now gone)``) between the two readings. Then a new address or
+    title in the same document, then the rest of the diff.
     """
 
     if before.doc_id != after.doc_id:
         return {"new_document": True, "empty": False, "lines": [f"new page {after.title!r} {after.url}"]}
     diff = diff_lifts(before.lift, after.lift)
-    return {"new_document": False, "empty": diff.empty, "lines": diff.lines(after.handle_of)}
+    lines = [] if diff.empty else diff.lines(after.handle_of)
+    unseen = [*message_lines(_noted(before, after, diff)), *_moved(before, after)]
+    head = len(diff.messages)
+    lines = [*lines[:head], *unseen, *lines[head:]] or ["no change"]
+    return {"new_document": False, "empty": diff.empty and not unseen, "lines": lines}
 
 
 class BrowserSession:
@@ -343,6 +424,9 @@ class BrowserSession:
             doc_id=snap["docId"],
             navigation_id=snap["navigationId"],
             secrets=snap.get("secrets", []),
+            notes=tuple(snap["recorder"]["notes"]),
+            note_seq=snap["recorder"]["seq"],
+            activity=snap["activity"],
         )
         return self.observation
 
@@ -367,8 +451,9 @@ class BrowserSession:
     def wait(self, condition: ChangeCondition, since: Observation, *, timeout_ms: int = 5000) -> WaitResult:
         """Wait until the page shows ``condition`` compared with ``since``, or until ``timeout_ms``.
 
-        The page is read again after each DOM change or navigation, never on a fixed poll. The view is
-        stale afterwards (it has no locators); call ``observe()`` again.
+        The page is read again after each change or navigation, never on a fixed poll. A change is a
+        DOM change, or a field that holds something else (a script may set only ``.value``). The view
+        is stale afterwards (it has no locators); call ``observe()`` again.
         """
 
         limit = max(0, min(int(timeout_ms), MAX_WAIT_MS))
@@ -445,6 +530,12 @@ class BrowserSession:
         waited = int((time.monotonic() - start) * 1000)
         return ScrollResult(step, scrolls, moved, loaded, at_end, page, met, end_reached, waited)
 
+    def records(self) -> dict[str, list[dict[str, Any]]]:
+        """What the bridge has recorded since the page was opened: ``writes`` and ``navigations``
+        that were stopped, ``dialogs`` the page raised, and ``popups``, the tabs it opened."""
+
+        return self._call("writes")
+
     def blocked_writes(self) -> list[dict[str, Any]]:
         """Requests that ``block_writes`` stopped since the page was opened."""
 
@@ -492,21 +583,25 @@ class BrowserSession:
             # which the bridge checks on the element it acts on, however it finds it.
             locator = observation.locators.get(step.node_id)
             end_locator = observation.locators.get(step.end_node_id) if step.end_node_id else None
-            reply = self._call(
-                "act",
-                navigation_id=observation.navigation_id,
-                op=step.op,
-                ref=step.ref,
-                locator=locator,
-                end_ref=step.end_ref,
-                end_locator=end_locator,
-                value=step.value,
-                values=list(step.values),
-                files=[
-                    {"name": f.name, "mime_type": f.mime_type, "data_b64": base64.b64encode(f.data).decode("ascii")}
-                    for f in step.files
-                ],
-            )
+            try:
+                reply = self._call(
+                    "act",
+                    navigation_id=observation.navigation_id,
+                    op=step.op,
+                    ref=step.ref,
+                    locator=locator,
+                    end_ref=step.end_ref,
+                    end_locator=end_locator,
+                    value=step.value,
+                    values=list(step.values),
+                    files=[
+                        {"name": f.name, "mime_type": f.mime_type, "data_b64": base64.b64encode(f.data).decode("ascii")}
+                        for f in step.files
+                    ],
+                )
+            except BridgeError as error:
+                error.steps = list(results)  # What ran before the step that could not.
+                raise
             results.append(
                 StepResult(
                     step=step,
@@ -518,14 +613,21 @@ class BrowserSession:
                     download=_with_type(reply.get("download")),
                     unsaved_downloads=tuple(reply.get("unsaved_downloads") or ()),
                     invalid=tuple(dict(item) for item in reply.get("invalid") or ()),
+                    dialogs=tuple(reply.get("dialogs") or ()),
+                    opened=tuple(reply.get("opened") or ()),
+                    reaction=reply.get("reaction"),
+                    mutation_mark=reply.get("mutation_mark"),
+                    request_mark=reply.get("request_mark", 0),
                 )
             )
             if reply["navigated"] and len(results) < len(steps):
                 # The rest of the plan was made for the page that is gone.
                 self.observation = None
-                raise BridgeError(
+                interrupted = BridgeError(
                     f"The page navigated after step {len(results)} of {len(steps)} ({step.op} {step.name!r}); "
                     f"{len(steps) - len(results)} step(s) did not run. Observe the new page and plan again."
                 )
+                interrupted.steps = list(results)
+                raise interrupted
         self.observation = None
         return results

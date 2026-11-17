@@ -297,6 +297,23 @@ that pair is unique on both sides, then by node id and kind. A secret field's va
 a diff. `lines(handle_of)` takes a function from an `after` node id to a view handle. Both lifts
 should come from the same document; after a navigation, read the new page instead.
 
+It also reports the same items in another order, which changes no text and no control: a table
+sorted by a column, a list ranked again.
+
+```text
+reordered 3x <tr>: 'Ana 36', 'Bo 41', 'Cy 29'
+```
+
+`diff.reordered` holds one `Reorder` for each run: the parent's node id in `after`, the tag of the
+items, and their text in the new order (`items`) and the old (`was`). Siblings with the same tag
+are compared under each parent, by the text the user can see in each. A parent is found in `before`
+by its `ref`, or else by its place in the page, so a list built again from new elements still
+compares. Only items that both lifts show are compared: one that was added, removed, or rewritten
+is in the text lines, not in a reorder. When a text occurs more often in one lift than in the other,
+its copies are left out, because nothing says which of them moved. Under a parent that was
+reordered, nothing more is reported. Hidden items do not count, and the options of a control are
+reported in its `options` field.
+
 ### Waiting for a change
 
 A page that answers after a delay (a server call, a timer) shows nothing right after the action.
@@ -311,7 +328,7 @@ condition.met(before, after)  # True once the page shows it
 
 | Condition | Met when |
 |---|---|
-| `{"change": "any"}` | `diff_lifts(before, after)` is not empty |
+| `{"change": "any"}` | `diff_lifts(before, after)` is not empty: a new order of the same items counts |
 | `{"change": "message"}` | a new message shows |
 | `{"change": "navigation"}` | a new document loads; lifts cannot show this, so the caller decides it and `met()` returns False |
 | `{"text": "..."}` | the text is on the page, ignoring case and runs of whitespace |
