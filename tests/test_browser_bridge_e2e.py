@@ -11,6 +11,11 @@ would have: it starts the server the way an agent host does, uses only the three
 every handle from the view text of a result. It never imports the experiment's code. Each task gets
 a server and a browser of its own, so no task sees another's page.
 
+The last tests are about the boundary: what a session cannot do, whatever a page tells the agent.
+The fixture site is their second judge. It records what it receives under another name, so a test
+fails if anything gets out. One of them does load a module of the experiment, ``boundary.py``, to
+hold its list of private addresses against the list in ``bridge.js``.
+
 Set ``VIEWSPEC_RUN_BROWSER_BRIDGE_E2E=1`` after ``npm ci --ignore-scripts`` and ``npx playwright
 install chromium`` in ``experiments/browser-agent-probe``. It needs the ``agents`` extra for the MCP
 client, and it fails rather than skips without it. Writes normally stay blocked, so a task that sends
@@ -24,9 +29,11 @@ import asyncio
 import functools
 import hashlib
 import http.server
+import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -34,7 +41,7 @@ from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, quote_plus, urlsplit
 
 import pytest
 
@@ -214,12 +221,14 @@ async def order_with_a_promo_code(agent: Agent) -> None:
         "new_password": PASSWORD,
         "terms": True,
     }
-    done = await agent.call(tool="checkout", arguments=order, wait_for={"change": "navigation"}, timeout_ms=10000)
+    done = await agent.call(
+        expect="blocked", tool="checkout", arguments=order, wait_for={"change": "navigation"}, timeout_ms=10000
+    )
 
     assert "'Quantity' = '3'" in more["view"]
     assert "message status 'Code SAVE10 applied: 10% off'" in applied["changes"]["lines"]
     assert sent(done, "/orders") == {
-        "csrf": "csrf-token-123456",
+        "csrf": "[not shown]",  # A hidden token is sent, and no view showed it, so no result does.
         "email": "bo@example.com",
         "ship": "express",
         "country": "Japan",
@@ -241,6 +250,7 @@ async def recover_from_refusals(agent: Agent) -> None:
     typed = await agent.act(action="fill", handle=handle(page, "Email"), value="bo")
     stopped = await agent.act(expect="failed", action="click", handle=handle(typed, "Place order"))
     done = await agent.call(
+        expect="blocked",
         tool="checkout",
         arguments={"email": "bo@example.com", "ship": "express", "terms": True},
         wait_for={"change": "navigation"},
@@ -310,25 +320,23 @@ async def open_a_post_far_down_an_infinite_feed(agent: Agent) -> None:
 @task("Find a stay for three guests from 20 to 23 November 2026, then hire a car for the same days.")
 async def book_a_stay_and_a_car(agent: Agent) -> None:
     page = await agent.observe(url=f"{agent.base}/stay.html")
-    stay = await agent.call(
+    filled = await agent.call(
         tool="find_a_stay",
+        submit=False,
         arguments={"checkin": "2026-11-20", "checkout": "2026-11-23", "guests": 3},
-        wait_for={"change": "navigation"},
-        timeout_ms=10000,
     )
-    # The search loaded a new page, so the car form is read again before it is used.
-    await agent.observe(url=f"{agent.base}/stay.html")
-    car = await agent.call(
-        tool="hire_a_car",
-        arguments={"rental": {"start": "2026-11-20", "end": "2026-11-23"}},
-        wait_for={"change": "navigation"},
-        timeout_ms=10000,
-    )
-
     assert {"find_a_stay", "hire_a_car"} <= {tool["name"] for tool in page["form_tools"]}
-    [picked] = [step for step in stay["steps"] if step["step"]["op"] == "choose_date_range"]
-    assert picked["verified"]  # One step picked both days in the shared two-month calendar.
-    # Each form sends its dates the way its own picker writes them.
+    [picked] = [step for step in filled["steps"] if step["step"]["op"] == "choose_date_range"]
+    assert picked["verified"]
+    assert "20 Nov 2026" in filled["view"] and "23 Nov 2026" in filled["view"]
+    stay = await agent.act(expect="blocked", action="click", handle=handle(filled, "Search"))
+    await agent.observe(url=f"{agent.base}/stay.html")
+    rental = await agent.call(
+        tool="hire_a_car", submit=False, arguments={"rental": {"start": "2026-11-20", "end": "2026-11-23"}}
+    )
+    assert "20/11/2026 – 23/11/2026" in rental["view"]
+    car = await agent.act(expect="blocked", action="click", handle=handle(rental, "Hire"))
+    # The heuristic policy can report the formatted values that the agent actually read.
     assert sent(stay, "/search") == {"checkin": "20 Nov 2026", "checkout": "23 Nov 2026", "guests": "3"}
     assert sent(car, "/hire") == {"rental": "20/11/2026 – 23/11/2026"}
 
@@ -346,6 +354,7 @@ async def apply_for_a_job(agent: Agent) -> None:
         files=[{**PHOTO, "name": "front.png"}, {**PHOTO, "name": "side.png"}],
     )
     done = await agent.call(
+        expect="blocked",
         tool="apply",
         arguments={"name": "Bo Diaz", "resume": [{"path": "cv.pdf"}]},
         wait_for={"change": "navigation"},
@@ -609,7 +618,7 @@ async def tell_what_did_not_happen(agent: Agent) -> None:
     deleted = await agent.act(expect="uncertain", action="click", handle=handle(page, "Delete draft"))
     # This button has no handler at all.
     refreshed = await agent.act(expect="uncertain", action="click", handle=handle(deleted, "Refresh badge"))
-    helped = await agent.act(action="click", handle=handle(refreshed, "Help"))
+    helped = await agent.act(expect="failed", action="click", handle=handle(refreshed, "Help"))
 
     assert deleted["steps"][0].get("dialogs") == [
         {"type": "confirm", "message": "Delete this draft?", "answer": "dismissed"}
@@ -618,6 +627,7 @@ async def tell_what_did_not_happen(agent: Agent) -> None:
     assert "Draft deleted" not in deleted["view"]
     assert (refreshed["outcome"]["page"], refreshed["outcome"]["retry"]) == ("quiet", "may_repeat")
     assert refreshed["steps"][0]["reaction"] == {"mutations": 0, "requests": 0, "pending": 0}
+    assert helped["blocked_navigations"][0]["url"] == f"{agent.base}/outcomes_help.html"
     assert helped["steps"][0]["opened"] == [f"{agent.base}/outcomes_help.html"]
     assert helped["url"] == page["url"] and "H1 Team" in helped["view"], "the agent left the page it was on"
 
@@ -653,7 +663,7 @@ async def wait_for_the_server_instead_of_acting_twice(agent: Agent) -> None:
 @task("Order two Arc lamps. The shop opens its receipt in a new tab.")
 async def order_through_a_form_that_opens_a_new_tab(agent: Agent) -> None:
     page = await agent.observe(url=f"{agent.base}/newtab.html")
-    done = await agent.call(tool="order", arguments={"quantity": 2})
+    done = await agent.call(expect="blocked", tool="order", arguments={"quantity": 2})
 
     assert done.get("blocked_writes"), "the order that went out through a new tab was not stopped"
     assert sent(done, "/orders") == {"item": "Arc lamp", "quantity": "2"}
@@ -671,7 +681,9 @@ async def stay_on_the_allowed_site_when_a_link_opens_a_new_tab(agent: Agent) -> 
     left = await agent.act(expect="failed", action="click", handle=handle(page, "Partner offers"))
 
     partner = f"http://localhost:{urlsplit(agent.base).port}/outcomes_help.html"
-    assert left.get("blocked_navigations") == [{"url": partner, "reason": "origin not allowed", "new_tab": True}]
+    assert left.get("blocked_navigations") == [
+        {"url": partner, "reason": "document origin not allowed", "new_tab": True}
+    ]
     assert left["steps"][0]["opened"] == [partner]
     assert partner in left["outcome"]["reason"] and left["outcome"]["retry"] == "safe"
     assert left["url"] == page["url"] and "H1 Order" in left["view"]
@@ -683,6 +695,7 @@ SLOW_ANSWER_S = 1.5  # How long the server holds back slow.json, which outcomes.
 # Requests the site received: normally none, because writes are blocked and only 127.0.0.1 with
 # the site's port is allowed. The receipt-dialog regressions enable writes and expect one order.
 RECEIVED: list[str] = []
+BODIES: dict[str, str] = {}  # The body of the latest POST the site received, by path.
 
 
 class _QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -691,15 +704,44 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         host = self.headers.get("Host", "")
-        if not host.startswith("127.0.0.1:"):
+        parts = urlsplit(self.path)
+        # The site under another name is "another origin". /account/ is where a GET changes data.
+        if not host.startswith("127.0.0.1:") or parts.path.startswith("/account/"):
             RECEIVED.append(f"GET {self.path} as {host}")
-        if urlsplit(self.path).path == "/slow.json":
+        if parts.path == "/leave":
+            # An allowed origin whose server sends the browser somewhere else.
+            self.send_response(302)
+            self.send_header("Location", parse_qs(parts.query)["to"][0])
+            self.end_headers()
+            return
+        if parts.path in ("/session-start", "/session-check"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            if parts.path == "/session-start":
+                self.send_header("Set-Cookie", "visit=second; HttpOnly; Path=/")
+            self.end_headers()
+            accepted = self.headers.get(
+                "X-Trial"
+            ) == "fixture-ticket" and "account=fixture-account" in self.headers.get("Cookie", "")
+            visiting = "visit=second" in self.headers.get("Cookie", "")
+            heading = "Authenticated" if accepted else "Anonymous"
+            script = (
+                "localStorage.setItem('visit','present')"
+                if parts.path == "/session-start"
+                else ("document.querySelector('h2').textContent = localStorage.getItem('visit') || 'empty'")
+            )
+            self.wfile.write(
+                f"<!doctype html><h1>{heading}</h1><h2></h2><h3>{visiting}</h3><script>{script}</script>".encode()
+            )
+            return
+        if parts.path == "/slow.json":
             time.sleep(SLOW_ANSWER_S)  # A server that takes its time: the page is still working.
         super().do_GET()
 
     def do_POST(self) -> None:
-        self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         RECEIVED.append(f"POST {self.path}")
+        BODIES[self.path] = body.decode("utf-8", "replace")
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
         self.end_headers()
@@ -718,7 +760,19 @@ def site() -> Iterator[str]:
     server.server_close()
 
 
-async def _attempt(task: Task, base: str, folder: Path, *, allow_writes: bool = False) -> Run:
+async def _attempt(
+    task: Task,
+    base: str,
+    folder: Path,
+    *,
+    allow_writes: bool = False,
+    sealed: bool = True,
+    flags: tuple[str, ...] = (),
+    secrets: dict[str, str] | None = None,
+) -> Run:
+    """Run a task against a server of its own. ``sealed``: the server lists the site as its one
+    origin. ``flags`` are more of the server's limits; ``secrets`` go into its environment."""
+
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
@@ -727,13 +781,15 @@ async def _attempt(task: Task, base: str, folder: Path, *, allow_writes: bool = 
     downloads.mkdir()
     # Like a host's MCP config: only where Playwright keeps its browsers, if that is not the
     # default. NODE_PATH is left out, so the bridge loads the Playwright installed beside it.
-    env = {key: os.environ[key] for key in ("PLAYWRIGHT_BROWSERS_PATH",) if key in os.environ}
+    env = {key: os.environ[key] for key in ("PLAYWRIGHT_BROWSERS_PATH",) if key in os.environ} | (secrets or {})
     params = StdioServerParameters(
         command=sys.executable,
         args=[
             str(SERVER),
-            "--allow-origin",
-            base,
+            *(["--allow-origin", base, "--allow-read", base + "/*"] if sealed else ["--public-read"]),
+            "--private",
+            "heuristic",
+            *flags,
             "--upload-dir",
             str(uploads),
             "--download-dir",
@@ -834,3 +890,243 @@ def test_old_observation_cannot_act_after_a_product_route_change(route: str, sit
     case = Task("Use only a fresh observation after changing product routes", play, ())
     run = asyncio.run(_attempt(case, site, tmp_path))
     assert unmet(run) == []
+
+
+# ---- the boundary -----------------------------------------------------------------------------------
+# The tests above ask whether an agent can do its task. These ask what it cannot do, whatever the
+# page tells it: reach an origin that is not listed, send a write no rule names, or read a secret.
+# The site under the name localhost stands for "another origin"; RECEIVED says what reached it.
+
+SHOP_PASSWORD = "Tr0ub4dor&3-horse"  # The "&" makes a form send it in another shape than it is typed.
+
+
+def _bounded(goal: str, play: Callable[[Agent], Awaitable[None]], site: str, folder: Path, **limits: Any) -> Run:
+    RECEIVED.clear()
+    BODIES.clear()
+    held = tuple((limits.get("secrets") or {}).values())
+    run = asyncio.run(
+        _attempt(Task(goal, play, (*held, *(quote_plus(value) for value in held))), site, folder, **limits)
+    )
+    assert unmet(run) == []
+    return run
+
+
+@pytest.mark.parametrize(
+    ("simulate", "code", "state"),
+    [
+        (False, 403, "blocked"),
+        (True, 200, "blocked-and-simulated"),
+    ],
+)
+def test_page_visible_json_and_agent_write_disposition(
+    site: str, tmp_path: Path, simulate: bool, code: int, state: str
+) -> None:
+    async def play(agent: Agent) -> None:
+        page = await agent.observe(url=f"{site}/session_contract.html")
+        done = await agent.act(
+            expect="blocked", action="click", handle=handle(page, "Save note"), wait_for={"text": f"Response {code}"}
+        )
+        assert done["blocked_writes"][0]["state"] == state
+        assert done["steps"][0]["writes"][0]["state"] == state
+        assert done["wait"]["met"] and f"Response {code} {state} marked 1" in done["view"]
+        assert done["summary"] == done["outcome"]["reason"]
+        assert done["outcome"]["retry"] == "may_repeat"
+
+    _bounded("Save a fixture note", play, site, tmp_path, flags=("--simulate-writes",) if simulate else ())
+    assert RECEIVED == []
+
+
+def test_strict_session_projects_values_on_each_mcp_result(site: str, tmp_path: Path) -> None:
+    async def play(agent: Agent) -> None:
+        reading = await agent.observe(url=f"{site}/session_contract.html?token=fixture-url-482#fixture-fragment")
+        filled = await agent.act(action="fill", handle=handle(reading, "Notes"), value="fixture-revision-482")
+        assert "[redacted]" in reading["url"] and "[redacted]" in filled["view"]
+        assert filled["steps"][0]["verified"] is True
+
+    task = Task(
+        "Edit a private note", play, ("fixture-note-482", "fixture-url-482", "fixture-fragment", "fixture-revision-482")
+    )
+    assert unmet(asyncio.run(_attempt(task, site, tmp_path, flags=("--private", "strict")))) == []
+
+
+def test_operator_session_persists_across_opens(site: str, tmp_path: Path) -> None:
+    async def play(agent: Agent) -> None:
+        first = await agent.observe(url=f"{site}/session-start")
+        second = await agent.observe(url=f"{site}/session-check")
+        assert "Authenticated" in first["view"] and "Authenticated" in second["view"]
+        assert "present" in second["view"] and "True" in second["view"]
+
+    state_path = tmp_path / "trial-session.json"
+    _bounded(
+        "Read two signed-in pages",
+        play,
+        site,
+        tmp_path,
+        flags=(
+            "--header",
+            "X-Trial=TRIAL_HEADER",
+            "--cookie",
+            "account=TRIAL_COOKIE",
+            "--save-storage-state",
+            str(state_path),
+        ),
+        secrets={"TRIAL_HEADER": "fixture-ticket", "TRIAL_COOKIE": "fixture-account"},
+    )
+    state = json.loads(state_path.read_text())
+    assert {c["name"] for c in state["cookies"]} == {"account", "visit"}
+    assert state_path.stat().st_mode & 0o777 == 0o600
+    assert "fixture-ticket" not in state_path.read_text()
+
+
+def test_operator_sets_confirmation_answer(site: str, tmp_path: Path) -> None:
+    async def play(agent: Agent) -> None:
+        page = await agent.observe(url=f"{site}/outcomes.html")
+        result = await agent.act(action="click", handle=handle(page, "Delete draft"))
+        assert result["steps"][0]["dialogs"][0]["answer"] == "accepted"
+        assert "Draft deleted" in result["view"]
+
+    _bounded("Confirm a fixture dialog", play, site, tmp_path, flags=("--confirm", "accept"))
+
+
+def test_click_controls_in_same_origin_and_srcdoc_frames(site: str, tmp_path: Path) -> None:
+    async def play(agent: Agent) -> None:
+        reading = await agent.observe(url=f"{site}/session_contract.html")
+        for name in ("Open embedded panel", "Open inline panel"):
+            reading = await agent.act(action="click", handle=handle(reading, name))
+            assert name + " opened" in reading["view"]
+
+    _bounded("Open both embedded panels", play, site, tmp_path)
+
+
+def test_an_open_session_does_not_read_this_computer(site: str, tmp_path: Path) -> None:
+    async def play(agent: Agent) -> None:
+        # With no origins listed the agent may read the public web. This site is on 127.0.0.1.
+        local = await agent.observe(refusal_expected=True, url=f"{agent.base}/boundary.html")
+        named = await agent.observe(refusal_expected=True, url=agent.base.replace("127.0.0.1", "localhost"))
+        file = await agent.observe(refusal_expected=True, url="file:///etc/hosts")
+        keyed = await agent.observe(refusal_expected=True, url="https://bo:hunter2@example.com/")
+
+        assert codes(local) == codes(named) == ["BROWSER_ADDRESS_PRIVATE"]
+        assert codes(file) == codes(keyed) == ["BROWSER_ADDRESS_NOT_ALLOWED"]
+        assert "private network" in local["errors"][0]["message"]
+
+    _bounded("Read a page on this computer, and a file.", play, site, tmp_path, sealed=False)
+    assert RECEIVED == []
+
+
+def test_only_the_writes_a_rule_names_are_sent(site: str, tmp_path: Path) -> None:
+    async def play(agent: Agent) -> None:
+        page = await agent.observe(url=f"{agent.base}/boundary.html")
+        added = await agent.act(action="click", handle=handle(page, "Add to cart"))
+        again = await agent.observe(url=f"{agent.base}/boundary.html")
+        ordered = await agent.act(expect="blocked", action="click", handle=handle(again, "Place order"))
+        back = await agent.observe(url=f"{agent.base}/boundary.html")
+        # A GET that changes data. Its method says nothing, so the server was told its address.
+        deleted = await agent.act(expect="failed", action="click", handle=handle(back, "Delete account"))
+
+        assert f"Writes: only POST {agent.base}/cart. Every other one is stopped and listed." in page["limits"]
+        assert added["navigated"] and added["title"] == "Stored" and "blocked_writes" not in added
+        [stopped] = ordered["blocked_writes"]
+        assert (stopped["method"], urlsplit(stopped["url"]).path) == ("POST", "/orders")
+        assert [item["reason"] for item in deleted["blocked_navigations"]] == ["a rule denies this address"]
+        assert deleted["url"] == f"{agent.base}/boundary.html"
+
+    flags = ("--allow-write", f"POST {site}/cart", "--deny-url", "*/account/delete*")
+    _bounded("Add a lamp to the cart, order it, and delete the account.", play, site, tmp_path, flags=flags)
+    assert RECEIVED == ["POST /cart"], "the site received something other than the one write a rule allows"
+    assert BODIES == {"/cart": "item=lamp"}
+
+
+def test_a_secret_is_named_by_the_agent_and_never_shown_to_it(site: str, tmp_path: Path) -> None:
+    async def play(agent: Agent) -> None:
+        page = await agent.observe(url=f"{agent.base}/boundary.html")
+        named = {"secret": "SHOP_PASSWORD"}
+        # A page can tell an agent to type the password anywhere. It goes into a secret field only.
+        wrong = await agent.act(refusal_expected=True, action="fill", handle=handle(page, "Note"), value=named)
+        unknown = await agent.act(
+            refusal_expected=True, action="fill", handle=handle(page, "Password"), value={"secret": "BANK_PIN"}
+        )
+        typed = await agent.act(action="fill", handle=handle(page, "Password"), value=named)
+        # A faulty page writes the password where anyone can read it. The view would hold it.
+        echoed = await agent.act(action="click", handle=handle(typed, "Show password"))
+        sign_in = next(tool["name"] for tool in page["form_tools"] if "sign" in tool["name"])
+        signed = await agent.call(tool=sign_in, arguments={"user": "bo", "password": named})
+
+        assert codes(wrong) == codes(unknown) == ["BROWSER_SECRET_REFUSED"]
+        assert typed["steps"][0]["verified"] is True
+        assert "message status 'You typed: [secret SHOP_PASSWORD]'" in echoed["changes"]["lines"]
+        assert "You typed: [secret SHOP_PASSWORD]" in echoed["view"]
+        assert signed["navigated"] and signed["title"] == "Stored"
+        assert any("secret SHOP_PASSWORD" in line for line in page["limits"])
+
+    flags = ("--secret", "SHOP_PASSWORD", "--allow-write", f"POST {site}/login")
+    _bounded("Sign in as bo.", play, site, tmp_path, flags=flags, secrets={"SHOP_PASSWORD": SHOP_PASSWORD})
+    # The site got the password itself. No result did: the shared rule checks every one of them.
+    received = dict(BODIES)
+    assert received == {"/login": f"user=bo&password={quote_plus(SHOP_PASSWORD)}"}
+
+
+def test_the_gate_and_the_policy_agree_on_which_addresses_are_private() -> None:
+    """boundary.py judges the address written in a link, and the gate in bridge.js the address a name
+    resolves to. They are two lists in two languages, and they must draw the same line."""
+
+    private = ["127.0.0.1", "10.0.0.5", "172.16.0.1", "172.31.255.254", "192.168.1.1", "169.254.169.254", "100.64.0.1"]
+    private += [
+        "0.0.0.0",
+        "192.0.2.7",
+        "::1",
+        "fd00::1",
+        "fe80::1",
+        "::ffff:127.0.0.1",
+        "::ffff:7f00:1",
+        "::ffff:10.0.0.5",
+    ]
+    # 172.66 is outside 172.16/12, and 104.20 is an ordinary address: both are example.com's.
+    public = ["8.8.8.8", "104.20.23.154", "172.66.147.243", "172.32.0.1", "1.1.1.1", "2606:4700:10::6814:179a"]
+    public += ["::ffff:8.8.8.8", "::ffff:808:808"]
+
+    spec = importlib.util.spec_from_file_location("browser_bridge_boundary_e2e", PROBE / "boundary.py")
+    assert spec is not None and spec.loader is not None
+    boundary = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = boundary
+    spec.loader.exec_module(boundary)
+    by_policy = [address for address in private + public if boundary.is_private_host(address)]
+
+    asked = json.dumps({"id": 1, "cmd": "private", "addresses": private + public})
+    done = subprocess.run(
+        ["node", str(PROBE / "bridge.js")], input=asked + "\n", capture_output=True, text=True, timeout=60
+    )
+    by_gate = json.loads(done.stdout.splitlines()[0])["result"]["private"]
+
+    assert by_gate == private, "the gate lets through, or refuses, an address it should not"
+    assert by_policy == private
+
+
+@pytest.mark.parametrize(
+    ("flags", "reason"),
+    [
+        ([], "Choose --allow-origin"),
+        (["--allow-writes"], "--allow-writes needs --allow-origin"),
+        (["--secret", "SHOP_PASSWORD"], "--secret needs --allow-origin"),
+        (["--allow-host", "cdn.example"], "--allow-host needs --allow-origin"),
+        (["--allow-origin", "https://shop.example", "--secret", "NOT_SET_ANYWHERE"], "no value for it"),
+        (
+            ["--allow-origin", "https://shop.example", "--allow-write", "POST https://elsewhere.example/pay"],
+            "not on a listed origin",
+        ),
+        (["--allow-origin", "https://shop.example/account"], "must be an origin only"),
+    ],
+)
+def test_the_server_does_not_start_with_limits_it_cannot_keep(flags: list[str], reason: str) -> None:
+    env = {**os.environ, "SHOP_PASSWORD": SHOP_PASSWORD}
+    done = subprocess.run(
+        [sys.executable, str(SERVER), *flags],
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert done.returncode == 2 and reason in done.stderr, done.stderr[-400:]
+    assert SHOP_PASSWORD not in done.stderr + done.stdout

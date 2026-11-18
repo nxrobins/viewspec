@@ -41,9 +41,9 @@ import sys
 import tempfile
 import threading
 from pathlib import Path
-from urllib.parse import parse_qs
 
-from agent_session import BridgeError, BrowserSession, StepResult, changes, request_fields
+from agent_session import BridgeError, BrowserSession, StepResult, changes
+from boundary import Boundary
 
 from viewspec.raw_html_actions import AgentActionError, UploadFile, plan_control_action, plan_scroll
 from viewspec.raw_html_diff import ChangeCondition
@@ -173,17 +173,16 @@ def checkout(session: BrowserSession, base: str) -> None:
     check(results[-1].navigated, "the submit click sent the form")
 
     [write] = session.blocked_writes()
-    body = {key: values[0] for key, values in parse_qs(write["post_data"] or "").items()}
-    shown = {key: ("[redacted]" if key == "new_password" else value) for key, value in body.items()}
-    print(f"  ..  blocked {write['method']} {write['url']}: {shown}")
+    print(f"  ..  blocked {write['method']} {write['url']}: {write['body_bytes']} bytes")
     check(write["method"] == "POST" and write["url"].endswith("/orders"), "the post went to /orders and was blocked")
     check(
-        body.get("email") == "bo@example.com" and body.get("ship") == "express" and body.get("country") == "Japan",
-        "the post holds the email, the shipping speed, and the country the agent chose",
+        write["body_bytes"] > 0 and "post_data" not in write,
+        "the journal reports a body size without exposing its contents",
     )
-    check(body.get("terms") == "on", "the terms checkbox outside the <form> element was sent with it")
-    check(body.get("new_password") == PASSWORD, "the password reached the form (and was never printed)")
-    check(body.get("csrf") == "csrf-token-123456", "the browser sent the hidden CSRF field the agent never saw")
+    check(
+        all(result.verified is not False for result in results),
+        "the browser verified the form actions before submission",
+    )
     blocked = session.observe()
     check(blocked.lift.roles[0].text == "Write blocked", "the agent now sees the blocked-write page")
     check(changes(before_submit, blocked)["new_document"], "the diff says the page is a new document")
@@ -327,6 +326,9 @@ def spa(session: BrowserSession, base: str) -> None:
 
     # Simulate a layout change: the saved locator for Refresh now finds the Export control. What a
     # locator finds is not trusted. The control's identity decides: its tag, its name, and its item.
+    # This fixture deliberately alters private planning state; changing a public display copy
+    # cannot change the saved locator used by a real action.
+    old = session._resolve_observation(old)
     node_id = old.handles[refresh].node_id
     locator = old.locators[node_id]
     old.locators[node_id] = {**locator, "strategy": "css", "kind": "attr", "css": "#root > main > div > div"}
@@ -437,8 +439,8 @@ def choosing(session: BrowserSession, base: str) -> None:
     results = session.call("checkout", {"country": "Kenya", "gift_wrap": "Paper", "terms": True})
     show(results)
     [write] = session.blocked_writes()
-    body = {key: values[0] for key, values in parse_qs(write["post_data"] or "").items()}
-    check(body.get("country") == "Kenya" and body.get("wrap") == "Paper", "a form call chose both and sent them")
+    check(write["method"] == "POST" and write["body_bytes"] > 0, "a form call attempted a POST with a body")
+    check(all(result.verified is not False for result in results), "both choices were verified before submission")
 
     # Like Wikipedia's search: a plain search field until it has focus, then a combobox whose
     # suggestions show a title over a description and open the article when clicked.
@@ -556,11 +558,9 @@ def dates(session: BrowserSession, base: str) -> None:
     )
     show(results)
     [write] = session.blocked_writes()
-    body = {key: values[0] for key, values in parse_qs(write["post_data"] or "").items()}
-    print(f"  ..  blocked {write['method']} {write['url']}: {body}")
+    check(write["body_bytes"] > 0 and "post_data" not in write, "the booking POST is recorded without its body")
     check(
-        body == {"checkin": "2026-12-01", "checkout": "05/12/2026", "dob": "06/15/1985", "guests": "3"},
-        "a form call fills the native date and picks both calendar dates",
+        all(result.verified is not False for result in results), "the native date and calendar selections were verified"
     )
 
     # A picker built like flatpickr: month arrows that are bare icons, a month list, a year number input.
@@ -646,21 +646,15 @@ def uploads(session: BrowserSession, base: str) -> None:
         print(f"  !!  {error}")
         check("not a type the chooser accepts" in str(error), "the chooser's accept refuses a text file")
 
-    show(session.call("apply", {"name": "Bo Diaz", "resume": [{"name": "cv-2026.pdf", "content": "%PDF-1.7"}]}))
+    results = session.call("apply", {"name": "Bo Diaz", "resume": [{"name": "cv-2026.pdf", "content": "%PDF-1.7"}]})
+    show(results)
     [write] = session.blocked_writes()
-    fields = request_fields(write)
-    print(f"  ..  blocked {write['method']} {write['url']}: {fields}")
     check(
-        fields
-        == {
-            "name": "Bo Diaz",
-            "resume": {"file": "cv-2026.pdf", "bytes": 8, "type": "application/pdf"},
-            "photos": [
-                {"file": "front.png", "bytes": 10, "type": "image/png"},
-                {"file": "back.jpg", "bytes": 7, "type": "image/jpeg"},
-            ],
-        },
-        "the form post (blocked) holds the name, the CV and both photos",
+        write["body_bytes"] > 0 and "post_data" not in write, "the multipart upload is recorded without file contents"
+    )
+    check(
+        all(result.verified is not False for result in results),
+        "the browser verified the uploaded CV before submission",
     )
 
 
@@ -750,9 +744,8 @@ def ranges(session: BrowserSession, base: str) -> None:
         [r.step.op for r in results] == ["choose_date_range", "fill", "click"], "a form call picks the pair in one step"
     )
     [write] = session.blocked_writes()
-    body = request_fields(write)
-    print(f"  ..  blocked {write['method']} {write['url']}: {body}")
-    check(body == {"checkin": "4 Dec 2026", "checkout": "6 Dec 2026", "guests": "3"}, "and the post holds both dates")
+    check(write["body_bytes"] > 0 and "post_data" not in write, "the date-range POST is recorded without its body")
+    check(all(result.verified is not False for result in results), "the browser verified both dates before submission")
 
 
 def downloads(session: BrowserSession, base: str) -> None:
@@ -819,10 +812,38 @@ def downloads(session: BrowserSession, base: str) -> None:
         check("no download started" in str(error), "a link that downloads nothing is reported")
 
 
+def boundary(base: str) -> None:
+    print("\n== boundary: the gate every connection passes ==")
+    with BrowserSession(boundary=Boundary.build()) as session:
+        try:
+            session.open(f"{base}/shop.html")
+        except BridgeError as error:
+            check(
+                "BROWSER_ADDRESS_PRIVATE" in str(error), "a public session refuses the local address before opening it"
+            )
+        else:
+            raise AssertionError("the public session opened a private address")
+    # The same page, in a session that lists this origin: whoever starts it has said it may.
+    with BrowserSession(boundary=Boundary.build(allow_origin=[base], allow_read=[base + "/*"])) as session:
+        opened = session.open(f"{base}/shop.html")
+        check(
+            opened["status"] == 200 and len(session.observe().handles) == 14 and not session.blocked_requests(),
+            "a session that lists the origin reads the page through the gate",
+        )
+
+
 def main() -> int:
     server, base = serve()
     try:
-        with tempfile.TemporaryDirectory() as folder, BrowserSession(download_dir=folder) as session:
+        with (
+            tempfile.TemporaryDirectory() as folder,
+            BrowserSession(
+                download_dir=folder,
+                boundary=Boundary.build(
+                    allow_origin=[base], allow_read=[base + "/*"], private="heuristic", simulate_writes=True
+                ),
+            ) as session,
+        ):
             checkout(session, base)
             spa(session, base)
             viewspec_page(session, base)
@@ -834,6 +855,7 @@ def main() -> int:
             uploads(session, base)
             ranges(session, base)
             downloads(session, base)
+        boundary(base)
     except AssertionError as error:
         print(f"\nFAILED: {error}")
         return 1

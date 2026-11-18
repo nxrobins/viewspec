@@ -50,7 +50,7 @@ async def tool(session: ClientSession, name: str, **arguments: Any) -> dict[str,
     reply = await session.call_tool(name, arguments)
     result = reply.structuredContent or json.loads(reply.content[0].text)  # type: ignore[union-attr]
     status = "ok" if result["ok"] else "FAILED " + ", ".join(error["code"] for error in result["errors"])
-    shown = ", ".join(f"{key}={value!r}" for key, value in arguments.items() if key != "arguments")
+    shown = ", ".join(arguments)
     print(f"  ->  {name}({shown}) {status}: {result['summary']}")
     return result
 
@@ -67,7 +67,19 @@ async def run(base: str, folder: Path) -> None:
     (folder / "private.txt").write_text("outside the upload folder")
     params = StdioServerParameters(
         command=sys.executable,
-        args=[str(SERVER), "--allow-origin", base, "--upload-dir", str(uploads), "--download-dir", str(downloads)],
+        args=[
+            str(SERVER),
+            "--private",
+            "heuristic",
+            "--allow-origin",
+            base,
+            "--allow-read",
+            base + "/*",
+            "--upload-dir",
+            str(uploads),
+            "--download-dir",
+            str(downloads),
+        ],
         env=env,
     )
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
@@ -78,7 +90,7 @@ async def run(base: str, folder: Path) -> None:
         check(set(listed) == {"observe", "act", "call"}, "the server offers observe, act, and call")
         check(
             all(listed[name].annotations.destructiveHint is False for name in ("act", "call")),
-            "with writes blocked, act and call say they change nothing outside the browser",
+            "with only operator-classified fixture reads, act and call advertise the read policy",
         )
 
         print("\n== checkout ==")
@@ -286,12 +298,14 @@ async def run(base: str, folder: Path) -> None:
             not unclear["ok"] and "two dates" in unclear["summary"] and "Nothing was done" in unclear["summary"],
             "an ambiguous date is refused before the browser acts",
         )
-        booked = await tool(
+        selected = await tool(
             session,
             "call",
             tool="book_a_stay",
+            submit=False,
             arguments={"checkin": "Dec 1, 2026", "checkout": "2026-12-05", "dob": "15 June 1985", "guests": 3},
         )
+        booked = await tool(session, "act", action="click", handle=handle(selected, "Book"))
         fields = booked["blocked_writes"][0]["form_fields"]
         check(
             fields == {"checkin": "2026-12-01", "checkout": "05/12/2026", "dob": "06/15/1985", "guests": "3"},
@@ -487,9 +501,14 @@ async def run(base: str, folder: Path) -> None:
             not past["ok"] and past["errors"][0]["code"] == "BROWSER_DATE_UNAVAILABLE",
             "a range that starts on a past day is BROWSER_DATE_UNAVAILABLE",
         )
-        hired = await tool(
-            session, "call", tool="hire_a_car", arguments={"rental": {"start": "2026-11-20", "end": "2026-11-22"}}
+        selected = await tool(
+            session,
+            "call",
+            tool="hire_a_car",
+            submit=False,
+            arguments={"rental": {"start": "2026-11-20", "end": "2026-11-22"}},
         )
+        hired = await tool(session, "act", action="click", handle=handle(selected, "Hire"))
         fields = hired["blocked_writes"][0]["form_fields"]
         print(f"  ..  {fields}")
         check(fields == {"rental": "20/11/2026 \u2013 22/11/2026"}, "a form call picks a one-field range")

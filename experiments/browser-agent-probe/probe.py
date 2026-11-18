@@ -7,7 +7,8 @@ For each target, the probe opens the page in a ``BrowserSession`` (bridge.js) an
 2. Lifts the snapshot with the "agent" profile, and with the "compile" profile as a baseline.
 3. Verifies a locator for every control: frame chain + CSS, or role + name.
 4. Compares sizes (approximate tokens), coverage, names, locators, and fingerprint stability, and
-   checks that no live secret value reaches any output.
+   audits known private values and redaction markers in the projected outputs. Unknown prose
+   secrets are outside that check; a page with no known values is reported as not checked.
 
 This is an experiment. It is not part of the ViewSpec package or its guarantees.
 
@@ -18,14 +19,20 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import http.server
 import json
+import mimetypes
 import re
 import sys
+import threading
 from collections import Counter
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, unquote, urlsplit
 
 from agent_session import BridgeError, BrowserSession, Observation
+from boundary import Boundary, is_private_host
 
 from viewspec.raw_html import lift_html
 
@@ -46,6 +53,67 @@ def to_target(raw: str) -> str:
     if not path.exists():
         raise SystemExit(f"Target not found: {raw}")
     return path.as_uri()
+
+
+@contextlib.contextmanager
+def local_target(raw: str):
+    """Serve selected local input on loopback without authorizing browser file:// access.
+
+    Only the selected file is exposed. Bundled fixtures may also load their reviewed sibling
+    assets; an arbitrary input does not expose its containing directory.
+    """
+    target = to_target(raw)
+    parts = urlsplit(target)
+    if parts.scheme != "file":
+        origins = [f"{parts.scheme}://{parts.netloc}"] if is_private_host(parts.hostname or "") else []
+        yield target, Boundary.build(allow_origin=origins, allow_read=[o + "/*" for o in origins], private="heuristic")
+        return
+    if parts.netloc not in {"", "localhost"}:
+        raise SystemExit("Only local file targets are supported.")
+    selected = Path(unquote(parts.path)).resolve()
+    if not selected.is_file():
+        raise SystemExit("The local target must be a file.")
+    fixtures = Path(__file__).resolve().parent / "fixtures"
+    allowed = {f"/{selected.name}": selected}
+    if selected.is_relative_to(fixtures):
+        allowed = {
+            "/" + path.relative_to(fixtures).as_posix(): path
+            for path in fixtures.rglob("*")
+            if path.is_file() and not path.is_symlink()
+        }
+        route = "/" + selected.relative_to(fixtures).as_posix()
+    else:
+        route = f"/{selected.name}"
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            path = allowed.get(unquote(urlsplit(self.path).path))
+            if path is None:
+                self.send_error(404)
+                return
+            data = path.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    origin = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        yield (
+            origin + quote(route),
+            Boundary.build(allow_origin=[origin], allow_read=[origin + "/*"], private="heuristic"),
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
 
 
 def coverage(interactive: list[dict[str, str]], names: list[str]) -> dict[str, Any]:
@@ -69,16 +137,6 @@ def coverage(interactive: list[dict[str, str]], names: list[str]) -> dict[str, A
         "ratio": round(found / total, 3) if total else None,
         "by_kind": {kind: f"{hit}/{count}" for kind, (hit, count) in sorted(by_kind.items())},
         "missed_examples": missed[:15],
-    }
-
-
-def count_leaks(secrets: list[str], outputs: list[str]) -> dict[str, int]:
-    """Count the outputs that contain a live secret value. The secrets are never written anywhere."""
-
-    names = ["snapshot_html", "lift_json", "page_view", "form_schemas", "locators", "aria_snapshot"]
-    return {
-        name: sum(1 for secret in secrets if len(secret) >= 4 and secret in output)
-        for name, output in zip(names, outputs, strict=True)
     }
 
 
@@ -126,14 +184,16 @@ def locator_stats(observation: Observation) -> dict[str, Any]:
 def analyze(session: BrowserSession, target: str, out_dir: Path | None, index: int) -> dict[str, Any]:
     try:
         opened = session.open(target)
-        observation = session.observe(collect_secrets=True)
+        observation = session.observe()
         confirmed = session.confirm_locators(observation)
         aria = session.aria_snapshot()
         session.reload()
         reload_lift = session.observe(locate=False).lift
     except BridgeError as error:
-        return {"target": target, "ok": False, "error": str(error)}
+        return session.privacy.clean({"target": target, "ok": False, "error": str(error)})
 
+    observation = session.project(session._resolve_observation(observation))
+    aria = session.privacy.clean(aria)
     lift = observation.lift
     static_lift = lift_html(opened["static_html"], profile="agent")
     compile_lift = lift_html(observation.html)
@@ -169,18 +229,24 @@ def analyze(session: BrowserSession, target: str, out_dir: Path | None, index: i
             "stable_across_reload": lift.topology_fingerprint.hex == reload_lift.topology_fingerprint.hex,
             "static_equals_rendered": static_lift.topology_fingerprint.hex == lift.topology_fingerprint.hex,
         },
-        "secret_fields_checked": len(observation.secrets),
-        "secret_leaks": count_leaks(
-            observation.secrets,
-            [observation.html, lift_json, observation.view, json.dumps(schemas), locators_json, aria],
+        "privacy": session.privacy.audit(
+            {
+                "snapshot_html": observation.html,
+                "lift_json": lift_json,
+                "page_view": observation.view,
+                "form_schemas": json.dumps(schemas),
+                "locators": locators_json,
+                "aria_snapshot": aria,
+            }
         ),
         "groups": len(lift.group_candidates),
         "viewspec_action_ids": observation.action_ids,
         "lift_diagnostics": dict(Counter(item["code"] for item in lift.diagnostics)),
     }
 
+    report = session.privacy.clean(report)
     if out_dir is not None:
-        page_dir = out_dir / f"{index:02d}-{slug(target)}"
+        page_dir = out_dir / f"{index:02d}-{slug(session.privacy.clean(target))}"
         page_dir.mkdir(parents=True, exist_ok=True)
         (page_dir / "page_view.txt").write_text(observation.view + "\n", encoding="utf-8")
         (page_dir / "aria_snapshot.yaml").write_text(aria + "\n", encoding="utf-8")
@@ -211,7 +277,7 @@ def summary_table(reports: list[dict[str, Any]]) -> str:
         compiled = report["coverage_compile_profile"]
         agent = report["coverage_agent_profile"]
         located = report["locators"]
-        leaks = sum(count for key, count in report["secret_leaks"].items() if key != "aria_snapshot")
+        leaks = sum(report["privacy"]["unredacted_matches"].values()) if report["privacy"]["checked"] else "not checked"
         rows.append(
             f"| {name} | {tokens['aria_snapshot']} | {tokens['page_view']} | {report['visible_interactive']} "
             f"| {compiled['found']}/{compiled['total']} | {agent['found']}/{agent['total']} "
@@ -230,8 +296,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.out is not None:
         args.out.mkdir(parents=True, exist_ok=True)
-    with BrowserSession() as session:
-        reports = [analyze(session, to_target(target), args.out, index) for index, target in enumerate(args.targets, 1)]
+    reports = []
+    for index, target in enumerate(args.targets, 1):
+        with local_target(target) as (address, boundary), BrowserSession(boundary=boundary) as session:
+            reports.append(analyze(session, address, args.out, index))
     if args.out is not None:
         (args.out / "summary.json").write_text(json.dumps(reports, indent=2), encoding="utf-8")
     print(summary_table(reports))
@@ -247,7 +315,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\n{name}: found only by the agent lift: " + "; ".join(agent["extra_controls"][:6]))
         if report["locators"]["unlocated_examples"]:
             print(f"\n{name}: no locator: " + "; ".join(report["locators"]["unlocated_examples"][:6]))
-        aria_leaks = report["secret_leaks"]["aria_snapshot"]
+        aria_leaks = report["privacy"]["unredacted_matches"]["aria_snapshot"]
         if aria_leaks:
             print(f"\n{name}: the ARIA snapshot shows {aria_leaks} live secret value(s)")
     return 0

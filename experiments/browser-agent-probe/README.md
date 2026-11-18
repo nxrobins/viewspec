@@ -29,15 +29,15 @@ evals that open real sites (`apg_eval.py`, `real_sites_eval.py`) and `probe.py` 
 | File | What it does |
 |---|---|
 | `lift_inpage.js` | In-page library. Gives every element a ref (`e17`) that stays the same while the element is in the page. Snapshots the composed tree (open shadow roots, slots, same-origin iframes) with live form state, and never copies a secret value. Lists the visible controls (the ground truth). Proposes CSS candidates for an element. Keeps a note of every write into a message region, and counts DOM mutations (the recorder). |
-| `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and by default **blocks writes**: a form post or any other non-GET request is recorded and answered with a stub page. With an origin allowlist, it also stops navigations to other origins. Both hold for the page and for the tabs it opens. Reports the dialogs a page raises, the tabs it opens, and the requests it has in flight. |
+| `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and enforces the operator’s origin, request and session policies. Its write journal distinguishes passed, blocked and simulated requests. Reports the dialogs a page raises, the tabs it opens, and the requests it has in flight. |
 | `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `wait(condition, since, timeout_ms)`, `scroll(step, until, timeout_ms)`, `blocked_writes()`, `blocked_navigations()`. `BrowserSession(download_dir=...)` names the folder for downloads. `changes(before, after)`: what changed between two observations. |
-| `action_outcome.py` | The rule for what an action did: `succeeded`, `failed`, or `uncertain`, why, and whether a retry could do it twice. It imports only the standard library, and `tests/test_browser_bridge_outcome.py` checks it without a browser. See [Outcomes](#outcomes). |
+| `action_outcome.py` | The rule for what an action did: `succeeded`, `blocked`, `failed`, or `uncertain`, why, and whether a retry could do it twice. It imports only the standard library, and `tests/test_browser_bridge_outcome.py` checks it without a browser. See [Outcomes](#outcomes). |
 | `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). An action's ARIA state shows on its line: `pressed`, `selected`, `expanded` or `collapsed`. |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
 | `apg_eval.py` | Opens every W3C ARIA Authoring Practices example page and acts once on one control of each kind inside the example, as an agent would; reports which widget patterns the lift can operate. |
 | `real_sites_eval.py` | Re-runs the real-site tasks that found the lift's bugs (Wikipedia, python.org, gov.uk, react-select, flatpickr, jQuery UI, httpbin, and more), one browser per case. |
-| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 121 checks on the fixtures. |
+| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 125 checks on the fixtures. |
 | `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 100 checks. |
 
 ### Locators
@@ -396,11 +396,12 @@ news. "Card declined" is an answer.
 
 | `status` | Means | When |
 |---|---|---|
-| `succeeded` | The bridge saw the effect. | What the agent waited for showed; the page navigated; every step was checked on its control (`verified`); or the page answered: `changes` is not empty, a request was sent (and blocked), a file was saved, a tab opened, an alert was raised. |
+| `succeeded` | The bridge saw the effect. | What the agent waited for showed; the page navigated; every step was checked on its control (`verified`); or the page answered: `changes` is not empty, a file was saved, a tab opened, an alert was raised. |
+| `blocked` | Policy stopped a write. | The write journal takes precedence over a navigation, a matching wait or a success message. Other writes in the same action may have passed. |
 | `failed` | It did not take effect. | The request was refused (`ok` is false); the browser would not send the form (`invalid`); a control does not hold what was set (`verified` is false); or the origin allowlist stopped the navigation. |
 | `uncertain` | It ran, and nothing shows whether it worked. | A click with no answer; a dismissed question with no other evidence of an effect; a wait that was not met; a step that stopped part-way (a timeout, a plan the page interrupted by navigating). |
 
-The rules are tried in order. First what cannot have worked: a refusal, a form the browser would
+The rules are tried in order. A blocked write takes precedence. The bridge next checks for a refusal, a form the browser would
 not send, a navigation the allowlist stopped, a control that does not hold its value. Then what the
 agent waited for, which is its own test of success: a wait that was met is `succeeded`, and one that
 was not met is `uncertain` whatever else the page did.
@@ -501,7 +502,7 @@ needs no extra `observe`. With `wait_for`, the result also has `wait`: what it w
 and `waited_ms`. A wait that is not met is not an error: the action is done, `ok` stays true, and the
 summary says the change did not show, so the agent does not repeat an action that may have worked.
 
-`act` and `call` results also carry `outcome`: `status` (`succeeded`, `failed`, or `uncertain`),
+`act` and `call` results also carry `outcome`: `status` (`succeeded`, `blocked`, `failed`, or `uncertain`),
 `reason`, `retry` (`not_needed`, `safe`, or `may_repeat`), and, when uncertain, `page` (`busy`,
 `reacted`, or `quiet`). See [Outcomes](#outcomes). `ok` says that the request was accepted and run;
 `outcome` says what came of it, so `ok` can be true and the outcome `failed` (the browser would not
@@ -512,9 +513,13 @@ when there are any, `dialogs` (the boxes the page raised and how they were answe
 last result.
 A `wait_for` that is not valid is refused before the browser does anything (`AGENT_WAIT_INVALID`). When writes
 are blocked, `blocked_writes` lists each stopped request with its form fields; secret fields are
-`[redacted]`, and a file is its name, size, and type. `blocked_navigations` lists each navigation the
-origin allowlist stopped. A request that a tab the page opened made, not the page itself, has
-`new_tab: true` in either list, and is reported in the result of the step that opened the tab.
+`[redacted]`, a field that no view listed is `[not shown]`, and a file is its name, size, and type.
+`blocked_navigations` lists each navigation that was stopped, with the reason. `blocked_requests`
+lists what else the boundary stopped, one entry for each host and reason: a script, an image, or a
+frame for a host that is not listed, and a connection the gate refused. A request that a tab the
+page opened made, not the page itself, has `new_tab: true` in the first two lists, and is reported
+in the result of the step that opened the tab. The result of `observe(url=...)` has `limits`: the
+server's limits in plain sentences.
 
 A request that the page cannot take is refused before the browser does anything, and the result
 says so. A refused form call names each problem: `{"argument": "ship", "problem": "invalid", ...}`.
@@ -528,25 +533,40 @@ started no download), `BROWSER_DOWNLOAD_TOO_LARGE`, `BROWSER_DOWNLOAD_FAILED`,
 keeps the last 8 observations), `BROWSER_OBSERVATION_STALE`, `BROWSER_TARGET_DRIFT` (the control is
 not what the view showed, or not where), `BROWSER_TARGET_AMBIGUOUS` (several controls could be the
 one the view showed), `BROWSER_TARGET_BLOCKED` (the control is covered or switched off),
-`BROWSER_TARGET_STALE`, `BROWSER_PLAN_INTERRUPTED`, `BROWSER_ORIGIN_NOT_ALLOWED`, `BROWSER_TIMEOUT`,
-and `BROWSER_ERROR`.
+`BROWSER_TARGET_STALE`, `BROWSER_PLAN_INTERRUPTED`, `BROWSER_ORIGIN_NOT_ALLOWED`,
+`BROWSER_ADDRESS_NOT_ALLOWED` (not an `http` or `https` page, or an address a rule denies),
+`BROWSER_ADDRESS_PRIVATE` (this computer or a private network, in an open session),
+`BROWSER_SECRET_REFUSED` (no secret of that name, or the field is not a secret field),
+`BROWSER_TIMEOUT`, and `BROWSER_ERROR`.
 
-**Safety is set by whoever starts the server, never by the agent:**
+### Browser boundary
 
-- Writes are blocked unless the server is started with `--allow-writes`. `act` and `call` then carry
-  `destructiveHint: false`. A write is blocked wherever the page sends it from: a form that posts
-  into a new tab (`target="_blank"`), or a script in a tab the page opened, is stopped like a post
-  from the page itself.
-- `--allow-origin URL` (repeatable) limits the pages the agent can open, and stops a click or a
-  script from taking it to another origin. The stopped navigation is answered with HTTP 204, so the
-  page stays where it was. A link or `window.open` that opens another origin in a new tab is stopped
-  too; that tab gets a page that says so, and is closed.
-- `--upload-dir DIR` is the only folder the agent may upload files from by path. Without it, the agent
-  can send file contents only. A path that leads out of the folder (`../`, an absolute path, or a
-  link) is refused.
-- `--download-dir DIR` is the only folder the agent may save downloads in. Without it, the agent saves
-  no files. In it, downloads only add files; they never overwrite one.
-- No result contains a secret value or the contents of a file.
+The operator sets the policy at startup. Opening a page returns the effective limits. A trial
+requires an explicit `--allow-origin`. Use `--public-read` to browse public HTTP(S) origins
+without operator credentials or write permission. Public browsing refuses private addresses.
+Python callers can pass `BrowserSession(boundary=Boundary.build(...))`. The default direct
+session uses the public browsing policy.
+
+| Boundary | Default and owner | Observable result |
+|---|---|---|
+| Network | The browser’s proxy resolves and pins destinations. The request policy checks methods, origins and redirect targets. `--allow-host` grants subresource access only. | Refused documents and connections appear in `blocked_navigations` or `blocked_requests`. |
+| Writes | HTTP writes, method overrides, WebSockets and EventSource require operator permission. For example, `--allow-write "POST https://shop.example/cart"` authorizes one endpoint. | The action reports per-step `writes`, plus newly observed `passed_writes` and `blocked_writes`. A passed entry means policy permitted dispatch. Application completion needs separate evidence. |
+| Reads | `--read-policy auto` requires explicit read patterns for every origin-scoped trial. Supply the document and asset paths with repeated `--allow-read` options. Public read mode trusts ordinary GET, HEAD and OPTIONS by default. | Unclassified requests in explicit mode are refused. `--mutation-url` marks a known state-changing read. A `--deny-url` rule takes priority. |
+| Page response | A blocked HTTP write receives 403 and `X-ViewSpec-Blocked: 1`. A document gets HTML. A JSON request gets a JSON object with `blocked`, `state`, and `sent`. The stub echoes a valid requesting origin for CORS. | `--simulate-writes` gives the page a synthetic 200 and records `blocked-and-simulated`. Both blocked states produce `outcome.status=blocked` and `retry=may_repeat`. |
+| Privacy | `--private strict` withholds native text-entry values and blocked form values. `--private heuristic` opts into field recognition. Both honor explicit secret markers and scrub known credential values across results, including URLs and errors. | Strict MCP results and direct session records expose only the body size. Heuristic mode can report visible form fields when the request has a supported form content type. Short values receive field-level protection. Arbitrary secrets in prose and transformations of private values can escape recognition. |
+| Identity | Opens in one session reuse the browser context. Operators may supply a Playwright `--storage-state` file, or `--header Authorization=ENV_NAME` and `--cookie session=ENV_NAME`. These options require one exact origin and no extra hosts. | The browser retains cookies and local storage between opens. `--save-storage-state FILE` writes host-only cookies and local storage to a new owner-readable file on close. Input files keep their original contents. |
+
+Use narrow read rules on applications where a GET can change state. A broad read rule grants
+every matching URL, including query strings, and the browser cannot infer the server’s semantics.
+`--secret NAME` lets an agent fill a recognized secret field by naming an environment variable.
+Direct opening accepts HTTP(S) URL spellings without embedded credentials. Subframes are restricted to the current top document’s exact origin or inline frame content.
+Workers and popup network access are disabled. HTML documents pass through a Chromium response check before
+execution with a 10 MiB and 10 second limit. Unsupported documents can fail to load.
+
+`--confirm dismiss` is the default. On a listed origin `--confirm accept` answers JavaScript
+confirmation boxes affirmatively. The step reports the actual answer. JavaScript prompts are
+dismissed. `--upload-dir` and `--download-dir` select the operator’s upload and download folders.
+
 
 This is not `viewspec mcp`. The package's server makes no network calls; this one drives a browser
 that loads the pages the agent opens. That is why it lives in this folder, not in the package.
@@ -564,7 +584,7 @@ Claude Code:
 claude mcp add viewspec-browser \
   -e PLAYWRIGHT_BROWSERS_PATH=/path/to/pw-browsers \
   -- python /path/to/viewspec/experiments/browser-agent-probe/mcp_browser_server.py \
-  --allow-origin http://localhost:3000
+  --allow-origin http://localhost:3000 --allow-read "http://localhost:3000/*"
 ```
 
 Or in a project's `.mcp.json`:
@@ -577,7 +597,9 @@ Or in a project's `.mcp.json`:
       "args": [
         "experiments/browser-agent-probe/mcp_browser_server.py",
         "--allow-origin",
-        "http://localhost:3000"
+        "http://localhost:3000",
+        "--allow-read",
+        "http://localhost:3000/*"
       ],
       "env": { "PLAYWRIGHT_BROWSERS_PATH": "/path/to/pw-browsers" }
     }
@@ -665,6 +687,10 @@ page ends up where the goal says:
 | Publish while the server takes 1.5 s, then publish again | the first result is `uncertain` and `busy`; a wait shows the answer; the second answer, the same word again, meets its wait only once the server has answered |
 | Order through a form that posts into a new tab | the stopped post is in the result of the call itself, marked `new_tab`, with the order's fields; the page stays |
 | Open a link that leads to another origin in a new tab | the navigation is stopped and listed, marked `new_tab`; the outcome is `failed`; the agent is still on its page |
+| Open a page on this computer, and a file, in a session that lists no origins | each is refused, with the reason |
+| Add to the cart, order, and delete the account, where one rule allows one write | the site receives the one POST the rule names, and nothing else |
+| Sign in with a password the agent names and never holds | the site receives the password; no result holds it, not even when the page prints it |
+| Start the server with limits it cannot keep (six cases) | it does not start, and says why |
 | Place an order, then dismiss its optional receipt dialog (click/form call, confirm/prompt) | the local server receives exactly one order; the observed completion stays `succeeded` / `not_needed`, so retry advice never duplicates it |
 
 The agent is scripted, because the test suite never calls a model, but it is held to what a model
@@ -719,7 +745,7 @@ sets the variable the suite reads, so the tasks cannot be skipped there unseen.
 - **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
   schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
-`demo_agent.py` (121 checks, all pass):
+`demo_agent.py` (125 checks, all pass):
 
 - **checkout:** a click inside the web component's shadow DOM changes the quantity from 2 to 3. Fills
   inside the payment iframe are verified, and the next snapshot does not contain the card number. A
@@ -900,10 +926,10 @@ select-only `div` combobox is refused before the browser acts.
 - The value of an empty combobox input is the text of the smallest box around it, which may be its
   placeholder ("Select..."). The search for that box stops at a form, a list item, a table cell,
   or a section, so a combobox placed directly in one of those shows no value until it is typed in.
-- `block_writes` stops HTTP requests that are not GET, HEAD, or OPTIONS. A page that changes data with
-  a GET request, or over a WebSocket, is not stopped.
-- The origin allowlist checks top-level navigations. Requests for scripts, images, and data from
-  other origins still load, as the page needs them.
+- Server-side GET semantics and privacy coverage depend on the operator’s rules. See the
+  [browser boundary](#browser-boundary) for the read, output, and storage contracts.
+- Pages that require a service worker, a popup login, or a cross-origin embedded application
+  may need a different workflow. Local same-origin and inline frames support ordinary controls.
 - `find` matches the text of view lines, which shorten long text to 70 characters.
 - A kept reading is a snapshot. Paging through it does not show changes made since; observe again.
 - A scroll uses `scrollTo`, which fires scroll events and moves what `IntersectionObserver` sees. A page
@@ -958,12 +984,10 @@ select-only `div` combobox is refused before the browser acts.
   another origin is stopped. A step waits up to 2 s for the request of a tab it opened, so that its
   own result lists what was stopped; a tab that takes longer is still stopped, and is listed in a
   later result.
-- **The origin allowlist does not follow redirects.** It checks the address a navigation asks for.
-  When a link leads to an allowed origin whose server answers with a redirect to another origin, the
-  browser follows it, in the page and in a new tab, and `blocked_navigations` stays empty: Playwright
-  does not hand a redirect to the code that checks requests. The agent can end up on an origin that
-  is not allowed; `url` in the result says where it is. Write blocking is not affected: a write to
-  any origin is stopped before it is sent.
+- In a sealed session, a redirect to an origin that is not listed is refused by the gate. The tab
+  shows the gate's own page for a moment; the bridge lists the navigation, goes back, and the page
+  the agent was on is loaded again, so what was typed into it may be gone. In an open session there
+  is no list: a redirect to any public address is followed.
 - `succeeded` means that the bridge saw an effect, not that it was the one the agent wanted. A
   page that changes by itself (a clock, a ticker) or shows a tooltip when the pointer arrives
   counts as an answer. Pass `wait_for` to name the effect.

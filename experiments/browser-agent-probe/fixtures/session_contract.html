@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Session controls</title>
+<label>Notes <input name="notes" value="fixture-note-482"></label>
+<button id="save">Save note</button>
+<p role="status" id="result"></p>
+<iframe title="Embedded panel" src="/session_panel.html"></iframe>
+<iframe title="Inline panel" srcdoc="<button onclick='this.textContent += &quot; opened&quot;'>Open inline panel</button>"></iframe>
+<script>
+  document.getElementById("save").onclick = async () => {
+    const response = await fetch("/policy-save", {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
+    const json = await response.json();
+    document.getElementById("result").textContent =
+      `Response ${response.status} ${json.state} marked ${response.headers.get("X-ViewSpec-Blocked")}`;
+  };
+</script>

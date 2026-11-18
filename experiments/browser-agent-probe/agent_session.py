@@ -14,9 +14,9 @@ belongs to). The bridge acts only on an element with that identity, so a page th
 cannot move a step to another item's control; and it refuses a control that a dialog covers or the
 page has switched off, and says what is in the way.
 
-By default the session blocks writes: a form post or any other non-GET request is recorded and
-answered with a stub page, so an agent can complete a real form without changing anything. That
-holds for the page and for every tab it opens.
+The operator chooses read and write permissions before the session starts. Each write records
+its policy disposition. Both blocked and simulated writes remain blocked in action outcomes.
+Open the next URL in the same session to retain its cookies and local storage.
 
 ``changes(before, after)`` says what an action changed. Besides the diff of the two readings it
 reports what no two readings can show: a message the page showed again, one that came and went in
@@ -35,14 +35,16 @@ import email
 import email.policy
 import json
 import mimetypes
+import secrets
 import subprocess
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs
 
 from action_outcome import address_lines, message_lines, noted_messages
+from boundary import Boundary, PrivacyRedactor
 from page_view import ViewLine, view_lines
 
 from viewspec.raw_html import HtmlLiftResult, lift_html
@@ -91,6 +93,7 @@ class Observation:
     note_seq: int = 0
     # How busy the page was: DOM mutations and requests so far, and the requests still in flight.
     activity: dict[str, Any] = field(default_factory=dict)
+    reading_id: int = 0
 
     def handle_of(self, node_id: str) -> int | None:
         return next((handle for handle, control in self.handles.items() if control.node_id == node_id), None)
@@ -117,6 +120,7 @@ class StepResult:
     # still in flight} when the step ended.
     dialogs: tuple[dict[str, Any], ...] = ()
     opened: tuple[dict[str, Any], ...] = ()
+    writes: tuple[dict[str, str], ...] = ()
     reaction: dict[str, Any] | None = None
     # Where the page's counts stood when the step began, to measure a later reading against.
     mutation_mark: int | None = None
@@ -146,6 +150,8 @@ class StepResult:
             payload["dialogs"] = [dialog_json(item) for item in self.dialogs]
         if self.opened:
             payload["opened"] = [item["url"] for item in self.opened]
+        if self.writes:
+            payload["writes"] = list(self.writes)
         if self.reaction is not None:
             payload["reaction"] = dict(self.reaction)
         return payload
@@ -213,6 +219,9 @@ def request_fields(write: dict[str, Any]) -> dict[str, Any] | None:
     """
 
     content_type = write.get("content_type") or ""
+    media_type = content_type.partition(";")[0].strip().lower()
+    if media_type not in {"multipart/form-data", "application/x-www-form-urlencoded"}:
+        return None
     if write.get("post_data_b64"):
         raw = base64.b64decode(write["post_data_b64"])
     else:
@@ -225,7 +234,7 @@ def request_fields(write: dict[str, Any]) -> dict[str, Any] | None:
         else:
             fields[name] = value
 
-    if content_type.lower().startswith("multipart/form-data"):
+    if media_type == "multipart/form-data":
         message = email.message_from_bytes(
             b"Content-Type: " + content_type.encode("latin-1") + b"\r\n\r\n" + raw, policy=email.policy.HTTP
         )
@@ -297,7 +306,7 @@ def _moved(before: Observation, after: Observation) -> list[str]:
     return address_lines(before.url, after.url, before.title, after.title)
 
 
-def changes(before: Observation, after: Observation) -> dict[str, Any]:
+def changes(before: Observation, after: Observation, privacy: PrivacyRedactor | None = None) -> dict[str, Any]:
     """What changed from one observation to a later one, as short lines for an agent.
 
     Handles in the lines are those of ``after``. After a navigation to a new document a diff means
@@ -308,6 +317,8 @@ def changes(before: Observation, after: Observation) -> dict[str, Any]:
     title in the same document, then the rest of the diff.
     """
 
+    if privacy is not None:
+        before, after = privacy.clean(before), privacy.clean(after)
     if before.doc_id != after.doc_id:
         return {"new_document": True, "empty": False, "lines": [f"new page {after.title!r} {after.url}"]}
     diff = diff_lifts(before.lift, after.lift)
@@ -325,13 +336,22 @@ class BrowserSession:
         block_writes: bool = True,
         allowed_origins: tuple[str, ...] = (),
         download_dir: str | Path | None = None,
+        boundary: Boundary | None = None,
+        privacy: PrivacyRedactor | None = None,
     ) -> None:
+        # The limits this session runs inside (see boundary.py). With one, every connection of
+        # the browser passes the bridge's gate, and block_writes and allowed_origins are not used.
+        self.boundary = boundary or Boundary.build(allow_origin=allowed_origins, allow_writes=not block_writes)
+        self.privacy = privacy or self.boundary.make_redactor()
+        self._readings: dict[int, Observation] = {}
+        self._reading_seq = secrets.randbits(96)
         self.block_writes = block_writes
         self.allowed_origins = tuple(allowed_origins)
         # The only folder a download step saves files in. None: download steps are refused.
         self.download_dir = Path(download_dir).resolve() if download_dir is not None else None
-        self.observation: Observation | None = None
+        self._observation: Observation | None = None
         self._next_id = 0
+        self._opened = False
         self._proc = subprocess.Popen(
             ["node", str(BRIDGE)],
             stdin=subprocess.PIPE,
@@ -343,6 +363,8 @@ class BrowserSession:
 
     # ---- plumbing ---------------------------------------------------------------------------------
     def _call(self, cmd: str, **args: Any) -> Any:
+        if cmd not in {"close", "storage_state"}:
+            self.privacy.require_capacity()
         assert self._proc.stdin is not None and self._proc.stdout is not None
         self._next_id += 1
         self._proc.stdin.write(json.dumps({"id": self._next_id, "cmd": cmd, **args}) + "\n")
@@ -350,20 +372,25 @@ class BrowserSession:
         line = self._proc.stdout.readline()
         if not line:
             stderr = (self._proc.stderr.read() if self._proc.stderr else "").strip()
+            stderr = self.privacy.clean(stderr)
             last = stderr.splitlines()[-1] if stderr else "no message"
             raise BridgeError(f"bridge.js stopped: {last[:300]}")
         reply = json.loads(line)
         if reply.get("id") != self._next_id:
             raise BridgeError(f"bridge.js answered request {reply.get('id')}, not {self._next_id}")
         if not reply["ok"]:
-            raise BridgeError(reply["error"])
+            raise BridgeError(self.privacy.clean(reply["error"]))
         return reply["result"]
 
     def close(self) -> None:
         if self._proc.poll() is None:
-            with contextlib.suppress(BridgeError):
-                self._call("close")
-            self._proc.wait(timeout=10)
+            try:
+                if self._opened and self.boundary.save_storage_state:
+                    self.boundary.save_state(self._call("storage_state"))
+            finally:
+                with contextlib.suppress(BridgeError):
+                    self._call("close")
+                self._proc.wait(timeout=10)
 
     def __enter__(self) -> BrowserSession:
         return self
@@ -373,21 +400,69 @@ class BrowserSession:
 
     # ---- reading ----------------------------------------------------------------------------------
     def open(self, url: str) -> dict[str, Any]:
-        """Load a page. Returns its status and server HTML; call ``observe()`` to read it."""
+        """Load a page. Return its status and privacy-projected HTML; call ``observe()`` to read it."""
 
-        self.observation = None
-        return self._call(
+        if refused := self.boundary.refusal(url):
+            raise BridgeError(self.privacy.clean(f"{refused[0]}: {refused[1]}"))
+        self._observation = None
+        result = self._call(
             "open",
             url=url,
             block_writes=self.block_writes,
             allowed_origins=list(self.allowed_origins) or None,
             download_dir=str(self.download_dir) if self.download_dir is not None else None,
+            policy=self.boundary.browser_config() if self.boundary is not None else None,
+        )
+        self._opened = True
+        self.privacy.learn_html(result.get("static_html", ""))
+        self._capture_private()
+        if "static_html" in result:
+            result["static_html"] = self.privacy.project_html(result["static_html"])
+        return self.privacy.clean(result)
+
+    def _capture_private(self) -> dict[str, Any]:
+        snap = self._call("snapshot", collect_secrets=self.privacy.mode)
+        self.privacy.remember(snap.get("secrets", []))
+        self.privacy.remember(snap.get("credential_values", []))
+        self.privacy.learn_html(snap["html"])
+        self.privacy.learn(snap)
+        return snap
+
+    @property
+    def observation(self) -> Observation | None:
+        return self.project(self._observation) if self._observation is not None else None
+
+    def project(self, observation: Observation) -> Observation:
+        """A display copy; the original names, refs and values stay in private planning history."""
+        # Render from the real structure, redacting each complete piece of text before previews.
+        lines, _ = view_lines(observation.lift, blocked=observation.blocked, redact=self.privacy.clean)
+        public = self.privacy.clean(observation)
+        return replace(
+            public,
+            html=self.privacy.project_html(observation.html),
+            lines=lines,
+            view="\n".join(line.text for line in lines),
+            secrets=[],
         )
 
+    def _resolve_observation(self, observation: Observation) -> Observation:
+        raw = self._readings.get(observation.reading_id)
+        if raw is None or (raw.doc_id, raw.navigation_id) != (observation.doc_id, observation.navigation_id):
+            raise BridgeError("stale-view: this reading is unknown or expired; observe the page again")
+        return raw
+
     def observe(self, *, locate: bool = True, collect_secrets: bool = False) -> Observation:
+        """Return a safe reading. ``collect_secrets`` is retained for compatibility, never disclosed.
+
+        Secret discovery is always enabled internally. Public snapshots cannot opt out of the
+        operator's policy. Browser actions resolve the returned reading to its private original.
+        """
+        return self.project(self._observe(locate=locate))
+
+    def _observe(self, *, locate: bool = True) -> Observation:
         """Snapshot, lift, and (by default) verify a locator for every control and form."""
 
-        snap = self._call("snapshot", collect_secrets=collect_secrets)
+        snap = self._capture_private()
         lift = lift_html(snap["html"], profile="agent")
         locators: dict[str, dict[str, Any]] = {}
         if locate:
@@ -409,7 +484,7 @@ class BrowserSession:
         blocked = {node_id: locator["blocked"] for node_id, locator in locators.items() if locator.get("blocked")}
         lines, handles = view_lines(lift, blocked=blocked)
         view = "\n".join(line.text for line in lines)
-        self.observation = Observation(
+        self._observation = Observation(
             url=snap["url"],
             title=snap["title"],
             html=snap["html"],
@@ -423,16 +498,22 @@ class BrowserSession:
             action_ids=snap["actionIds"],
             doc_id=snap["docId"],
             navigation_id=snap["navigationId"],
-            secrets=snap.get("secrets", []),
+            secrets=[],
             notes=tuple(snap["recorder"]["notes"]),
             note_seq=snap["recorder"]["seq"],
             activity=snap["activity"],
         )
-        return self.observation
+        self._reading_seq += 1
+        self._observation.reading_id = self._reading_seq
+        self._readings[self._reading_seq] = self._observation
+        for key in sorted(self._readings)[:-8]:
+            del self._readings[key]
+        return self._observation
 
     def confirm_locators(self, observation: Observation) -> dict[str, bool]:
         """Ask Playwright whether each saved locator finds exactly its control (by node id)."""
 
+        observation = self._resolve_observation(observation)
         refs = {control.node_id: control.ref for control in observation.lift.controls}
         items = [
             {"key": key, "ref": refs[key], "locator": locator}
@@ -442,11 +523,12 @@ class BrowserSession:
         return self._call("confirm", items=items) if items else {}
 
     def aria_snapshot(self) -> str:
-        return self._call("aria")["aria"]
+        self._capture_private()
+        return self.privacy.clean(self._call("aria")["aria"])
 
     def reload(self) -> None:
         self._call("reload")
-        self.observation = None
+        self._observation = None
 
     def wait(self, condition: ChangeCondition, since: Observation, *, timeout_ms: int = 5000) -> WaitResult:
         """Wait until the page shows ``condition`` compared with ``since``, or until ``timeout_ms``.
@@ -456,19 +538,20 @@ class BrowserSession:
         is stale afterwards (it has no locators); call ``observe()`` again.
         """
 
+        since = self._resolve_observation(since)
         limit = max(0, min(int(timeout_ms), MAX_WAIT_MS))
         start = time.monotonic()
         readings = 0
         while True:
-            current = self.observe(locate=False)
+            current = self._observe(locate=False)
             readings += 1
             met = condition_met(condition, since, current)
             elapsed = int((time.monotonic() - start) * 1000)
             if met or elapsed >= limit:
                 break
             self._call("wait_change", timeout_ms=limit - elapsed)
-        self.observation = None
-        return WaitResult(condition, met, elapsed, limit, readings)
+        self._observation = None
+        return self.privacy.clean(WaitResult(condition, met, elapsed, limit, readings))
 
     def scroll(
         self,
@@ -484,7 +567,7 @@ class BrowserSession:
         at the end loads nothing), or ``timeout_ms`` ends. The view is stale afterwards.
         """
 
-        observation = observation or self._current()
+        observation = self._resolve_observation(observation) if observation is not None else self._current()
         if self._call("document")["doc_id"] != observation.doc_id:
             raise BridgeError(
                 "stale-view: the page has loaded a new document since this view; observe it and plan again"
@@ -517,7 +600,7 @@ class BrowserSession:
             at_end, page = info["at_end"], info["page"]
             if until is None:
                 break
-            if condition_met(until, observation, self.observe(locate=False)):
+            if condition_met(until, observation, self._observe(locate=False)):
                 met = True
                 break
             stuck = (info["at_start"] if step.value in {"up", "top"} else info["at_end"]) and not info["loaded"]
@@ -526,29 +609,53 @@ class BrowserSession:
                 end_reached = stuck
                 met = False
                 break
-        self.observation = None
+        self._observation = None
         waited = int((time.monotonic() - start) * 1000)
-        return ScrollResult(step, scrolls, moved, loaded, at_end, page, met, end_reached, waited)
+        return self.privacy.clean(ScrollResult(step, scrolls, moved, loaded, at_end, page, met, end_reached, waited))
 
     def records(self) -> dict[str, list[dict[str, Any]]]:
         """What the bridge has recorded since the page was opened: ``writes`` and ``navigations``
         that were stopped, ``dialogs`` the page raised, and ``popups``, the tabs it opened."""
 
+        records = self._records()
+        # The Python API is a public output boundary too. Raw request bodies are private even
+        # when no field label identifies their contents; consumers receive body sizes only.
+        for key in ("writes", "passed_writes"):
+            records[key] = [self._request_summary(item) for item in records.get(key, [])]
+        return self.privacy.clean(records)
+
+    def _records(self) -> dict[str, list[dict[str, Any]]]:
+        """Trusted journal for the MCP projection; never hand this to an external reader."""
         return self._call("writes")
+
+    @staticmethod
+    def _request_summary(item: dict[str, Any]) -> dict[str, Any]:
+        result = {key: value for key, value in item.items() if key not in {"post_data", "post_data_b64"}}
+        if item.get("post_data_b64"):
+            result["body_bytes"] = len(base64.b64decode(item["post_data_b64"]))
+        elif item.get("post_data"):
+            result["body_bytes"] = len(item["post_data"].encode("utf-8"))
+        return result
 
     def blocked_writes(self) -> list[dict[str, Any]]:
         """Requests that ``block_writes`` stopped since the page was opened."""
 
-        return self._call("writes")["writes"]
+        return self.records()["writes"]
 
     def blocked_navigations(self) -> list[dict[str, Any]]:
         """Top-level navigations that ``allowed_origins`` stopped since the page was opened."""
 
-        return self._call("writes")["navigations"]
+        return self.records()["navigations"]
+
+    def blocked_requests(self) -> list[dict[str, Any]]:
+        """Requests the boundary stopped that are neither a write nor a page: a script, an image, or
+        a socket for somewhere the session may not reach, and a redirect that led there."""
+
+        return self.records().get("refusals", [])
 
     # ---- acting -----------------------------------------------------------------------------------
     def _current(self) -> Observation:
-        return self.observation if self.observation is not None else self.observe()
+        return self._observation if self._observation is not None else self._observe()
 
     def act(self, handle: int, op: str, value: Any = None) -> list[StepResult]:
         """Plan and run one action on the control with this handle in the current view."""
@@ -564,13 +671,27 @@ class BrowserSession:
         return self.run(plan_form_call(self._current().lift, tool_name, arguments, submit=submit))
 
     def run(self, steps: tuple[ActionStep, ...], *, observation: Observation | None = None) -> list[StepResult]:
+        for step in steps:
+            if step.secret or (self.privacy.mode == "strict" and step.op == "fill"):
+                self.privacy.remember([step.value or "", *step.values])
+        self._capture_private()
+        try:
+            results = self._run(steps, observation=observation)
+            self._capture_private()
+            return self.privacy.clean(results)
+        except BridgeError as error:
+            safe = BridgeError(self.privacy.clean(str(error)))
+            safe.steps = self.privacy.clean(error.steps)
+            raise safe from None
+
+    def _run(self, steps: tuple[ActionStep, ...], *, observation: Observation | None = None) -> list[StepResult]:
         """Run planned steps in order. The view is stale afterwards; call ``observe()`` again.
 
         ``observation`` is the view the steps were planned from (by default, the current one). Its
         locators find an element again when the page has replaced it since that view.
         """
 
-        observation = observation or self._current()
+        observation = self._resolve_observation(observation) if observation is not None else self._current()
         if self._call("document")["doc_id"] != observation.doc_id:
             # Document ids also distinguish observations from different browser sessions, whose
             # navigation counters may happen to match. The bridge checks the counter on every step.
@@ -606,6 +727,7 @@ class BrowserSession:
                 StepResult(
                     step=step,
                     resolved_by=reply["resolved_by"],
+                    writes=tuple(reply.get("writes", [])),
                     verified=reply["verified"],
                     navigated=reply["navigated"],
                     url=reply["url"],
@@ -622,12 +744,12 @@ class BrowserSession:
             )
             if reply["navigated"] and len(results) < len(steps):
                 # The rest of the plan was made for the page that is gone.
-                self.observation = None
+                self._observation = None
                 interrupted = BridgeError(
                     f"The page navigated after step {len(results)} of {len(steps)} ({step.op} {step.name!r}); "
                     f"{len(steps) - len(results)} step(s) did not run. Observe the new page and plan again."
                 )
                 interrupted.steps = list(results)
                 raise interrupted
-        self.observation = None
+        self._observation = None
         return results

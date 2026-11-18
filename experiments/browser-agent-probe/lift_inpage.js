@@ -20,6 +20,14 @@
     /(^|\s)(current-password|new-password|one-time-code|cc-number|cc-csc|cc-exp(-month|-year)?)(\s|$)/i;
   const SECRET_NAME = /pass(word|wd|code)?|secret|token|otp|cvv|cvc|ssn|card.?num|cc.?num|security.?code/i;
   const TEST_ID_ATTRS = ["data-testid", "data-test", "data-qa", "data-cy", "data-action-id"];
+  const privateValues = new Set();
+  const textEntry = (el) => el.tagName === "TEXTAREA" ||
+    (el.tagName === "INPUT" && !/^(button|submit|reset|checkbox|radio|range|color|file|image)$/i.test(el.type)) ||
+    el.isContentEditable;
+  const privateText = (text) => {
+    for (const value of [...privateValues].sort((a, b) => b.length - a.length)) text = text.split(value).join("[redacted]");
+    return text;
+  };
 
   // A new document (a real navigation) installs a new library and gets a new id. A hash change or a
   // pushState route change keeps the document, its id, and its refs. The bridge tracks navigation
@@ -54,7 +62,8 @@
   }
 
   // ---- Names and kinds (the ground truth list) --------------------------------------------------
-  const clean = (value) => (value || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  // Planning names stay complete. Output previews are cut only after the Python privacy projection.
+  const clean = (value) => (value || "").replace(/\s+/g, " ").trim();
   const byId = (el, id) => {
     const root = el.getRootNode();
     return (root.getElementById ? root.getElementById(id) : null) || el.ownerDocument.getElementById(id);
@@ -150,11 +159,12 @@
     return tag;
   }
   const isSecret = (el) =>
-    (el.tagName === "INPUT" || el.tagName === "TEXTAREA") &&
+    el.getAttribute("data-lift-secret") === "true" ||
+    ((el.tagName === "INPUT" || el.tagName === "TEXTAREA") &&
     ((el.getAttribute("type") || "").toLowerCase() === "password" ||
       SECRET_AUTOCOMPLETE.test(el.getAttribute("autocomplete") || "") ||
       SECRET_NAME.test(el.getAttribute("name") || "") ||
-      SECRET_NAME.test(el.id || ""));
+      SECRET_NAME.test(el.id || "") || SECRET_NAME.test(nameOf(el))));
 
   // ---- The composed tree ------------------------------------------------------------------------
   // What the user sees: open shadow roots in place of their hosts' light DOM, slots replaced by the
@@ -201,7 +211,7 @@
     prune();
     const out = document.implementation.createHTMLDocument("");
     const interactive = [];
-    const secrets = [];
+    const mode = typeof collectSecrets === "string" ? collectSecrets : "strict";
     let actionIds = 0;
     const scopes = new Map([[document, "0"]]);
     const scopeOf = (el) => {
@@ -243,12 +253,18 @@
 
       // Live form state.
       const secret = isSecret(el);
+      // The private set is independent of the snapshot used to plan interactions. Strict mode
+      // treats text-entry values as private regardless of language, label length or field name.
+      // A page cannot opt itself out with data-lift-secret=false.
+      if (secret || (mode === "strict" && textEntry(el))) {
+        const value = "value" in el ? el.value : el.textContent;
+        if (value) privateValues.add(value);
+      }
       if (tag === "INPUT") {
         const type = (el.getAttribute("type") || "text").toLowerCase();
         if (type === "checkbox" || type === "radio") {
           el.checked ? result.setAttribute("checked", "") : result.removeAttribute("checked");
         } else if (secret) {
-          if (collectSecrets && el.value) secrets.push(el.value);
           result.removeAttribute("value");
         } else if (type === "file") {
           // Name the chosen files; their bytes stay in the page.
@@ -299,7 +315,7 @@
 
       if (tag === "TEXTAREA") {
         if (secret) {
-          if (collectSecrets && el.value) secrets.push(el.value);
+          result.textContent = "";
         } else {
           result.textContent = el.value;
         }
@@ -314,7 +330,7 @@
 
     const [root] = copy(document.documentElement, { hidden: false, clickable: false, inside: false });
     const payload = { html: "<!doctype html>" + root.outerHTML, interactive, actionIds, docId };
-    if (collectSecrets) payload.secrets = secrets;
+    if (collectSecrets) payload.secrets = [...privateValues];
     // What the page wrote into its message regions, and how much it has changed (see the recorder).
     payload.recorder = markReading();
     return payload;
@@ -501,7 +517,7 @@
     let budget = MAX_CHUNK_NODES;
     let taken = null; // The element whose whole text the last piece took.
     const add = (text) => {
-      const value = clean(String(text || "").slice(0, 400));
+      const value = clean(String(text || ""));
       if (!value || seen.has(norm(value))) return;
       seen.add(norm(value));
       chunks.push(value);
@@ -957,8 +973,9 @@
       for (const child of composedChildren(node)) {
         if (left <= 0 || length > 2 * NOTE_TEXT) break;
         if (child.nodeType === 3) {
-          out += child.data;
-          length += child.data.trim().length;
+          const text = privateText(child.data);
+          out += text;
+          length += text.trim().length;
         }
         if (child.nodeType !== 1 || SKIP.has(child.tagName) || CONTROL_CONTENT.has(child.tagName)) continue;
         left -= 1;
@@ -968,7 +985,7 @@
       }
       return out;
     };
-    return walk(region).replace(/\s+/g, " ").trim().slice(0, NOTE_TEXT);
+    return privateText(walk(region)).replace(/\s+/g, " ").trim().slice(0, NOTE_TEXT);
   }
   // Every outermost message region in or at an element (or in a root).
   function regionsIn(node) {

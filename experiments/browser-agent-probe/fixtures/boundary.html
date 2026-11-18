@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture boundary</title>
+</head>
+<body>
+<main>
+  <h1>Account</h1>
+  <p>Balance: <span id="balance">4,210.55</span></p>
+  <label>Note <input id="note" name="note"></label>
+  <a href="/account/delete?confirm=1">Delete account</a>
+
+  <form method="post" action="/cart" aria-label="Cart">
+    <input type="hidden" name="item" value="lamp">
+    <button>Add to cart</button>
+  </form>
+  <form method="post" action="/orders" aria-label="Order">
+    <button>Place order</button>
+  </form>
+  <form method="post" action="/login" aria-label="Sign in">
+    <label>User <input name="user" value="bo"></label>
+    <label>Password <input type="password" name="password"></label>
+    <button>Sign in</button>
+  </form>
+  <button id="echo">Show password</button>
+  <p role="status" id="said"></p>
+</main>
+<script>
+  document.getElementById("echo").addEventListener("click", () => {
+    document.getElementById("said").textContent = `You typed: ${document.querySelector("[name=password]").value}`;
+  });
+</script>
+</body>
+</html>
