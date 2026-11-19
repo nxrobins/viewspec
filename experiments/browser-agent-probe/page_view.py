@@ -9,7 +9,7 @@ offset and limit, or only the lines that contain some text.
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,17 +22,19 @@ TEXT_PREVIEW = 70
 OPTION_PREVIEW = 8
 
 
-def control_line(handle: int, control: HtmlControl, *, blocked: bool = False) -> str:
+def control_line(
+    handle: int, control: HtmlControl, *, blocked: bool = False, redact: Callable[[Any], Any] = lambda value: value
+) -> str:
     """One control as a line of the view. ``blocked``: the page shows it, but a person could not use
     it now (see ``view_lines``)."""
 
-    label = control.name or control.field_name or "(unnamed)"
+    label = redact(control.name or control.field_name or "(unnamed)")
     line = f"[{handle}] {control.control} {label[:TEXT_PREVIEW]!r}"
     if control.kind == "field":
         if control.checked is not None:
             line += " [x]" if control.checked else " [ ]"
         elif control.value and not control.secret:
-            line += f" = {control.value[:TEXT_PREVIEW]!r}"
+            line += f" = {redact(control.value)[:TEXT_PREVIEW]!r}"
         if control.options:
             shown = "|".join(option.label for option in control.options[:OPTION_PREVIEW])
             more = f"|+{len(control.options) - OPTION_PREVIEW}" if len(control.options) > OPTION_PREVIEW else ""
@@ -74,7 +76,7 @@ def control_line(handle: int, control: HtmlControl, *, blocked: bool = False) ->
         line += " disabled"
     if blocked:
         line += " blocked"
-    return line
+    return redact(line)
 
 
 def subtree_text(node: LiftNode, by_id: dict[str, LiftNode]) -> str:
@@ -138,7 +140,10 @@ class _Sections:
 
 
 def view_lines(
-    lift: HtmlLiftResult, *, blocked: Mapping[str, str] | None = None
+    lift: HtmlLiftResult,
+    *,
+    blocked: Mapping[str, str] | None = None,
+    redact: Callable[[Any], Any] = lambda value: value,
 ) -> tuple[list[ViewLine], dict[int, HtmlControl]]:
     """Build the view as lines, and return the control behind each handle.
 
@@ -174,7 +179,7 @@ def view_lines(
     in_row: set[str] = set()
 
     def add(text: str, kind: str, node_id: str, **extra: Any) -> None:
-        lines.append(ViewLine(text, kind, node_id, sections.heading_for(node_id), **extra))
+        lines.append(ViewLine(redact(text), kind, node_id, sections.heading_for(node_id), **extra))
 
     for node in lift.nodes:
         if node.id in hidden:
@@ -187,7 +192,7 @@ def view_lines(
             add(f"group {len(group)}x <{node.tag}>", "group", node.id)
         if node.id in messages:
             message = messages[node.id]
-            add(f"message {message.kind} {message.text[:TEXT_PREVIEW]!r}", "message", node.id)
+            add(f"message {message.kind} {redact(message.text)[:TEXT_PREVIEW]!r}", "message", node.id)
         if node.id in forms:
             form = forms[node.id]
             text = f"form {form.name!r} {form.method} {form.action or ''}".rstrip() + f" tool={tool_names[node.id]}"
@@ -195,7 +200,7 @@ def view_lines(
         if node.tag == "tr":
             # One line per table row keeps each label next to its value. Controls in a row still
             # get their own line below it.
-            cells = [subtree_text(by_id[child_id], by_id) for child_id in node.child_ids]
+            cells = [redact(subtree_text(by_id[child_id], by_id)) for child_id in node.child_ids]
             add("row " + " | ".join(cell[:TEXT_PREVIEW] for cell in cells), "row", node.id)
             in_row.add(node.id)
             continue
@@ -203,14 +208,14 @@ def view_lines(
             control = controls[node.id]
             handle = len(handles) + 1
             handles[handle] = control
-            line = control_line(handle, control, blocked=node.id in blocked)
+            line = control_line(handle, control, blocked=node.id in blocked, redact=redact)
             add(line, "control", node.id, handle=handle, form_id=control.form_id)
             continue
         role = roles.get(node.id)
         if role is None:
             continue
         if role.role == "heading":
-            add(f"{node.tag.upper()} {role.text[:TEXT_PREVIEW]}", "heading", node.id)
+            add(f"{node.tag.upper()} {redact(role.text)[:TEXT_PREVIEW]}", "heading", node.id)
         elif role.role == "value":
             add(f"value {role.text}", "value", node.id)
     return [*_blocked_notices(lines, blocked), *lines], handles

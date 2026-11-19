@@ -481,6 +481,7 @@ def test_browser_bridge_job_switches_on_the_suites_it_runs() -> None:
     # The task suite skips, and so passes, unless its opt-in is set. The job sets the variable the
     # suite reads, so renaming one without the other fails here instead of skipping every task.
     (suite,) = [step for step in steps if "tests/test_browser_bridge_e2e.py" in step.get("run", "")]
+    assert "tests/test_browser_bridge_network_e2e.py" in suite["run"]
     assert suite["env"] == {BRIDGE_E2E_OPT_IN: "1"}
     assert "-m e2e" in suite["run"]
 

@@ -17,7 +17,12 @@ All notable changes to ViewSpec are documented in this file. The format follows
   browser context, so a new tab's requests are stopped and listed like the page's own, with
   `new_tab: true`, in the result of the step that opened the tab. Two agent tasks check it, and
   every agent task now fails if the test site receives a write or a request for another origin.
-  Not covered: a server redirect from an allowed origin to another origin is still followed.
+- The browser experiment now checks destinations, redirects and write permissions against an
+  operator policy. Blocked writes return 403 by default. Simulated responses require explicit
+  opt-in, and both dispositions take precedence over page success signals in action outcomes.
+- Strict privacy withholds native text-entry values and applies output redaction to observations
+  and request records. A scoped session can load credentials, retain cookies and local storage
+  between opens, and save state to a new private file on close.
 
 ### Added
 

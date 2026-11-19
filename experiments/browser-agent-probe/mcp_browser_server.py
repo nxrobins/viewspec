@@ -1,6 +1,6 @@
 """The ViewSpec agent lift as MCP tools: observe a live page, act on a control, call a form tool.
 
-    python experiments/browser-agent-probe/mcp_browser_server.py [--allow-origin URL ...] [--allow-writes]
+    python experiments/browser-agent-probe/mcp_browser_server.py --allow-origin ORIGIN --allow-read PATTERN
 
 Three tools, served over stdio:
 
@@ -15,18 +15,19 @@ view. A handle belongs to the observation that showed it; pass ``observation_id`
 older one, and a re-rendered element is found again by its saved locator, or the step is refused.
 
 Each ``act`` and ``call`` result also carries ``outcome``: whether the action took effect
-(``succeeded``, ``failed``, or ``uncertain``), why, and whether repeating it could do it twice
+(``succeeded``, ``blocked``, ``failed``, or ``uncertain``), why, and whether repeating it could do it twice
 (``action_outcome``). A refused request has one too.
 
 Safety is set by whoever starts the server, never by the agent:
 
-- Writes are blocked unless ``--allow-writes`` is given: a form post or any other request that is not
-  GET, HEAD, or OPTIONS is recorded and answered with a stub page. Results list each blocked write
-  with its form fields; secret fields are shown as ``[redacted]``.
-- With ``--allow-origin``, the agent can only open, and only navigate to, those origins.
-- Both hold for the tabs a page opens (a link or a form with ``target="_blank"``, ``window.open``):
-  what a new tab asks for is checked like the page's own requests, and marked ``new_tab``.
-- No result contains a secret value: the lift never keeps one, and logged steps redact them.
+- The operator selects trial origins or explicitly enables public read-only browsing. Request
+  and redirect destinations, mutation endpoints, and connection channels have separate permissions.
+- A blocked HTTP write normally receives 403. Simulation returns 200 only to the page. In both
+  cases the agent sees a blocked outcome and the write disposition. A passed write is permission
+  to dispatch. Its business effect still depends on the server.
+- Privacy is declared by ``--private``. Strict mode withholds all text-entry field values;
+  heuristic mode withholds recognized sensitive fields. Both redact learned and operator-supplied
+  credentials from output. Arbitrary secrets in ordinary prose are not automatically recognized.
 
 This server is not ``viewspec mcp``. That server makes no network calls; this one drives a browser
 that loads whatever pages the agent opens. It is an experiment, not part of the ViewSpec package.
@@ -37,12 +38,14 @@ from __future__ import annotations
 import argparse
 import base64
 import functools
+import hashlib
 import os
 import signal
 import sys
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from types import FrameType
 from typing import Any, Literal
@@ -60,6 +63,7 @@ from agent_session import (
     dialog_json,
     request_fields,
 )
+from boundary import Boundary, BoundaryError, PrivacyLimit
 from page_view import view_page
 from typing_extensions import TypedDict
 
@@ -79,6 +83,7 @@ from viewspec.raw_html_diff import ChangeCondition
 SERVER_NAME = "viewspec-browser"
 HISTORY = 8  # Observations kept, so an agent can act from a recent one.
 REDACTED = "[redacted]"
+NOT_SHOWN = "[not shown]"
 INSTRUCTIONS = (
     "Read and operate web pages through the ViewSpec agent lift. Start with observe(url). Its view lists "
     "every control as [n]; act(handle=n, action=...) clicks, fills, checks, unchecks, or selects one; "
@@ -90,11 +95,15 @@ INSTRUCTIONS = (
     "that updates after a delay (a server answer) shows nothing at first: pass wait_for, for example "
     '{"change": "message"} or {"text": "Order placed"}, and the tool reads the page again as it '
     "changes, until that shows or timeout_ms ends; wait.met says which. Writes may be blocked: a submitted "
-    "form then shows 'Write blocked', and blocked_writes lists what would have been sent. A control line "
+    "write then appears in blocked_writes, even if the page displays success. A control line "
     "that ends with 'blocked' is on the page but cannot be used now; the first lines of the view say what "
     "is in the way (a dialog over the page, for example). Deal with that first. A handle names one control "
     "in one item: if the page redraws itself, the step still goes to that item's control, or is refused. "
-    "Every act and call result has outcome: status says whether the action took effect (succeeded, failed, "
+    "The server runs inside limits that you cannot change: observe(url) returns them as limits (which pages "
+    "may be opened, which writes are sent, which secrets it holds). What a limit stops is listed in "
+    "blocked_navigations, blocked_writes, or blocked_requests. To type a secret the server holds, pass its "
+    'name, value={"secret": "NAME"}, to fill a secret field: you never hold the value, and no result shows it. '
+    "Every act and call result has outcome: status says whether the action took effect (succeeded, blocked, failed, "
     "or uncertain), reason says why, and retry says whether repeating it is not_needed, safe, or may_repeat "
     "(it could do the thing twice). When uncertain, page says what the page did meanwhile: busy (a request "
     "is still in flight: wait, with wait_for or observe), reacted, or quiet (nothing reacted). Read outcome "
@@ -139,10 +148,49 @@ def _judged(tool: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]
     @functools.wraps(tool)
     def judged(*args: Any, **kwargs: Any) -> dict[str, Any]:
         result = tool(*args, **kwargs)
-        result.setdefault("outcome", outcome_of(result))
+        if result.get("blocked_writes") or any(
+            write.get("state") in {"blocked", "blocked-and-simulated"}
+            for step in result.get("steps", ())
+            for write in step.get("writes", ())
+        ):
+            result["outcome"] = outcome_of(result)
+            result["summary"] = result["outcome"]["reason"]
+        elif "outcome" not in result:
+            result["outcome"] = outcome_of(result)
         return result
 
     return judged
+
+
+def _sealed(tool: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
+    """Take the value of every declared secret out of a tool's result, wherever the page put it. This
+    is the last thing done to a result, so it does not depend on which code built which part."""
+
+    @functools.wraps(tool)
+    def sealed(self: BrowserTools, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        with self._lock:
+            try:
+                self.privacy.require_capacity()
+                result = tool(self, *args, **kwargs)
+                return self.privacy.clean(result)
+            except PrivacyLimit:
+                result = _error("BROWSER_PRIVACY_LIMIT", "Privacy limit reached.", "Start a fresh session.")
+                if tool.__name__ in {"act", "call"}:
+                    result["outcome"] = {
+                        "status": "uncertain",
+                        "retry": "may_repeat",
+                        "reason": "Privacy limit reached during the session.",
+                    }
+                return result
+            except Exception:
+                return _error(
+                    "BROWSER_INTERNAL_ERROR", "The browser operation failed.", "Observe the page before retrying."
+                )
+            finally:
+                self._write_source = None
+                self._said_for_write = ""
+
+    return sealed
 
 
 class BrowserTools:
@@ -155,7 +203,14 @@ class BrowserTools:
         allowed_origins: tuple[str, ...] = (),
         upload_dir: Path | None = None,
         download_dir: Path | None = None,
+        boundary: Boundary | None = None,
     ) -> None:
+        # The limits of this server (see boundary.py). ``block_writes`` and ``allowed_origins`` are
+        # the older way to state two of them; a combination the boundary refuses is refused here.
+        self.boundary = boundary or Boundary.build(allow_origin=allowed_origins, allow_writes=not block_writes)
+        self.privacy = self.boundary.make_redactor()
+        block_writes = not self.boundary.sends_writes
+        allowed_origins = self.boundary.origins
         self.block_writes = block_writes
         self.upload_dir = upload_dir.resolve() if upload_dir is not None else None
         self.download_dir = download_dir.resolve() if download_dir is not None else None
@@ -165,12 +220,20 @@ class BrowserTools:
         self._latest = 0
         # How far each of the bridge's records has been reported: a count, or for dialogs and
         # opened tabs ("events") the highest sequence number.
-        self._reported = {"writes": 0, "navigations": 0, "events": 0}
+        self._reported = {"writes": 0, "passed": 0, "navigations": 0, "events": 0}
         self._on_steps: frozenset[int] = frozenset()  # Dialogs and tabs that the latest steps report.
         self._secret_fields: set[str] = set()
-        self._lock = threading.Lock()
+        # The names of the fields a view has shown. A stopped request's other fields (a hidden
+        # token, a field no reading listed) are named in blocked_writes but not shown.
+        self._shown_fields: set[str] = set()
+        self._fields_page: tuple[str, int] | None = None
+        self._write_source: Observation | None = None
+        self._said = ""  # What the agent has sent since the page was opened.
+        self._said_for_write = ""
+        self._lock = threading.RLock()
 
     # ---- tools ------------------------------------------------------------------------------------
+    @_sealed
     def observe(
         self,
         url: str | None = None,
@@ -237,12 +300,14 @@ class BrowserTools:
                         return refused
                     session = self._browser()
                     session.open(url)
-                    self._reported |= {"writes": 0, "navigations": 0}
+                    self._reported |= {"writes": 0, "passed": 0, "navigations": 0, "refusals": 0}
+                    self._said = ""
+                    limits = {"limits": [*self.boundary.describe(), self.boundary.privacy_description()]}
                     if condition is None:
-                        return self._observe_result("Observed the page.", paging=paging)
-                    base = session.observe(locate=False)
+                        return self._observe_result("Observed the page.", paging=paging) | limits
+                    base = session._observe(locate=False)
                     waited = session.wait(condition, base, timeout_ms=timeout_ms)
-                    return self._waited_result("Observed the page.", waited, since=base, paging=paging)
+                    return self._waited_result("Observed the page.", waited, since=base, paging=paging) | limits
                 earlier = self._observation(since) if since is not None else None
                 if isinstance(earlier, dict):
                     return earlier
@@ -256,6 +321,7 @@ class BrowserTools:
             except BridgeError as error:
                 return _error(_bridge_code(error), str(error), "Check the url, or observe again.")
 
+    @_sealed
     @_judged
     def act(
         self,
@@ -288,7 +354,8 @@ class BrowserTools:
         ``act(action="scroll", wait_for={"text": "Post 75"})``. ``scroll`` in the result says how many
         scrolls it took, whether more loaded, and whether the end was reached.
 
-        ``fill`` takes text in ``value``. ``select`` takes an option value or label (a list for a
+        ``fill`` takes text in ``value``, or ``{"secret": "NAME"}`` for a secret the server holds, which
+        goes only into a field the view marks secret. ``select`` takes an option value or label (a list for a
         multiple select). On a custom combobox or listbox, ``select`` chooses from its list: it opens
         the list (typing the value into an editable combobox), waits for the option, and clicks the one
         whose name is the value, or starts with it; ``steps[0].chosen`` names it. On a date field,
@@ -305,7 +372,7 @@ class BrowserTools:
         ``wait.met`` says whether the change showed. Do not repeat the action only because it is false.
 
         ``outcome`` says whether the action took effect. ``status`` is ``succeeded`` (the wait was
-        met, the page navigated, the control holds what was set, or the page answered), ``failed``
+        met or the page showed an effect), ``blocked`` (a write was stopped by policy), ``failed``
         (refused or the browser would not send the form), or ``uncertain`` (it ran and nothing shows
         whether it worked, or what you waited for did not show). Dismissing a ``confirm`` or ``prompt``
         does not prove the action was canceled: without other evidence it is ``uncertain`` and
@@ -313,7 +380,7 @@ class BrowserTools:
         ``not_needed``, ``safe``, or ``may_repeat`` (repeating it could do the thing twice). When
         uncertain, ``page`` is ``busy`` (a request the action started is still in flight: wait),
         ``reacted``, or ``quiet`` (no DOM change and no request: it may have done nothing).
-        ``steps[0].dialogs`` lists the boxes the page raised (they are always dismissed),
+        ``steps[0].dialogs`` lists the boxes the page raised and their answers,
         ``steps[0].opened`` the tabs it opened (they are closed, not followed), and
         ``steps[0].reaction`` how much the page did. In ``changes``, ``(shown again)`` marks a message
         the page repeated, and ``(shown, now gone)`` one that came and went.
@@ -351,13 +418,16 @@ class BrowserTools:
                 if action == "upload":
                     steps = plan_control_action(observation.handles[handle], "upload", self._files(files or []))
                 else:
-                    steps = plan_control_action(observation.handles[handle], action, value, lift=observation.lift)
+                    control = observation.handles[handle]
+                    value = self._secret(value, control if action == "fill" else None, f"{action} on {control.name!r}")
+                    steps = plan_control_action(control, action, value, lift=observation.lift)
             except AgentActionError as error:
                 return _planning_error(error)
             except _ToolError as error:
                 return error.result
             return self._run(steps, observation, condition, timeout_ms)
 
+    @_sealed
     @_judged
     def call(
         self,
@@ -383,9 +453,9 @@ class BrowserTools:
                 return observation
             try:
                 condition = _condition(wait_for)
-                steps = plan_form_call(
-                    observation.lift, tool, self._with_files(observation, tool, arguments), submit=submit
-                )
+                tool, arguments = self._resolve_public_call(observation, tool, arguments)
+                arguments = self._with_secrets(observation, tool, self._with_files(observation, tool, arguments))
+                steps = plan_form_call(observation.lift, tool, arguments, submit=submit)
             except AgentActionError as error:
                 return _planning_error(error)
             except _ToolError as error:
@@ -453,23 +523,93 @@ class BrowserTools:
     # ---- internals --------------------------------------------------------------------------------
     def _browser(self) -> BrowserSession:
         if self._session is None:
-            self._session = BrowserSession(
-                block_writes=self.block_writes, allowed_origins=self.allowed_origins, download_dir=self.download_dir
-            )
+            self._session = BrowserSession(boundary=self.boundary, download_dir=self.download_dir, privacy=self.privacy)
         return self._session
 
+    def _resolve_public_call(self, observation: Observation, tool: str, arguments: Any) -> tuple[str, Any]:
+        """Map projected schema names to real field names without changing the private lift."""
+        for schema, shown, aliases in self._schema_pairs(observation):
+            if tool not in {schema["name"], shown["name"]}:
+                continue
+            if not isinstance(arguments, dict):
+                return schema["name"], arguments
+            return schema["name"], {aliases.get(key, key): value for key, value in arguments.items()}
+        return tool, arguments
+
+    def _schema_pairs(self, observation: Observation) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, str]]]:
+        result = []
+        schemas = observation.lift.form_tool_schemas()
+        reserved_forms = {schema["name"] for schema in schemas}
+        for number, schema in enumerate(schemas, 1):
+            safe_schema = _public_schema(schema)
+            shown = self.privacy.clean(safe_schema)
+            if shown["name"] != schema["name"]:
+                shown["name"] = self._schema_alias("f", number, reserved_forms)
+                reserved_forms.add(shown["name"])
+            properties = safe_schema.get("input_schema", {}).get("properties", {})
+            reserved_fields = set(properties)
+            names = {}
+            for index, name in enumerate(properties, 1):
+                public = name if self.privacy.clean(name) == name else self._schema_alias("p", index, reserved_fields)
+                names[name] = public
+                reserved_fields.add(public)
+            shown["input_schema"]["properties"] = {
+                names[name]: self.privacy.clean(properties[name]) for name in properties
+            }
+            if "required" in shown["input_schema"]:
+                shown["input_schema"]["required"] = [names[name] for name in schema["input_schema"]["required"]]
+            result.append((schema, shown, {public: raw for raw, public in names.items()}))
+        return result
+
+    def _schema_alias(self, kind: str, number: int, reserved: set[str]) -> str:
+        # Opaque stable identifiers carry no bytes or digest of the original field name.
+        for salt in range(4096):
+            alias = kind + hashlib.sha256(f"{kind}:{number}:{salt}".encode()).hexdigest()[:16]
+            if alias not in reserved and self.privacy.clean(alias) == alias:
+                return alias
+        raise BoundaryError("Cannot project this form's identifiers safely; start a new session.")
+
     def _refuse_origin(self, url: str) -> dict[str, Any] | None:
-        if not self.allowed_origins:
+        refusal = self.boundary.refusal(url)
+        if refusal is None:
             return None
-        parts = urlsplit(url)
-        origin = f"{parts.scheme}://{parts.netloc}" if parts.scheme and parts.netloc else url
-        if origin in self.allowed_origins:
-            return None
-        return _error(
-            "BROWSER_ORIGIN_NOT_ALLOWED",
-            f"{origin} is not an allowed origin.",
-            f"Open a page on one of: {', '.join(self.allowed_origins)}.",
+        code, message = refusal
+        allowed = (
+            f"a page on one of: {', '.join(self.allowed_origins)}" if self.allowed_origins else "a public web page"
         )
+        return _error(code, message, f"Open {allowed}.")
+
+    def _secret(self, value: Any, control: Any, what: str) -> Any:
+        """The value to type for ``value``. ``{"secret": NAME}`` stands for a secret this server was
+        started with: the agent names it and never holds it. It goes only into a field the lift
+        reads as secret, whose value no view shows, so naming it cannot bring it into a reading."""
+
+        if not (isinstance(value, dict) and set(value) == {"secret"}):
+            return value
+        name = value["secret"]
+        if name not in self.boundary.secrets:
+            known = ", ".join(self.boundary.secrets) or "none"
+            raise _ToolError(
+                "BROWSER_SECRET_REFUSED", f"This server holds no secret named {name!r}.", f"Secrets it holds: {known}."
+            )
+        if control is None or not control.secret:
+            raise _ToolError(
+                "BROWSER_SECRET_REFUSED",
+                f"{what} is not a secret field, so secret {name} is not typed into it: its value would show.",
+                "Name a secret only for a password field or another field the view marks secret.",
+            )
+        return self.boundary.secrets[name]
+
+    def _with_secrets(self, observation: Observation, tool: str, arguments: Any) -> Any:
+        """The arguments of a form call, with each ``{"secret": NAME}`` replaced by its value."""
+
+        names = form_tool_names(observation.lift.forms)
+        if tool not in names or not isinstance(arguments, dict):
+            return arguments
+        form = observation.lift.forms[names.index(tool)]
+        controls = {control.node_id: control for control in observation.lift.controls}
+        fields = {field.key: field.control for field in form_fields(form, controls)}
+        return {key: self._secret(value, fields.get(key), f"{key!r}") for key, value in arguments.items()}
 
     def _observation(self, observation_id: int | None) -> Observation | dict[str, Any]:
         if self._session is None or not self._history:
@@ -512,7 +652,7 @@ class BrowserTools:
         data = self._observe_data(since=observation)
         result = tool_response(True, _join(_scroll_summary(scrolled), data.pop("_note")), data=data)
         result["scroll"] = scrolled.to_json()
-        result["outcome"] = scroll_outcome(result["scroll"])
+        result["outcome"] = outcome_of(result) if result.get("blocked_writes") else scroll_outcome(result["scroll"])
         return result
 
     def _run(
@@ -524,6 +664,17 @@ class BrowserTools:
     ) -> dict[str, Any]:
         session = self._browser()
         started = time.monotonic()
+        self._write_source = observation
+        # What the agent itself sends: the values it set and the files it gave, on this page so far.
+        # A stopped request may show these back to it (see _field_shown).
+        self._said += "\n" + "\n".join(
+            str(item)
+            for step in steps
+            if not step.secret
+            for item in [step.value, *step.values, *(file.name for file in step.files)]
+            if item
+        )
+        self._said_for_write = self._said
         try:
             results = session.run(steps, observation=observation) if steps else []
         except BridgeError as error:
@@ -540,6 +691,8 @@ class BrowserTools:
                 refused["steps"] = [item.to_json() for item in error.steps]  # The ones that ran.
             return refused
         self._on_steps = frozenset(seq for item in results for seq in item.event_seqs)
+        self._said += "".join(f"\n{item.chosen}" for item in results if item.chosen and not item.step.secret)
+        self._said_for_write = self._said
         summary = "Nothing to do: the control is already in that state." if not steps else _summary(results)
         if condition is None:
             result = self._observe_result(summary, since=observation)
@@ -575,6 +728,9 @@ class BrowserTools:
         self, summary: str, *, since: Observation | None = None, paging: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         data = self._observe_data(since=since, paging=paging)
+        if data.get("blocked_navigations"):
+            stopped = data["blocked_navigations"][0]
+            summary = f"Navigation blocked: {stopped['reason']}."
         return tool_response(True, _join(summary, data.pop("_note")), data=data)
 
     def _view_data(
@@ -588,14 +744,21 @@ class BrowserTools:
     ) -> tuple[dict[str, Any], str]:
         """A slice of a reading's view, and one sentence on how to get more."""
 
-        page = view_page(
-            observation.lines, offset=offset, limit=max(1, min(int(limit), MAX_VIEW_LIMIT)), find=find or None
-        )
+        shown = self._browser().project(observation)
+        schemas = self._schema_pairs(observation)
+        form_names = {form.node_id: pair[1]["name"] for form, pair in zip(observation.lift.forms, schemas, strict=True)}
+        lines = [
+            replace(line, text=line.text.rsplit(" tool=", 1)[0] + " tool=" + form_names[line.node_id])
+            if line.kind == "form"
+            else line
+            for line in shown.lines
+        ]
+        page = view_page(lines, offset=offset, limit=max(1, min(int(limit), MAX_VIEW_LIMIT)), find=find or None)
         data = {
             "observation_id": observation_id,
             "view": page.text,
             "view_page": page.to_json(),
-            "form_tools": [_public_schema(schema) for schema in observation.lift.form_tool_schemas()],
+            "form_tools": [pair[1] for pair in schemas],
         }
         return data, page.describe(observation_id)
 
@@ -629,22 +792,57 @@ class BrowserTools:
         """
 
         session = self._browser()
-        observation = session.observe()
+        observation = session._observe()
+        page_key = (observation.doc_id, observation.navigation_id)
+        if page_key != self._fields_page:
+            self._secret_fields.clear()
+            self._shown_fields.clear()
+            self._said = ""
+            self._fields_page = page_key
         self._latest += 1
         self._history[self._latest] = observation
         for key in sorted(self._history)[:-HISTORY]:
             del self._history[key]
-        self._secret_fields |= {c.field_name for c in observation.lift.controls if c.secret and c.field_name}
+        self._secret_fields = {c.field_name for c in observation.lift.controls if c.secret and c.field_name}
+        self._shown_fields = {c.field_name for c in observation.lift.controls if c.field_name and not c.secret}
         view, note = self._view_data(observation, self._latest, **(paging or {}))
         data: dict[str, Any] = {"url": observation.url, "title": observation.title, **view, "_note": note}
         if since is not None:
-            data["changes"] = changes(since, observation)
-        records = session.records()
+            data["changes"] = changes(since, observation, self.privacy)
+        records = session._records()
         writes, navigations = records["writes"], records["navigations"]
         if len(writes) > self._reported["writes"]:
-            data["blocked_writes"] = [self._redact_write(w) for w in writes[self._reported["writes"] :]]
+            source = self._write_source
+            readings = (observation,) if source is None else (source, observation)
+            visible: dict[str, set[str]] = {}
+            secret_names = set(self._secret_fields)
+            for reading in readings:
+                for control in reading.lift.controls:
+                    if not control.field_name:
+                        continue
+                    if control.secret:
+                        secret_names.add(control.field_name)
+                    else:
+                        values = visible.setdefault(control.field_name, set())
+                        values.update(
+                            value for value in [control.value, *(option.value for option in control.options)] if value
+                        )
+            # Agent-supplied values remain known during this action's response even if it navigated.
+            said = self._said_for_write if source is not None else self._said
+            seen = "\n".join([*(reading.view for reading in readings), said])
+            data["blocked_writes"] = [
+                self._redact_write(w, seen, visible=visible, secret_names=secret_names)
+                for w in writes[self._reported["writes"] :]
+            ]
+        self._write_source = None
+        passed = records.get("passed_writes", [])
+        if len(passed) > self._reported["passed"]:
+            data["passed_writes"] = [session._request_summary(item) for item in passed[self._reported["passed"] :]]
         if len(navigations) > self._reported["navigations"]:
             data["blocked_navigations"] = navigations[self._reported["navigations"] :]
+        refused = [item for item in records.get("refusals", []) if item["seq"] > self._reported.get("refusals", 0)]
+        if refused:
+            data["blocked_requests"] = _by_host(refused)
         # Dialogs the page raised and tabs it opened that no step reports: they came while the
         # bridge waited, or between two tool calls (a timer, a late answer).
         events = [*records["dialogs"], *records["popups"]]
@@ -657,21 +855,59 @@ class BrowserTools:
             data["opened"] = late_tabs
         self._reported = {
             "writes": len(writes),
+            "passed": len(passed),
             "navigations": len(navigations),
             "events": max([self._reported["events"], *(e["seq"] for e in events)]),
+            "refusals": max([self._reported.get("refusals", 0), *(item["seq"] for item in refused)]),
         }
         return data
 
-    def _redact_write(self, write: dict[str, Any]) -> dict[str, Any]:
-        """A blocked request, with secret form fields redacted. A body that is not a form is not shown."""
+    def _field_shown(
+        self,
+        key: str,
+        value: Any,
+        seen: str,
+        *,
+        visible: dict[str, set[str]] | None = None,
+        secret_names: set[str] | None = None,
+    ) -> Any:
+        """A field of a stopped request as a result may show it. The rule is what a person at the
+        page could see: the value of a field a view listed, or a value the page itself shows (a
+        custom list keeps its choice in a hidden field, and shows the choice beside it), or a value
+        the agent itself sent on this page. A secret field is ``[redacted]``. Anything else, such as
+        a hidden token, is ``[not shown]``, whatever the field is called. ``seen`` is the text of the
+        views around the request and of what the agent sent."""
+
+        if key in (self._secret_fields if secret_names is None else secret_names) or names_a_secret(key):
+            return REDACTED
+        if isinstance(value, str) and value in (visible or {}).get(key, set()):
+            return value
+        if isinstance(value, list):
+            return [self._field_shown(key, item, seen, visible=visible, secret_names=secret_names) for item in value]
+        # A file is shown as its name, size, and type, when the agent gave a file of that name.
+        text = value.get("file") if isinstance(value, dict) else value
+        return value if isinstance(text, str) and text.strip() and text in seen else NOT_SHOWN
+
+    def _redact_write(
+        self,
+        write: dict[str, Any],
+        seen: str = "",
+        *,
+        visible: dict[str, set[str]] | None = None,
+        secret_names: set[str] | None = None,
+    ) -> dict[str, Any]:
+        """A blocked request, with secret form fields redacted and fields that no view showed left
+        out by value. A body that is not a form is not shown."""
 
         shown: dict[str, Any] = {"method": write["method"], "url": write["url"]}
+        if "state" in write:
+            shown["state"] = write["state"]
         if write.get("new_tab"):
             shown["new_tab"] = True  # A tab the page opened sent it, not the page the agent reads.
-        fields = request_fields(write)
+        fields = request_fields(write) if self.privacy.mode == "heuristic" else None
         if fields:
             shown["form_fields"] = {
-                key: REDACTED if key in self._secret_fields or names_a_secret(key) else value
+                key: self._field_shown(key, value, seen, visible=visible, secret_names=secret_names)
                 for key, value in fields.items()
             }
         elif write.get("post_data") or write.get("post_data_b64"):
@@ -681,6 +917,19 @@ class BrowserTools:
                 else len((write.get("post_data") or "").encode("utf-8"))
             )
         return shown
+
+
+def _by_host(refused: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Requests the boundary stopped, one entry for each place they were for: a page that asks ten
+    times for the same tracker is one line, not ten."""
+
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for item in refused:
+        parts = urlsplit(item["url"] if "//" in item["url"] else f"//{item['url']}")
+        key = (parts.netloc or item["url"], item["reason"])
+        entry = grouped.setdefault(key, {"host": key[0], "reason": item["reason"], "count": 0, "first": item["url"]})
+        entry["count"] += 1
+    return list(grouped.values())[:20]
 
 
 def _scroll_summary(scrolled: ScrollResult) -> str:
@@ -784,6 +1033,10 @@ def _bridge_code(error: BridgeError) -> str:
     message = str(error)
     if message.startswith("stale-view:"):
         return "BROWSER_OBSERVATION_STALE"
+    if message.startswith("boundary-origin:"):
+        return "BROWSER_ORIGIN_NOT_ALLOWED"
+    if message.startswith("boundary:"):
+        return "BROWSER_ADDRESS_NOT_ALLOWED"
     if message.startswith("choose: more than one"):
         return "BROWSER_OPTION_AMBIGUOUS"
     if message.startswith("choose: no option"):
@@ -844,7 +1097,7 @@ def build_server(tools: BrowserTools) -> Any:
     from mcp.types import ToolAnnotations
 
     app = FastMCP(SERVER_NAME, instructions=INSTRUCTIONS, log_level="ERROR")
-    changes_world = not tools.block_writes
+    changes_world = tools.boundary.sends_writes or tools.boundary.read_policy == "permissive"
     app.add_tool(
         tools.observe,
         annotations=ToolAnnotations(title="Observe a page", readOnlyHint=False, openWorldHint=True),
@@ -867,12 +1120,84 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         default=[],
         metavar="ORIGIN",
-        help="an origin the agent may open and navigate to, such as https://shop.example (repeatable)",
+        help="an origin the agent may open, such as https://shop.example (repeatable). With one, the session "
+        "is sealed: the browser reaches the listed origins and hosts and nothing else",
+    )
+    parser.add_argument(
+        "--public-read",
+        action="store_true",
+        help="explicitly allow browsing public web origins without operator credentials or writes",
+    )
+    parser.add_argument(
+        "--allow-host",
+        action="append",
+        default=[],
+        metavar="HOST",
+        help="a host, with a port if it needs one, that pages may load from but the agent may not open: "
+        "a CDN (repeatable; needs --allow-origin)",
+    )
+    parser.add_argument(
+        "--allow-write",
+        action="append",
+        default=[],
+        metavar="RULE",
+        help="a write that is sent: a method and an address with * for any run of characters, such as "
+        "'POST https://shop.example/cart/*'. Methods include GET, POST, PUT, PATCH, DELETE, WEBSOCKET, EVENTSOURCE and * (repeatable; "
+        "needs --allow-origin)",
     )
     parser.add_argument(
         "--allow-writes",
         action="store_true",
-        help="let form posts and other non-GET requests through (by default they are blocked)",
+        help="send every write to the listed origins (needs --allow-origin; prefer --allow-write rules)",
+    )
+    parser.add_argument(
+        "--allow-read",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help="operator-classified read URL pattern for GET, HEAD and OPTIONS (repeatable)",
+    )
+    parser.add_argument(
+        "--mutation-url",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help="URL pattern that changes state even on GET; needs a matching --allow-write (repeatable)",
+    )
+    parser.add_argument(
+        "--read-policy",
+        choices=["auto", "explicit", "permissive"],
+        default="auto",
+        help="auto requires classified reads in origin-scoped trials; permissive trusts unclassified GETs",
+    )
+    parser.add_argument(
+        "--deny-url",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help="an address that is never requested, by any method, with * for any run of characters: "
+        "'*/logout*' (repeatable). The limit for a site that changes data on GET",
+    )
+    parser.add_argument(
+        "--secret",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="an environment variable that holds a secret. The agent fills it in by name, into a secret field "
+        "only, and its value is taken out of every result (repeatable; needs --allow-origin)",
+    )
+    parser.add_argument(
+        "--storage-state",
+        type=Path,
+        metavar="FILE",
+        help="a Playwright storage state file (cookies and local storage) to start signed in (needs --allow-origin)",
+    )
+    parser.add_argument(
+        "--private",
+        choices=["strict", "heuristic"],
+        default="strict",
+        help="strict withholds all text-entry values; heuristic withholds only recognized sensitive fields. "
+        "Both redact known credentials; neither recognizes arbitrary secrets in ordinary prose.",
     )
     parser.add_argument(
         "--upload-dir",
@@ -886,15 +1211,68 @@ def main(argv: list[str] | None = None) -> int:
         metavar="DIR",
         help="the folder the agent may save downloaded files in (by default it saves none)",
     )
+    parser.add_argument(
+        "--save-storage-state",
+        type=Path,
+        metavar="FILE",
+        help="save host-only cookies and local storage for the single trial origin to a new private file on close",
+    )
+    parser.add_argument(
+        "--confirm",
+        choices=["accept", "dismiss"],
+        default="dismiss",
+        help="fixed answer to JavaScript confirm dialogs; accepting requires a listed origin",
+    )
+    parser.add_argument(
+        "--header",
+        action="append",
+        default=[],
+        metavar="NAME=ENV",
+        help="Origin-scoped credential header from an environment variable.",
+    )
+    parser.add_argument(
+        "--cookie",
+        action="append",
+        default=[],
+        metavar="NAME=ENV",
+        help="Host-only session cookie from an environment variable.",
+    )
+    parser.add_argument(
+        "--simulate-writes",
+        action="store_true",
+        help="Return synthetic success to the page for a blocked HTTP write. The agent still sees blocked.",
+    )
     args = parser.parse_args(argv)
     if args.download_dir is not None and not args.download_dir.is_dir():
         parser.error(f"--download-dir {args.download_dir} is not a folder")
-    tools = BrowserTools(
-        block_writes=not args.allow_writes,
-        allowed_origins=tuple(args.allow_origin),
-        upload_dir=args.upload_dir,
-        download_dir=args.download_dir,
-    )
+    try:
+        boundary = Boundary.build(
+            allow_origin=args.allow_origin,
+            allow_host=args.allow_host,
+            allow_write=args.allow_write,
+            allow_writes=args.allow_writes,
+            allow_read=args.allow_read,
+            read_policy=args.read_policy,
+            mutation_url=args.mutation_url,
+            deny_url=args.deny_url,
+            secret=args.secret,
+            private=args.private,
+            storage_state=args.storage_state,
+            save_storage_state=args.save_storage_state,
+            confirm=args.confirm,
+            header=args.header,
+            cookie=args.cookie,
+            simulate_writes=args.simulate_writes,
+            environ=os.environ,
+        )
+    except BoundaryError as error:
+        parser.error(str(error))
+    if bool(args.allow_origin) == args.public_read:
+        parser.error("Choose --allow-origin for a trial or --public-read for public browsing.")
+    # The limits, for whoever starts the server. stdout carries the protocol, so they go to stderr.
+    lines = [*boundary.describe(), boundary.privacy_description()]
+    print(boundary.scrub("\n".join(["viewspec-browser limits:", *(f"  {line}" for line in lines)])), file=sys.stderr)
+    tools = BrowserTools(boundary=boundary, upload_dir=args.upload_dir, download_dir=args.download_dir)
     app = build_server(tools)
 
     def stop(signum: int, _frame: FrameType | None) -> None:

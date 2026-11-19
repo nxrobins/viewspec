@@ -1,11 +1,12 @@
 // A Playwright browser session driven over stdio, one JSON object per line.
 //
-//   request:  {"id": 1, "cmd": "open", "url": "https://example.com", "block_writes": true}
+//   request:  {"id": 1, "cmd": "open", "url": "https://example.com", "policy": <Boundary.browser_config()>}
 //   response: {"id": 1, "ok": true, "result": {...}}  or  {"id": 1, "ok": false, "error": "..."}
 //
 // Commands:
-//   open      {url, block_writes, allowed_origins, download_dir}
-//                                          load a page; returns its status and server HTML
+//   open      {url, download_dir, policy}    load a page; returns its status and server HTML. A
+//                                          policy is required (see boundary.py). Every
+//                                          connection of the browser passes the gate
 //   snapshot  {collect_secrets}            the composed-tree snapshot (see lift_inpage.js), with what
 //                                          the page wrote into its message regions and how busy it is
 //   aria      {}                           Playwright's ARIA snapshot of the body
@@ -15,8 +16,9 @@
 //                                          and the items around it), and what blocks it, if anything
 //   act       {op, ref, locator, end_ref, end_locator, value, values, files}
 //                                          run one planned step (see below)
-//   writes    {}                           the writes and navigations that were stopped, the dialogs
-//                                          the page raised, and the tabs it opened
+//   writes    {}                           the writes, navigations, and other requests that were
+//                                          stopped, the dialogs the page raised, and the tabs it opened
+//   private   {addresses}                  which of these addresses the gate takes for private
 //   document  {}                           the id of the current document (see lift_inpage.js)
 //   wait_change {timeout_ms}               wait until the DOM changes, a field holds something else,
 //                                          or the page navigates
@@ -25,15 +27,10 @@
 //                                          element its ref names (the probe checks page-checked ones)
 //   close     {}
 //
-// With block_writes, every request that is not GET, HEAD, or OPTIONS (a form post, a fetch that
-// changes data, a beacon) is stopped, recorded, and answered with a small page that says so. An
-// agent can then fill in and submit a real form without changing anything outside the browser.
-//
-// With allowed_origins (for example ["https://shop.example"]), a top-level navigation to any other
-// origin is stopped and recorded, so a click cannot take the agent off the sites it may use.
-//
-// Both hold for the page and for every tab it opens (a link or a form with target="_blank",
-// window.open): the requests of a new tab are checked like the page's own, and marked new_tab.
+// The fixed session policy classifies each request's destination, method and channel. Refused
+// writes are recorded and fail unless the operator explicitly enables simulation. Every redirect
+// target is checked before contact. Frames stay on the current top document's exact origin;
+// worker execution and new-tab requests are refused because their response coverage is incomplete.
 //
 // With download_dir, a "download" step saves the file a click downloads in that folder, under a
 // safe name the page cannot turn into a path, and never over another file. Without it, nothing is
@@ -45,7 +42,10 @@
 // requests started and still in flight).
 
 const crypto = require("crypto");
+const dns = require("dns").promises;
 const fs = require("fs");
+const http = require("http");
+const net = require("net");
 const path = require("path");
 const readline = require("readline");
 const { execSync } = require("child_process");
@@ -101,7 +101,10 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 let browser = null;
 let page = null;
+let policyInstalled = false;
 let writes = [];
+let passedWrites = [];
+let sessionPolicy;
 let navigations = [];
 let mainNavigations = 0;
 let downloadDir = null;
@@ -115,7 +118,7 @@ let popups = [];
 let eventSeq = 0;
 let requestSeq = 0;
 let pendingRequests = new Map(); // A request still in flight -> its sequence number.
-// Whether requests are checked at all (block_writes or allowed_origins), and how many requests for
+// Whether the mandatory request handler has been installed, and how many requests for
 // a page of their own the tabs that the page opened have made so far.
 let routing = false;
 let tabRequests = 0;
@@ -132,13 +135,339 @@ function originOf(url) {
   }
 }
 
+// ---- The boundary -------------------------------------------------------------------------------
+// A session started with a policy (see boundary.py) runs inside three limits. This file keeps two:
+//
+//   the gate      a proxy on this computer that every connection of the browser passes. It decides
+//                 where the browser may go: in a sealed session only the listed origins and hosts,
+//                 in an open one any public address, and never an address on this computer or a
+//                 private network that is not listed. A check on requests alone cannot do this:
+//                 Playwright does not hand its request handler a redirect or a WebSocket, so a
+//                 redirect to another origin, and a socket to anywhere, went out unseen.
+//   the handler   the request handler, which sees the method and the address of each request it
+//                 is handed: it stops a write that no rule allows and an address a rule denies.
+//
+// The policy is fixed when the browser starts. Nothing the agent sends can change it.
+let limits = null; // {sealed, origins, endpoints, writes: {all, rules}, deny, storage_state}
+let gate = null; // The proxy: {server, port}.
+let refusals = []; // What the gate or the handler stopped that is not a write or a page: {seq, url, reason}.
+const MAX_REFUSALS = 200;
+
+// Addresses that are this computer or a private network. A page on the public web has no business
+// with them, and a request to one can read a router, a database, or a cloud's metadata service.
+// boundary.py judges the address written in a link the same way; a test holds the two together.
+const PRIVATE = new net.BlockList();
+for (const [subnet, bits] of [
+  ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16], ["172.16.0.0", 12],
+  ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24],
+  ["203.0.113.0", 24], ["224.0.0.0", 4], ["240.0.0.0", 4],
+]) {
+  PRIVATE.addSubnet(subnet, bits, "ipv4");
+  // The same range written as an IPv6 address that stands for an IPv4 one (::ffff:127.0.0.1). The
+  // rule is this narrow on purpose: Node reads every IPv4 address as such an IPv6 address, so one
+  // rule for all of ::ffff:0:0/96 would call the whole IPv4 internet private.
+  PRIVATE.addSubnet(`::ffff:${subnet}`, 96 + bits, "ipv6");
+}
+for (const [subnet, bits] of [["::", 127], ["2001:db8::", 32], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8]]) {
+  PRIVATE.addSubnet(subnet, bits, "ipv6");
+}
+const isPrivate = (address) => PRIVATE.check(address, net.isIPv6(address) ? "ipv6" : "ipv4");
+
+// The same matching as boundary.py: "*" is any run of characters, and nothing else is special.
+function globMatches(pattern, text) {
+  const body = pattern.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+  return new RegExp(`^${body}$`).test(text);
+}
+
+function refuse(url, reason) {
+  refusals.push({ seq: ++eventSeq, url, reason });
+  if (refusals.length > MAX_REFUSALS) refusals.shift();
+}
+
+// Whether the browser may connect to host:port, and the addresses to connect to, IPv4 first. The
+// name is looked up here and the connection made to one of those very addresses, so a name cannot
+// answer with a public address for the check and a private one for the connection.
+async function vet(host, port) {
+  const bare = host.replace(/^\[|\]$/g, "").toLowerCase();
+  const name = net.isIPv6(bare) ? `[${bare}]` : bare;
+  const listed = limits.endpoints.includes(`${name}:${port}`) || limits.endpoints.includes(`${name}:*`);
+  if (limits.sealed && !listed) throw new Error("it is not a listed origin or host");
+  const family = net.isIP(bare);
+  const found = family ? [{ address: bare, family }] : await dns.lookup(bare, { all: true });
+  if (!found.length) throw new Error("the name has no address");
+  if (!listed && found.some((item) => isPrivate(item.address))) {
+    throw new Error("it is on this computer or a private network");
+  }
+  return found.sort((a, b) => a.family - b.family).map((item) => item.address);
+}
+
+// A connection to the first of the addresses that answers. A name often has an IPv6 address that
+// this computer cannot reach, and an IPv4 one that it can.
+const DIAL_TIMEOUT = 8000;
+function dial(addresses, port) {
+  return new Promise((resolve, reject) => {
+    const attempt = (index) => {
+      if (index >= addresses.length) return reject(new Error("no address answered"));
+      const socket = net.connect({ host: addresses[index], port, timeout: DIAL_TIMEOUT });
+      const next = () => {
+        socket.destroy();
+        attempt(index + 1);
+      };
+      socket.once("error", next);
+      socket.once("timeout", next);
+      socket.once("connect", () => {
+        socket.removeListener("error", next);
+        socket.removeListener("timeout", next);
+        socket.setTimeout(0);
+        resolve(socket);
+      });
+    };
+    attempt(0);
+  });
+}
+
+async function startGate() {
+  const server = http.createServer(async (request, response) => {
+    // A plain http request, with the whole address in its first line.
+    let target;
+    let address;
+    try {
+      target = new URL(request.url);
+      [address] = await vet(target.hostname, target.port || "80");
+    } catch (error) {
+      refuse(request.url, String(error.message || error));
+      response.writeHead(403, { "Content-Type": "text/html", Connection: "close" });
+      return response.end(stubHtml("Request blocked", `${request.method} ${request.url}`));
+    }
+    const headers = { ...request.headers };
+    delete headers["proxy-connection"];
+    const out = http.request(
+      { host: address, port: target.port || 80, method: request.method, path: target.pathname + target.search, headers, setHost: false },
+      (answer) => {
+        response.writeHead(answer.statusCode, answer.statusMessage, answer.headers);
+        answer.pipe(response);
+      },
+    );
+    out.on("error", () => (response.headersSent ? response.destroy() : response.writeHead(502).end()));
+    request.pipe(out);
+  });
+  // A tunnel: every https request, and every WebSocket.
+  server.on("connect", async (request, socket, head) => {
+    const match = /^(.+):(\d+)$/.exec(request.url);
+    let addresses;
+    try {
+      if (!match) throw new Error("it is not a host and a port");
+      addresses = await vet(match[1], match[2]);
+    } catch (error) {
+      refuse(request.url, String(error.message || error));
+      return socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+    }
+    socket.on("error", () => {});
+    let out;
+    try {
+      out = await dial(addresses, Number(match[2]));
+    } catch (error) {
+      return socket.end("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n");
+    }
+    out.on("error", () => socket.destroy());
+    socket.on("error", () => out.destroy());
+    socket.on("close", () => out.destroy());
+    out.on("close", () => socket.destroy());
+    socket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+    out.write(head);
+    out.pipe(socket);
+    socket.pipe(out);
+  });
+  server.on("clientError", (error, socket) => socket.destroy());
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  return { server, port: server.address().port };
+}
+
+function writeAllowed(method, url) {
+  if (!limits) return false;
+  const origin = originOf(url.replace(/^ws(s?):/i, "http$1:"));
+  if (!limits.origins.includes(origin)) return false;
+  return limits.writes.all || limits.writes.rules.some((rule) => (rule.method === "*" || rule.method === method) && globMatches(rule.pattern, url));
+}
+
+function requestPolicy(method, address, { document = false, frameOrigin = null, socket = false, eventSource = false, methodOverride = false } = {}) {
+  if (!limits) throw new Error("boundary: no session policy is installed");
+  // Classification is independent of permission: a POST remains a write when its destination
+  // is denied. Every refusal must retain that fact for the authoritative action journal.
+  const reads = limits.reads || { policy: "permissive", rules: [], mutations: [] };
+  const raw = typeof address === "string" ? address : "";
+  const rawQuery = raw.includes("?") ? raw.slice(raw.indexOf("?") + 1).split("#")[0] : "";
+  let write = socket || eventSource || methodOverride || !SAFE_METHODS.has(method);
+  write ||= [...new URLSearchParams(rawQuery).keys()].some((key) => key.toLowerCase() === "_method")
+    || reads.mutations.some((pattern) => globMatches(pattern, raw))
+    || limits.writes.rules.some((rule) => rule.method === method && globMatches(rule.pattern, raw));
+  let target;
+  try {
+    target = new URL(address);
+  } catch {
+    return { reason: "the address is invalid or carries credentials", write };
+  }
+  target.hash = ""; // Fragments select client state and never reach an HTTP endpoint.
+  const url = target.href;
+  write ||= [...target.searchParams.keys()].some((key) => key.toLowerCase() === "_method")
+    || reads.mutations.some((pattern) => globMatches(pattern, url))
+    || limits.writes.rules.some((rule) => rule.method === method && globMatches(rule.pattern, url));
+  if (/[\u0000-\u0020\u007f\\]/.test(address) || /^[a-z]+:\/\/[^/]*@/i.test(address) || target.username || target.password) {
+    return { reason: "the address is invalid or carries credentials", write };
+  }
+  const schemes = socket ? ["ws:", "wss:"] : ["http:", "https:"];
+  if (!schemes.includes(target.protocol)) return { reason: "only web addresses are allowed on this channel", write };
+  if (limits.deny.some((pattern) => globMatches(pattern, url))) return { reason: "a rule denies this address", write };
+  const origin = socket ? originOf(url.replace(/^ws(s?):/i, "http$1:")) : target.origin;
+  if (document && frameOrigin !== null && origin !== frameOrigin) {
+    return { reason: "frame origin must match the top document", write };
+  }
+  const onOrigin = limits.origins.includes(origin);
+  const endpoint = `${target.hostname}:${target.port || (["https:", "wss:"].includes(target.protocol) ? "443" : "80")}`;
+  const extraHost = (limits.hosts || []).includes(target.hostname) || (limits.hosts || []).includes(endpoint);
+  if (limits.sealed && !onOrigin && (document || socket || !extraHost)) {
+    return { reason: document ? "document origin not allowed" : "it is not a listed origin or host", write };
+  }
+  const permission = eventSource ? "EVENTSOURCE" : method;
+  const explicitWrite = writeAllowed(permission, url);
+  if (write) {
+    return { reason: explicitWrite ? null : "write permission required", write: true };
+  }
+  if (reads.policy === "explicit" && !reads.rules.some((pattern) => globMatches(pattern, url))) {
+    return { reason: "this read has not been classified by the operator", write: false };
+  }
+  return { reason: null, write: false };
+}
+
+// Playwright routes only the first request of a redirect chain. Chromium's response pause runs
+// before following each Location, including HTTPS, so policy is checked before the next contact.
+// Popup requests are refused by the context route: their first response has no installed guard.
+// Workers are disabled by an enforced document CSP because their sockets lack a complete hook.
+async function installResponsePolicy(target) {
+  const cdp = await target.context().newCDPSession(target);
+  const { frameTree } = await cdp.send("Page.getFrameTree");
+  const mainFrameId = frameTree.frame.id;
+  cdp.on("Audits.issueAdded", ({ issue }) => {
+    const detail = issue.details.contentSecurityPolicyIssueDetails;
+    if (!detail || detail.isReportOnly || !detail.violatedDirective.startsWith("frame-src")) return;
+    const address = detail.blockedURL || "frame";
+    refuse(/^(data|blob):/i.test(address) ? address.slice(0, address.indexOf(":") + 1) : address,
+      "document security policy blocked a frame");
+  });
+  await cdp.send("Audits.enable");
+  cdp.on("Fetch.requestPaused", async (event) => {
+    try {
+      const isDocument = event.resourceType === "Document";
+      const headers = event.responseHeaders || [];
+      const location = headers.find((header) => header.name.toLowerCase() === "location");
+      if ([301, 302, 303, 307, 308].includes(event.responseStatusCode) && location) {
+        let address;
+        let reason;
+        let verdict;
+        let method = event.request.method;
+        if ((event.responseStatusCode === 303 && method !== "HEAD") || ([301, 302].includes(event.responseStatusCode) && method === "POST")) method = "GET";
+        try {
+          if (/[\u0000-\u0020\u007f\\]/.test(location.value)) throw new Error("ambiguous redirect");
+          address = new URL(location.value, event.request.url).href;
+          verdict = requestPolicy(method, address, {
+            document: isDocument,
+            frameOrigin: isDocument && event.frameId !== mainFrameId ? originOf(target.url()) : null,
+            eventSource: event.resourceType === "EventSource",
+            methodOverride: Object.keys(event.request.headers).some((name) => ["x-http-method-override", "x-method-override", "x-http-method"].includes(name.toLowerCase())),
+          });
+          reason = verdict.reason;
+          // route.continue header overrides propagate through redirects in Playwright. Never
+          // forward operator credentials to a different origin, even another listed one.
+          if (!reason && Object.keys(limits.headers || {}).length && originOf(address) !== originOf(event.request.url)) {
+            reason = "credential headers may not follow a cross-origin redirect";
+          }
+        } catch {
+          reason = "the redirect address is invalid";
+          address = event.request.url;
+        }
+        if (reason) {
+          if (verdict?.write || !SAFE_METHODS.has(method)) {
+            writes.push({ method, url: address, state: "blocked", resource_type: event.resourceType.toLowerCase(), redirect: true });
+          }
+          if (isDocument) navigations.push({ url: address, reason });
+          else refuse(address, reason);
+          if (isDocument) {
+            await cdp.send("Fetch.fulfillRequest", { requestId: event.requestId, responseCode: 204, body: "" });
+          } else {
+            await cdp.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" });
+          }
+          return;
+        }
+        if (verdict.write) passedWrites.push({ method, url: address, state: "passed", redirect: true });
+      }
+      const redirect = [301, 302, 303, 307, 308].includes(event.responseStatusCode) && location;
+      if (isDocument && event.responseStatusCode >= 200 && ![204, 205, 304].includes(event.responseStatusCode) && !redirect && !event.responseErrorReason) {
+        // An extra CSP is intersected with any site policy; it cannot weaken it. The policy is
+        // inherited by srcdoc/about:blank/blob children and applied before document code runs.
+        // Chromium has already processed security headers when continueResponse changes them.
+        // Re-fulfilling the document makes CSP part of the response before parsing starts.
+        const { stream } = await cdp.send("Fetch.takeResponseBodyAsStream", { requestId: event.requestId });
+        const chunks = [];
+        let size = 0;
+        const deadline = Date.now() + 10000;
+        try {
+          while (true) {
+            let timer;
+            const part = await Promise.race([
+              cdp.send("IO.read", { handle: stream, size: 65536 }),
+              new Promise((resolve, reject) => { timer = setTimeout(() => reject(new Error("document response-policy timeout")), Math.max(0, deadline - Date.now())); }),
+            ]).finally(() => clearTimeout(timer));
+            const chunk = Buffer.from(part.data, part.base64Encoded ? "base64" : "utf8");
+            size += chunk.length;
+            if (size > 10 * 1024 * 1024) throw new Error("document exceeds the response-policy size limit");
+            chunks.push(chunk);
+            if (part.eof) break;
+          }
+        } finally {
+          await cdp.send("IO.close", { handle: stream }).catch(() => {});
+        }
+        await cdp.send("Fetch.fulfillRequest", {
+          requestId: event.requestId,
+          responseCode: event.responseStatusCode,
+          responsePhrase: event.responseStatusText,
+          responseHeaders: [
+            ...headers.filter((header) => !["content-encoding", "content-length", "transfer-encoding"].includes(header.name.toLowerCase())),
+            { name: "Content-Security-Policy", value: `worker-src 'none'; object-src 'none'; frame-src ${originOf(event.request.url)}` },
+          ],
+          body: Buffer.concat(chunks).toString("base64"),
+        });
+      } else {
+        await cdp.send("Fetch.continueRequest", { requestId: event.requestId });
+      }
+    } catch (error) {
+      // An unavailable interception API must never turn a failed check into permission.
+      refuse(event.request.url, "the response policy could not be checked");
+      await cdp.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" }).catch(() => {});
+    }
+  });
+  await cdp.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Response" }] });
+}
+
+function readableDocument(address) {
+  return /^https?:\/\//i.test(address) && (!limits.sealed || limits.origins.includes(originOf(address)));
+}
+
 async function ensureLibrary() {
+  if (!readableDocument(page.url())) throw new Error("boundary: the requested document is unavailable");
   await page.evaluate(LIBRARY);
 }
 
 async function launch() {
+  // With a policy, the browser has one way out: the gate. "<-loopback>" sends requests to this
+  // computer through it too; Chromium would otherwise let those go round a proxy.
+  if (!gate) throw new Error("boundary: the network gate must start before Chromium");
+  const options = {
+    proxy: { server: `http://127.0.0.1:${gate.port}`, bypass: "<-loopback>" },
+    // WebRTC and QUIC send packets that are not requests and would not pass the gate.
+    args: ["--force-webrtc-ip-handling-policy=disable_non_proxied_udp", "--disable-quic"],
+  };
   try {
-    return await chromium.launch();
+    return await chromium.launch(options);
   } catch (error) {
     throw new Error(
       "Chromium did not start. Set PLAYWRIGHT_BROWSERS_PATH to the folder with Playwright's browsers, " +
@@ -148,12 +477,48 @@ async function launch() {
   }
 }
 
-async function open({ url, block_writes: blockWrites = true, allowed_origins: allowedOrigins = null, download_dir: dir = null }) {
+async function open({
+  url, download_dir: dir = null, policy = null,
+}) {
+  if (!policy) throw new Error("boundary: opening a page requires a session policy");
+  const config = JSON.stringify({ policy, dir });
+  if (page && config !== sessionPolicy) throw new Error("boundary: session policy cannot change");
+  limits = policy;
+  const verdict = requestPolicy("GET", url, { document: true });
+  if (verdict.reason) throw new Error("boundary: " + verdict.reason);
+  if (page && !policyInstalled) {
+    // Initialization failed before every guard was active; discard the partial context.
+    await page.context().close();
+    page = null;
+  }
+  if (page) {
+    // Reuse the context and keep the identities of its cookies and storage across opens.
+    writes = [];
+    passedWrites = [];
+    navigations = [];
+    refusals = [];
+    dialogs = [];
+    popups = [];
+    return loadDocument(url);
+  }
+  sessionPolicy = config;
+  if (!gate) gate = await startGate();
   if (!browser) browser = await launch();
-  if (page) await page.close();
-  page = await browser.newPage({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  page = await browser.newPage({
+    viewport: { width: 1280, height: 900 },
+    acceptDownloads: true,
+    // A service worker would answer requests from its own cache and make requests of its own.
+    serviceWorkers: "block",
+    ...(policy.initial_state ? { storageState: policy.initial_state } : {}),
+  });
+  if (policy?.cookies && Object.keys(policy.cookies).length) {
+    await page.context().addCookies(Object.entries(policy.cookies).map(([name, value]) => ({
+      name, value, url: policy.origins[0], httpOnly: true, sameSite: "Strict",
+    })));
+  }
   writes = [];
   navigations = [];
+  refusals = [];
   downloadDir = dir ? path.resolve(dir) : null;
   strayDownloads = [];
   page.on("download", (item) => {
@@ -163,56 +528,122 @@ async function open({ url, block_writes: blockWrites = true, allowed_origins: al
     if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigationRequests += 1;
   });
   page.on("framenavigated", (frame) => {
-    if (frame === page.mainFrame()) mainNavigations += 1;
+    if (frame !== page.mainFrame()) return;
+    mainNavigations += 1;
+    checkLanding(frame.url());
   });
   await watchPageEvents(page);
-  const allowed = allowedOrigins && allowedOrigins.length ? new Set(allowedOrigins) : null;
-  routing = Boolean(blockWrites || allowed);
+  routing = true;
   tabRequests = 0;
-  if (routing) {
-    // The route is on the context, not on the page. A tab that the page opens is another page of
-    // the same context, and a route on the page alone never sees its requests: a form that posts
-    // into a new tab was sent, and a link that opens one could leave the allowed origins. The
-    // context is this page's own (browser.newPage makes one for each page) and goes when it closes.
-    const main = page;
-    await page.context().route("**/*", async (route) => {
-      const request = route.request();
-      const from = placeOf(request, main);
-      const mark = from.main ? {} : { new_tab: true };
-      if (from.top && !from.main) tabRequests += 1;
-      if (allowed && from.top && !allowed.has(originOf(request.url()))) {
-        navigations.push({ url: request.url(), reason: "origin not allowed", ...mark });
-        // A 204 answer to a navigation leaves the page where it is. Aborting it instead would make
-        // Chromium show an error page, and the agent would lose the page it was on.
-        if (from.main) return route.fulfill({ status: 204, body: "" });
-        // A new tab has no page to stay on. It gets one that says so, and is closed once it loads.
-        return route.fulfill({ status: 200, contentType: "text/html", body: stubPage("Navigation blocked", request) });
-      }
-      if (!blockWrites || SAFE_METHODS.has(request.method())) return route.continue();
-      const buffer = request.postDataBuffer();
-      writes.push({
-        method: request.method(),
-        url: request.url(),
-        resource_type: request.resourceType(),
-        content_type: request.headers()["content-type"] || null,
-        post_data: request.postData(),
-        post_data_b64: buffer ? buffer.toString("base64") : null,
-        ...mark,
-      });
-      return route.fulfill({ status: 200, contentType: "text/html", body: stubPage("Write blocked", request) });
+  // The route is on the context, not on the page. A tab that the page opens is another page of
+  // the same context, and a route on the page alone never sees its requests: a form that posts
+  // into a new tab was sent, and a link that opens one could leave the allowed origins. The
+  // context is this page's own (browser.newPage makes one for each page) and goes when it closes.
+  const main = page;
+  await page.context().route("**/*", async (route) => {
+    const request = route.request();
+    const from = placeOf(request, main);
+    const mark = from.main ? {} : { new_tab: true };
+    if (from.top && !from.main) tabRequests += 1;
+    const address = request.url();
+    const operatorHeaders = originOf(address) === limits.origins[0] ? limits.headers || {} : {};
+    const headers = { ...request.headers(), ...operatorHeaders };
+    const verdict = requestPolicy(request.method(), address, {
+      document: request.isNavigationRequest(),
+      frameOrigin: request.isNavigationRequest() && !from.top ? originOf(main.url()) : null,
+      eventSource: request.resourceType() === "eventsource" || /text\/event-stream/i.test(headers.accept || ""),
+      methodOverride: ["x-http-method-override", "x-method-override", "x-http-method"].some((name) => name in headers),
     });
+    // Simulation only applies to otherwise valid, supported write destinations. Invalid
+    // destinations and unsupported channels are never turned into simulated success.
+    if (from.main && verdict.write && verdict.reason === "write permission required") return blockWrite(route, mark);
+    let reason = verdict.reason;
+    if (!reason && !from.main) reason = "new tabs have no installed response policy";
+    if (reason) {
+      const blockedWrite = verdict.write ? blockWrite(route, { ...mark, reason }, { allowSimulation: false }) : null;
+      if (from.top) navigations.push({ url: address, reason, ...mark });
+      else refuse(address, reason);
+      if (blockedWrite) return blockedWrite;
+      if (from.top && from.main) return route.fulfill({ status: 204, body: "" });
+      return route.abort("blockedbyclient");
+    }
+    if (verdict.write) passedWrites.push({ method: request.method(), url: address, state: "passed", ...mark });
+    const forwardedHeaders = Object.keys(operatorHeaders).length ? headers : undefined;
+    return route.continue(forwardedHeaders ? { headers: forwardedHeaders } : {});
+  });
+  // A WebSocket sends whatever the page likes, and it is never handed to the handler above. So a
+  // socket is a write: it connects only where a WEBSOCKET rule (or every write) is allowed.
+  await page.context().routeWebSocket(/^wss?:/i, (socket) => {
+    const verdict = requestPolicy("WEBSOCKET", socket.url(), { socket: true });
+    if (!verdict.reason) {
+      passedWrites.push({ method: "WEBSOCKET", url: socket.url(), state: "passed" });
+      return socket.connectToServer();
+    }
+    writes.push({ method: "WEBSOCKET", url: socket.url(), state: "blocked", resource_type: "websocket", content_type: null, post_data: null, post_data_b64: null });
+    refuse(socket.url(), verdict.reason);
+    return socket.close({ code: 1008, reason: "blocked" });
+  });
+  await installResponsePolicy(page);
+  policyInstalled = true;
+  return loadDocument(url);
+}
+
+async function loadDocument(url) {
+  let response;
+  try {
+    response = await page.goto(url, { waitUntil: "load", timeout: 30000 });
+  } catch (error) {
+    const refused = navigations.at(-1);
+    if (!refused) throw error;
+    const code = refused.reason.includes("origin") ? "boundary-origin:" : "boundary:";
+    throw new Error(code + " " + refused.reason);
   }
-  const response = await page.goto(url, { waitUntil: "load", timeout: 30000 });
   await settle();
   return { url: page.url(), status: response ? response.status() : null, static_html: response ? await response.text() : "" };
 }
 
+// A blocked HTTP request is never sent. Simulation is an explicit operator decision and
+// changes only what the page sees. Both dispositions are authoritative in the outcome journal.
+async function blockWrite(route, mark = {}, { allowSimulation = true } = {}) {
+  const request = route.request();
+  const simulated = allowSimulation && Boolean(limits?.simulate_writes);
+  const state = simulated ? "blocked-and-simulated" : "blocked";
+  const headers = request.headers();
+  const buffer = request.postDataBuffer();
+  writes.push({method: request.method(), url: request.url(), resource_type: request.resourceType(),
+    state, content_type: headers["content-type"] || null, post_data: request.postData(),
+    post_data_b64: buffer ? buffer.toString("base64") : null, ...mark});
+  const html = request.isNavigationRequest();
+  const json = !html && /(?:application\/(?:[^;, ]+\+)?json)/i.test(
+    (headers.accept || "") + "," + (headers["content-type"] || ""));
+  const responseHeaders = {
+    "cache-control": "no-store", "x-content-type-options": "nosniff",
+    "x-viewspec-blocked": "1", "access-control-expose-headers": "X-ViewSpec-Blocked",
+  };
+  if (headers.origin && originOf(headers.origin) === headers.origin) {
+    responseHeaders["access-control-allow-origin"] = headers.origin;
+    responseHeaders["access-control-allow-credentials"] = "true";
+    responseHeaders.vary = "Origin";
+  }
+  return route.fulfill({status: simulated ? 200 : 403, headers: responseHeaders,
+    contentType: html ? "text/html" : json ? "application/json" : "text/plain",
+    body: html ? stubPage("Write blocked", request) : json ? JSON.stringify({blocked: true, state, sent: false}) : state});
+}
+
 // The small page that answers a request the bridge stopped.
+function stubHtml(heading, line) {
+  return `<!doctype html><title>Blocked</title><h1>${escapeHtml(heading)}</h1><p>${escapeHtml(line)}</p>`;
+}
 function stubPage(heading, request) {
-  return (
-    `<!doctype html><title>Blocked</title><h1>${escapeHtml(heading)}</h1>` +
-    `<p>${escapeHtml(request.method())} ${escapeHtml(request.url())}</p>`
-  );
+  return stubHtml(heading, `${request.method()} ${request.url()}`);
+}
+
+// Recover the previous document if Chromium commits an error or a non-web navigation.
+let landing = Promise.resolve();
+function checkLanding(address) {
+  if (readableDocument(address)) return;
+  navigations.push({ url: address, reason: "a redirect led off the listed origins" });
+  landing = landing.then(() => page.goBack({ waitUntil: "load", timeout: 5000 }).catch(() => {}));
 }
 
 // Where a request comes from. ``top``: it asks for the page of a tab itself, not for a frame in it
@@ -250,14 +681,14 @@ async function watchPageEvents(target) {
   target.on("dialog", async (dialog) => {
     // What Playwright does when nothing listens: leave a page that asks before it unloads, and
     // dismiss every other box. A listener must do it itself, or the page waits for ever.
-    const leave = dialog.type() === "beforeunload";
+    const accept = dialog.type() === "beforeunload" || (dialog.type() === "confirm" && limits.confirm === "accept");
     dialogs.push({
       seq: ++eventSeq,
       type: dialog.type(),
-      message: dialog.message().slice(0, 500),
-      answer: leave ? "accepted" : "dismissed",
+      message: dialog.message(),
+      answer: accept ? "accepted" : "dismissed",
     });
-    await (leave ? dialog.accept() : dialog.dismiss()).catch(() => {});
+    await (accept ? dialog.accept() : dialog.dismiss()).catch(() => {});
   });
   // Chromium says that a page asks for a new window as it asks (window.open, a link with a target,
   // a form), with the address. Playwright's own "popup" event comes only once the new page has an
@@ -282,6 +713,7 @@ async function watchPageEvents(target) {
 
 async function settle() {
   await page.waitForLoadState("load", { timeout: 10000 }).catch(() => {});
+  await landing; // If a redirect left the listed origins, the page is on its way back.
   await page.waitForLoadState("networkidle", { timeout: 3000 }).catch(() => {});
 }
 
@@ -301,7 +733,10 @@ async function snapshot({ collect_secrets: collectSecrets = false }) {
     requests: requestSeq,
     pending: [...pendingRequests.values()],
   };
-  return { url: page.url(), title: await page.title(), ...result, navigationId, activity };
+  const cookies = await page.context().cookies();
+  return { url: page.url(), title: await page.title(), ...result, credential_values: cookies.map((cookie) => cookie.value),
+    navigationId, activity };
+
 }
 
 // ---- Locators -----------------------------------------------------------------------------------
@@ -461,14 +896,13 @@ async function resolveTarget(ref, spec) {
     spec && (spec.identity || (spec.tag ? { tag: spec.tag, name: spec.expect_name ?? null, items: [] } : null));
   let rewritten = null; // The item the page has written around the element since the view.
   if (ref) {
-    const handle = await page.evaluateHandle((r) => window.__viewspecLift.get(r), ref);
-    const element = handle.asElement();
+    const element = await handleOf(ref);
     if (element) {
       const change = identity
         ? await page.evaluate(([r, id]) => window.__viewspecLift.changedSince(r, id), [ref, identity])
         : null;
       if (!change) return { target: element, resolvedBy: "ref" };
-      await handle.dispose();
+      await element.dispose();
       if (change.kind === "name") {
         throw new Error(`drift: the control read as ${quoted(identity.name)} now reads ${quoted(change.now)}`);
       }
@@ -476,8 +910,6 @@ async function resolveTarget(ref, spec) {
       // the view showed may be in the page all the same, in the element that holds its item now.
       // (An element that left the page between the two calls is looked for like any other.)
       if (change.kind === "item") rewritten = change.now;
-    } else {
-      await handle.dispose();
     }
   }
   if (!identity) throw new Error(`stale: the control ${ref} is no longer in the page`);
@@ -666,7 +1098,17 @@ async function scroll(ref, direction, waitMs) {
 
 // The element behind an in-page ref, or null when the page has removed it since.
 async function handleOf(ref) {
-  return (await page.evaluateHandle((x) => window.__viewspecLift.get(x), ref)).asElement();
+  const lookup = (id) => {
+    const element = window.top.__viewspecLift.get(id);
+    return element?.ownerDocument === document ? element : null;
+  };
+  for (const frame of page.frames()) {
+    // A frame action needs a handle created in that frame for native hit testing.
+    const handle = await frame.evaluateHandle(lookup, ref).catch(() => null);
+    if (handle?.asElement()) return handle.asElement();
+    if (handle) await handle.dispose();
+  }
+  return null;
 }
 
 // Pick the date ``iso`` (YYYY-MM-DD) from the calendar of a custom date field: open the calendar (by
@@ -944,11 +1386,24 @@ async function act({
     return { resolved_by: "page", verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
   }
   const { target, resolvedBy } = await resolveTarget(ref, spec);
+  if (op === "click") {
+    const destination = await target.evaluate((el) => {
+      const anchor = el.closest("a[href],area[href]");
+      if (!anchor || (anchor.hasAttribute("download") && anchor.protocol === "blob:")) return null;
+      return /^https?:$/.test(anchor.protocol) ? null : anchor.href;
+    });
+    if (destination !== null) {
+      navigations.push({ url: destination, reason: "only HTTP and HTTPS document links can be opened" });
+      throw new Error("boundary: only HTTP and HTTPS document links can be opened");
+    }
+  }
   await refuseIfBlocked(target, op);
   // Forget earlier refusals, and mark where the page is, to tell afterwards what this step made it do.
   const mutationMark = await page
     .evaluate(() => (window.__viewspecLift.takeInvalid(), window.__viewspecLift.mutationCount()))
     .catch(() => null);
+  const writeMark = writes.length;
+  const passedMark = passedWrites.length;
   const requestMark = requestSeq;
   const eventMark = eventSeq;
   const tabMark = tabRequests;
@@ -1043,6 +1498,9 @@ async function act({
     opened,
     mutation_mark: mutationMark ? mutationMark.mutations : null,
     request_mark: requestMark,
+    writes: [...writes.slice(writeMark), ...passedWrites.slice(passedMark)].map(
+      ({ method, url, state }) => ({ method, url, state })
+    ),
     navigated: mainNavigations !== navigationsBefore,
     url_before: urlBefore,
     url: page.url(),
@@ -1093,11 +1551,14 @@ const COMMANDS = {
     await settle();
     return { url: page.url() };
   },
-  writes: async () => ({ writes, navigations, dialogs, popups }),
+  writes: async () => ({ writes, passed_writes: passedWrites, navigations, dialogs, popups, refusals }),
+  // Which of these addresses the gate takes for this computer or a private network.
+  private: async ({ addresses }) => ({ private: addresses.filter((address) => isPrivate(address)) }),
   document: async () => {
     await ensureLibrary();
     return { doc_id: await page.evaluate(() => window.__viewspecLift.docId), url: page.url() };
   },
+  storage_state: async () => page.context().storageState(),
   close: async () => {
     if (browser) await browser.close();
     browser = null;
@@ -1115,7 +1576,8 @@ lines.on("line", (line) => {
       request = JSON.parse(line);
       const command = COMMANDS[request.cmd];
       if (!command) throw new Error(`unknown command ${request.cmd}`);
-      if (request.cmd !== "open" && request.cmd !== "close" && !page) throw new Error("no page is open");
+      const needsPage = !["open", "close", "private"].includes(request.cmd);
+      if (needsPage && (!page || !policyInstalled)) throw new Error("no page is open");
       const result = await command(request);
       process.stdout.write(JSON.stringify({ id: request.id, ok: true, result }) + "\n");
       if (request.cmd === "close") process.exit(0);

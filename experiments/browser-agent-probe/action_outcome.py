@@ -1,12 +1,13 @@
 """What an action did, as far as the bridge can tell, and what two readings of a page cannot show.
 
 An agent that has acted must decide whether to go on, wait, or try again. ``outcome_of`` reads the
-result of ``act`` or ``call`` and gives it one of three statuses. They are about whether the action
+result of ``act`` or ``call`` and gives it one of four statuses. They are about whether the action
 took effect, not about whether the page's answer was good news:
 
     succeeded  the bridge saw the effect: what the agent waited for showed, the page navigated,
                every step was checked on its control, or the page answered (a change in the view, a
                request that was sent, a saved file, a new tab, an alert);
+    blocked    the write policy stopped a request, including one with a simulated response;
     failed     it did not take effect: the request was refused, the browser would not send the
                form, or a control does not hold what was set;
     uncertain  it ran, and nothing shows whether it worked, or what the agent waited for did not
@@ -54,6 +55,9 @@ NOT_RUN = frozenset(
         "BROWSER_TARGET_BLOCKED",
         "BROWSER_TARGET_STALE",
         "BROWSER_ORIGIN_NOT_ALLOWED",
+        "BROWSER_ADDRESS_NOT_ALLOWED",
+        "BROWSER_ADDRESS_PRIVATE",
+        "BROWSER_SECRET_REFUSED",
         "BROWSER_UPLOAD_NOT_ALLOWED",
         "BROWSER_UPLOAD_NOT_FOUND",
         "BROWSER_UPLOAD_TOO_LARGE",
@@ -153,6 +157,19 @@ def outcome_of(result: Mapping[str, Any], activity: Mapping[str, Any] | None = N
     """
 
     steps: Sequence[Mapping[str, Any]] = result.get("steps") or []
+    # A page can navigate or display "Saved" in response to a synthetic HTTP response.
+    # Only the transport knows whether the request actually left the browser.
+    recorded = [write for step in steps for write in step.get("writes", ())]
+    passed = bool(result.get("passed_writes")) or any(write.get("state") == "passed" for write in recorded)
+    blocked = result.get("blocked_writes") or [
+        write for write in recorded if write.get("state") in {"blocked", "blocked-and-simulated"}
+    ]
+    if blocked:
+        write = blocked[0]
+        reason = f"{write.get('method', 'Request')} {write.get('url', '')} was not sent by policy."
+        if write.get("state") == "blocked-and-simulated":
+            reason += " The page received a simulated response."
+        return _made("blocked", reason, MAY_REPEAT)
     dialogs = [*(item for step in steps for item in step.get("dialogs") or []), *(result.get("dialogs") or [])]
     asked = [
         item for item in dialogs if item.get("type") in {"confirm", "prompt"} and item.get("answer") == "dismissed"
@@ -161,25 +178,28 @@ def outcome_of(result: Mapping[str, Any], activity: Mapping[str, Any] | None = N
     # evidence that page code ran, not that its effects were canceled or rolled back.
     acts_again = bool(asked) or any((step.get("step") or {}).get("op") not in SETS_A_STATE for step in steps)
     if not result.get("ok"):
-        return _refused(result, acts_again)
+        refusal = _refused(result, acts_again)
+        if passed and refusal["retry"] == SAFE:
+            refusal["retry"] = MAY_REPEAT
+        return refusal
 
     # ---- It did not take effect. ----------------------------------------------------------------
     invalid = [field for step in steps for field in step.get("invalid") or []]
     if invalid:
         reasons = "; ".join(f"{field.get('name') or 'a field'}: {field.get('message', '')}" for field in invalid)
-        return _made(FAILED, f"The browser did not send the form: {reasons}", MAY_REPEAT if asked else SAFE)
+        return _made(FAILED, f"The browser did not send the form: {reasons}", MAY_REPEAT if asked or passed else SAFE)
     stopped = result.get("blocked_navigations") or []
     if stopped:
         where = stopped[0].get("url", "another site")
         return _made(
             FAILED,
             f"It tried to leave for {where}, which this server does not allow. The page stayed.",
-            MAY_REPEAT if asked else SAFE,
+            MAY_REPEAT if asked or passed else SAFE,
         )
     unheld = [step for step in steps if step.get("verified") is False]
     if unheld:
         op = (unheld[0].get("step") or {}).get("op")
-        retry = SAFE if op in SETS_A_STATE and not asked else MAY_REPEAT
+        retry = SAFE if op in SETS_A_STATE and not asked and not passed else MAY_REPEAT
         return _made(FAILED, f"{_name(unheld[0])} did not hold: the control does not show it afterwards.", retry)
 
     # ---- What the agent waited for is its own test of success. ------------------------------------
@@ -189,7 +209,7 @@ def outcome_of(result: Mapping[str, Any], activity: Mapping[str, Any] | None = N
     changes = result.get("changes") or {}
     lines = [] if changes.get("empty", True) else _answers(changes, steps)
     changed = bool(lines)
-    retry = MAY_REPEAT if acts_again else SAFE
+    retry = MAY_REPEAT if acts_again or passed else SAFE
     if wait:
         state = _page_state(activity, changed)
         said = f"What was waited for ({wait.get('for', 'the change')}) did not show in {wait.get('timeout_ms')} ms."
@@ -215,11 +235,13 @@ def outcome_of(result: Mapping[str, Any], activity: Mapping[str, Any] | None = N
     saved = [step["download"].get("file", "a file") for step in steps if step.get("download")]
     if saved:
         return _made(SUCCEEDED, f"It saved {', '.join(saved)} in the download folder.", NOT_NEEDED)
-    writes = result.get("blocked_writes") or []
-    if writes:
-        sent = f"{writes[0].get('method', 'a request')} {writes[0].get('url', '')}".strip()
-        return _made(SUCCEEDED, f"It sent {sent}, which this server blocked; blocked_writes shows it.", NOT_NEEDED)
     opened = [*(url for step in steps for url in step.get("opened") or []), *(result.get("opened") or [])]
+    if opened and all(url in {"", "about:blank"} for url in opened):
+        return _made(
+            UNCERTAIN,
+            "An empty tab was opened and closed. No destination or completed action was observed.",
+            MAY_REPEAT,
+        )
     if opened:
         return _made(
             SUCCEEDED, f"It opened a new tab ({opened[0]}), which the bridge closed and did not follow.", NOT_NEEDED

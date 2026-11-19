@@ -180,6 +180,23 @@ def test_what_the_agent_waited_for_decides() -> None:
     assert _outcome(_result(_step(dialogs=[CONFIRM]), wait=MET))[0] == "succeeded"
 
 
+@pytest.mark.parametrize("state", ["blocked", "blocked-and-simulated"])
+def test_a_blocked_write_cannot_be_confirmed_by_its_own_stub(state: str) -> None:
+    result = _result(
+        _step("submit", "order"),
+        navigated=True,
+        url="https://shop.example/save",
+        wait=MET,
+        lines=("message status 'Saved'",),
+        blocked_writes=[{"method": "POST", "url": "https://shop.example/save", "state": state}],
+    )
+
+    outcome = _rule().outcome_of(result)
+    assert outcome["status"] == "blocked"
+    assert outcome["retry"] == "may_repeat"
+    assert "not sent" in outcome["reason"]
+
+
 def test_each_kind_of_answer_counts() -> None:
     answers = [
         _result(_step(), navigated=True, url="http://shop.example/done"),
@@ -188,7 +205,6 @@ def test_each_kind_of_answer_counts() -> None:
         _result(_step(), lines=("message status 'Saved' (shown again)",)),
         _result(_step(), lines=("reordered 3x <tr>: 'Ana 36', 'Bo 41', 'Cy 29'",)),
         _result(_step("download", "Invoice", download={"file": "invoice.pdf"})),
-        _result(_step(), blocked_writes=[{"method": "POST", "url": "http://shop.example/orders"}]),
         _result(_step(opened=["http://shop.example/help"])),
         _result(_step(unsaved_downloads=["export.csv"])),
         _result(_step(dialogs=[{"type": "alert", "message": "Saved", "answer": "dismissed"}])),
@@ -235,7 +251,7 @@ def test_a_field_that_holds_what_a_step_set_is_not_an_answer_from_the_page() -> 
     assert _outcome(_result(*steps, lines=filled), QUIET) == ("uncertain", "may_repeat", "quiet")
     # A request that went out with the submit is an answer, and the reason names it, not a field.
     sent = _result(*steps, lines=filled, blocked_writes=[{"method": "POST", "url": "http://shop.example/orders"}])
-    assert _outcome(sent, QUIET)[0] == "succeeded"
+    assert _outcome(sent, QUIET)[:2] == ("blocked", "may_repeat")
     assert "POST http://shop.example/orders" in _rule().outcome_of(sent, QUIET)["reason"]
     # The page did more to a filled field than hold the value: that is the page's doing.
     more = _result(*steps, lines=("changed [3] text 'Email': value '' -> 'bo@example.com'; disabled false -> true",))
@@ -376,3 +392,12 @@ def test_the_rule_needs_only_the_standard_library() -> None:
     }
 
     assert imported <= set(sys.stdlib_module_names)
+
+
+def test_a_permitted_write_before_a_blocked_navigation_cannot_be_safe_to_repeat() -> None:
+    result = _result(
+        _step("click"),
+        passed_writes=[{"method": "POST", "state": "passed"}],
+        blocked_navigations=[{"url": "https://example.org/receipt"}],
+    )
+    assert _rule().outcome_of(result)["retry"] == "may_repeat"
