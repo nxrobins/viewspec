@@ -199,8 +199,9 @@ jobs:
             dist/*.tar.gz
           if-no-files-found: error
 
+  # The locked Playwright versions need Ubuntu 24.04 for browser installation in these four jobs.
   mcp_app_host:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -232,7 +233,7 @@ jobs:
         run: python -m pytest tests/test_mcp_app_host_e2e.py -q
 
   html_verify_host:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -273,7 +274,7 @@ jobs:
 
   browser_bridge:
     name: Browser bridge and complete agent tasks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -313,7 +314,7 @@ jobs:
         run: python -m pytest tests/test_browser_bridge_e2e.py tests/test_browser_bridge_network_e2e.py -q --strict-markers -m e2e
 
   react_tailwind_host:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
 
     steps:
