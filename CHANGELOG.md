@@ -63,6 +63,8 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- Generated React apps now use Tailwind CSS and `@tailwindcss/vite` 4.3.5, Vite 8.3.8, and
+  `@vitejs/plugin-react` 6.3.0.
 - The weekly `agent-eval.yml` workflow skips until the repository variable `VIEWSPEC_EVAL_MODEL`
   and the secret `ANTHROPIC_API_KEY` are both set. A new `preflight` job records what is missing in
   a notice, the eval job is skipped, and the run stays green. Before, every scheduled run without
