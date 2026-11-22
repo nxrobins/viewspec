@@ -412,3 +412,94 @@ def test_malformed_markup_does_not_hide_credential_sources(modules):
     privacy = modules.boundary.PrivacyRedactor()
     privacy.learn('<svg><use href="/icons.svg#down"/><![bad]> /account?token=real-ticket-482')
     assert privacy.clean("real-ticket-482") == "[redacted]"
+
+
+def form_reading(modules, count=80):
+    source = "<h1>Catalog</h1>" + "".join(
+        f'<form aria-label="Reply"><input name="note" aria-label="Note {i}"><button>Send {i}</button></form>'
+        for i in range(count)
+    )
+    session = session_for(modules, source)
+    raw = session._observe(locate=False)
+    tools = modules.mcp_browser_server.BrowserTools()
+    tools.privacy, tools._session = session.privacy, session
+    return tools, raw
+
+
+@pytest.mark.parametrize("paging", [{"limit": 1}, {"offset": 10000}, {"find": "absent"}])
+def test_unrelated_or_empty_pages_have_no_form_schemas(modules, paging):
+    tools, raw = form_reading(modules)
+    data, _ = tools._view_data(raw, 1, **paging)
+    assert data["form_tools"] == []
+
+
+def test_each_form_page_carries_only_its_complete_stable_schema(modules):
+    tools, raw = form_reading(modules)
+    all_data, _ = tools._view_data(raw, 1, limit=1000)
+    schemas = all_data["form_tools"]
+    assert len(schemas) == 80
+    for index, line in enumerate(raw.lines):
+        page, _ = tools._view_data(raw, 1, offset=index, limit=1)
+        expected = (
+            [schemas[next(i for i, form in enumerate(raw.lift.forms) if form.node_id == line.form_id)]]
+            if line.form_id
+            else []
+        )
+        assert page["form_tools"] == expected
+        assert len(json.dumps(page["form_tools"])) < 600
+
+
+def test_find_pages_select_form_schemas_by_line_identity(modules):
+    tools, raw = form_reading(modules)
+    full, _ = tools._view_data(raw, 1, find="Send", limit=1000)
+    assert len(full["form_tools"]) == 80
+    for offset in range(full["view_page"]["total"]):
+        data, _ = tools._view_data(raw, 1, find="Send", offset=offset, limit=1)
+        # Search separators/headings carry no form; a matching button carries exactly its form.
+        assert len(data["form_tools"]) == int("button" in data["view"])
+    data, _ = tools._view_data(raw, 1, find="Note 79", limit=10)
+    assert [schema["name"] for schema in data["form_tools"]] == ["reply_80"]
+    assert data["form_tools"][0] == full["form_tools"][-1]
+
+
+def test_private_schema_aliases_are_stable_across_offset_and_find(modules):
+    tools, raw = form_reading(modules, count=3)
+    tools.privacy.remember(["reply", "note"])
+    all_data, _ = tools._view_data(raw, 1)
+    for i, form in enumerate(raw.lift.forms):
+        offset = next(
+            index for index, line in enumerate(raw.lines) if line.kind == "form" and line.node_id == form.node_id
+        )
+        paged, _ = tools._view_data(raw, 1, offset=offset, limit=1)
+        found, _ = tools._view_data(raw, 1, find=f"Send {i}")
+        assert paged["form_tools"] == found["form_tools"] == [all_data["form_tools"][i]]
+        schema = paged["form_tools"][0]
+        [key] = schema["input_schema"]["properties"]
+        name, arguments = tools._resolve_public_call(raw, schema["name"], {key: "hello"})
+        assert name == ("reply" if i == 0 else f"reply_{i + 1}")
+        assert arguments == {"note": "hello"}
+        assert "reply" not in json.dumps(paged) and "note" not in json.dumps(paged)
+
+
+def test_control_slice_keeps_the_complete_schema_and_only_relevant_context(modules):
+    session = session_for(
+        modules,
+        """<h1>Account</h1><form aria-label="Profile">
+        <label>Public name<input name="name" required></label><p>Instructions</p>
+        <label>Password<input name="password" type="password" required></label>
+        <button>Save</button></form>""",
+    )
+    raw = session._observe(locate=False)
+    tools = modules.mcp_browser_server.BrowserTools()
+    tools.privacy, tools._session = session.privacy, session
+    paragraph = next(i for i, line in enumerate(raw.lines) if line.kind == "text")
+    prose, _ = tools._view_data(raw, 1, offset=paragraph, limit=1)
+    assert prose["form_tools"] == []
+    assert not any("tool=" in crumb for crumb in prose["view_page"].get("context", []))
+    part, _ = tools._view_data(raw, 1, offset=paragraph + 1, limit=1)
+    [schema] = part["form_tools"]
+    assert set(schema["input_schema"]["properties"]) == {"name", "password"}
+    assert set(schema["input_schema"]["required"]) == {"name", "password"}
+    assert schema["input_schema"]["properties"]["password"]["writeOnly"]
+    assert "tool=profile" in part["view_page"]["context"][-1]
+    assert "form_ids" not in part["view_page"]

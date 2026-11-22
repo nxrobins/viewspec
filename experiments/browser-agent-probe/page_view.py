@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from viewspec.raw_html import HtmlLiftResult, LiftNode
-from viewspec.raw_html_agent import HtmlControl, hidden_ids, is_inline
+from viewspec.raw_html_agent import HtmlControl, form_tool_names, hidden_ids, is_inline
 from viewspec.raw_html_agent import subtree_text as agent_subtree_text
 
 VIEW_GROUP_MIN = 3
@@ -168,9 +168,7 @@ def view_lines(
     controls = {control.node_id: control for control in lift.controls}
     forms = {form.node_id: form for form in lift.forms}
     messages = {message.node_id: message for message in lift.messages}
-    tool_names = {
-        form.node_id: schema["name"] for form, schema in zip(lift.forms, lift.form_tool_schemas(), strict=True)
-    }
+    tool_names = {form.node_id: name for form, name in zip(lift.forms, form_tool_names(lift.forms), strict=True)}
     roles = {role.node_id: role for role in lift.roles}
     by_id = {node.id: node for node in lift.nodes}
     sections = _Sections(lift)
@@ -295,6 +293,8 @@ class ViewPage:
     context: tuple[str, ...] = ()
     find: str | None = None
     matches: int | None = None
+    # Internal identity, never inferred from redacted text or exposed as a public node id.
+    form_ids: frozenset[str] = frozenset()
 
     @property
     def text(self) -> str:
@@ -346,17 +346,27 @@ def view_page(lines: list[ViewLine], *, offset: int = 0, limit: int = 200, find:
     if find is None:
         shown = lines[offset : offset + limit]
         end = offset + len(shown)
+        context = _breadcrumb(lines, offset, shown)
         return ViewPage(
             tuple(line.text for line in shown),
             offset,
             len(lines),
             end if end < len(lines) else None,
-            _breadcrumb(lines, offset),
+            tuple(line.text for line in context),
+            form_ids=frozenset(line.form_id for line in [*shown, *context] if line.form_id is not None),
         )
     result, matches = _find(lines, find)
     shown = result[offset : offset + limit]
     end = offset + len(shown)
-    return ViewPage(tuple(shown), offset, len(result), end if end < len(result) else None, find=find, matches=matches)
+    return ViewPage(
+        tuple(line.text for line in shown),
+        offset,
+        len(result),
+        end if end < len(result) else None,
+        find=find,
+        matches=matches,
+        form_ids=frozenset(line.form_id for line in shown if line.form_id is not None),
+    )
 
 
 def _parent_headings(lines: list[ViewLine]) -> dict[str, str | None]:
@@ -372,7 +382,7 @@ def _within(line: ViewLine, heading_id: str, parents: dict[str, str | None]) -> 
     return False
 
 
-def _find(lines: list[ViewLine], find: str) -> tuple[list[str], int]:
+def _find(lines: list[ViewLine], find: str) -> tuple[list[ViewLine], int]:
     needle = " ".join(find.split()).casefold()
     parents = _parent_headings(lines)
     index_of = {line.node_id: index for index, line in enumerate(lines) if line.kind == "heading"}
@@ -403,33 +413,33 @@ def _find(lines: list[ViewLine], find: str) -> tuple[list[str], int]:
             if line.heading_id is not None and line.heading_id in index_of:
                 take(index_of[line.heading_id])
             take(index)
-    result: list[str] = []
+    result: list[ViewLine] = []
     previous = None
     for index in chosen:
         if previous is not None and index != previous + 1:
-            result.append("…")
-        result.append(lines[index].text)
+            result.append(ViewLine("…", "separator", ""))
+        result.append(lines[index])
         if index in cut:
-            result.append(f"… the section goes on at offset {cut[index]} of the whole view")
+            result.append(ViewLine(f"… the section goes on at offset {cut[index]} of the whole view", "separator", ""))
         previous = index
     return result, matches
 
 
-def _breadcrumb(lines: list[ViewLine], start: int) -> tuple[str, ...]:
+def _breadcrumb(lines: list[ViewLine], start: int, shown: list[ViewLine]) -> tuple[ViewLine, ...]:
     if start <= 0 or start >= len(lines):
         return ()
     first = lines[start]
     parents = _parent_headings(lines)
-    texts = {line.node_id: line.text for line in lines if line.kind == "heading"}
+    headings = {line.node_id: line for line in lines if line.kind == "heading"}
     chain: list[str] = []
     current = first.heading_id
     while current is not None:
         chain.append(current)
         current = parents.get(current)
-    crumbs = [texts[node_id] for node_id in reversed(chain) if node_id in texts]
-    control = next((line for line in lines[start:] if line.kind == "control"), None)
+    crumbs = [headings[node_id] for node_id in reversed(chain) if node_id in headings]
+    control = next((line for line in shown if line.kind == "control"), None)
     if control is not None and control.form_id is not None:
         form = next((line for line in lines[:start] if line.kind == "form" and line.form_id == control.form_id), None)
         if form is not None:
-            crumbs.append(form.text)
+            crumbs.append(form)
     return tuple(crumbs)
