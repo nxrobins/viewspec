@@ -306,3 +306,109 @@ def test_direct_session_rejects_foreign_reading_with_colliding_number(modules):
     valid = session.observe(locate=False)
     with pytest.raises(modules.agent_session.BridgeError, match="stale-view"):
         session._resolve_observation(replace(valid, doc_id="foreign-document"))
+
+
+@pytest.mark.parametrize(
+    "href",
+    [
+        "/build/images/icons.svg#down",
+        "https://cdn.example/icons.svg#down",
+        "icons.svg#down",
+        "#down",
+        "/icons.svg?version=asset-482#down",
+        "/icons.svg#%64own",
+    ],
+)
+@pytest.mark.parametrize("attribute", ["href", "xlink:href"])
+def test_svg_symbol_fragment_does_not_become_a_prose_secret(modules, href, attribute):
+    title = "My PC is downstairs, and my TV is upstairs."
+    source = f'<h1>{title}</h1><svg><use {attribute}="{href}"/></svg><p>Searching downstairs.</p>'
+    session = session_for(modules, source)
+    public = session.observe(locate=False)
+    assert title in public.view and "Searching downstairs." in public.view
+    assert title in public.html
+    tools = modules.mcp_browser_server.BrowserTools()
+    tools.privacy, tools._session = session.privacy, session
+    raw = session._resolve_observation(public)
+    found, _ = tools._view_data(raw, 1, find="downstairs", limit=1)
+    assert found["view_page"]["matches"] == 1 and title in found["view"]
+    second, _ = tools._view_data(raw, 1, find="downstairs", offset=1, limit=1)
+    assert "Searching downstairs." in second["view"]
+    assert session.privacy.clean(title) == title, "projection must not relearn the public symbol"
+
+
+@pytest.mark.parametrize("credential_source", ["operator", "password", "marked", "query", "navigation", "svg-query"])
+@pytest.mark.parametrize("mode", ["strict", "heuristic"])
+def test_svg_reference_cannot_declassify_a_known_credential(modules, credential_source, mode):
+    value = "known-credential-482"
+    source = f'<svg><use href="/icons.svg#{value}"/></svg><p>Echo: {value}</p>'
+    if credential_source in {"password", "marked"}:
+        attrs = 'type="password"' if credential_source == "password" else 'data-lift-secret="true"'
+        source += f'<input {attrs} value="{value}">'
+    elif credential_source == "query":
+        source += f'<a href="/account?token={value}">Account</a>'
+    elif credential_source == "svg-query":
+        source += f'<svg><use href="/icons.svg?token={value}#down"/></svg>'
+    session = session_for(modules, source, mode=mode)
+    if credential_source == "operator":
+        session.privacy.remember([value])
+    if credential_source == "navigation":
+        # Bare fragments are private in strict mode; heuristic mode recognizes named credentials.
+        url = (
+            f"https://shop.example/icons.svg#{value}"
+            if mode == "strict"
+            else f"https://shop.example/icons.svg#token={value}"
+        )
+        session.privacy.learn({"url": url})
+    public = session.observe(locate=False)
+    assert value not in public.view and value not in public.html
+    assert session.privacy.clean(f"Echo: {value}") == "Echo: [redacted]"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        '<a href="/icons.svg#down">Account</a>',
+        '<use href="/icons.svg#down"></use>',
+        '<svg><a href="/icons.svg#down">Account</a></svg>',
+        '<svg><use href="/account#down"/></svg>',
+        '<svg><use href="/icons.svg#token=down"/></svg>',
+        '<svg><use href="/icons.svg#public" data-account="/account#down"/></svg>',
+    ],
+)
+def test_svg_exception_does_not_cover_other_urls_or_parameters(modules, source):
+    privacy = modules.boundary.PrivacyRedactor()
+    privacy.learn(source)
+    assert privacy.clean("downstairs") == "[redacted]stairs"
+
+
+def test_svg_fragment_seen_later_as_credential_is_still_learned(modules):
+    privacy = modules.boundary.PrivacyRedactor()
+    privacy.learn('<svg><use href="/icons.svg#down"/></svg>')
+    assert privacy.clean("downstairs") == "downstairs"
+    privacy.learn({"url": "https://shop.example/account#down"})
+    assert privacy.clean("downstairs") == "[redacted]stairs"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "<SVG>\n<USE title='literal href=\"/account#real-ticket-482\"' XLINK:HREF='/icons.svg#down'/></SVG>",
+        "<svg><use href=/icons.svg#down ></use></svg>",
+        '<svg><svg><use href="/icons.svg#down"/></svg><use href="/icons.svg#search"/></svg>',
+    ],
+)
+def test_svg_markup_forms_keep_public_words_and_other_attributes_private(modules, source):
+    privacy = modules.boundary.PrivacyRedactor()
+    privacy.learn(source)
+    shown = privacy.project_html(source)
+    assert privacy.clean("downstairs research") == "downstairs research"
+    assert "real-ticket-482" not in shown
+    if "real-ticket-482" in source:
+        assert privacy.clean("real-ticket-482") == "[redacted]"
+
+
+def test_malformed_markup_does_not_hide_credential_sources(modules):
+    privacy = modules.boundary.PrivacyRedactor()
+    privacy.learn('<svg><use href="/icons.svg#down"/><![bad]> /account?token=real-ticket-482')
+    assert privacy.clean("real-ticket-482") == "[redacted]"

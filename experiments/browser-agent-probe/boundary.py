@@ -60,6 +60,70 @@ _PARAMETER = re.compile(r"([?&#;])([^?&#;=\s\"'<>]+)=(\[secret [A-Z][A-Z0-9_]*\]
 # segments to URL-like text so ordinary headings, references and CSS can still be displayed.
 _OPAQUE_URL_PART = re.compile(r"""((?:https?://|/)[^\s?#"'<>]*[?#])([^\s#&;="'<>]+)(?=[\s#&;"'<>]|$)""")
 _FRAGMENT = re.compile(r"""((?:https?://|/)[^\s#"'<>]*#)([^\s&#;="'<>]+)(?=[\s&;"'<>]|$)""")
+_HTML_ATTRIBUTE = re.compile(r"""\s+([^\s/>=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?""")
+
+
+def _svg_reference(value: str) -> bool:
+    """A symbol ID in an SVG use reference, not a navigation or named credential."""
+    try:
+        parts = urlsplit(html.unescape(value))
+    except ValueError:
+        return False
+    return (
+        parts.scheme in {"", "http", "https"}
+        and not parts.username
+        and (not parts.path or parts.path.lower().endswith(".svg"))
+        and bool(re.fullmatch(r"[A-Za-z_][\w.:-]*", unquote_plus(parts.fragment)))
+    )
+
+
+def _svg_learning_text(source: str) -> str:
+    """Mask only SVG use fragments before learning URL values from raw markup.
+
+    This is not a public-value allowlist: URLs elsewhere and all known credentials still win.
+    Keep source spans intact so queries, other attributes, text and malformed markup retain the
+    existing conservative scan. Never exempt a whole URL merely because its path ends in .svg.
+    """
+    if "<use" not in source.lower():
+        return source
+    starts = [0, *(match.end() for match in re.finditer("\n", source))]
+    spans: list[tuple[int, int]] = []
+
+    class Uses(HTMLParser):
+        svg_depth = 0
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            if tag == "svg":
+                self.svg_depth += 1
+            if tag != "use" or not self.svg_depth:
+                return
+            raw = self.get_starttag_text()
+            line, column = self.getpos()
+            start = starts[line - 1] + column
+            for attr in _HTML_ATTRIBUTE.finditer(raw):
+                if attr[1].lower() not in {"href", "xlink:href"}:
+                    continue
+                group = next((i for i in (2, 3, 4) if attr[i] is not None), None)
+                if group is not None and "#" in attr[group] and _svg_reference(attr[group]):
+                    spans.append((start + attr.start(group) + attr[group].rfind("#") + 1, start + attr.end(group)))
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag == "svg":
+                self.svg_depth = max(0, self.svg_depth - 1)
+
+    parser = Uses()
+    try:
+        parser.feed(source)
+        parser.close()
+    except AssertionError:
+        # HTMLParser rejects malformed marked declarations. Without reliable element
+        # context, retain the conservative URL scan rather than exempting anything.
+        return source
+    for start, end in reversed(spans):
+        source = source[:start] + PRIVATE + source[end:]
+    return source
+
+
 _IDENTIFIERS = frozenset(
     {
         "id",
@@ -365,6 +429,7 @@ class PrivacyRedactor:
     def learn(self, value: Any) -> None:
         """Learn URL credentials in the whole object before projecting its first string."""
         if isinstance(value, str):
+            value = _svg_learning_text(value)
             if self.mode == "strict":
                 for pattern in (_OPAQUE_URL_PART, _FRAGMENT):
                     self.remember([unquote_plus(match[2]) for match in pattern.finditer(value)])
@@ -390,7 +455,21 @@ class PrivacyRedactor:
         output: list[str] = []
 
         class Project(HTMLParser):
+            svg_depth = 0
+
             def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                if tag == "svg":
+                    self.svg_depth += 1
+                # Attribute projection loses the surrounding element. Mask a use's fragment
+                # before clean() can relearn it as an opaque navigation credential. Queries
+                # and previously learned values still pass through the same redactor.
+                if tag == "use" and self.svg_depth:
+                    attrs = [
+                        (name, value.rsplit("#", 1)[0] + "#" + PRIVATE)
+                        if name in {"href", "xlink:href"} and value and _svg_reference(value)
+                        else (name, value)
+                        for name, value in attrs
+                    ]
                 rendered = "".join(
                     f" {name}" if value is None else f' {name}="{html.escape(owner.clean(value), quote=True)}"'
                     for name, value in attrs
@@ -399,6 +478,8 @@ class PrivacyRedactor:
 
             def handle_endtag(self, tag: str) -> None:
                 output.append(f"</{tag}>")
+                if tag == "svg":
+                    self.svg_depth = max(0, self.svg_depth - 1)
 
             def handle_data(self, data: str) -> None:
                 output.append(html.escape(owner.clean(data), quote=False))
