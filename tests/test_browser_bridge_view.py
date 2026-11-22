@@ -160,8 +160,17 @@ def test_inline_numbers_and_paragraphs_with_only_formatted_text_remain_complete(
     view = _page_view()
     source = "<p>Read <strong>3</strong> chapters.</p><p><em>Then discuss the story.</em></p>"
     lines, _ = view.view_lines(lift_html(source, profile="agent"))
-    assert [line.text for line in lines] == ["text Read 3 chapters.", "text Then discuss the story."]
+    assert [line.text for line in lines] == ["text Read 3 chapters.", "value 3", "text Then discuss the story."]
     assert view.view_page(lines, find="Read 3 chapters").matches == 1
+
+
+@pytest.mark.parametrize("display", ["inline", "block"])
+def test_prose_preserves_page_counter_values_in_either_layout(display: str) -> None:
+    view = _page_view()
+    source = f'<p>Page <span data-lift-display="{display}">1</span></p>'
+    lines, _ = view.view_lines(lift_html(source, profile="agent"))
+    assert [line.text for line in lines if line.kind == "value"] == ["value 1"]
+    assert view.view_page(lines, find="value 1").lines == ("value 1",)
 
 
 def test_grouped_prose_can_be_paged_and_found_without_changing_handles() -> None:

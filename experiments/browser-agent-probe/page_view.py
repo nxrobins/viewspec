@@ -196,7 +196,10 @@ def view_lines(
                 or (control is not None and control.control != "link")
             ):
                 return True
-            inline_text.add(child.id)
+            # Numeric values still have their own semantic line (for example a page counter),
+            # even when their wording also belongs to the surrounding paragraph.
+            if role is None or role.role != "value":
+                inline_text.add(child.id)
             return False
 
         return agent_subtree_text(node, by_id, skip=skip)

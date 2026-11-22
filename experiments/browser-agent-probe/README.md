@@ -496,6 +496,7 @@ so one long paragraph can still make a long line. Repeated paragraph groups keep
 Paging and `find` include these lines after privacy projection, with the same heading context as
 controls. Hidden text and text already represented by a control, message or table row are omitted
 from ordinary text lines. Inline links keep their wording in a paragraph and their separate handle.
+Inline numbers keep their wording and their separate `value` line, including page counters.
 
 ## MCP tools
 
