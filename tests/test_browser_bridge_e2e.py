@@ -1322,3 +1322,50 @@ def test_action_checks_a_dialog_that_appeared_after_the_reading(site: str, tmp_p
 
     run = asyncio.run(_attempt(Task("Check current actionability of a saved target", play, ()), site, tmp_path))
     assert unmet(run) == []
+
+
+@pytest.mark.parametrize("privacy", ["strict", "heuristic"])
+def test_public_svg_fragments_preserve_prose_without_exposing_credentials(
+    site: str, tmp_path: Path, privacy: str
+) -> None:
+    title = "My PC is downstairs, and my TV is upstairs."
+    private = (
+        "fixture-native-482",
+        "fixture-marked-482",
+        "fixture-query-482",
+        "fixture-fragment-482",
+        "fixture-svg-query-482",
+        "fixture-operator-482",
+        "fixture-session-query-482",
+        "fixture-session-fragment-482",
+    )
+
+    async def play(agent: Agent) -> None:
+        page = await agent.observe(
+            url=f"{site}/svg_privacy.html?token=fixture-session-query-482#token=fixture-session-fragment-482",
+            limit=1,
+        )
+        assert title in page["view"]
+        observation_id = page["observation_id"]
+        found = await agent.observe(observation_id=observation_id, find="downstairs", limit=1)
+        assert found["view_page"]["matches"] == 1 and title in found["view"]
+        following = await agent.observe(observation_id=observation_id, find="downstairs", offset=1, limit=2)
+        assert "Research continues downstairs." in following["view"]
+        whole = await agent.observe(observation_id=observation_id, limit=100)
+        assert "Private echoes:" in whole["view"] and "[redacted]" in whole["view"]
+        assert "[secret FIXTURE_TOKEN]" in whole["view"]
+        hidden = await agent.observe(observation_id=observation_id, find="fixture-native-482")
+        assert hidden["view_page"]["matches"] == 0
+        changed = await agent.act(action="click", handle=handle(whole, "Refresh text"))
+        assert "Still researching downstairs." in changed["view"] and title in changed["view"]
+
+    run = asyncio.run(
+        _attempt(
+            Task("Read the public title and body while withholding all credentials", play, private),
+            site,
+            tmp_path,
+            flags=("--private", privacy, "--secret", "FIXTURE_TOKEN"),
+            secrets={"FIXTURE_TOKEN": "fixture-operator-482"},
+        )
+    )
+    assert unmet(run) == []

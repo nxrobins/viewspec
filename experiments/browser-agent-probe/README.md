@@ -587,6 +587,14 @@ session uses the public browsing policy.
 | Privacy | `--private strict` withholds native text-entry values and blocked form values. `--private heuristic` opts into field recognition. Both honor explicit secret markers and scrub known credential values across results, including URLs and errors. | Strict MCP results and direct session records expose only the body size. Heuristic mode can report visible form fields when the request has a supported form content type. Short values receive field-level protection. Arbitrary secrets in prose and transformations of private values can escape recognition. |
 | Identity | Opens in one session reuse the browser context. Operators may supply a Playwright `--storage-state` file, or `--header Authorization=ENV_NAME` and `--cookie session=ENV_NAME`. These options require one exact origin and no extra hosts. | The browser retains cookies and local storage between opens. `--save-storage-state FILE` writes host-only cookies and local storage to a new owner-readable file on close. Input files keep their original contents. |
 
+SVG `<use href="…">` and `<use xlink:href="…">` references inside SVG markup do not make a
+bare symbol ID a session-wide secret. For example, `/icons.svg#down` no longer redacts
+“downstairs” in unrelated public text. The exception applies only to symbol references in
+that element context, not navigation URLs or ordinary links ending in `.svg`. Query and named
+fragment parameters keep their existing protection. Projected SVG references mask the symbol
+fragment; a value learned from a private field, credential URL or operator secret is still
+redacted everywhere, even when also used as a symbol ID.
+
 Use narrow read rules on applications where a GET can change state. A broad read rule grants
 every matching URL, including query strings, and the browser cannot infer the server’s semantics.
 `--secret NAME` lets an agent fill a recognized secret field by naming an environment variable.

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Public icons and private values</title></head>
+<body>
+<h1>My PC is downstairs, and my TV is upstairs.</h1>
+<svg width="24" height="24"><use href="/privacy-icons.svg#down"></use></svg>
+<svg width="24" height="24"><use xlink:href="/privacy-icons.svg#search"></use></svg>
+<svg width="24" height="24"><use href="/privacy-icons.svg?token=fixture-svg-query-482#down"></use></svg>
+<svg width="24" height="24"><use href="/privacy-icons.svg#fixture-operator-482"></use></svg>
+<p>Research continues downstairs.</p>
+<label>Password<input type="password" value="fixture-native-482"></label>
+<label>Private note<input data-lift-secret="true" value="fixture-marked-482"></label>
+<a href="/account?token=fixture-query-482#token=fixture-fragment-482">Account</a>
+<p>Private echoes: fixture-native-482, fixture-marked-482, fixture-query-482,
+fixture-fragment-482, fixture-svg-query-482, fixture-operator-482.</p>
+<button onclick="document.querySelector('#state').textContent='Still researching downstairs.'">Refresh text</button>
+<p id="state">Ready.</p>
+</body>
+</html>
