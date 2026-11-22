@@ -356,7 +356,7 @@ def spa(session: BrowserSession, base: str) -> None:
 def viewspec_page(session: BrowserSession, base: str) -> None:
     print("\n== viewspec_orders: a page ViewSpec compiled ==")
     session.open(f"{base}/viewspec_orders.html")
-    view = session.observe()
+    view = session.observe(locate=True)
     refund = next(handle for handle, control in view.handles.items() if control.action_id == "refund")
     locator = view.locators[view.handles[refund].node_id]
     print(f"  ..  [{refund}] {view.handles[refund].name!r} #refund -> {locator['playwright']}")

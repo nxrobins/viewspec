@@ -1248,3 +1248,77 @@ def test_the_server_does_not_start_with_limits_it_cannot_keep(flags: list[str], 
 
     assert done.returncode == 2 and reason in done.stderr, done.stderr[-400:]
     assert SHOP_PASSWORD not in done.stderr + done.stdout
+
+
+def test_large_reading_paging_find_and_action_do_not_prepare_selectors(site: str, monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(PROBE))
+    from agent_session import BrowserSession
+    from boundary import Boundary
+    from mcp_browser_server import BrowserTools
+
+    calls: list[str] = []
+    original = BrowserSession._call
+
+    def recorded(self, cmd, **kwargs):
+        # A deterministic work-budget assertion, independent of browser or CI timing. The real
+        # bridge still captures identities and blocked state, and executes the selected action.
+        assert cmd not in {"locate", "confirm"}, "ordinary reading eagerly prepared selectors"
+        calls.append(cmd)
+        return original(self, cmd, **kwargs)
+
+    monkeypatch.setattr(BrowserSession, "_call", recorded)
+    browser = BrowserTools(boundary=Boundary.build(allow_origin=(site,), allow_read=(site + "/*",)))
+    try:
+        page = browser.observe(url=f"{site}/locator_catalog.html", limit=1)
+        assert page["ok"]
+        reading = browser._history[page["observation_id"]]
+        assert len(reading.lift.controls) == 1200 and len(reading.lift.forms) == 600
+        assert len(reading.locators) == 1800
+        assert all(target["identity"] for target in reading.locators.values())
+        assert calls.count("targets") == 1
+        before = list(calls)
+        paged = browser.observe(observation_id=page["observation_id"], offset=1, limit=3)
+        found = browser.observe(observation_id=page["observation_id"], find="Entry 599")
+        assert paged["ok"] and found["ok"] and calls == before
+        added = browser.act(action="click", handle=handle(found, "Add"), observation_id=page["observation_id"])
+        assert added["ok"] and added["steps"][0]["resolved_by"] == "ref"
+        assert "message status 'Added Entry 599'" in added["view"]
+    finally:
+        browser.close()
+
+
+@pytest.mark.parametrize("fixture", ["market.html", "checkout.html"])
+def test_identity_and_blocked_state_match_explicit_locator_diagnostics(site: str, monkeypatch, fixture: str) -> None:
+    monkeypatch.syspath_prepend(str(PROBE))
+    from agent_session import BrowserSession
+    from boundary import Boundary
+
+    with BrowserSession(boundary=Boundary.build(allow_origin=(site,), allow_read=(site + "/*",))) as session:
+        session.open(f"{site}/{fixture}")
+        ordinary = session.observe()
+        diagnostic = session.observe(locate=True)
+        assert ordinary.blocked == diagnostic.blocked
+        assert ordinary.locators.keys() == diagnostic.locators.keys()
+        assert all(target["strategy"] is None for target in ordinary.locators.values())
+        for key, target in ordinary.locators.items():
+            assert target["identity"] == diagnostic.locators[key]["identity"]
+        confirmed = session.confirm_locators(diagnostic)
+        assert confirmed and all(confirmed.values())
+
+
+def test_action_checks_a_dialog_that_appeared_after_the_reading(site: str, tmp_path: Path) -> None:
+    async def play(agent: Agent) -> None:
+        page = await agent.observe(url=f"{agent.base}/market.html")
+        first = page["observation_id"]
+        add = handle_under(page, "Globe lamp", "Add to cart")
+        opened = await agent.act(action="click", handle=handle(page, "Show offers"))
+        refused = await agent.act(refusal_expected=True, action="click", handle=add, observation_id=first)
+        assert codes(refused) == ["BROWSER_TARGET_BLOCKED"]
+        assert "covered by dialog" in refused["errors"][0]["message"]
+        assert "message status 'Cart: empty'" in refused["view"]
+        await agent.act(action="click", handle=handle(opened, "No thanks"))
+        added = await agent.act(action="click", handle=add, observation_id=first)
+        assert "message status 'Cart: Globe lamp'" in added["view"]
+
+    run = asyncio.run(_attempt(Task("Check current actionability of a saved target", play, ()), site, tmp_path))
+    assert unmet(run) == []

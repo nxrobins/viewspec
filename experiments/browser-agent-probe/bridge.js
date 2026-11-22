@@ -11,6 +11,8 @@
 //                                          the page wrote into its message regions and how busy it is
 //   aria      {}                           Playwright's ARIA snapshot of the body
 //   reload    {}                           reload the page
+//   targets   {requests: [{key, ref}]}     capture identities and blocked state in one page call;
+//                                          no selector candidates or per-control Playwright work
 //   locate    {requests: [{key, ref, role, name}]}
 //                                          for each ref: a verified locator, its identity (tag, name,
 //                                          and the items around it), and what blocks it, if anything
@@ -843,7 +845,22 @@ async function locateOne(request, frameCache, info) {
   return { strategy: null, reason: "no selector finds exactly this element" };
 }
 
-// Most locators are checked in the page, in one call: a stable attribute or a content anchor that
+// Normal observations capture identity and blocked state only. Target resolution and current
+// actionability checks still run on every action; exportable selectors are opt-in diagnostics.
+async function targets({ requests }) {
+  await ensureLibrary();
+  const infos = await page.evaluate(
+    (refs) => window.__viewspecLift.readTargets(refs),
+    requests.map((request) => request.ref),
+  );
+  return Object.fromEntries(requests.map(({ key, ref }) => [key, {
+    strategy: null,
+    identity: infos[ref]?.identity || null,
+    blocked: infos[ref]?.blocked || null,
+  }]));
+}
+
+// Most diagnostic locators are checked in the page, in one call: a stable attribute or a content anchor that
 // matches only this element there. Playwright checks the rest (role and name, exact text, a path
 // across a shadow root), one by one. A locator is used only when a ref has gone stale, and then
 // only one by attribute or anchor, and only if the one element it finds has the control's identity
@@ -1544,6 +1561,7 @@ const COMMANDS = {
   open,
   snapshot,
   locate,
+  targets,
   act,
   aria: async () => ({ aria: await page.locator("body").ariaSnapshot() }),
   reload: async () => {
