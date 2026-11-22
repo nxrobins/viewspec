@@ -44,7 +44,8 @@
     </ul>
     <input type="hidden" name="wrap" value="None">
 
-    <label>Create a password <input type="password" name="new_password" autocomplete="new-password"></label>
+    <!-- Deliberately wrong: the snapshot must compute state from the live value below. -->
+    <label>Create a password <input type="password" name="new_password" autocomplete="new-password" data-lift-value-state="empty"></label>
 
     <details>
       <summary>Have a promo code?</summary>

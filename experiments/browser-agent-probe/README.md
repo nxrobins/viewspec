@@ -142,6 +142,19 @@ The bridge checks each fill, check, and select in the page and returns only true
 secret value never comes back. If a step navigates the page before the plan is done, the session
 stops and says how many steps did not run.
 
+Secret fields show `secret empty`, `secret filled`, or `secret unknown`; their form schema carries
+the same state as `x-value-state`. This exposes neither the value nor its length. The snapshot
+derives occupancy from live fields, including JavaScript prefill, and overwrites page-authored
+state hints. Static lifts without a live state hint report `unknown`, which does not mean empty.
+Clearing a secret produces a `value_state 'filled' -> 'empty'` change and a verified fill step.
+
+Omitted form arguments preserve current values, including hidden values. To leave an editable
+text/password field blank, explicitly pass an empty string, for example
+`call(tool="checkout", arguments={"new_password": ""}, submit=false)`, or
+`act(handle=10, action="fill", value="")` with the current password handle. An omitted required
+secret must have known `filled` state; `unknown` cannot satisfy that precheck. A successful action
+confirms the steps performed and any requested wait, not conditions on untouched fields.
+
 A form call checks each argument the way the browser's constraint validation will when the form
 is sent (an email's format, `minlength`, `pattern`, `min`, `max`, `step`, a required field left
 empty), and refuses the call with the reason before the browser acts. A single `fill` is not

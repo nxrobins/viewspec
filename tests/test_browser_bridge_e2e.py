@@ -892,6 +892,70 @@ def test_old_observation_cannot_act_after_a_product_route_change(route: str, sit
     assert unmet(run) == []
 
 
+@pytest.mark.parametrize("privacy", ["strict", "heuristic"])
+@pytest.mark.parametrize("operation", ["omit", "call_clear", "act_clear"])
+def test_checkout_secret_state_and_clearing_reach_the_server(
+    site: str, tmp_path: Path, privacy: str, operation: str
+) -> None:
+    seeded_password = "TOPSECRET-pw-4242"
+
+    def password_state(page: dict[str, Any], expected: str) -> None:
+        line = next(line for line in page["view"].splitlines() if "password 'Create a password'" in line)
+        assert f"secret {expected}" in line
+        prop = page["form_tools"][0]["input_schema"]["properties"]["new_password"]
+        assert prop["writeOnly"] and prop["x-value-state"] == expected
+        assert "default" not in prop
+
+    async def play(agent: Agent) -> None:
+        page = await agent.observe(url=f"{site}/checkout.html")
+        # The fixture sets .value in JavaScript and claims empty in its own snapshot hint.
+        password_state(page, "filled")
+        arguments = {
+            "email": "river@example.test",
+            "ship": "express",
+            "country": "Spain",
+            "gift_wrap": "Box",
+            "terms": True,
+        }
+        cleared = None
+        if operation == "act_clear":
+            cleared = await agent.act(handle=handle(page, "Create a password"), action="fill", value="")
+        if operation == "call_clear":
+            arguments["new_password"] = ""
+        prepared = await agent.call(tool="checkout", arguments=arguments, submit=False)
+        if operation == "call_clear":
+            cleared = prepared
+        if cleared is not None:
+            password_state(cleared, "empty")
+            [step] = [item for item in cleared["steps"] if item["step"]["name"] == "Create a password"]
+            assert step["verified"] is True
+            assert any("value_state 'filled' -> 'empty'" in line for line in cleared["changes"]["lines"])
+        else:
+            assert all(item["step"]["name"] != "Create a password" for item in prepared["steps"])
+        password_state(prepared, "filled" if operation == "omit" else "empty")
+        await agent.act(handle=handle(prepared, "Place order"), action="click")
+
+    RECEIVED.clear()
+    BODIES.clear()
+    run = asyncio.run(
+        _attempt(
+            Task(
+                "Place an order and check whether its optional password was preserved or cleared",
+                play,
+                (seeded_password,),
+            ),
+            site,
+            tmp_path,
+            flags=("--private", privacy, "--allow-write", f"POST {site}/orders"),
+        )
+    )
+    assert unmet(run) == []
+    assert RECEIVED == ["POST /orders"]
+    posted = parse_qs(BODIES["/orders"], keep_blank_values=True)
+    assert posted["new_password"] == [seeded_password if operation == "omit" else ""]
+    assert posted["email"] == ["river@example.test"]
+
+
 # ---- the boundary -----------------------------------------------------------------------------------
 # The tests above ask whether an agent can do its task. These ask what it cannot do, whatever the
 # page tells it: reach an origin that is not listed, send a write no rule names, or read a secret.

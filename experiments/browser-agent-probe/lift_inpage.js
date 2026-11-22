@@ -253,6 +253,14 @@
 
       // Live form state.
       const secret = isSecret(el);
+      // A page-authored hint cannot stand in for the live value. Keep only occupancy, before
+      // redaction; missing or unsupported state must never imply that a field is empty.
+      result.removeAttribute("data-lift-value-state");
+      if (textEntry(el)) {
+        const value = "value" in el ? el.value : el.textContent;
+        result.setAttribute("data-lift-value-state",
+          typeof value === "string" ? (value === "" ? "empty" : "filled") : "unknown");
+      }
       // The private set is independent of the snapshot used to plan interactions. Strict mode
       // treats text-entry values as private regardless of language, label length or field name.
       // A page cannot opt itself out with data-lift-secret=false.
