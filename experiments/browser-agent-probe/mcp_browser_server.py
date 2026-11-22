@@ -255,7 +255,8 @@ class BrowserTools:
 
         Returns ``view``: the page as text, one line per message, heading, value, table row, or
         control. Each control line starts with a handle such as [7], then its kind, name, and state
-        (value, [x] for checked, options, required, secret, disabled). A line that ends with
+        (value, [x] for checked, options, required, secret empty/filled/unknown, disabled).
+        Secret state reveals only whether a value is present; unknown does not mean empty. A line that ends with
         ``blocked`` is a control you can read but not use now: something covers it, or the page has
         switched it off. The view then opens with ``blocked N controls: <why>``. ``form_tools`` describes each
         form as a tool for ``call``. ``observation_id`` names this reading; its handles stay valid for
@@ -441,7 +442,10 @@ class BrowserTools:
         """Fill in a form with ``arguments`` and submit it, then read the page again.
 
         ``tool`` is a name from ``form_tools``; ``arguments`` follows its ``input_schema``. Arguments you
-        leave out keep the value the page shows. ``submit=false`` only fills the form. Every problem
+        leave out preserve their current values, including hidden values. Explicitly send an empty
+        string (``""``) to clear an editable text/password field; omission does not clear it.
+        ``x-value-state`` is empty, filled, or unknown; unknown does not mean empty.
+        ``submit=false`` only fills the form. Every problem
         with the arguments is reported at once, before the browser does anything. ``wait_for`` and
         ``timeout_ms`` work as for ``act``, for example ``{"text": "Order placed"}``, and so does
         ``outcome``: ``failed`` when the browser would not send the form.
@@ -979,11 +983,15 @@ def _summary(results: list[StepResult]) -> str:
 
 
 def _public_schema(schema: dict[str, Any]) -> dict[str, Any]:
-    """A form tool as the agent sees it: the internal ``x-`` keys (node ids) are left out."""
+    """Keep public value-state metadata; leave out internal ``x-`` keys such as node ids."""
 
     def strip(value: Any) -> Any:
         if isinstance(value, dict):
-            return {key: strip(item) for key, item in value.items() if not str(key).startswith("x-")}
+            return {
+                key: strip(item)
+                for key, item in value.items()
+                if key == "x-value-state" or not str(key).startswith("x-")
+            }
         if isinstance(value, list):
             return [strip(item) for item in value]
         return value

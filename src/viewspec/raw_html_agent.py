@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from viewspec.raw_html_patterns import pattern_is_bounded
 
@@ -31,6 +31,10 @@ HINT_DISPLAY = "data-lift-display"
 # A browser-side snapshot may also give each element a ``data-lift-ref``: a handle the browser can
 # turn back into that exact element, so an agent can act on what it read.
 HINT_REF = "data-lift-ref"
+# Live occupancy, independent of the value removed by redaction. Static HTML without this
+# snapshot hint cannot establish the current value, even when it has a value attribute.
+HINT_VALUE_STATE = "data-lift-value-state"
+ValueState = Literal["empty", "filled", "unknown"]
 # Each tree scope (the page, a same-origin frame, an open shadow root) has ids of its own, and a
 # snapshot flattens them into one document. ``data-lift-scope`` names the scope of an element that has
 # or names an id (id, for, aria-labelledby, ...), when that is not the page: a frame's document is
@@ -337,6 +341,7 @@ class HtmlControl:
     # The aria-sort of the column header a sort button sits in: "ascending", "descending", "none",
     # or "other". A click that reorders the rows changes this and nothing else the diff can see.
     sort: str | None = None
+    value_state: ValueState = "unknown"
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -358,6 +363,7 @@ class HtmlControl:
             "group": self.group,
             "readonly": self.readonly,
             "secret": self.secret,
+            "value_state": self.value_state,
             "expanded": self.expanded,
             "minimum": self.minimum,
             "maximum": self.maximum,
@@ -1113,6 +1119,7 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 group=_clip(_group_name(page, node) or "") or None if kind == "field" else None,
                 readonly="readonly" in node.attrs or node.attrs.get("aria-readonly", "").lower() == "true",
                 secret=is_sensitive_control(node.tag, node.attrs),
+                value_state=_value_state(node.attrs.get(HINT_VALUE_STATE)),
                 ref=node.attrs.get(HINT_REF) or None,
                 tag=node.tag,
                 expanded=expanded,
@@ -1293,6 +1300,14 @@ def _column_sort(page: _Page, node: LiftNode) -> str | None:
     return None
 
 
+def _value_state(value: str | None) -> ValueState:
+    if value == "empty":
+        return "empty"
+    if value == "filled":
+        return "filled"
+    return "unknown"
+
+
 def _aria_bool(value: str | None) -> bool | None:
     """An ARIA state attribute as a bool: "true" or "false"; None when missing, "mixed", or "undefined"."""
 
@@ -1427,6 +1442,12 @@ def _field_schema(field: FormField) -> dict[str, Any]:
         prop["default"] = control.value  # A calendar's own display format is not the tool's format.
     if control.secret:
         prop["writeOnly"] = True
+    if control.secret or field.kind == "text":
+        prop["x-value-state"] = control.value_state
+    if control.secret:
+        prop["description"] += f"; current value is {control.value_state} (hidden). Omit to preserve it."
+        if field.kind == "text" and not control.readonly:
+            prop["description"] += ' Send an empty string ("") to clear it.'
     if control.readonly:
         prop["readOnly"] = True
     return prop
@@ -1441,7 +1462,8 @@ def form_tool_schema(form: HtmlForm, controls: Mapping[str, HtmlControl], *, nam
 
     Each property carries ``x-node-id`` (or ``x-node-ids`` for a radio group) so the caller can map
     an argument back to the element to fill in. Disabled fields are left out. A secret field is
-    ``writeOnly``: an agent may fill it, but the lift never shows its value.
+    ``writeOnly``: an agent may fill it, but the lift never shows its value. ``x-value-state`` is
+    live occupancy (empty, filled, or unknown), not the value or its length.
     """
 
     fields = form_fields(form, controls)
@@ -1455,7 +1477,11 @@ def form_tool_schema(form: HtmlForm, controls: Mapping[str, HtmlControl], *, nam
             properties[field.key]["description"] += f"; the end of the date range from {other!r}, not before it"
     return {
         "name": name or form_tool_name(form),
-        "description": f"Fill in and submit the form {form.name!r}.",
+        "description": (
+            f"Fill in and submit the form {form.name!r}. "
+            "Omitted arguments preserve current values, including hidden values. "
+            'To clear an editable text or password field, explicitly send an empty string ("").'
+        ),
         "input_schema": {
             "type": "object",
             "properties": properties,

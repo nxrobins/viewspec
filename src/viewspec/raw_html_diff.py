@@ -43,6 +43,7 @@ COMPARED_FIELDS = (
     "control",
     "name",
     "value",
+    "value_state",
     "checked",
     "disabled",
     "required",
@@ -335,6 +336,8 @@ def _compare(old: HtmlControl, new: HtmlControl) -> dict[str, tuple[Any, Any]]:
     for name in COMPARED_FIELDS:
         if name == "value" and (old.secret or new.secret):
             continue  # A secret value is never in the lift; never suggest one changed.
+        if name == "value_state" and not (old.secret or new.secret):
+            continue  # Ordinary fields already report their value change.
         if name == "options":
             before: Any = [(o.label, o.selected, o.disabled) for o in old.options]
             after: Any = [(o.label, o.selected, o.disabled) for o in new.options]

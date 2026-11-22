@@ -42,7 +42,7 @@ def control_line(
         if control.required:
             line += " required"
         if control.secret:
-            line += " secret"
+            line += f" secret {control.value_state}"
         if control.readonly:
             line += " read-only"
         if control.date and control.control == "text":

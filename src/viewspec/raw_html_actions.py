@@ -361,8 +361,9 @@ def plan_form_call(
 
     Steps fill the given arguments in document order and then submit: they click the first enabled
     submit control, or submit the form when it has none. ``submit=False`` only fills. Arguments the
-    call leaves out keep the value the page shows. A required field that the call leaves out is an
-    error only when the page shows it empty (or unchecked, for a checkbox).
+    call leaves out preserve their current values, including hidden values. An explicit empty
+    string clears an editable text/password field. An omitted required field is an error when
+    empty (or unchecked); an omitted required secret also needs known filled state.
     """
 
     names = form_tool_names(lift.forms)
@@ -593,7 +594,7 @@ def _empty(item: FormField) -> bool:
     if item.kind == "boolean":
         return not item.control.checked
     if item.control.secret:
-        return True  # The lift never shows a secret value, so it cannot know the field is filled.
+        return item.control.value_state != "filled"  # Unknown does not establish that it is filled.
     return not item.control.value
 
 
