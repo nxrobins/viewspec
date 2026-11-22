@@ -77,7 +77,7 @@ from viewspec.raw_html_actions import (
     plan_form_call,
     plan_scroll,
 )
-from viewspec.raw_html_agent import form_fields, form_tool_names, names_a_secret
+from viewspec.raw_html_agent import form_fields, form_tool_names, form_tool_schema, names_a_secret
 from viewspec.raw_html_diff import ChangeCondition
 
 SERVER_NAME = "viewspec-browser"
@@ -88,7 +88,8 @@ INSTRUCTIONS = (
     "Read and operate web pages through the ViewSpec agent lift. Start with observe(url). Its view lists "
     "every control as [n]; act(handle=n, action=...) clicks, fills, checks, unchecks, or selects one; "
     'act(action="scroll") scrolls the page, and loads more of an infinite list. Each '
-    "form is also a typed tool in form_tools; call(tool=..., arguments={...}) fills it in and submits it. "
+    "form represented by a form or control line in this slice has a complete typed tool in form_tools; "
+    "page or find to discover other forms. call(tool=..., arguments={...}) fills a form in and submits it. "
     "Requests are checked against the page first: on ok=false, read errors and fix the request. act and "
     "call return the new view and changes, the lines that say what the action changed (messages first); "
     "use the new handles next. observe(since=id) shows what changed since an earlier reading. A page "
@@ -260,9 +261,11 @@ class BrowserTools:
         (value, [x] for checked, options, required, secret empty/filled/unknown, disabled).
         Secret state reveals only whether a value is present; unknown does not mean empty. A line that ends with
         ``blocked`` is a control you can read but not use now: something covers it, or the page has
-        switched it off. The view then opens with ``blocked N controls: <why>``. ``form_tools`` describes each
-        form as a tool for ``call``. ``observation_id`` names this reading; its handles stay valid for
-        ``act``. With ``since`` (an earlier ``observation_id``, and no ``url``), ``changes`` lists what
+        switched it off. The view then opens with ``blocked N controls: <why>``. ``form_tools`` describes
+        only forms represented by form or control lines in this slice or its context, with their
+        complete inputs. Page or find to discover other forms; names stay stable within the reading,
+        and previously seen forms remain callable. ``observation_id`` names this reading; its handles
+        stay valid for ``act``. With ``since`` (an earlier ``observation_id``, and no ``url``), ``changes`` lists what
         changed on the page since that reading, for a page that updates by itself.
 
         ``wait_for`` waits, up to ``timeout_ms``, until the page shows a change, compared with ``since``
@@ -542,16 +545,29 @@ class BrowserTools:
             return schema["name"], {aliases.get(key, key): value for key, value in arguments.items()}
         return tool, arguments
 
-    def _schema_pairs(self, observation: Observation) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, str]]]:
+    def _schema_names(self, observation: Observation) -> list[tuple[str, str]]:
+        """Assign names against the whole reading, so paging cannot renumber duplicate names or aliases."""
+        names = form_tool_names(observation.lift.forms)
+        reserved = set(names)
         result = []
-        schemas = observation.lift.form_tool_schemas()
-        reserved_forms = {schema["name"] for schema in schemas}
-        for number, schema in enumerate(schemas, 1):
+        for number, name in enumerate(names, 1):
+            public = name if self.privacy.clean(name) == name else self._schema_alias("f", number, reserved)
+            reserved.add(public)
+            result.append((name, public))
+        return result
+
+    def _schema_pairs(
+        self, observation: Observation, *, form_ids: frozenset[str] | None = None
+    ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, str]]]:
+        result = []
+        controls = {control.node_id: control for control in observation.lift.controls}
+        for form, (name, public) in zip(observation.lift.forms, self._schema_names(observation), strict=True):
+            if form_ids is not None and form.node_id not in form_ids:
+                continue
+            schema = form_tool_schema(form, controls, name=name)
             safe_schema = _public_schema(schema)
             shown = self.privacy.clean(safe_schema)
-            if shown["name"] != schema["name"]:
-                shown["name"] = self._schema_alias("f", number, reserved_forms)
-                reserved_forms.add(shown["name"])
+            shown["name"] = public
             properties = safe_schema.get("input_schema", {}).get("properties", {})
             reserved_fields = set(properties)
             names = {}
@@ -751,8 +767,10 @@ class BrowserTools:
         """A slice of a reading's view, and one sentence on how to get more."""
 
         shown = self._browser().project(observation)
-        schemas = self._schema_pairs(observation)
-        form_names = {form.node_id: pair[1]["name"] for form, pair in zip(observation.lift.forms, schemas, strict=True)}
+        form_names = {
+            form.node_id: public
+            for form, (_, public) in zip(observation.lift.forms, self._schema_names(observation), strict=True)
+        }
         lines = [
             replace(line, text=line.text.rsplit(" tool=", 1)[0] + " tool=" + form_names[line.node_id])
             if line.kind == "form"
@@ -760,6 +778,7 @@ class BrowserTools:
             for line in shown.lines
         ]
         page = view_page(lines, offset=offset, limit=max(1, min(int(limit), MAX_VIEW_LIMIT)), find=find or None)
+        schemas = self._schema_pairs(observation, form_ids=page.form_ids)
         data = {
             "observation_id": observation_id,
             "view": page.text,

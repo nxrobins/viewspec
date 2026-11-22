@@ -1369,3 +1369,29 @@ def test_public_svg_fragments_preserve_prose_without_exposing_credentials(
         )
     )
     assert unmet(run) == []
+
+
+@pytest.mark.parametrize("privacy", ["strict", "heuristic"])
+def test_paged_form_schema_calls_the_selected_form(site: str, tmp_path: Path, privacy: str) -> None:
+    async def play(agent: Agent) -> None:
+        first = await agent.observe(url=f"{site}/locator_catalog.html", limit=1)
+        assert first["form_tools"] == []
+        reading = first["observation_id"]
+        found = await agent.observe(observation_id=reading, find="Entry 599", limit=1)
+        assert found["form_tools"] == []  # Only the matching heading so far.
+        form = await agent.observe(observation_id=reading, find="Entry 599", offset=1, limit=1)
+        [schema] = form["form_tools"]
+        assert f"tool={schema['name']}" in form["view"]
+        field = await agent.observe(observation_id=reading, find="Entry 599", offset=2, limit=1)
+        assert field["form_tools"] == [schema]
+        assert schema["input_schema"]["properties"]["quantity"]["type"] == "number"
+        missing = await agent.observe(observation_id=reading, find="Missing entry")
+        assert missing["form_tools"] == []
+        # Paging only changes the response, never the reading's action identities or callable forms.
+        called = await agent.call(tool=schema["name"], arguments={"quantity": 2}, observation_id=reading)
+        assert "Added Entry 599" in called["view"]
+
+    run = asyncio.run(
+        _attempt(Task("Page to and call the last of 600 forms", play, ()), site, tmp_path, flags=("--private", privacy))
+    )
+    assert unmet(run) == []
