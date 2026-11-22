@@ -253,8 +253,10 @@ class BrowserTools:
         contain some text, each with the heading it sits under; a matching heading brings its section,
         so ``find="lamp 250"`` shows that product and its buttons. Handles are those of the whole view.
 
-        Returns ``view``: the page as text, one line per message, heading, value, table row, or
-        control. Each control line starts with a handle such as [7], then its kind, name, and state
+        Returns ``view``: the page as text, one line per message, heading, value, table row,
+        paragraph, or control. Ordinary text starts with ``text`` and keeps the complete wording,
+        including inline formatting; paging and find include it. Each control line starts with a
+        handle such as [7], then its kind, name, and state
         (value, [x] for checked, options, required, secret empty/filled/unknown, disabled).
         Secret state reveals only whether a value is present; unknown does not mean empty. A line that ends with
         ``blocked`` is a control you can read but not use now: something covers it, or the page has

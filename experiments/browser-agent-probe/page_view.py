@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from viewspec.raw_html import HtmlLiftResult, LiftNode
-from viewspec.raw_html_agent import HtmlControl, hidden_ids
+from viewspec.raw_html_agent import HtmlControl, hidden_ids, is_inline
 from viewspec.raw_html_agent import subtree_text as agent_subtree_text
 
 VIEW_GROUP_MIN = 3
@@ -93,7 +93,7 @@ FIND_BLOCK = 30  # The most lines a matching heading brings with it from its sec
 
 @dataclass(frozen=True)
 class ViewLine:
-    """One line of the view. ``kind`` is blocked, message, group, form, row, control, heading, or value.
+    """One line of the view: blocked, message, group, form, row, control, heading, value, or text.
 
     ``node_id`` is the lifted node the line shows. ``heading_id`` is the node id of the heading whose
     section holds the line (for a heading line: the heading of the section around it). ``form_id`` is
@@ -148,8 +148,9 @@ def view_lines(
     """Build the view as lines, and return the control behind each handle.
 
     The view lists messages (alerts, status, live regions), forms, headings, controls, values, table
-    rows, and repeated groups in document order. Handles count controls from 1 in document order, so
-    the same page gives the same handles.
+    rows, ordinary text, and repeated groups in document order. Ordinary text keeps inline wording
+    and is not preview-truncated, so paging and find can reach the whole paragraph. Handles count
+    controls from 1 in document order, so the same page gives the same handles.
 
     ``blocked`` maps the node id of a control to why a person could not use it now: a dialog covers
     it, or the page has switched it off. The lift cannot know this (it depends on what the browser
@@ -177,6 +178,31 @@ def view_lines(
     lines: list[ViewLine] = []
     handles: dict[int, HtmlControl] = {}
     in_row: set[str] = set()
+    owned_text: set[str] = set()
+    inline_text: set[str] = set()
+
+    def text_for(node: LiftNode) -> str:
+        """Join inline wording, leaving blocks and independently rendered content on their lines."""
+
+        def skip(child: LiftNode) -> bool:
+            role = roles.get(child.id)
+            control = controls.get(child.id)
+            if (
+                child.id in hidden
+                or not is_inline(child)
+                or child.tag in {"label", "legend"}
+                or child.id in messages
+                or (role is not None and role.role == "heading")
+                or (control is not None and control.control != "link")
+            ):
+                return True
+            # Numeric values still have their own semantic line (for example a page counter),
+            # even when their wording also belongs to the surrounding paragraph.
+            if role is None or role.role != "value":
+                inline_text.add(child.id)
+            return False
+
+        return agent_subtree_text(node, by_id, skip=skip)
 
     def add(text: str, kind: str, node_id: str, **extra: Any) -> None:
         lines.append(ViewLine(redact(text), kind, node_id, sections.heading_for(node_id), **extra))
@@ -184,13 +210,22 @@ def view_lines(
     for node in lift.nodes:
         if node.id in hidden:
             continue  # A closed dialog's rows and lists are not on the page the user sees.
+        if node.parent_id in owned_text or node.tag in {"label", "legend"}:
+            owned_text.add(node.id)
         if node.parent_id in in_row and node.id not in controls:
             in_row.add(node.id)
             continue
         group = group_of.get(node.id)
-        if group and group[0] == node.id and node.tag not in {"option", "optgroup"}:
+        if (
+            group
+            and group[0] == node.id
+            and node.tag not in {"option", "optgroup"}
+            and node.id not in owned_text
+            and node.id not in inline_text
+        ):
             add(f"group {len(group)}x <{node.tag}>", "group", node.id)
         if node.id in messages:
+            owned_text.add(node.id)
             message = messages[node.id]
             add(f"message {message.kind} {redact(message.text)[:TEXT_PREVIEW]!r}", "message", node.id)
         if node.id in forms:
@@ -205,19 +240,24 @@ def view_lines(
             in_row.add(node.id)
             continue
         if node.id in controls:
+            owned_text.add(node.id)
             control = controls[node.id]
             handle = len(handles) + 1
             handles[handle] = control
             line = control_line(handle, control, blocked=node.id in blocked, redact=redact)
             add(line, "control", node.id, handle=handle, form_id=control.form_id)
             continue
-        role = roles.get(node.id)
-        if role is None:
+        if node.id in owned_text or node.id in inline_text:
             continue
-        if role.role == "heading":
+        role = roles.get(node.id)
+        if role is not None and role.role == "heading":
+            owned_text.add(node.id)
             add(f"{node.tag.upper()} {redact(role.text)[:TEXT_PREVIEW]}", "heading", node.id)
-        elif role.role == "value":
+        elif role is not None and role.role == "value":
+            owned_text.add(node.id)
             add(f"value {role.text}", "value", node.id)
+        elif (node.text or node.tag == "p") and (text := text_for(node)):
+            add(f"text {text}", "text", node.id)
     return [*_blocked_notices(lines, blocked), *lines], handles
 
 

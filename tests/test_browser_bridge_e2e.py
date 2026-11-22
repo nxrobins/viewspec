@@ -303,6 +303,60 @@ async def add_two_products_among_same_named_buttons(agent: Agent) -> None:
     assert second["view"].count("button 'Added' disabled") == 2
 
 
+@pytest.mark.parametrize("privacy", ["strict", "heuristic"])
+def test_prose_paging_and_find_use_the_same_complete_private_reading(site: str, tmp_path: Path, privacy: str) -> None:
+    async def play(agent: Agent) -> None:
+        page = await agent.observe(url=f"{site}/reading.html", limit=2)
+        observation_id = page["observation_id"]
+        assert "Tolkien" not in page["view"]
+        collected = page["view"].splitlines()
+        while page["view_page"]["next_offset"] is not None:
+            page = await agent.observe(observation_id=observation_id, offset=page["view_page"]["next_offset"], limit=2)
+            assert page["observation_id"] == observation_id
+            assert page["view_page"]["returned"] <= 2
+            collected.extend(page["view"].splitlines())
+        whole = await agent.observe(observation_id=observation_id, limit=1000)
+        assert collected == whole["view"].splitlines()
+        assert len(collected) == whole["view_page"]["total"]
+        assert "text Read The Hobbit by Tolkien." in collected
+        assert "author named at the end is Tolkien." in whole["view"]
+        assert "group 3x <p>" in whole["view"]
+        assert "hidden-" not in whole["view"]
+        assert "text Private echo: [redacted]. Public ending." in collected
+
+        found = await agent.observe(observation_id=observation_id, find="TOLKIEN", limit=100)
+        assert found["view_page"]["matches"] == 2
+        assert "H2 Recommendations" in found["view"]
+        assert "Read The Hobbit by Tolkien." in found["view"]
+        offset, pieces = 0, []
+        while True:
+            part = await agent.observe(observation_id=observation_id, find="TOLKIEN", offset=offset, limit=1)
+            assert part["view_page"]["matches"] == 2
+            pieces.extend(part["view"].splitlines())
+            offset = part["view_page"]["next_offset"]
+            if offset is None:
+                break
+        assert pieces == found["view"].splitlines()
+        phrase = await agent.observe(observation_id=observation_id, find="HOBBIT   by\n Tolkien")
+        assert phrase["view_page"]["matches"] == 1
+        secret = await agent.observe(observation_id=observation_id, find="private-reading-value-824")
+        assert secret["view_page"]["matches"] == 0
+        shops = await agent.observe(observation_id=observation_id, find="Local shops")
+        assert handle(shops, "Mark read") == handle(whole, "Mark read")
+        marked = await agent.act(observation_id=observation_id, handle=handle(shops, "Mark read"), action="click")
+        assert "Marked as read" in marked["view"]
+
+    run = asyncio.run(
+        _attempt(
+            Task("Read, search and page through post descriptions", play, ("private-reading-value-824",)),
+            site,
+            tmp_path,
+            flags=("--private", privacy),
+        )
+    )
+    assert unmet(run) == []
+
+
 @task("Open post 75 of the news feed. The feed shows 20 posts and loads more as it is scrolled.")
 async def open_a_post_far_down_an_infinite_feed(agent: Agent) -> None:
     page = await agent.observe(url=f"{agent.base}/feed.html")

@@ -475,9 +475,8 @@ On the fixture `outcomes.html`, through the MCP tools:
 
 ### Long pages
 
-A long page gives a long view: the 300-product catalog fixture has 1308 lines and 675 controls, about
-7800 tokens (its ARIA snapshot is about 13500). `view_page(lines, offset, limit, find)` returns a
-slice:
+A long page gives a long view: the 300-product catalog fixture has hundreds of controls and over a
+thousand lines. `view_page(lines, offset, limit, find)` returns a slice:
 
 - **By offset.** `limit` lines from `offset`. A slice that starts in the middle of the page opens with
   `context`: the headings it sits under, outermost first, and the form of its first control:
@@ -491,13 +490,21 @@ Each line knows the heading of its own section (`section`, `article`, `li`, `mai
 like), so a heading does not claim the content of a section next to it. Handles are those of the whole
 view: a handle from any slice, or from `find`, works with `act`.
 
+Ordinary paragraphs appear as `text ...`, including short descriptions and inline emphasis in their
+original word order. Their wording is complete rather than preview-truncated; `limit` counts lines,
+so one long paragraph can still make a long line. Repeated paragraph groups keep their text lines.
+Paging and `find` include these lines after privacy projection, with the same heading context as
+controls. Hidden text and text already represented by a control, message or table row are omitted
+from ordinary text lines. Inline links keep their wording in a paragraph and their separate handle.
+Inline numbers keep their wording and their separate `value` line, including page counters.
+
 ## MCP tools
 
 `mcp_browser_server.py` serves three tools over stdio:
 
 | Tool | Arguments | Does |
 |---|---|---|
-| `observe` | `url` or `since` (both optional), `wait_for`, `timeout_ms`, `offset`, `limit`, `find`; or `observation_id` with `offset`, `limit`, `find` | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, and control; each control has a handle such as `[7]`), `view_page` (which lines these are), `form_tools` (one typed tool per form), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. With `observation_id`, it pages through that kept reading without reading the page again. |
+| `observe` | `url` or `since` (both optional), `wait_for`, `timeout_ms`, `offset`, `limit`, `find`; or `observation_id` with `offset`, `limit`, `find` | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, paragraph, and control; each control has a handle such as `[7]`), `view_page` (which lines these are), `form_tools` (one typed tool per form), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. With `observation_id`, it pages through that kept reading without reading the page again. |
 | `act` | `action` (`click`, `fill`, `check`, `uncheck`, `select`, `scroll`, `upload`, `download`), `handle`, `value`, `files`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. `upload` gives `files` to a file input, or to the file chooser a button opens. `download` clicks and saves the file it downloads. `select` on a date range field, or on either field of a pair, takes a range and picks both days. `scroll` needs no handle: it scrolls the page, or the pane of the control with the handle; `value` is the direction, and `wait_for` means "keep scrolling until it shows". The result has `scroll`: `scrolls`, `moved`, `loaded`, `at_end`, `end_reached`, `met`. |
 | `call` | `tool`, `arguments`, `submit`, `observation_id`, `wait_for`, `timeout_ms` | Fills in a form with typed arguments (files too) and submits it, waits for `wait_for` if given, then reads the page again. |
 
