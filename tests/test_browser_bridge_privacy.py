@@ -197,6 +197,26 @@ def test_mcp_paging_filters_the_projected_view(modules):
     assert VALUE not in result["view"]
 
 
+@pytest.mark.parametrize("mode", ["strict", "heuristic"])
+def test_mcp_prose_is_redacted_before_paging_and_find(modules, mode):
+    source = (
+        f'<h1>Reading</h1><input type="password" value="{VALUE}">'
+        f"<p>Private echo: <strong>{VALUE}</strong>. Public ending: amber fox.</p>"
+    )
+    session = session_for(modules, source, mode=mode)
+    raw = session._observe(locate=False)
+    tools = modules.mcp_browser_server.BrowserTools()
+    tools.privacy, tools._session = session.privacy, session
+    found, _ = tools._view_data(raw, 1, find="amber fox")
+    assert found["view_page"]["matches"] == 1
+    assert "Private echo: [redacted]. Public ending: amber fox." in found["view"]
+    assert VALUE not in json.dumps(found)
+    hidden, _ = tools._view_data(raw, 1, find=VALUE)
+    assert hidden["view_page"]["matches"] == 0 and not hidden["view"]
+    last, _ = tools._view_data(raw, 1, offset=2, limit=1)
+    assert last["view"] == "text Private echo: [redacted]. Public ending: amber fox."
+
+
 def test_mcp_exception_uses_the_same_projection(modules):
     tools = modules.mcp_browser_server.BrowserTools()
     tools.privacy.remember([VALUE])
