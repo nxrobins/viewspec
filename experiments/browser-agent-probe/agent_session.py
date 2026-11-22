@@ -3,7 +3,7 @@
 ``BrowserSession`` drives ``bridge.js`` (a Playwright browser) and closes the loop:
 
     observe  snapshot the composed tree, lift it with ``profile="agent"``, render the page view,
-             and verify a locator for every control
+             and save each control's identity and current blocked state
     act      plan one action on a control (``plan_control_action``) and run it
     call     plan a whole form tool call (``plan_form_call``) and run it
 
@@ -79,6 +79,7 @@ class Observation:
     view: str
     lines: list[ViewLine]
     handles: dict[int, HtmlControl]
+    # Saved target identities in every reading; selector fields only with locate=True.
     locators: dict[str, dict[str, Any]]
     interactive: list[dict[str, str]]
     action_ids: int
@@ -451,34 +452,36 @@ class BrowserSession:
             raise BridgeError("stale-view: this reading is unknown or expired; observe the page again")
         return raw
 
-    def observe(self, *, locate: bool = True, collect_secrets: bool = False) -> Observation:
+    def observe(self, *, locate: bool = False, collect_secrets: bool = False) -> Observation:
         """Return a safe reading. ``collect_secrets`` is retained for compatibility, never disclosed.
 
         Secret discovery is always enabled internally. Public snapshots cannot opt out of the
         operator's policy. Browser actions resolve the returned reading to its private original.
+        ``locate=True`` additionally verifies exportable selectors for diagnostics; actions only
+        need the saved refs and identities, which are collected in either mode.
         """
         return self.project(self._observe(locate=locate))
 
-    def _observe(self, *, locate: bool = True) -> Observation:
-        """Snapshot, lift, and (by default) verify a locator for every control and form."""
+    def _observe(self, *, locate: bool = False) -> Observation:
+        """Snapshot, lift, and read target identities in one batch, without preparing selectors."""
 
         snap = self._capture_private()
         lift = lift_html(snap["html"], profile="agent")
         locators: dict[str, dict[str, Any]] = {}
-        if locate:
-            requests = [
-                {"key": c.node_id, "ref": c.ref, "role": control_aria_role(c), "name": c.name}
-                for c in lift.controls
-                if c.ref
-            ]
-            requests += [{"key": f.node_id, "ref": f.ref, "role": None, "name": None} for f in lift.forms if f.ref]
-            if requests:
-                locators = self._call("locate", requests=requests)
-            # What the element must still be when a re-render forces the locator fallback.
-            expected = {c.node_id: (c.tag, c.name) for c in lift.controls}
-            expected |= {f.node_id: ("form", None) for f in lift.forms}
-            for node_id, locator in locators.items():
-                locator["tag"], locator["expect_name"] = expected[node_id]
+        requests = [
+            {"key": c.node_id, "ref": c.ref, "role": control_aria_role(c), "name": c.name}
+            for c in lift.controls
+            if c.ref
+        ]
+        requests += [{"key": f.node_id, "ref": f.ref, "role": None, "name": None} for f in lift.forms if f.ref]
+        if requests:
+            locators = self._call("locate" if locate else "targets", requests=requests)
+        # What the element must still be when a re-render forces the identity fallback. Never
+        # defer this reading until action time: the same element may then belong to another item.
+        expected = {c.node_id: (c.tag, c.name) for c in lift.controls}
+        expected |= {f.node_id: ("form", None) for f in lift.forms}
+        for node_id, locator in locators.items():
+            locator["tag"], locator["expect_name"] = expected[node_id]
         # A control a person could not use now (a dialog covers it, or the page has switched it off),
         # and why. The page is asked, not the lift: the answer depends on what is drawn over what.
         blocked = {node_id: locator["blocked"] for node_id, locator in locators.items() if locator.get("blocked")}
@@ -511,7 +514,7 @@ class BrowserSession:
         return self._observation
 
     def confirm_locators(self, observation: Observation) -> dict[str, bool]:
-        """Ask Playwright whether each saved locator finds exactly its control (by node id)."""
+        """Verify selectors from ``observe(locate=True)`` (by node id)."""
 
         observation = self._resolve_observation(observation)
         refs = {control.node_id: control.ref for control in observation.lift.controls}
@@ -535,7 +538,7 @@ class BrowserSession:
 
         The page is read again after each change or navigation, never on a fixed poll. A change is a
         DOM change, or a field that holds something else (a script may set only ``.value``). The view
-        is stale afterwards (it has no locators); call ``observe()`` again.
+        is stale afterwards; call ``observe()`` again.
         """
 
         since = self._resolve_observation(since)

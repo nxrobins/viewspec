@@ -184,7 +184,7 @@ def locator_stats(observation: Observation) -> dict[str, Any]:
 def analyze(session: BrowserSession, target: str, out_dir: Path | None, index: int) -> dict[str, Any]:
     try:
         opened = session.open(target)
-        observation = session.observe()
+        observation = session.observe(locate=True)
         confirmed = session.confirm_locators(observation)
         aria = session.aria_snapshot()
         session.reload()

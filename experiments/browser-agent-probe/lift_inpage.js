@@ -835,6 +835,23 @@
     return reason ? { reason, name: nameOf(el) } : null;
   }
 
+  // Capture identity and actionability at observation time, even when no selector is requested.
+  // This deliberately does no candidate generation or whole-document selector matching.
+  function targetInfo(el, cache, cover) {
+    if (!el) return { connected: false };
+    return {
+      connected: true,
+      identity: identityOf(el, cache),
+      blocked: el.tagName === "FORM" ? null : blockedBy(el, { keys: typeable(el), cover }),
+    };
+  }
+
+  function readTargets(refs) {
+    const cache = newCache();
+    const cover = pageCover(document);
+    return Object.fromEntries(refs.map((ref) => [ref, targetInfo(get(ref), cache, cover)]));
+  }
+
   // Where an element is: its frame chain (outermost first) and its CSS candidates; what it is (its
   // identity); and what stops a person from using it now (``blocked``), if anything does.
   function describe(ref, cache = newCache(), cover = undefined) {
@@ -848,12 +865,10 @@
       doc = frame.ownerDocument;
     }
     return {
-      connected: true,
+      ...targetInfo(el, cache, cover),
       tag: el.tagName.toLowerCase(),
       frames,
       candidates: candidates(el),
-      identity: identityOf(el, cache),
-      blocked: el.tagName === "FORM" ? null : blockedBy(el, { keys: typeable(el), cover }),
     };
   }
 
@@ -1643,6 +1658,7 @@
     snapshot,
     describe,
     locateAll,
+    readTargets,
     refOf,
     get,
     nameOf,

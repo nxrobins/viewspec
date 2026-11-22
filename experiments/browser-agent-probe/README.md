@@ -22,7 +22,7 @@ evals that open real sites (`apg_eval.py`, `real_sites_eval.py`) and `probe.py` 
              observe                                act
  browser ──────────────► snapshot ──► lift ──► view, tools ──► plan ──► steps ──► browser
  (bridge.js)  composed tree   agent profile  handles [n]      checked   by ref, or by
-              + live state    controls, forms                 in Python verified locator
+              + live state    controls, forms                 in Python checked identity
               + data-lift-ref
 ```
 
@@ -42,8 +42,15 @@ evals that open real sites (`apg_eval.py`, `real_sites_eval.py`) and `probe.py` 
 
 ### Locators
 
-At each observation, the bridge finds a locator for every control: it must match exactly one
-element, and that element must be the one the ref names. It tries, in order:
+Normal observations capture each control and form's identity and blocked state in one page call.
+They do not generate selectors, scan the document for candidate matches, or ask Playwright to
+verify every control. At action time, the bridge checks the saved ref and identity; if the element
+was replaced, it searches for a unique visible successor with that identity. Route, item, ambiguity,
+and current actionability checks still apply. Paging and find reuse the saved reading.
+
+`BrowserSession.observe(locate=True)` explicitly prepares exportable selectors for diagnostics.
+`probe.py` uses this mode, then calls `confirm_locators()` to verify them in Playwright. Each
+selector must match exactly the element its ref names. The diagnostic pass tries, in order:
 
 1. a stable attribute: `#id` (not a generated-looking id), `data-testid` and its kin,
    `data-action-id`, `name` (with `value` for a radio), `aria-label`, `title`, `placeholder`, `href`;
@@ -58,8 +65,9 @@ crosses open shadow roots, so a control in a web component needs no special path
 
 The page checks kinds 1 and 2 itself, for all controls in one call: it queries the document and every
 open shadow root as Playwright CSS does, and counts `:has-text()` matches by text. Playwright checks
-only the rest (role and name, exact text, a path that crosses a shadow root), one by one. On the
-675-control catalog this takes a reading from 9.7 s to 0.9 s. A locator is used only when a ref has
+only the rest (role and name, exact text, a path that crosses a shadow root), one by one. This
+diagnostic work can be expensive on pages with many repeated controls. A prepared locator is used
+only when a ref has
 gone stale, and then only kinds 1 and 2, and only if the one element it finds has the control's
 identity (see below), so a locator that Playwright reads differently fails safely. Kinds 3 to 5 say
 what a control is called or where it was, not which one it is, so they are never followed after a
@@ -92,8 +100,8 @@ things the same way. A step then finds its element:
   "Resend code (59s)") stays usable; an item's label is compared exactly, so "Order 1042" is never
   "Order 1043". An element that reads as something else is refused
   (`drift: the control read as "Add to cart" now reads "Added"`).
-- **by css**, when the element is gone: a stable attribute or a content anchor that finds exactly one
-  element, and that element has the identity.
+- **by css**, when the element is gone and selectors were explicitly prepared: a stable attribute
+  or a content anchor that finds exactly one element, and that element has the identity.
 - **by name**, otherwise: the one visible element with that tag, that name, and those items, wherever
   the page drew it. This is how a step follows its item through a list that was sorted, whether the
   page built new elements or wrote the products into the old ones.

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Large locator catalog</title>
+<h1>Catalog</h1>
+<p role="status">Nothing added</p>
+<main></main>
+<script>
+  // Repeated controls with no unique selector: eagerly verifying every role/name or structural
+  // fallback is expensive, even when the caller asks for only the first line of the reading.
+  document.querySelector("main").innerHTML = Array.from({length: 600}, (_, i) => `
+    <article><h2>Entry ${i}</h2>
+      <form><label>Quantity <input type="number" name="quantity" value="1"></label>
+      <button>Add</button></form>
+    </article>`).join("");
+  document.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const name = event.target.closest("article").querySelector("h2").textContent;
+    document.querySelector("[role=status]").textContent = `Added ${name}`;
+  });
+</script>
+</html>
