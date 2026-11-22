@@ -16,6 +16,9 @@ The bridge and the MCP server run in CI on every pull request, in Chromium on Py
 agent tasks in `tests/test_browser_bridge_e2e.py`. See [Checked in CI](#checked-in-ci). The two
 evals that open real sites (`apg_eval.py`, `real_sites_eval.py`) and `probe.py` are run by hand.
 
+For the reproducible three-tool comparison and the revised Books evidence/output contracts,
+see [comparison/README.md](comparison/README.md).
+
 ## The loop
 
 ```text
