@@ -193,9 +193,10 @@ readonly calendars retain UI interaction. Ambiguous numeric dates cannot prove s
 fields accept six-digit sRGB hex (`#rrggbb`), normalized to lowercase before filling; other CSS
 colors, alpha and wider color-space controls are outside this initial contract.
 For a two-field calendar range, the bridge continues in the start picker when the end field's
-`aria-controls` identifies that same still-open picker. It activates independent end fields
-separately; proximity alone does not prove a shared picker. Both endpoints must verify before
-submission, including widgets that fill both fields only after the second day is chosen.
+`aria-controls` identifies that same still-open picker, including a grid inside its dialog.
+It activates independent end fields separately; proximity alone does not prove a shared picker.
+Both endpoints must verify before submission, including widgets that fill both fields only after
+the second day is chosen.
 
 A form call checks each argument the way the browser's constraint validation will when the form
 is sent (an email's format, `minlength`, `pattern`, `min`, `max`, `step`, a required field left

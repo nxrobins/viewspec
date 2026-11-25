@@ -1608,12 +1608,13 @@
   // the page is found this way); else one drawn next to the field (within 48 px) or around it. A
   // calendar always on the page somewhere else (an inline example) is not taken for the field's.
   // Among those, the named one wins, then a new one, then the nearest in the tree, then the one with
-  // the most day cells.
+  // the most day cells. Keep that ownership evidence when returning the surrounding calendar.
   function calendarFor(el, seen, calendars) {
     const named = (el.getAttribute("aria-controls") || "").split(/\s+/).filter(Boolean).map((id) => byId(el, id));
     const fieldBox = el.getBoundingClientRect();
     let best = null;
     let bestScore = null;
+    let owned = false;
     for (const { el: candidate, count } of calendars || shownCalendars(el)) {
       const isNamed = named.some((n) => n && (n === candidate || n.contains(candidate)));
       if (named.some(Boolean) && !isNamed) continue;
@@ -1625,11 +1626,14 @@
       if (!bestScore || lowerScore(score, bestScore)) {
         best = candidate;
         bestScore = score;
+        owned = isNamed;
       }
     }
-    // Move up to the dialog around a grid, where the month title and buttons are.
-    const outer = best && best.closest("[role=dialog], [class*=calendar i], [class*=picker i]");
-    return outer && dayCells(outer).length >= dayCells(best).length ? outer : best;
+    if (!best) return null;
+    // Move up to the dialog around a grid, where the month title and buttons are. Ownership
+    // belongs to the matched candidate; aria-controls may name the inner grid, not its wrapper.
+    const outer = best.closest("[role=dialog], [class*=calendar i], [class*=picker i]");
+    return {calendar: outer && dayCells(outer).length >= dayCells(best).length ? outer : best, owned};
   }
   // The months a calendar shows, from their titles ("November 2026"), each with the day cells under
   // it: [{month: {y, m}, cells}]. Several titles mean several months side by side. Each month's
@@ -1668,8 +1672,9 @@
     if (!el) return { state: "stale" };
     const calendars = shownCalendars(el);
     const visible = calendars.map((item) => refOf(item.el));
-    const cal = calendarFor(el, seen, calendars);
-    if (!cal) return { state: "closed", visible };
+    const match = calendarFor(el, seen, calendars);
+    if (!match) return { state: "closed", visible };
+    const {calendar: cal, owned} = match;
     const [ty, tm, td] = iso.split("-").map(Number);
     const cells = dayCells(cal).map((cell) => {
       const date = fullDate(dayLabel(cell));
@@ -1728,8 +1733,7 @@
     return {
       state: "open",
       calendar_ref: refOf(cal),
-      owned: (el.getAttribute("aria-controls") || "").split(/\s+/).filter(Boolean)
-        .some(id => { const owner = byId(el, id); return owner && (owner === cal || owner.contains(cal)); }),
+      owned,
       visible,
       shown: shownMonth,
       last: lastMonth,

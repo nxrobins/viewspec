@@ -77,12 +77,13 @@ def app(monkeypatch):
                         display = f"{day:02}/12/2026" if mode == "ambiguous" else f"2026-12-{day:02}"
                         fields += f"""<button type="button" aria-label="December {day}, 2026" onclick="document.getElementById('{key}').value='{display}'">{day}</button>"""
                     fields += "</div></div>"
-            if mode in {"shared-range", "shared-deferred", "shared-noop"}:
-                fields += """<label>Start date<input name="start" id="start" readonly aria-controls="shared-calendar"></label>
-                    <label>End date<input name="end" id="end" readonly aria-controls="shared-calendar"></label>
+            if mode in {"shared-range", "shared-deferred", "shared-range-grid", "shared-deferred-grid", "shared-noop"}:
+                owner = "shared-days" if mode.endswith("-grid") else "shared-calendar"
+                fields += f"""<label>Start date<input name="start" id="start" readonly aria-controls="{owner}"></label>
+                    <label>End date<input name="end" id="end" readonly aria-controls="{owner}"></label>
                     <input name="opens" id="opens" type="hidden" value="0">
                     <output id="picks">Picks 0</output>
-                    <div id="shared-calendar" role="dialog" hidden><h2>December 2026</h2><div role="grid">"""
+                    <div id="shared-calendar" role="dialog" hidden><h2>December 2026</h2><div role="grid" id="shared-days">"""
                 for day in range(1, 32):
                     fields += f'<button type="button" data-date="2026-12-{day:02}">{day}</button>'
                 fields += "</div></div>"
@@ -99,7 +100,7 @@ def app(monkeypatch):
                         if(location.pathname==='/shared-noop')return;
                         if(!pending){
                             pending=e.target.dataset.date;
-                            if(location.pathname!=='/shared-deferred')start.value=pending;
+                            if(!location.pathname.startsWith('/shared-deferred'))start.value=pending;
                         }else{start.value=pending;end.value=e.target.dataset.date;calendar.hidden=true;}
                     };
                 """
@@ -312,7 +313,7 @@ def test_ambiguous_numeric_date_cannot_prove_the_requested_date(app):
 
 
 @pytest.mark.parametrize("use_call", [False, True])
-@pytest.mark.parametrize("mode", ["shared-range", "shared-deferred"])
+@pytest.mark.parametrize("mode", ["shared-range", "shared-deferred", "shared-range-grid", "shared-deferred-grid"])
 def test_shared_range_finishes_in_open_picker_without_reactivating_end(app, use_call, mode):
     tools, origin, journal = app
     page = tools.observe(url=origin + "/" + mode)

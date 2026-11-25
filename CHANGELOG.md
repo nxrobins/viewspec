@@ -73,9 +73,10 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
-- The browser bridge keeps using an explicitly shared calendar to finish a date range, avoiding
-  a second input click that can reset the start date. Independent calendars still open separately,
-  and ranges whose fields update only after the second day are verified together.
+- The browser bridge finishes date ranges in an explicitly shared calendar, including a named
+  grid inside a dialog. This avoids a second input click that can reset the start date. Independent
+  calendars still open separately, and ranges whose fields update only after the second day are
+  verified together.
 - Form calls now recognize an unambiguous visible selection in a single-choice combobox even
   when its option list is partial. Reselecting that value needs no option activation, and omitted
   fields can preserve it. Query-only or conflicting state remains unknown; a stale selected
