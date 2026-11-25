@@ -226,7 +226,10 @@ async def run(base: str, folder: Path) -> None:
         )
         swe = await tool(session, "act", handle=handle(shop, "Country"), action="select", value="Swe")
         check(swe["ok"] and swe["steps"][0]["chosen"] == "Sweden", "select chose Sweden from the delayed list")
-        check("'Country' = 'Sweden'" in swe["view"], "and the new view shows it")
+        check(
+            "query: 'Sweden'" in swe["view"] and swe["steps"][0]["verified"],
+            "the query and verified selection are distinct",
+        )
         many = await tool(session, "act", handle=handle(swe, "Country"), action="select", value="S")
         check(
             not many["ok"]
@@ -234,7 +237,7 @@ async def run(base: str, folder: Path) -> None:
             and "Switzerland" in many["summary"],
             "an ambiguous choice is refused, with the options it matched",
         )
-        check("'Country' = 'Sweden'" in many["view"], "and the field keeps its value")
+        check("query: 'S'" in many["view"], "the failed search remains visible without automatic rollback")
         wrap = await tool(session, "act", handle=handle(swe, "Gift wrap"), action="select", value="Paper")
         check(wrap["ok"] and "'Gift wrap' = 'Paper'" in wrap["view"], "a click-to-open combobox chose Paper")
 

@@ -377,8 +377,8 @@ def choosing(session: BrowserSession, base: str) -> None:
     check(picked[0].verified is True, "and the combobox shows it")
     after = session.observe()
     check(
-        changes(before, after)["lines"] == [f"changed [{country}] combobox 'Country': value '' -> 'Japan'"],
-        "the diff shows the new value",
+        after.handles[country].choice.query == "Japan" and after.handles[country].value is None,
+        "the reading keeps the search query separate from selection evidence",
     )
 
     for value, words in (("S", "more than one option matches"), ("Atlantis", "no option named")):
@@ -388,13 +388,13 @@ def choosing(session: BrowserSession, base: str) -> None:
         except BridgeError as error:
             print(f"  !!  {error}")
             check(words in str(error), f"{value!r} is refused: {words}")
-        check(session.observe().handles[country].value == "Japan", "and the field still holds Japan")
+        check(
+            session.observe().handles[country].choice.query == value,
+            "the search remains visible; no rollback was attempted",
+        )
 
-    # A refused choice puts back the text it typed over, and the page answers that as it answers any
-    # typing: 300 ms later its list opens again, with Japan. Wait for that here. Otherwise it lands
-    # in one of the diffs below, and which one depends on how fast this machine is.
-    late = session.wait(ChangeCondition.from_json({"change": "any"}), session.observe(), timeout_ms=2000)
-    print(f"  ..  waited {late.waited_ms} ms for the page to answer the text that was put back")
+    # Search failures preserve their current UI. Restoring text or pressing Escape can apply
+    # changes in custom widgets and is not a generic cancellation operation.
 
     city = handle_named(session, "Pickup city")
     before = session.observe()
@@ -402,9 +402,8 @@ def choosing(session: BrowserSession, base: str) -> None:
     show(lisbon)
     check(lisbon[0].chosen == "Lisbon" and lisbon[0].verified, "a combobox that filters on key presses chose Lisbon")
     check(
-        changes(before, session.observe())["lines"]
-        == [f"changed [{city}] combobox 'Pickup city': value '' -> 'Lisbon'"],
-        "the diff shows Lisbon",
+        session.observe().handles[city].choice.query == "Lisbon" and lisbon[0].selection["selected"] == ["Lisbon"],
+        "the reading exposes the query and the action independently verifies Lisbon",
     )
 
     colour = handle_named(session, "Colour")
@@ -466,8 +465,8 @@ def choosing(session: BrowserSession, base: str) -> None:
         print(f"  !!  {error}")
         check(
             "Alan Turing, Alan Turing Institute, Alan Turing law" in str(error)
-            and session.observe().handles[box].value == "",
-            "'Alan' is refused with the three titles, and the typed text is removed",
+            and session.observe().handles[box].choice.query == "Alan",
+            "'Alan' is refused with the three titles, and the search stays available to inspect",
         )
 
 

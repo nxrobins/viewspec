@@ -159,12 +159,27 @@ derives occupancy from live fields, including JavaScript prefill, and overwrites
 state hints. Static lifts without a live state hint report `unknown`, which does not mean empty.
 Clearing a secret produces a `value_state 'filled' -> 'empty'` change and a verified fill step.
 
-Omitted form arguments preserve current values, including hidden values. To leave an editable
+Omitted form arguments preserve their live semantic field values. Hidden protocol fields (such as
+CSRF tokens) remain app-owned and may change. To leave an editable
 text/password field blank, explicitly pass an empty string, for example
 `call(tool="checkout", arguments={"new_password": ""}, submit=false)`, or
 `act(handle=10, action="fill", value="")` with the current password handle. An omitted required
-secret must have known `filled` state; `unknown` cannot satisfy that precheck. A successful action
-confirms the steps performed and any requested wait, not conditions on untouched fields.
+secret must have known `filled` state; `unknown` cannot satisfy that precheck. A form call keeps requested states even when no action is needed. It captures omitted semantic
+fields privately before editing, stops on failed state verification, and checks the entire contract
+before submission and through the submitter's browser events. A mismatch fails the operation;
+unknown state withholds automatic submission and reports uncertainty. `submit=false` also checks
+the final field contract. `progress.contract` lists field statuses by one-based intent index (form
+argument order, with one entry per radio option); `progress.submission` distinguishes `withheld`
+from `attempted`. Existing step progress and passed/blocked write counts remain available.
+
+This is a UI consistency contract. Earlier autosaves remain real effects; the bridge neither rolls
+back nor automatically replays a batch. Custom JavaScript request payloads and server acceptance
+still require application evidence. Event guards are removed on completion or failure.
+
+Editable custom dates use typed entry when their visible placeholder establishes numeric order;
+readonly calendars retain UI interaction. Ambiguous numeric dates cannot prove success. Color
+fields accept six-digit sRGB hex (`#rrggbb`), normalized to lowercase before filling; other CSS
+colors, alpha and wider color-space controls are outside this initial contract.
 
 A form call checks each argument the way the browser's constraint validation will when the form
 is sent (an email's format, `minlength`, `pattern`, `min`, `max`, `step`, a required field left
@@ -187,12 +202,35 @@ A custom combobox shows its options only when it is open, often only after you t
 after a server answers. `act(handle, "select", "Japan")` on a custom combobox or ARIA listbox plans a
 `choose` step, and the bridge:
 
-1. clicks the option at once if the list already shows it;
-2. otherwise opens the list: it clears an editable combobox and types the value key by key (most
-   lists filter as you type, some only on key presses), or clicks a select-only one;
+1. reads the shared choice contract: query, candidates, operation and selection evidence;
+2. refreshes editable discovery through keyboard input, even if an earlier `fill` left the same
+   text in the box (some widgets search only on key presses), or opens a select-only list;
 3. waits for the option, waking on DOM changes, up to 5 s;
-4. clicks the option whose name is the value (ignoring case), or else the one option whose name starts
-   with it, and checks that the combobox now shows it. `chosen` names the option.
+4. resolves an unambiguous supported candidate by name or prefix, binds its full meaning and
+   identity, and rechecks owner, query generation, popup and meaning before and during activation;
+5. verifies selection independently of the search query. `chosen` names the activated candidate;
+   `selection` records operation, changed state and selected values. Persistence remains unverified.
+
+Candidate metadata preserves the full name and description alongside the short label, and a kind:
+`select`, `navigate`, `create`, or `unknown`. Create and unknown candidates retain explicit action
+handles and are excluded from form examples. They are never an implicit fallback for `select`.
+Generic ARIA options with unexplained qualifiers require explicit activation; ARIA alone cannot
+prove the effects of arbitrary page code. Query equality alone cannot verify a selection.
+
+The bounded `vikunja-labels` adapter recognizes the label widget's surrounding structure, owned
+results, loading indicator, create rows and removable selected chips. Its scalar select adds one
+existing label and preserves other memberships; repeating an already selected label does not
+activate it again. It does not claim whole-set replacement semantics from the popup's single-choice
+ARIA role. Both `act` and form `call` use this same execution and verification path. A form stops
+before submission when selection is unknown, mismatched, or unexpectedly removes an earlier item.
+Such a failure can follow real effects: `may_repeat` warns that retrying could duplicate them.
+Verification stays bound to the original adapter, operation, mode and commit behavior. Temporary
+loss of ownership during popup retirement is unknown until the contract returns; the selected set
+and verification result are read together, without falling back to a weaker generic match.
+
+Explicit nested controls keep independent handles, such as Edit Label inside a filter link.
+Decorative children and inferred clickable wrappers still collapse into the action they name.
+This preserves normal UI readback without eager locator preparation.
 
 A read-only combobox (`aria-readonly`, as react-select without search and Ant Design mark theirs) is
 not typed in: ARIA says it is "not editable, but otherwise operable", so the bridge clicks it to open
@@ -207,15 +245,51 @@ stops there and names them (`BROWSER_PLAN_INTERRUPTED`), and the agent observes 
 A plain text or search field may offer suggestions once typed into: Wikipedia's search box is a
 plain field until it has focus, then a combobox. `select` on such a field plans a `choose` too; the
 bridge types the value and picks the suggestion that shows, or refuses when no list opens. An option
-that shows a description under its title is named by the title, its first line, so "Alan Turing"
-is one option, not the three that start with it. When the page replaces the field while it is typed
+that shows a description under its title preserves both lines; its first line supports discovery
+while a link supplies the navigation action. When the page replaces the field while it is typed
 into (a typeahead that mounts over the search box), the bridge follows it to the new element by its
 identity, and goes on.
 
-If two or more options match, or none shows, the step is refused with the names the list showed, the
-typed text is put back, and the list is closed with Escape:
-`choose: more than one option matches "S": Spain, Sweden, Switzerland; the typed text was removed`.
-In a form tool call, a combobox field is chosen the same way.
+If two or more options match, or none shows, the step is refused and the current UI remains
+available to inspect. Neither text restoration nor Escape is a generic rollback: either can run
+page code, and Gitea saves pending selections when its menu closes.
+
+Observation and execution share a live choice descriptor: owner/popup, cardinality, visible
+options, selected-state knowledge, coverage and apply behavior. Popup ownership groups controls;
+only represented options are suppressed. Residual links, buttons, prose and search inputs remain
+visible. Search inputs inside a choice widget are not additional form arguments. An unsupported
+open popup is distinguished from an empty list and omitted from typed form arguments.
+
+Known multiple-selection widgets take an **array with the exact desired set**, including `[]` to
+clear; omission preserves state. Scalar requests on these widgets are refused with an array hint,
+rather than silently changing their meaning. The bridge checks coverage and selected state before
+removing anything, validates the whole requested set, and clicks only the necessary changes.
+Repeating a satisfied set does not toggle options. Generic ARIA multiple lists need declared
+set-size evidence for complete coverage; filtered or unknown sets cannot authorize replacement.
+
+The tested `gitea-sidebar` adapter recognizes the issue sidebar's explicit selection mode,
+checkmarks and nested items; arbitrary `.selected` or `.checked` classes are not interpreted as
+selection state. It applies the known close action and verifies the resulting visible selection,
+including sidebar replacement. Single-choice ARIA widgets retain their existing string interface.
+Every internal interaction rechecks the observation's route, owner identity, option ownership,
+disabled state and pointer reachability.
+
+Choice results include `selection.changed`, the selected names, and a `completion` of `ui`,
+`form_pending`, or `closed`. `persistence: unverified` distinguishes UI verification from a saved
+business result. Normal transport-policy outcomes still take precedence. A failed choice does
+not automatically submit the rest of a form. `progress` reports applied/verified/failed/not-run
+fields and whether submission was attempted. No atomicity or rollback is promised.
+
+After an action, navigation may interrupt the following read. The session retries interrupted
+snapshots and rejects target identities captured from a different document or route. Recovery
+is bounded and read-only: it never repeats a click, submission or form plan. An explicit wait
+continues checking its original condition within its elapsed-time budget.
+
+If the page still cannot be read, `BROWSER_OBSERVATION_FAILED` retains completed `steps` and
+`progress`, with an uncertain outcome and `retry: may_repeat`. `progress.writes` counts recorded
+write dispositions (`passed`, `blocked`, `blocked-and-simulated`); a passed request is transport
+evidence, not proof that an order was persisted. A blocked write still takes precedence. Observe the resulting
+page to establish the business result before deciding whether another action is needed.
 
 ### Dates
 
@@ -819,7 +893,7 @@ sets the variable the suite reads, so the tasks cannot be skipped there unseen.
   a new page after the submit is met at once.
 - **choosing:** on the country combobox, whose options come 300 ms after each keystroke, "Jap"
   chooses Japan and the diff shows the new value; "S" (Spain, Sweden, Switzerland) and "Atlantis" are
-  refused, and the field still holds Japan. The pickup city combobox filters only on key presses, as the
+  refused, and the current search stays visible without automatic rollback. The pickup city combobox filters only on key presses, as the
   W3C APG examples do; "Lis" chooses Lisbon. The colour combobox is built like react-select without
   search: a read-only input a person cannot see, the choice shown in the box beside it, and an
   announcement in a live region; its value reads "Pick a colour", a click on the box opens the list,

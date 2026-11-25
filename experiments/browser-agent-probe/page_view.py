@@ -36,9 +36,22 @@ def control_line(
         elif control.value and not control.secret:
             line += f" = {redact(control.value)[:TEXT_PREVIEW]!r}"
         if control.options:
-            shown = "|".join(option.label for option in control.options[:OPTION_PREVIEW])
+            shown = "|".join(
+                (f"[{option.kind}] " if option.kind in {"create", "unknown", "navigate"} else "")
+                + redact(option.name or option.label)
+                for option in control.options[:OPTION_PREVIEW]
+            )
             more = f"|+{len(control.options) - OPTION_PREVIEW}" if len(control.options) > OPTION_PREVIEW else ""
             line += f" options: {shown}{more}"
+        if control.choice is not None:
+            if control.choice.query and not control.secret:
+                line += f" query: {redact(control.choice.query)[:TEXT_PREVIEW]!r}"
+            if control.choice.operation == "add":
+                line += " (select adds one existing item; preserves selected items)"
+            if control.multiple:
+                line += " multiple (select an exact array; [] clears)"
+            if not control.options:
+                line += f" choices: {control.choice.state}"
         if control.required:
             line += " required"
         if control.secret:
@@ -166,6 +179,14 @@ def view_lines(
             for member in group:
                 group_of[member] = group
     controls = {control.node_id: control for control in lift.controls}
+    represented = {
+        option.node_id
+        for control in lift.controls
+        for option in control.options
+        if option.kind not in {"create", "unknown"}
+    }
+    label_refs = {control.choice.label_ref for control in lift.controls if control.choice and control.choice.label_ref}
+    represented.update(node.id for node in lift.nodes if node.attrs.get("data-lift-ref") in label_refs)
     forms = {form.node_id: form for form in lift.forms}
     messages = {message.node_id: message for message in lift.messages}
     tool_names = {form.node_id: name for form, name in zip(lift.forms, form_tool_names(lift.forms), strict=True)}
@@ -208,6 +229,9 @@ def view_lines(
     for node in lift.nodes:
         if node.id in hidden:
             continue  # A closed dialog's rows and lists are not on the page the user sees.
+        if node.id in represented:
+            owned_text.add(node.id)
+            continue
         if node.parent_id in owned_text or node.tag in {"label", "legend"}:
             owned_text.add(node.id)
         if node.parent_id in in_row and node.id not in controls:
@@ -238,8 +262,9 @@ def view_lines(
             in_row.add(node.id)
             continue
         if node.id in controls:
-            owned_text.add(node.id)
             control = controls[node.id]
+            if control.choice is None:
+                owned_text.add(node.id)
             handle = len(handles) + 1
             handles[handle] = control
             line = control_line(handle, control, blocked=node.id in blocked, redact=redact)

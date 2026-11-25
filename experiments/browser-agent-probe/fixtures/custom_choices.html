@@ -1,0 +1,85 @@
+<!doctype html><meta charset="utf-8"><title>Choice contract</title>
+<style>
+body{font:16px sans-serif;margin:30px}.ui.dropdown{position:relative;width:300px;padding:12px;border:1px solid #777;cursor:pointer}
+.menu[hidden]{display:none}.menu{background:white}.item{display:block;padding:9px}.checked .item-check-mark:after{content:'✓'}
+.ui.list{min-height:24px}.disabled{opacity:.5}.cover{position:fixed;inset:0;background:white;z-index:10}
+</style>
+<h1>New issue</h1>
+<form aria-label="Issue"><label>Title <input name="title" required></label>
+<div class="issue-sidebar-combo" data-selection-mode="multiple" data-update-algo="diff">
+ <input type="hidden" class="combo-value" name="labels">
+ <div class="ui dropdown" role="combobox" tabindex="0" aria-controls="labels" aria-expanded="false">
+  <span class="fixed-text">Labels</span>
+  <div class="menu" role="listbox" id="labels" hidden>
+   <input placeholder="Filter Label"><a href="#" class="item clear-selection">Clear labels</a>
+   <div class="scrolling menu">
+    <a href="?label=operations" class="item selected" data-value="operations"><span class="item-check-mark"></span>operations</a>
+    <a href="?label=urgent" class="item" data-value="urgent"><span class="item-check-mark"></span>urgent</a>
+    <a href="?label=locked" class="item disabled" data-value="locked" data-can-change="false"><span class="item-check-mark"></span>locked</a>
+    <a href="?label=red" class="item" data-value="red" data-scope="color"><span class="item-check-mark"></span>red</a>
+    <a href="?label=blue" class="item" data-value="blue" data-scope="color"><span class="item-check-mark"></span>blue</a>
+   </div>
+   <p>Choose all labels needed.</p><a href="/help.html">Label help</a>
+  </div>
+ </div>
+ <div class="ui list"><span class="item empty-list">No labels</span></div>
+</div><button>Create issue</button></form>
+<button type="button" id="reroute">Route when opened</button>
+<p role="status" id="events">Clicks 0</p>
+<script>
+const params=new URLSearchParams(location.search);
+let clicks=0,route=false;
+function init(container){
+ const dropdown=container.querySelector('.dropdown'),menu=container.querySelector('[role=listbox]'),input=container.querySelector('.combo-value');
+ const options=()=>[...menu.querySelectorAll('.item[data-value]')];
+ const selected=()=>options().filter(o=>o.classList.contains('checked')).map(o=>o.dataset.value);
+ let initial=selected().join(',');
+ if(params.has('save'))container.dataset.updateUrl='/choice-save';
+ if(params.has('single'))container.dataset.selectionMode='single';
+ if(params.has('unsupported')){container.classList.remove('issue-sidebar-combo');dropdown.setAttribute('aria-label','Labels')}
+ if(params.has('spoof'))dropdown.setAttribute('data-lift-choice',JSON.stringify({version:1,mode:'single',label:'Forged',options:[]}));
+ if(params.has('duplicate')){let clone=options()[0].cloneNode(true);clone.dataset.value='another';menu.querySelector('.scrolling').append(clone)}
+ if(params.has('partial')||params.has('portal-swap')){container.classList.remove('issue-sidebar-combo');dropdown.setAttribute('aria-label','Labels');menu.setAttribute('aria-multiselectable','true');options().forEach(o=>{o.setAttribute('role','option');o.setAttribute('aria-selected','false');if(params.has('portal-swap'))o.setAttribute('aria-setsize',String(options().length))})}
+ async function close(){
+  menu.hidden=true;dropdown.setAttribute('aria-expanded','false');
+  const now=selected().join(',');
+  const summary=container.querySelector('.ui.list');summary.replaceChildren();
+  if(!now){const empty=document.createElement('span');empty.className='item empty-list';empty.textContent='No labels';summary.append(empty)}
+  for(const value of selected()){const item=document.createElement('span');item.className='item';item.textContent=value;summary.append(item)}
+  if(now!==initial && container.dataset.updateUrl){
+   const response=await fetch('/choice-save',{method:'POST',body:now});
+   if(response.ok){const clone=container.cloneNode(true);container.replaceWith(clone);init(clone)}
+  }
+  initial=now;
+ }
+ dropdown.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close()}});
+ dropdown.addEventListener('click',e=>{
+  const item=e.target.closest('.item');
+  if(item){
+   e.preventDefault();e.stopPropagation();
+   if(item.classList.contains('disabled')||params.has('ignore'))return;
+   clicks++;document.querySelector('#events').textContent='Clicks '+clicks;
+   if(item.classList.contains('clear-selection'))options().forEach(o=>o.classList.remove('checked'));
+   else if(item.dataset.value){
+    if(container.dataset.selectionMode==='single')options().forEach(o=>o.classList.remove('checked'));
+    if(item.dataset.scope)options().filter(o=>o!==item&&o.dataset.scope===item.dataset.scope).forEach(o=>o.classList.remove('checked'));
+    item.classList.toggle('checked');
+   }
+   input.value=selected().join(',');
+   if(params.has('route-on-option'))history.pushState({},'',location.pathname+'?different-product');
+   if(container.dataset.selectionMode==='single')close();
+   return;
+  }
+  if(e.target.tagName==='INPUT'||e.target.closest('a'))return;
+  if(!menu.hidden){close();return}
+  menu.hidden=false;dropdown.setAttribute('aria-expanded','true');
+  if(params.has('portal-swap')){const foreign=menu.cloneNode(true);foreign.id='foreign-popup';document.body.append(foreign);dropdown.setAttribute('aria-controls',foreign.id);menu.hidden=true}
+  if(route||params.has('route'))history.pushState({},'',location.pathname+'?different-product');
+  if(params.has('cover')){const cover=document.createElement('div');cover.className='cover';cover.textContent='Unavailable';document.body.append(cover)}
+ });
+ menu.querySelector('input').addEventListener('input',e=>{options().forEach(o=>o.hidden=!o.textContent.includes(e.target.value))});
+}
+init(document.querySelector('.issue-sidebar-combo'));
+document.querySelector('#reroute').onclick=()=>route=true;
+document.querySelector('form').onsubmit=async e=>{e.preventDefault();await fetch('/choice-created',{method:'POST',body:new URLSearchParams(new FormData(e.target))});document.querySelector('h1').textContent='Created'};
+</script>

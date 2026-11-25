@@ -72,6 +72,7 @@ from viewspec.raw_html_actions import (
     MAX_UPLOAD_BYTES,
     ActionStep,
     AgentActionError,
+    FormPlan,
     UploadFile,
     plan_control_action,
     plan_form_call,
@@ -364,7 +365,11 @@ class BrowserTools:
         goes only into a field the view marks secret. ``select`` takes an option value or label (a list for a
         multiple select). On a custom combobox or listbox, ``select`` chooses from its list: it opens
         the list (typing the value into an editable combobox), waits for the option, and clicks the one
-        whose name is the value, or starts with it; ``steps[0].chosen`` names it. On a date field,
+        whose name is the value, or starts with it; ``steps[0].chosen`` names it. Query text is not
+        selection evidence. Create or unknown actions keep explicit handles and are never an
+        implicit fallback for select. When marked "select adds", selection adds one existing item
+        and preserves the others. A failed verification can follow a completed activation: inspect
+        current state and writes before another mutation. On a date field,
         ``select`` takes a date and picks it from the field's calendar. On a field marked ``range``, or
         on either field of a pair marked ``(range start)`` and ``(range end)``, it takes a range:
         ``{"start": "2026-11-20", "end": "2026-11-23"}``, ``["2026-11-20", "2026-11-23"]``, or
@@ -447,7 +452,7 @@ class BrowserTools:
         """Fill in a form with ``arguments`` and submit it, then read the page again.
 
         ``tool`` is a name from ``form_tools``; ``arguments`` follows its ``input_schema``. Arguments you
-        leave out preserve their current values, including hidden values. Explicitly send an empty
+        leave out preserve their live semantic field values; hidden protocol fields remain app-owned. Explicitly send an empty
         string (``""``) to clear an editable text/password field; omission does not clear it.
         ``x-value-state`` is empty, filled, or unknown; unknown does not mean empty.
         ``submit=false`` only fills the form. Every problem
@@ -698,7 +703,7 @@ class BrowserTools:
         )
         self._said_for_write = self._said
         try:
-            results = session.run(steps, observation=observation) if steps else []
+            results = session.run(steps, observation=observation) if steps or isinstance(steps, FormPlan) else []
         except BridgeError as error:
             # Some steps may have run; show the agent the page as it is now, if it can be read.
             self._on_steps = frozenset(seq for item in error.steps for seq in item.event_seqs)
@@ -707,29 +712,76 @@ class BrowserTools:
                 current.pop("_note")
             except BridgeError:
                 current = None
-            code = _bridge_code(error)
+            code = "BROWSER_OBSERVATION_FAILED" if error.observation_failed else _bridge_code(error)
             refused = tool_error_response(code, str(error), _bridge_fix(code), data=current)
             if error.steps:
                 refused["steps"] = [item.to_json() for item in error.steps]  # The ones that ran.
+            refused["progress"] = self._progress(steps, error.steps, observation, error)
+            if session.action_progress:
+                refused["progress"]["writes"] = dict(session.action_progress["writes"])
+                refused["progress"]["submission"] = session.action_progress["submission"]
+                if "contract" in session.action_progress:
+                    refused["progress"]["contract"] = session.action_progress["contract"]
             return refused
         self._on_steps = frozenset(seq for item in results for seq in item.event_seqs)
         self._said += "".join(f"\n{item.chosen}" for item in results if item.chosen and not item.step.secret)
         self._said_for_write = self._said
         summary = "Nothing to do: the control is already in that state." if not steps else _summary(results)
-        if condition is None:
-            result = self._observe_result(summary, since=observation)
-        else:
-            try:
+        try:
+            if condition is None:
+                result = self._observe_result(summary, since=observation)
+            else:
                 waited = session.wait(condition, observation, timeout_ms=timeout_ms)
-            except BridgeError as error:
-                refused = _error(_bridge_code(error), str(error), "Observe the page, then decide.")
-                refused["steps"] = [item.to_json() for item in results]  # They ran; the reading failed.
-                return refused
-            result = self._waited_result(summary, waited, since=observation, acted=bool(steps))
+                result = self._waited_result(summary, waited, since=observation, acted=bool(steps))
+        except BridgeError as error:
+            result = _error(
+                "BROWSER_OBSERVATION_FAILED",
+                str(error),
+                "Observe the page; do not repeat the action to recover its result.",
+            )
         result["steps"] = [item.to_json() for item in results]
+        result["progress"] = self._progress(steps, results, observation)
+        if session.action_progress:
+            result["progress"]["writes"] = dict(session.action_progress["writes"])
+            result["progress"]["submission"] = session.action_progress["submission"]
+            if "contract" in session.action_progress:
+                result["progress"]["contract"] = session.action_progress["contract"]
         result["navigated"] = any(item.navigated for item in results)
         result["outcome"] = outcome_of(result, self._activity(results, observation, started))
         return result
+
+    @staticmethod
+    def _progress(steps, results, observation, error=None):
+        """Report partial field application without promising a form transaction or rollback."""
+        controls = {control.node_id: control for control in observation.lift.controls}
+        fields = []
+        submitted = False
+        requested = False
+        for index, step in enumerate(steps):
+            result = results[index] if index < len(results) else None
+            failed = error is not None and error.failed_step == step
+            status = (
+                "failed"
+                if failed
+                else "verified"
+                if result and result.verified is True
+                else "applied"
+                if result
+                else "not_run"
+            )
+            entry = {"name": step.name, "status": status}
+            selection = result.selection if result else error.selection if failed else None
+            if selection:
+                entry["selection"] = selection
+            fields.append(entry)
+            control = controls.get(step.node_id)
+            if step.op == "submit" or (control and control.submits):
+                requested = True
+                submitted |= result is not None or failed
+        return {
+            "fields": fields,
+            "submission": "attempted" if submitted else "not_run" if requested else "not_requested",
+        }
 
     def _activity(self, results: list[StepResult], before: Observation, started: float) -> dict[str, Any] | None:
         """What the page did from the first step to the reading just made: DOM mutations (None on a
@@ -1060,6 +1112,10 @@ def _planning_error(error: AgentActionError) -> dict[str, Any]:
 
 def _bridge_code(error: BridgeError) -> str:
     message = str(error)
+    if message.startswith("form-mismatch:"):
+        return "BROWSER_FORM_MISMATCH"
+    if message.startswith("form-unknown:"):
+        return "BROWSER_FORM_UNKNOWN"
     if message.startswith("stale-view:"):
         return "BROWSER_OBSERVATION_STALE"
     if message.startswith("boundary-origin:"):
@@ -1103,6 +1159,14 @@ def _bridge_code(error: BridgeError) -> str:
 # comes back with the error is the page as it is now. "This step" and not "nothing": in a form call,
 # the steps before the refused one have run.
 _TARGET_FIXES = {
+    "BROWSER_FORM_MISMATCH": (
+        "Requested state was not verified. Earlier actions may already have taken effect. "
+        "Inspect the current selection and recorded writes before another mutation; do not repeat blindly."
+    ),
+    "BROWSER_FORM_UNKNOWN": (
+        "Selection evidence is incomplete. An activation may already have taken effect. "
+        "Inspect the current state before another mutation; do not repeat blindly."
+    ),
     "BROWSER_TARGET_DRIFT": (
         "The page changed under this view, and this step was not run. Find the control in the new view "
         "and use its handle."

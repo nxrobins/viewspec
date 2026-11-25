@@ -285,9 +285,30 @@ def test_hidden_unwrapped_elements_drop_their_content():
     assert set(controls) == {"Visible", "After"}
 
 
-def test_nested_controls_count_once():
+def test_nested_semantic_controls_keep_their_independent_actions():
     lift = lift_html('<a href="/p"><button>Buy</button></a>', profile="agent")
-    assert [(control.control, control.name) for control in lift.controls] == [("link", "Buy")]
+    assert [(control.control, control.name) for control in lift.controls] == [("link", "Buy"), ("button", "Buy")]
+
+
+def test_nested_edit_button_survives_but_decorative_and_hidden_children_do_not():
+    lift = lift_html(
+        '<a href="/?labels=1"><span>Equipment review</span><span><button aria-label="Edit Label">'
+        '<span data-lift-clickable="true">✎</span></button></span><button hidden>Hidden</button></a>',
+        profile="agent",
+    )
+    assert [(c.control, c.name) for c in lift.controls] == [("link", "Equipment review✎"), ("button", "Edit Label")]
+
+
+def test_nested_disabled_button_and_implicit_label_preserve_field_contracts():
+    lift = lift_html(
+        '<a href="/item">Item<button disabled>Edit</button></a><label>Title<input name="title"></label>',
+        profile="agent",
+    )
+    assert [(c.control, c.name, c.disabled) for c in lift.controls] == [
+        ("link", "ItemEdit", False),
+        ("button", "Edit", True),
+        ("text", "Title", False),
+    ]
 
 
 def test_a_role_button_owns_what_it_holds():

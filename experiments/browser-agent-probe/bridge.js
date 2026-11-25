@@ -725,7 +725,7 @@ async function snapshot({ collect_secrets: collectSecrets = false }) {
   // generation from before the snapshot: a route change during observation must expire it too.
   const navigationId = mainNavigations;
   const result = await page.evaluate(
-    ([selector, secrets]) => window.__viewspecLift.snapshot(selector, secrets),
+    ([selector, secrets]) => ({...window.__viewspecLift.snapshot(selector, secrets), url: location.href, title: document.title}),
     [INTERACTIVE_SELECTOR, collectSecrets],
   );
   // How busy the page is: DOM mutations so far in this document, requests so far, and the sequence
@@ -736,7 +736,8 @@ async function snapshot({ collect_secrets: collectSecrets = false }) {
     pending: [...pendingRequests.values()],
   };
   const cookies = await page.context().cookies();
-  return { url: page.url(), title: await page.title(), ...result, credential_values: cookies.map((cookie) => cookie.value),
+  if (navigationId !== mainNavigations) throw new Error("read-interrupted: the page changed during snapshot");
+  return { ...result, credential_values: cookies.map((cookie) => cookie.value),
     navigationId, activity };
 
 }
@@ -847,12 +848,22 @@ async function locateOne(request, frameCache, info) {
 
 // Normal observations capture identity and blocked state only. Target resolution and current
 // actionability checks still run on every action; exportable selectors are opt-in diagnostics.
-async function targets({ requests }) {
+async function requireReading(docId, navigationId) {
+  if (docId === undefined && navigationId === undefined) return; // Diagnostic callers without a saved reading.
+  const current = await page.evaluate(() => window.__viewspecLift.docId);
+  if (current !== docId || navigationId !== mainNavigations) {
+    throw new Error("read-interrupted: snapshot and target identities belong to different readings");
+  }
+}
+
+async function targets({ requests, doc_id: docId, navigation_id: navigationId }) {
   await ensureLibrary();
+  await requireReading(docId, navigationId);
   const infos = await page.evaluate(
     (refs) => window.__viewspecLift.readTargets(refs),
     requests.map((request) => request.ref),
   );
+  await requireReading(docId, navigationId);
   return Object.fromEntries(requests.map(({ key, ref }) => [key, {
     strategy: null,
     identity: infos[ref]?.identity || null,
@@ -865,8 +876,9 @@ async function targets({ requests }) {
 // across a shadow root), one by one. A locator is used only when a ref has gone stale, and then
 // only one by attribute or anchor, and only if the one element it finds has the control's identity
 // (see resolveTarget), so a page-checked locator that Playwright reads differently fails safely.
-async function locate({ requests }) {
+async function locate({ requests, doc_id: docId, navigation_id: navigationId }) {
   await ensureLibrary();
+  await requireReading(docId, navigationId);
   const infos = await page.evaluate(
     (refs) => window.__viewspecLift.locateAll(refs),
     requests.map((request) => request.ref),
@@ -886,6 +898,7 @@ async function locate({ requests }) {
     results[request.key].identity = (info && info.identity) || null;
     results[request.key].blocked = (info && info.blocked) || null;
   }
+  await requireReading(docId, navigationId);
   return results;
 }
 
@@ -963,7 +976,7 @@ async function resolveTarget(ref, spec) {
 
 // A control can be read without being usable: a dialog covers it, or the page has switched it off.
 // Refuse at once and say what is in the way, rather than wait for a click that cannot land.
-const KEY_OPS = new Set(["fill", "select", "choose", "choose_date", "choose_date_range"]);
+const KEY_OPS = new Set(["fill", "select", "choose", "choose_set", "choose_date", "choose_date_range"]);
 async function refuseIfBlocked(target, op) {
   if (op === "scroll" || op === "submit") return;
   const check = (settled) =>
@@ -1001,81 +1014,235 @@ async function clickableWidget(target) {
 // list yet, open the list: type the value into an editable combobox key by key (most filter as you
 // type), or click the control. Then wait for the option, waking on DOM changes, and click the one
 // match.
-async function choose(target, value, spec) {
-  const navigationsBefore = mainNavigations;
-  let ref = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
-  const find = () => page.evaluate(([r, v]) => window.__viewspecLift.findOption(r, v), [ref, value]);
+async function choose(target, value, spec, navigationId, values = null) {
+  let ref = await target.evaluate(el => window.top.__viewspecLift.refOf(el));
   const deadline = Date.now() + ACTION_TIMEOUT;
-  let found = await find();
-  let typedOver = null; // The field's text before this step typed into it.
-  if (found.state === "missing") {
-    // A read-only combobox (react-select without search, Ant Design) cannot be typed in; a click opens it.
-    const editable = await target.evaluate(
-      (el) =>
-        (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable) &&
-        !el.readOnly &&
-        el.getAttribute("aria-readonly") !== "true",
-    );
-    if (editable) {
-      typedOver = await target.evaluate((el) => ("value" in el ? el.value : el.textContent));
-      // Type as a person does: clear the field, then press each key. A list may filter on `input`,
-      // which `fill` sends, or only on `keydown` or `keyup` (the W3C APG comboboxes), which it does not.
-      // A target found by ref is an ElementHandle (`type`); one found by its locator is a Locator.
-      await target.fill("", { timeout: ACTION_TIMEOUT });
-      if (target.pressSequentially) await target.pressSequentially(value, { timeout: ACTION_TIMEOUT });
-      else await target.type(value, { timeout: ACTION_TIMEOUT });
-    } else {
-      await (await clickableWidget(target)).click({ timeout: ACTION_TIMEOUT });
+  const norm = text => text.trim().replace(/\s+/g, " ").toLowerCase();
+  const same = (a, b) => JSON.stringify(a.map(norm).sort()) === JSON.stringify(b.map(norm).sort());
+  let changed = false;
+  let completion = "ui";
+  let popupRef = null;
+  let applied = false;
+  let operation = "replace";
+  const read = async () => {
+    const state = await page.evaluate(r => window.__viewspecLift.choiceState(r), ref);
+    if (!applied && popupRef && state.popup_ref && popupRef !== state.popup_ref) {
+      throw new Error("choose: the owned popup was replaced; observe again");
     }
-    found = await find();
-    while ((found.state === "missing" || found.state === "stale") && Date.now() < deadline) {
-      if (found.state === "stale") {
-        // The page replaced the field while it was typed into (Wikipedia mounts its typeahead over
-        // the search box once it has focus). Find the new element by the saved locator, with the
-        // drift guard, and go on with it: the text typed so far is in it.
-        if (!spec) break;
-        ({ target } = await resolveTarget(ref, spec));
-        ref = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
-        found = await find();
-        continue;
+    popupRef ||= state.popup_ref;
+    return state;
+  };
+  // Every browser interaction checks the original observation's route and the owner's identity.
+  // A new observation is not silently substituted during an operation.
+  const guard = async () => {
+    requireObservation(navigationId);
+    ({target} = await resolveTarget(ref, spec));
+    ref = await target.evaluate(el => window.top.__viewspecLift.refOf(el));
+    requireObservation(navigationId);
+  };
+  const pause = async () => {
+    const left = deadline - Date.now();
+    if (left <= 0) return false;
+    await page.evaluate(ms => window.__viewspecLift.nextChange(ms), Math.min(left, 100));
+    await guard();
+    return true;
+  };
+  const editSearch = async (searchRef, text) => {
+    await guard();
+    const current = await read();
+    if (current.search_ref !== searchRef) throw new Error("choose: the search input changed; observe again");
+    const search = await handleOf(searchRef);
+    if (!search) throw new Error("choose: the search input disappeared; observe again");
+    await refuseIfBlocked(search, "fill");
+    requireObservation(navigationId);
+    await search.fill("", {timeout: ACTION_TIMEOUT});
+    popupRef = null; // A new query may rebuild its owned results; no option is bound yet.
+    // fill and typing can both run page code; revalidate before sending the next interaction.
+    await guard();
+    if ((await read()).search_ref !== searchRef) throw new Error("choose: the search input changed; observe again");
+    if (text) await search.type(text, {timeout: ACTION_TIMEOUT});
+  };
+  const clickOption = async option => {
+    await guard();
+    const current = await read();
+    const now = current.options.find(o => o.ref === option.ref);
+    const unchanged = (state, now) => now && now.signature === option.signature && !now.disabled &&
+      (!option.query || JSON.stringify(state.query) === JSON.stringify(option.query)) &&
+      (!option.popup_ref || state.popup_ref === option.popup_ref) && ["select", "navigate"].includes(now.kind);
+    if (!unchanged(current, now)) {
+      throw new Error("choose: the option or its selected state changed; observe again");
+    }
+    const element = await handleOf(option.ref);
+    if (!element) throw new Error("choose: the option disappeared; observe again");
+    await refuseIfBlocked(element, "click");
+    requireObservation(navigationId);
+    const latest = await read();
+    const last = latest.options.find(o => o.ref === option.ref);
+    if (!unchanged(latest, last)) {
+      throw new Error("choose: the option changed before clicking; observe again");
+    }
+    requireObservation(navigationId);
+    await page.evaluate(([r,o]) => window.__viewspecLift.armChoice(r,o), [ref,option]);
+    let stopped;
+    try {
+      await element.click({timeout: ACTION_TIMEOUT});
+    } finally {
+      stopped = await page.evaluate(() => window.__viewspecLift?.finishChoice()).catch(() => null);
+    }
+    if (stopped) throw new Error(stopped);
+    changed = true;
+    await settle();
+  };
+  const result = (verified, selected, chosen = selected.join(", ")) => ({verified, chosen,
+    selection: {changed, selected, operation, completion, persistence: "unverified"}});
+  try {
+    await guard();
+    let state = await read();
+    operation = state.operation;
+    const contract = {adapter: state.adapter, operation, mode: state.mode, commit: state.commit};
+    const initialSelected = [...state.selected];
+    if (operation === "add" && values === null && state.selection_known && state.selected.some(v => norm(v) === norm(value))) {
+      return result(true, state.selected, value);
+    }
+    let searched = false;
+    if (!state.expanded) {
+      const editable = await target.evaluate(el => /^(INPUT|TEXTAREA)$/.test(el.tagName) && !el.readOnly && el.getAttribute("aria-readonly") !== "true");
+      if (editable && values === null) {
+        // Plain search inputs may acquire their combobox role only after typing.
+        await refuseIfBlocked(target, "fill");
+        requireObservation(navigationId);
+        await target.fill("", {timeout: ACTION_TIMEOUT});
+        await guard();
+        await target.type(value, {timeout: ACTION_TIMEOUT});
+        searched = true;
+      } else {
+        const trigger = await clickableWidget(target);
+        await refuseIfBlocked(trigger, "click");
+        requireObservation(navigationId);
+        await trigger.click({timeout: ACTION_TIMEOUT});
       }
-      const left = Math.max(0, deadline - Date.now());
-      await page.evaluate((ms) => window.__viewspecLift.nextChange(ms), left).catch(() => false);
-      found = await find();
+      await guard();
+      state = await read();
     }
-  }
-  if (found.state === "stale") {
-    throw new Error("choose: the page replaced the field while it was typed into, and no locator finds the new one; observe again");
-  }
-  if (found.state !== "found") {
-    // Leave the control as it was: put back the text this step typed over, and close the list.
-    let undo = "";
-    if (typedOver !== null) {
-      await target.fill(typedOver, { timeout: ACTION_TIMEOUT }).catch(() => {});
-      undo = "; the typed text was removed";
+    let desired;
+    if (values !== null) {
+      if (state.mode !== "multiple") throw new Error("choose: the control no longer supports multiple selection");
+      if (state.search_ref && state.coverage !== "complete") {
+        const query = await handleOf(state.search_ref);
+        if (query && await query.inputValue().catch(() => "")) {
+          await editSearch(state.search_ref, "");
+          state = await read();
+        }
+      }
+      while ((!state.expanded || state.state === "loading") && await pause()) state = await read();
+      if (state.coverage !== "complete" || !state.selection_known) {
+        throw new Error("choose: the complete selected set is unknown; use the visible controls");
+      }
+      const requested = values.map(v => {
+        const matches = state.options.filter(o => o.kind === "select" && norm(o.label) === norm(v));
+        if (matches.length !== 1) throw new Error(`choose: ${matches.length ? "more than one option matches" : "no option named"} ${JSON.stringify(v)}`);
+        return matches[0];
+      });
+      const scopes = requested.map(o => o.scope).filter(Boolean);
+      if (new Set(scopes).size !== scopes.length) throw new Error("choose: requested options conflict in an exclusive group");
+      desired = requested.map(o => o.label);
+      const changes = state.options.filter(o => o.selected !== desired.includes(o.label));
+      if (changes.some(o => o.disabled || o.kind !== "select")) throw new Error("choose: a required selection change is disabled or has unknown meaning");
+      // Reconcile one delta at a time. Fresh selected-state evidence prevents repeat calls toggling.
+      for (const option of changes) {
+        if (Date.now() >= deadline) throw new Error("choose: selection budget expired; observe the partial selection");
+        await guard();
+        const before = await read();
+        if (!before.selection_known || before.coverage !== "complete") throw new Error("choose: selected-set coverage changed; observe again");
+        const current = before.options.find(o => o.ref === option.ref);
+        if (!current) throw new Error("choose: an option was replaced; observe again");
+        if (current.name !== option.name || current.label !== option.label || current.kind !== option.kind || current.destination !== option.destination) {
+          throw new Error("choose: an option changed meaning; observe again");
+        }
+        if (current.selected === desired.includes(current.label)) continue;
+        await clickOption(current);
+        await guard();
+        state = await read();
+        if (state.options.find(o => o.ref === current.ref)?.selected !== desired.includes(current.label)) return result(false, state.selected);
+      }
+      state = await read();
+      if (!same(state.selected, desired)) return result(false, state.selected);
+    } else {
+      if (state.mode === "multiple") throw new Error("choose: multiple selection requires an array with the exact selected set");
+      // A fill does not prove that this widget ran its search lifecycle. Refresh editable
+      // discovery with native keyboard events even when the text already matches.
+      if (!searched && state.search_ref && state.coverage !== "complete") {
+        const search = await handleOf(state.search_ref);
+        if (search && await search.isEditable()) {
+          await editSearch(state.search_ref, value);
+          state = await read();
+        }
+      }
+      let found = await page.evaluate(([r,v]) => window.__viewspecLift.findOption(r,v), [ref,value]);
+      while (found.state === "missing" && !found.unsupported && found.coverage !== "complete" && await pause()) {
+        found = await page.evaluate(([r,v]) => window.__viewspecLift.findOption(r,v), [ref,value]);
+      }
+      if (found.state !== "found") {
+        if (found.state === "action") throw new Error(`choose: ${JSON.stringify(found.name)} is a ${found.kind} action, not a supported selection; inspect and use its explicit control`);
+        if (found.state === "ambiguous") throw new Error(`choose: more than one option matches ${JSON.stringify(value)}: ${found.names.slice(0, 10).join(", ")}. No rollback was attempted`);
+        if (found.state === "disabled") throw new Error(`choose: the option ${JSON.stringify(value)} is disabled`);
+        throw new Error(`choose: no option named ${JSON.stringify(value)}; ${found.unsupported ? "the popup has unsupported controls" : "no matching visible option"}. The popup was left as observed; no rollback was attempted`);
+      }
+      desired = [found.label];
+      const before = await target.evaluate(el => ({value: "value" in el ? el.value : null,
+        expanded: window.top.__viewspecLift.choiceState(window.top.__viewspecLift.refOf(el)).expanded}));
+      if (found.selected !== true) await clickOption(found);
+      if (mainNavigations !== navigationId) return result(null, desired);
+      // A known immediate-apply widget may already have replaced its whole sidebar.
+      if (contract.adapter === "gitea-sidebar" && contract.commit === "immediate") applied = true;
+      await guard();
+      state = await read();
+      if (contract.adapter !== "gitea-sidebar") {
+        const verify = () => page.evaluate(([r,o,label,b,contract,expected]) => {
+          const lift = window.__viewspecLift;
+          const current = lift.choiceState(r);
+          // A closing animation may temporarily remove ownership evidence. Wait for the
+          // original contract; never substitute a weaker adapter to verify its effects.
+          if (Object.entries(contract).some(([key,value]) => current[key] !== value) ||
+              current.state === "loading") return {verified: null, selected: []};
+          if (contract.operation === "add") {
+            if (!current.selection_known) return {verified: null, selected: []};
+            const canonical = values => values.map(v => v.trim().replace(/\s+/g, " ").toLowerCase()).sort();
+            return {verified: JSON.stringify(canonical(current.selected)) === JSON.stringify(canonical(expected)),
+              selected: current.selected};
+          }
+          return {verified: lift.showsChoice(r,o,label,b), selected: current.selected};
+        }, [ref,found.ref,found.label,before,contract,[...initialSelected,found.label]]);
+        let verification = await verify();
+        while (verification.verified !== true && await pause()) verification = await verify();
+        return result(verification.verified, operation === "add" ? verification.selected :
+          verification.verified ? desired : [], found.label);
+      }
     }
-    await target.press("Escape", { timeout: ACTION_TIMEOUT }).catch(() => {});
-    if (found.state === "ambiguous") {
-      const names = found.names.slice(0, 10).join(", ");
-      throw new Error(`choose: more than one option matches ${JSON.stringify(value)}: ${names}${undo}`);
+    state = await read();
+    // Only this tested adapter defines Escape as an apply/close action. Unknown widgets are not
+    // closed during success or failure cleanup. In particular, Escape is never claimed as undo.
+    if (state.adapter === "gitea-sidebar") {
+      const commit = state.commit;
+      if (state.expanded) {
+        await guard();
+        await refuseIfBlocked(target, "choose");
+        requireObservation(navigationId);
+        await target.press("Escape", {timeout: ACTION_TIMEOUT});
+        await settle();
+      }
+      applied = true; // Verify a known apply/rerender; no further option interactions follow.
+      completion = commit === "form" ? "form_pending" : "closed";
+      await guard();
+      state = await read();
+      while ((!state.selection_known || state.expanded || !same(state.selected, desired)) && await pause()) state = await read();
+      return result(state.selection_known && !state.expanded && same(state.selected, desired), state.selected);
     }
-    const names = (found.names || []).slice(0, 10);
-    const seen = names.length ? `; the list shows: ${names.join(", ")}` : found.open ? "; the list is empty" : "; no list opened";
-    throw new Error(`choose: no option named ${JSON.stringify(value)}${seen}${undo}`);
+    return result(true, desired);
+  } catch (error) {
+    error.selection = {changed, operation, completion, persistence: "unverified", rollback: "not_attempted"};
+    throw error;
   }
-  const option = (await page.evaluateHandle((r) => window.__viewspecLift.get(r), found.ref)).asElement();
-  await option.click({ timeout: ACTION_TIMEOUT });
-  await settle();
-  if (mainNavigations !== navigationsBefore) {
-    // The choice loaded a new page (a search suggestion that runs the search at once): there is
-    // nothing to verify on it. act() reports the navigation.
-    return { verified: null, chosen: found.label };
-  }
-  const verified = await page.evaluate(
-    ([r, o, label]) => window.__viewspecLift.showsChoice(r, o, label),
-    [ref, found.ref, found.label],
-  );
-  return { verified, chosen: found.label };
 }
 
 // Scroll once, then wait (up to waitMs) for the page to answer: an infinite list loads more items
@@ -1131,7 +1298,18 @@ async function handleOf(ref) {
 // Pick the date ``iso`` (YYYY-MM-DD) from the calendar of a custom date field: open the calendar (by
 // a click on the field, or on a calendar button beside it), go to the right month (with the
 // calendar's month and year lists, or its next and previous buttons), and click the day.
-async function chooseDate(target, iso) {
+async function fillTypedDate(target, iso) {
+  const value = await target.evaluate((el, date) => window.top.__viewspecLift.dateFillValue(el, date), iso);
+  if (value === null) return null;
+  await refuseIfBlocked(target, "fill");
+  await target.fill(value, {timeout: ACTION_TIMEOUT});
+  await settle();
+  return {verified: await target.evaluate((el, date) => window.top.__viewspecLift.showsDate(window.top.__viewspecLift.refOf(el), date), iso), chosen: iso};
+}
+
+async function chooseDate(target, iso, activate = false) {
+  const typed = await fillTypedDate(target, iso);
+  if (typed !== null) return typed;
   const ref = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
   // The calendars shown before this step opened one: a calendar that shows after the click is the
   // field's, wherever the page put it; one that was already there elsewhere is not.
@@ -1146,7 +1324,8 @@ async function chooseDate(target, iso) {
   let info = await read();
   seen = info.visible || [];
   let openedBy = null; // What this step clicked to open the calendar, to close it again on failure.
-  if (info.state === "closed") {
+  if (info.state === "closed" || activate) {
+    await refuseIfBlocked(target, "choose_date");
     await target.click({ timeout: ACTION_TIMEOUT });
     await changed();
     info = await read();
@@ -1231,6 +1410,17 @@ async function pickDay(info, read, changed, clickRef, target, ref, iso) {
 // after the first day and waits for the second; otherwise the end field's own calendar is opened.
 async function chooseDateRange(target, end, value) {
   const [startIso, endIso] = value.split("/");
+  if (end) {
+    const formats = await Promise.all([target, end].map((field, i) => field.evaluate(
+      (el, iso) => window.top.__viewspecLift.dateFillValue(el, iso), i ? endIso : startIso)));
+    if (formats.every(v => v !== null)) {
+      const start = await fillTypedDate(target, startIso);
+      if (start.verified !== true) return start;
+      const finish = await fillTypedDate(end, endIso);
+      const held = await target.evaluate((el, iso) => window.top.__viewspecLift.showsDate(window.top.__viewspecLift.refOf(el), iso), startIso);
+      return {verified: held === false || finish.verified === false ? false : held === null || finish.verified === null ? null : true, chosen: value};
+    }
+  }
   const ref = await target.evaluate((el) => window.top.__viewspecLift.refOf(el));
   const endRef = end ? await end.evaluate((el) => window.top.__viewspecLift.refOf(el)) : ref;
   const endField = end || target;
@@ -1245,17 +1435,17 @@ async function chooseDateRange(target, end, value) {
     await handle.click({ timeout: ACTION_TIMEOUT });
   };
   seen = (await read()).visible || [];
-  await chooseDate(target, startIso);
+  await chooseDate(target, startIso, Boolean(end));
   const info = await read();
-  if (info.state === "open") {
+  if (end) {
+    await chooseDate(end, endIso, true);
+  } else if (info.state === "open") {
     try {
       await pickDay(info, read, changed, clickRef, endField, endRef, endIso);
     } catch (error) {
       await endField.press("Escape", { timeout: ACTION_TIMEOUT }).catch(() => {});
       throw error;
     }
-  } else if (end) {
-    await chooseDate(end, endIso);
   } else {
     throw new Error(`choose_date_range: the calendar closed after ${startIso}, before the end could be picked`);
   }
@@ -1393,7 +1583,7 @@ function requireObservation(navigationId) {
 
 async function act({
   op, ref, locator: spec, end_ref: endRef, end_locator: endSpec, value, values, files,
-  wait_ms: waitMs = 2500, navigation_id: navigationId,
+  wait_ms: waitMs = 2500, navigation_id: navigationId, form_submit: formSubmit = false,
 }) {
   // A surviving DOM node and an identical name do not identify the same product on another route.
   // Check every step here, including form steps and scrolling, rather than once per Python plan.
@@ -1430,14 +1620,27 @@ async function act({
   const urlBefore = page.url();
   let verified = null;
   let chosen = null;
+  let selection = null;
   let saved = null;
   strayDownloads = [];
   const requestsBefore = navigationRequests;
   const options = { timeout: ACTION_TIMEOUT };
+  let contract = null;
+  let stopped = null;
+  if (formSubmit) {
+    const fields = await target.evaluate(el => window.top.__viewspecLift.armForm(el));
+    contract = {fields, submission: "attempted"};
+    if (fields.some(f => f.status !== "matched")) stopped = fields;
+  }
   try {
-    if (op === "click") {
+    if (stopped) {
+      // No dispatch: retain the same response journal and cleanup path as an event-time refusal.
+    } else if (op === "click") {
       await target.click(options);
     } else if (op === "fill") {
+      const supported = await target.evaluate(el => el.type !== "color" ||
+        (!el.hasAttribute("alpha") && (!el.hasAttribute("colorspace") || el.getAttribute("colorspace") === "limited-srgb")));
+      if (!supported) throw new Error("form-unknown: this color control requires an unsupported alpha or color space contract");
       await target.fill(value, options);
       verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasValue(el, v), value);
     } else if (op === "check" || op === "uncheck") {
@@ -1446,8 +1649,8 @@ async function act({
     } else if (op === "select") {
       await target.selectOption(values, options);
       verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasSelected(el, v), values);
-    } else if (op === "choose") {
-      ({ verified, chosen } = await asAside(() => choose(target, value, spec)));
+    } else if (op === "choose" || op === "choose_set") {
+      ({ verified, chosen, selection } = await asAside(() => choose(target, value, spec, navigationId, op === "choose_set" ? values : null)));
     } else if (op === "upload") {
       ({ verified, chosen } = await upload(target, files));
     } else if (op === "download") {
@@ -1467,12 +1670,13 @@ async function act({
       throw new Error(`unknown op ${op}`);
     }
   } catch (error) {
+    if (formSubmit) await page.evaluate(() => window.__viewspecLift.disarmForm()).catch(() => null);
     // An error the step raised on purpose ("download: no download started") stands. Anything else
     // that broke after the page loaded a new document (a click that submits a search) broke because
     // the in-page library the step was using is gone: say that, not what failed inside.
     const text = String(error.message || "");
     const deliberate =
-      /^(choose|choose_date|choose_date_range|upload|download|drift|stale|ambiguous|blocked|navigated):/.test(text);
+      /^(choose|choose_date|choose_date_range|upload|download|drift|stale|stale-view|ambiguous|blocked|navigated):/.test(text);
     if (mainNavigations !== navigationsBefore && !deliberate) {
       throw new Error(`navigated: the page loaded a new document during ${op}, before the step finished; observe it and plan again`);
     }
@@ -1482,7 +1686,26 @@ async function act({
     if (taker) throw new Error(`blocked: the pointer cannot reach the control; ${taker[1].slice(0, 120)} is over it`);
     throw error;
   }
-  await settle();
+  try {
+    await settle();
+    // Read state after handlers and bounded settling, not immediately after dispatch.
+    if (mainNavigations === navigationsBefore && !stopped) {
+      if (op === "fill") verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasValue(el, v), value);
+      if (op === "check" || op === "uncheck") verified = await target.evaluate((el, desired) =>
+        window.top.__viewspecLift.isChecked(el) === desired, op === "check");
+      if (op === "select") verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasSelected(el, v), values);
+      if ((op === "choose" || op === "choose_set") && verified === true) {
+        await target.evaluate((el, args) => window.top.__viewspecLift.acceptFormChoice(
+          window.top.__viewspecLift.refOf(el), args.chosen, args.selected), {chosen, selected: selection?.selected});
+      }
+    }
+  } finally {
+    if (formSubmit) stopped ||= await page.evaluate(() => window.__viewspecLift.disarmForm()).catch(() => null);
+  }
+  if (stopped) {
+    contract = {fields: stopped, submission: "withheld"};
+    verified = stopped.some(f => f.status === "mismatch") ? false : null;
+  }
   // A click or submit the browser refused: the fields that failed their constraints, and why. On a
   // new page the library is gone, and the form was sent, so there is nothing to report.
   const invalid =
@@ -1505,8 +1728,10 @@ async function act({
   }
   return {
     resolved_by: resolvedBy,
+    contract,
     verified,
     chosen,
+    selection,
     download: saved,
     unsaved_downloads: await dropStrayDownloads(),
     invalid,
@@ -1556,6 +1781,25 @@ async function confirm({ items }) {
 }
 
 const COMMANDS = {
+  read_ready: async () => {
+    await landing;
+    await page.waitForLoadState("domcontentloaded", {timeout: 1000}).catch(() => {});
+    return {};
+  },
+  begin_form: async ({fields, navigation_id: navigationId}) => {
+    requireObservation(navigationId);
+    await ensureLibrary();
+    requireObservation(navigationId);
+    return {fields: await page.evaluate(fields => window.__viewspecLift.beginForm(fields), fields)};
+  },
+  check_form: async ({navigation_id: navigationId}) => {
+    requireObservation(navigationId);
+    return {fields: await page.evaluate(() => window.__viewspecLift.checkForm())};
+  },
+  clear_form: async () => {
+    await page.evaluate(() => window.__viewspecLift?.clearForm()).catch(() => {});
+    return {};
+  },
   confirm,
   wait_change: waitChange,
   open,
@@ -1601,7 +1845,7 @@ lines.on("line", (line) => {
       if (request.cmd === "close") process.exit(0);
     } catch (error) {
       const message = String(error && error.message ? error.message : error).split("\n")[0];
-      process.stdout.write(JSON.stringify({ id: request.id, ok: false, error: message }) + "\n");
+      process.stdout.write(JSON.stringify({ id: request.id, ok: false, error: message, selection: error.selection || null }) + "\n");
     }
   });
 });
