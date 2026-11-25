@@ -1,0 +1,55 @@
+<!doctype html><meta charset="utf-8"><title>Choice meaning and nested actions</title>
+<style>
+body{font:16px sans-serif;margin:30px}.multiselect{width:380px}.input-wrapper,.tag{display:block;padding:6px}
+.search-result-button{display:block;width:360px;padding:12px;text-align:left}.search-result-button span{display:block}
+[hidden]{display:none!important}.tag button{margin-left:12px}
+</style>
+<h1>Assign labels</h1>
+<a href="/?labels=1" id="label-link"><span>Equipment review</span><button type="button" aria-label="Edit Label" id="edit">✎</button></a>
+<div id="editor" hidden><label>Project color <input type="color" value="#c65d21"></label></div>
+<form aria-label="Assignment">
+ <label>Title <input name="title" value="Inventory"></label>
+ <div class="labels-list details"><div class="multiselect" tabindex="-1" aria-disabled="false">
+  <div class="control"><div class="input-wrapper input">
+   <span class="tag"><span>Existing</span><button type="button" class="delete" aria-label="Remove label Existing">×</button></span>
+   <input type="text" class="input" role="combobox" name="labels" aria-label="Labels" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false">
+  </div></div>
+ </div></div><button>Save assignment</button>
+</form><output id="events">Activations 0</output>
+<script>
+const params=new URLSearchParams(location.search), root=document.querySelector('.multiselect'), input=root.querySelector('input'), wrapper=input.parentElement;
+let timer, activations=0;
+if(params.has('empty'))wrapper.querySelector(':scope > .tag').remove();
+if(params.has('generic')||params.has('noop'))root.parentElement.classList.remove('labels-list');
+document.querySelector('#edit').onclick=e=>{e.preventDefault();e.stopPropagation();document.querySelector('#editor').hidden=false};
+function close(){const list=root.querySelector('.search-results');if(params.has('retiring'))setTimeout(()=>list?.remove(),300);else list?.remove();input.setAttribute('aria-expanded','false');input.removeAttribute('aria-controls')}
+function chip(title){const tag=document.createElement('span');tag.className='tag';const text=document.createElement('span');text.textContent=title;
+ const remove=document.createElement('button');remove.type='button';remove.className='delete';remove.setAttribute('aria-label','Remove label '+title);remove.textContent='×';remove.onclick=()=>tag.remove();tag.append(text,remove);wrapper.insertBefore(tag,input)}
+function render(create){
+ let list=root.querySelector('.search-results');
+ if(!list){list=document.createElement('div');list.className='search-results';list.id='results';list.setAttribute('role','listbox');root.append(list)}
+ list.replaceChildren();input.setAttribute('aria-controls','results');input.setAttribute('aria-expanded','true');
+ const button=document.createElement('button');button.type='button';button.className='search-result-button'+(create?' is-create-option':'');button.setAttribute('role','option');
+ const text=document.createElement('span');text.textContent=input.value;const hint=document.createElement('span');hint.className='hint-text';
+ hint.textContent=params.has('noop')?'':create?(params.has('localized')?'Als neues Etikett hinzufügen':'Add this as new label'):'Click or press enter to select';
+ button.append(text,hint);list.append(button);
+ if(params.has('duplicate')&&!create){const duplicate=button.cloneNode(true);list.append(duplicate)}
+ if(params.has('change-meaning'))button.onmouseenter=()=>{button.classList.add('is-create-option');hint.textContent='Add this as new label'};
+ if(params.has('change-query'))button.onmouseenter=()=>{input.value='Other';input.dispatchEvent(new Event('input',{bubbles:true}))};
+ button.onclick=async()=>{
+  activations++;document.querySelector('#events').textContent='Activations '+activations;
+  const creation=button.classList.contains('is-create-option');
+  if(creation)await fetch('/choice-create',{method:'POST',body:text.textContent});
+  await fetch('/choice-attach',{method:'POST',body:creation?'new':'existing'});
+  if(params.has('noop'))return;
+  root.querySelector('.control').classList.add('is-loading');
+  setTimeout(()=>{if(params.has('replace'))wrapper.querySelectorAll(':scope > .tag').forEach(t=>t.remove());chip(text.textContent);input.value='';close();root.querySelector('.control').classList.remove('is-loading');if(params.has('contract-loss'))root.parentElement.classList.remove('labels-list')},80);
+ };
+}
+input.oninput=()=>{if(input.value)render(!params.has('noop'));else close()};
+input.onkeyup=()=>{clearTimeout(timer);root.querySelector('.control').classList.add('is-loading');timer=setTimeout(()=>{
+ root.querySelector('.control').classList.remove('is-loading');
+ if(input.value)render(params.has('missing')||!input.value.toLowerCase().startsWith('equipment'));
+},120)};
+document.querySelector('form').onsubmit=async e=>{e.preventDefault();await fetch('/choice-form',{method:'POST',body:[...wrapper.querySelectorAll(':scope > .tag > span')].map(s=>s.textContent).join(',')});document.querySelector('h1').textContent='Assignment saved'};
+</script>

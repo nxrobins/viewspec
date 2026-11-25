@@ -48,7 +48,7 @@ from boundary import Boundary, PrivacyRedactor
 from page_view import ViewLine, view_lines
 
 from viewspec.raw_html import HtmlLiftResult, lift_html
-from viewspec.raw_html_actions import ActionStep, plan_control_action, plan_form_call
+from viewspec.raw_html_actions import ActionStep, FormPlan, plan_control_action, plan_form_call
 from viewspec.raw_html_agent import HINT_REF, HtmlControl, control_aria_role
 from viewspec.raw_html_diff import ChangeCondition, LiftDiff, diff_lifts
 
@@ -57,6 +57,7 @@ BRIDGE = HERE / "bridge.js"
 MAX_WAIT_MS = 30000
 SCROLL_WAIT_MS = 2500  # The longest wait for new content after one scroll.
 MAX_SCROLLS = 30
+READ_ATTEMPTS = 3
 
 
 class BridgeError(RuntimeError):
@@ -68,6 +69,20 @@ class BridgeError(RuntimeError):
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.steps = []
+        self.selection: dict[str, Any] | None = None
+        self.failed_step: ActionStep | None = None
+        self.observation_failed = False
+
+    @property
+    def interrupted_read(self) -> bool:
+        return any(
+            text in str(self)
+            for text in (
+                "read-interrupted:",
+                "Execution context was destroyed",
+                "Cannot find context with specified id",
+            )
+        )
 
 
 @dataclass
@@ -126,6 +141,7 @@ class StepResult:
     # Where the page's counts stood when the step began, to measure a later reading against.
     mutation_mark: int | None = None
     request_mark: int = 0
+    selection: dict[str, Any] | None = None
 
     @property
     def event_seqs(self) -> frozenset[int]:
@@ -141,6 +157,8 @@ class StepResult:
         }
         if self.chosen is not None:
             payload["chosen"] = self.chosen
+        if self.selection is not None:
+            payload["selection"] = self.selection
         if self.download is not None:
             payload["download"] = self.download
         if self.unsaved_downloads:
@@ -353,6 +371,7 @@ class BrowserSession:
         self._observation: Observation | None = None
         self._next_id = 0
         self._opened = False
+        self.action_progress: dict[str, Any] | None = None
         self._proc = subprocess.Popen(
             ["node", str(BRIDGE)],
             stdin=subprocess.PIPE,
@@ -380,8 +399,21 @@ class BrowserSession:
         if reply.get("id") != self._next_id:
             raise BridgeError(f"bridge.js answered request {reply.get('id')}, not {self._next_id}")
         if not reply["ok"]:
-            raise BridgeError(self.privacy.clean(reply["error"]))
+            error = BridgeError(self.privacy.clean(reply["error"]))
+            error.selection = self.privacy.clean(reply.get("selection"))
+            raise error
         return reply["result"]
+
+    def _read_call(self, cmd: str, **args: Any) -> Any:
+        """Retry only a read interrupted by navigation. Never replay an action."""
+        assert cmd in {"snapshot", "document"}
+        for attempt in range(READ_ATTEMPTS):
+            try:
+                return self._call(cmd, **args)
+            except BridgeError as error:
+                if not error.interrupted_read or attempt == READ_ATTEMPTS - 1:
+                    raise
+                self._call("read_ready")
 
     def close(self) -> None:
         if self._proc.poll() is None:
@@ -422,7 +454,7 @@ class BrowserSession:
         return self.privacy.clean(result)
 
     def _capture_private(self) -> dict[str, Any]:
-        snap = self._call("snapshot", collect_secrets=self.privacy.mode)
+        snap = self._read_call("snapshot", collect_secrets=self.privacy.mode)
         self.privacy.remember(snap.get("secrets", []))
         self.privacy.remember(snap.get("credential_values", []))
         self.privacy.learn_html(snap["html"])
@@ -465,6 +497,16 @@ class BrowserSession:
     def _observe(self, *, locate: bool = False) -> Observation:
         """Snapshot, lift, and read target identities in one batch, without preparing selectors."""
 
+        for attempt in range(READ_ATTEMPTS):
+            try:
+                return self._observe_once(locate=locate)
+            except BridgeError as error:
+                if not error.interrupted_read or attempt == READ_ATTEMPTS - 1:
+                    raise
+                self._call("read_ready")
+
+    def _observe_once(self, *, locate: bool = False) -> Observation:
+
         snap = self._capture_private()
         lift = lift_html(snap["html"], profile="agent")
         locators: dict[str, dict[str, Any]] = {}
@@ -475,7 +517,12 @@ class BrowserSession:
         ]
         requests += [{"key": f.node_id, "ref": f.ref, "role": None, "name": None} for f in lift.forms if f.ref]
         if requests:
-            locators = self._call("locate" if locate else "targets", requests=requests)
+            locators = self._call(
+                "locate" if locate else "targets",
+                requests=requests,
+                doc_id=snap["docId"],
+                navigation_id=snap["navigationId"],
+            )
         # What the element must still be when a re-render forces the identity fallback. Never
         # defer this reading until action time: the same element may then belong to another item.
         expected = {c.node_id: (c.tag, c.name) for c in lift.controls}
@@ -552,7 +599,13 @@ class BrowserSession:
             elapsed = int((time.monotonic() - start) * 1000)
             if met or elapsed >= limit:
                 break
-            self._call("wait_change", timeout_ms=limit - elapsed)
+            try:
+                self._call("wait_change", timeout_ms=limit - elapsed)
+            except BridgeError as error:
+                if not error.interrupted_read:
+                    raise
+                # The next loop reads the current page and checks the original condition.
+                # Its elapsed-time budget still includes this interrupted wait.
         self._observation = None
         return self.privacy.clean(WaitResult(condition, met, elapsed, limit, readings))
 
@@ -674,18 +727,35 @@ class BrowserSession:
         return self.run(plan_form_call(self._current().lift, tool_name, arguments, submit=submit))
 
     def run(self, steps: tuple[ActionStep, ...], *, observation: Observation | None = None) -> list[StepResult]:
+        self.action_progress = {
+            "fields": [{"index": index + 1, "status": "not_run"} for index in range(len(steps))],
+            "submission": "not_requested",
+            "writes": {"passed": 0, "blocked": 0, "blocked-and-simulated": 0},
+        }
         for step in steps:
             if step.secret or (self.privacy.mode == "strict" and step.op == "fill"):
                 self.privacy.remember([step.value or "", *step.values])
         self._capture_private()
+        results = None
         try:
             results = self._run(steps, observation=observation)
             self._capture_private()
             return self.privacy.clean(results)
         except BridgeError as error:
+            if results is not None:
+                error.steps = results  # The action finished; only its subsequent capture failed.
+                error.observation_failed = True
             safe = BridgeError(self.privacy.clean(str(error)))
             safe.steps = self.privacy.clean(error.steps)
+            safe.selection = self.privacy.clean(error.selection)
+            safe.failed_step = self.privacy.clean(error.failed_step)
+            safe.observation_failed = error.observation_failed
             raise safe from None
+        finally:
+            if isinstance(steps, FormPlan):
+                with contextlib.suppress(BridgeError):
+                    self._call("clear_form")
+            self._observation = None
 
     def _run(self, steps: tuple[ActionStep, ...], *, observation: Observation | None = None) -> list[StepResult]:
         """Run planned steps in order. The view is stale afterwards; call ``observe()`` again.
@@ -695,22 +765,51 @@ class BrowserSession:
         """
 
         observation = self._resolve_observation(observation) if observation is not None else self._current()
-        if self._call("document")["doc_id"] != observation.doc_id:
+        if self._read_call("document")["doc_id"] != observation.doc_id:
             # Document ids also distinguish observations from different browser sessions, whose
             # navigation counters may happen to match. The bridge checks the counter on every step.
             raise BridgeError(
                 "stale-view: the page has loaded a new document since this view; observe it and plan again"
             )
         results: list[StepResult] = []
-        for step in steps:
+        controls = {control.node_id: control for control in observation.lift.controls}
+        submissions = {
+            index
+            for index, step in enumerate(steps)
+            if step.op == "submit" or (step.node_id in controls and controls[step.node_id].submits)
+        }
+        if submissions:
+            self.action_progress["submission"] = "not_run"
+        if isinstance(steps, FormPlan):
+            fields = [
+                {
+                    "ref": item.control.ref,
+                    "identity": observation.locators.get(item.control.node_id, {}).get("identity"),
+                    "kind": item.kind,
+                    "preserve": item.preserve,
+                    "expected": item.expected,
+                }
+                for item in steps.intents
+            ]
+            initial = self._call("begin_form", fields=fields, navigation_id=observation.navigation_id)["fields"]
+            self.action_progress["contract"] = initial
+            if any(item["status"] == "unknown" for item in initial):
+                if submissions:
+                    self.action_progress["submission"] = "withheld"
+                raise BridgeError("form-unknown: cannot establish the initial field contract; no edits ran")
+        for index, step in enumerate(steps):
             # The locator goes along even when it has no selector: it carries the control's identity,
             # which the bridge checks on the element it acts on, however it finds it.
             locator = observation.locators.get(step.node_id)
             end_locator = observation.locators.get(step.end_node_id) if step.end_node_id else None
+            self.action_progress["fields"][index]["status"] = "attempted"
+            if index in submissions:
+                self.action_progress["submission"] = "attempted"
             try:
                 reply = self._call(
                     "act",
                     navigation_id=observation.navigation_id,
+                    form_submit=isinstance(steps, FormPlan) and index in submissions,
                     op=step.op,
                     ref=step.ref,
                     locator=locator,
@@ -725,7 +824,18 @@ class BrowserSession:
                 )
             except BridgeError as error:
                 error.steps = list(results)  # What ran before the step that could not.
+                error.failed_step = step
                 raise
+            # Preserve structural evidence before capture/projection can fail. It contains no
+            # page strings and is safe to report even when privacy discovery is incomplete.
+            self.action_progress["fields"][index]["status"] = "verified" if reply["verified"] is True else "applied"
+            for write in reply.get("writes", []):
+                if write.get("state") in self.action_progress["writes"]:
+                    self.action_progress["writes"][write["state"]] += 1
+            contract = reply.get("contract")
+            if contract is not None:
+                self.action_progress["contract"] = contract["fields"]
+                self.action_progress["submission"] = contract["submission"]
             results.append(
                 StepResult(
                     step=step,
@@ -735,6 +845,7 @@ class BrowserSession:
                     navigated=reply["navigated"],
                     url=reply["url"],
                     chosen=reply.get("chosen"),
+                    selection=reply.get("selection"),
                     download=_with_type(reply.get("download")),
                     unsaved_downloads=tuple(reply.get("unsaved_downloads") or ()),
                     invalid=tuple(dict(item) for item in reply.get("invalid") or ()),
@@ -745,6 +856,30 @@ class BrowserSession:
                     request_mark=reply.get("request_mark", 0),
                 )
             )
+            withheld = contract is not None and contract["submission"] == "withheld"
+            unknown = (
+                reply["verified"] is None
+                and not reply["navigated"]
+                and step.op
+                in {
+                    "choose",
+                    "choose_set",
+                    "choose_date",
+                    "choose_date_range",
+                }
+            )
+            if reply["verified"] is False or withheld or unknown:
+                if isinstance(steps, FormPlan) and not withheld:
+                    with contextlib.suppress(BridgeError):
+                        self.action_progress["contract"] = self._call(
+                            "check_form", navigation_id=observation.navigation_id
+                        )["fields"]
+                code = "form-mismatch" if reply["verified"] is False else "form-unknown"
+                error = BridgeError(f"{code}: requested state was not verified; remaining steps did not run")
+                error.steps = list(results)
+                error.failed_step = step
+                error.selection = reply.get("selection")
+                raise error
             if reply["navigated"] and len(results) < len(steps):
                 # The rest of the plan was made for the page that is gone.
                 self._observation = None
@@ -754,5 +889,13 @@ class BrowserSession:
                 )
                 interrupted.steps = list(results)
                 raise interrupted
+        if isinstance(steps, FormPlan) and not submissions:
+            final = self._call("check_form", navigation_id=observation.navigation_id)["fields"]
+            self.action_progress["contract"] = final
+            if any(item["status"] != "matched" for item in final):
+                code = "form-mismatch" if any(item["status"] == "mismatch" for item in final) else "form-unknown"
+                error = BridgeError(f"{code}: the form does not establish all requested field states")
+                error.steps = results
+                raise error
         self._observation = None
         return results

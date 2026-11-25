@@ -86,6 +86,8 @@
     return out;
   }
   function nameOf(el) {
+    const sidebar = giteaChoice(el);
+    if (sidebar && !el.hasAttribute("aria-label") && !el.hasAttribute("aria-labelledby")) return clean(sidebar.label.innerText);
     // aria-labelledby first: each element named contributes its own aria-label, or else its text,
     // and an element may name itself this way ("Remove" + "Recipient Name 1").
     const labelledBy = el.getAttribute("aria-labelledby");
@@ -246,6 +248,11 @@
         for (const attr of el.attributes) result.setAttribute(attr.name, attr.value);
       }
       result.setAttribute("data-lift-ref", refOf(el));
+      // Live descriptors are generated here and re-read at action time, never accepted from the page.
+      result.removeAttribute("data-lift-choice");
+      if (/^(combobox|listbox)$/.test(el.getAttribute("role") || "") && tag !== "SELECT") {
+        result.setAttribute("data-lift-choice", JSON.stringify(choiceState(refOf(el))));
+      }
       if (ID_ATTRS.some((name) => result.hasAttribute(name))) {
         const scope = scopeOf(el);
         if (scope !== "0") result.setAttribute("data-lift-scope", scope);
@@ -311,9 +318,11 @@
         else if (!INLINE.has(tag) && inlineNow) result.setAttribute("data-lift-display", "inline");
       }
 
-      // Ground truth: visible interactive elements, not counting one inside another.
+      // Independent semantic controls remain actionable even inside another control. Only
+      // inferred wrappers/decorative descendants share their ancestor's action.
       let inside = state.inside;
-      if (!hidden && !inside && el.matches(selector)) {
+      const independent = el.matches('a[href],button,input,select,textarea,summary,[role]:not([role="img"]):not([role="presentation"]):not([role="none"])');
+      if (!hidden && (!inside || independent) && el.matches(selector)) {
         const box = el.getBoundingClientRect();
         if (box.width > 0 && box.height > 0) {
           interactive.push({ ref: refOf(el), tag: tag.toLowerCase(), kind: kindOf(el), name: nameOf(el) });
@@ -551,7 +560,8 @@
       for (const child of composedChildren(node)) visit(child);
     };
     const heading = item.querySelector("h1,h2,h3,h4,h5,h6,[role=heading]");
-    if (heading) add(heading.textContent);
+    // A closed calendar's month is not the visible identity of the field around it.
+    if (heading && shown(heading)) add(heading.textContent);
     visit(item);
     cache.chunks.set(item, chunks);
     return chunks;
@@ -752,7 +762,7 @@
     return rect.width * rect.height >= COVER_AREA_RATIO * box.width * box.height ? top : null;
   }
   const typeable = (el) =>
-    (el.tagName === "INPUT" && !/^(checkbox|radio|button|submit|reset|image|range|color)$/i.test(el.type)) ||
+    (el.tagName === "INPUT" && !/^(checkbox|radio|button|submit|reset|image|range)$/i.test(el.type)) ||
     el.tagName === "TEXTAREA" ||
     el.tagName === "SELECT" ||
     el.isContentEditable;
@@ -1091,6 +1101,7 @@
       const observer = new MutationObserver(onRecords);
       observer.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
       recorder.observers.push(observer);
+      for (const type of ["input", "keyup"]) root.addEventListener(type, noteChoiceQuery, true);
       for (const region of regionsIn(root)) if (!recorder.said.has(region)) recorder.said.set(region, regionText(region));
     }
   }
@@ -1260,6 +1271,21 @@
 
   // ---- Choosing from a custom list --------------------------------------------------------------
   const norm = (text) => (text || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const choiceQueries = new WeakMap();
+  const acceptedChoices = new WeakMap();
+  function noteChoiceQuery(event) {
+    const el = event.composedPath()[0];
+    if (!el || !/^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
+    const prior = choiceQueries.get(el);
+    choiceQueries.set(el, {text: el.value, generation: (prior?.generation || 0) + 1});
+    acceptedChoices.delete(el);
+  }
+  function choiceQuery(el) {
+    if (!el) return null;
+    const prior = choiceQueries.get(el);
+    if (!prior || prior.text !== el.value) choiceQueries.set(el, {text: el.value || "", generation: (prior?.generation || 0) + 1});
+    return {...choiceQueries.get(el)};
+  }
   function shown(el) {
     if (typeof el.checkVisibility === "function" && !el.checkVisibility({ visibilityProperty: true })) return false;
     const box = el.getBoundingClientRect();
@@ -1287,37 +1313,177 @@
     // The label is the first line that holds a letter or a digit: an icon on a line of its own above
     // the title is not the title. The package's first_line does the same.
     const label = lines.find((line) => /[\p{L}\p{N}]/u.test(line)) || lines[0] || "";
-    return { name: clean(lines.join(" ")), label };
+    const description = (option.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean)
+      .map(id => byId(option, id)?.textContent || "").join(" ");
+    return { name: clean(lines.join(" ")), label, description: clean(description) };
+  }
+
+  // This is deliberately a component adapter, not a rule that arbitrary .item/.checked classes
+  // imply choice semantics. Gitea's issue sidebar has explicit cardinality, a checkmark on each
+  // value, and a known apply-on-close lifecycle. Other widgets keep the ARIA/manual path.
+  function giteaChoice(el) {
+    if (!el?.matches?.(".ui.dropdown")) return null;
+    const container = el.parentElement;
+    if (!container?.matches(".issue-sidebar-combo")) return null;
+    const mode = container.getAttribute("data-selection-mode");
+    if (!["single", "multiple"].includes(mode) || !["diff", "all"].includes(container.getAttribute("data-update-algo"))) return null;
+    const input = container.querySelector(":scope > input.combo-value[type=hidden]");
+    const label = el.querySelector(":scope > .fixed-text");
+    const popup = el.querySelector(":scope > .menu");
+    if (!input || !label || !popup) return null;
+    const items = [...popup.querySelectorAll(".menu > .item[data-value]")].filter(o => o.closest(".ui.dropdown") === el);
+    if (items.some(o => !o.querySelector(".item-check-mark"))) return null;
+    return {container, label, popup, items, mode};
+  }
+  // Vikunja's label editor: a single-result popup adds to a set of chips. The surrounding
+  // labels-list, direct input structure, owned popup and result structure all qualify the
+  // adapter; a class or page-authored data-lift hint alone never does.
+  function vikunjaLabels(el) {
+    if (!el?.matches('input[role="combobox"][aria-autocomplete="list"][aria-haspopup="listbox"]')) return null;
+    const root = el.closest('.multiselect[tabindex="-1"][aria-disabled]');
+    if (!root?.parentElement?.matches('.labels-list.details') ||
+        root.querySelector(':scope > .control > .input-wrapper > input[role="combobox"]') !== el) return null;
+    const wrapper = el.parentElement;
+    const popup = root.querySelector(':scope > .search-results[role="listbox"]');
+    if (popup && listOf(el) !== popup) return null;
+    const items = popup ? [...popup.querySelectorAll(':scope > [role="option"]')] : [];
+    if (items.some(o => !o.matches('button.search-result-button[type="button"]:has(.hint-text)') && o.getAttribute('aria-disabled') !== 'true')) return null;
+    const chips = [...wrapper.querySelectorAll(':scope > .tag')];
+    if (chips.some(o => !o.querySelector(':scope > button.delete[type="button"][aria-label]'))) return null;
+    return {root, popup, items, chips, busy: Boolean(root.querySelector(':scope > .control.is-loading'))};
+  }
+  function optionKind(option, text, component, labels) {
+    if (component) return "select";
+    if (labels) return option.classList.contains('is-create-option') ? "create" : option.matches('button.search-result-button') ? "select" : "unknown";
+    if (option.classList.contains('is-create-option')) return "unknown"; // A hint can restrict, never grant, semantic selection.
+    if (option.querySelector('button,input,select,textarea,[role="button"]')) return "unknown";
+    if (option.matches('a[href]') || option.querySelector('a[href]')) return "navigate";
+    // Plain ARIA options retain the generic path. Additional unexplained action text is not
+    // silently reduced to the first line; expose it for explicit activation instead.
+    return text.name === text.label && !text.description ? "select" : "unknown";
+  }
+  function optionSignature(option) {
+    return JSON.stringify([option.ref, option.label, option.name, option.description, option.kind,
+      option.destination, option.selected, Boolean(option.disabled), option.scope]);
+  }
+  let choiceActivation = null;
+  function finishChoice() {
+    const active = choiceActivation;
+    if (!active) return null;
+    active.cleanup();
+    choiceActivation = null;
+    return active.stopped;
+  }
+  function armChoice(ref, option) {
+    finishChoice();
+    const target = get(option.ref);
+    if (!target) throw new Error("choose: the option disappeared");
+    const initial = choiceState(ref);
+    const active = {url: location.href, popup: initial.popup_ref, query: initial.query, stopped: null};
+    const guard = event => {
+      if (!event.composedPath().includes(target)) return;
+      const now = choiceState(ref);
+      const current = now.options.find(o => o.ref === option.ref);
+      if (location.href === active.url && now.state !== "loading" && current?.signature === option.signature &&
+          now.popup_ref === active.popup && JSON.stringify(now.query) === JSON.stringify(active.query) &&
+          !current.disabled && ["select", "navigate"].includes(current.kind) && !active.stopped) return;
+      active.stopped = "choose: option meaning, query, or owner changed during activation; inspect the new view";
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const win = target.ownerDocument.defaultView;
+    const events = ["pointerdown", "mousedown", "click"];
+    for (const type of events) win.addEventListener(type, guard, true);
+    active.cleanup = () => { for (const type of events) win.removeEventListener(type, guard, true); };
+    choiceActivation = active;
+  }
+  function choiceState(ref) {
+    const el = get(ref);
+    if (!el) return {version: 1, state: "stale", options: [], mode: "unknown"};
+    const component = giteaChoice(el);
+    const labels = vikunjaLabels(el);
+    const list = component?.popup || labels?.popup || listOf(el);
+    const open = Boolean(list && shown(list));
+    const busy = labels?.busy || list?.getAttribute("aria-busy") === "true";
+    const all = component ? component.items : labels ? labels.items : list ? [...list.querySelectorAll('[role="option"]')].filter(o => o.closest('[role="listbox"]') === list) : [];
+    const visible = all.filter(shown);
+    const multiple = component ? component.mode === "multiple" : (list?.getAttribute("aria-multiselectable") || el.getAttribute("aria-multiselectable")) === "true";
+    const search = component ? list.querySelector('input:not([type="hidden"])') : /^(INPUT|TEXTAREA)$/.test(el.tagName) ? el : list?.querySelector('input:not([type="hidden"])');
+    const query = choiceQuery(search);
+    const options = open ? visible.map(o => {
+      const text = optionText(o);
+      const option = {ref: refOf(o), ...text, kind: optionKind(o, text, component, labels),
+      destination: (o.matches('a[href]') ? o : o.querySelector('a[href]'))?.getAttribute('href') || null,
+      selected: component ? o.classList.contains("checked") : o.hasAttribute("aria-selected") ? o.getAttribute("aria-selected") === "true" : null,
+      disabled: Boolean(o.getAttribute("aria-disabled") === "true" || o.hasAttribute("disabled") || (component && (o.classList.contains("disabled") || (o.hasAttribute("data-can-change") && o.getAttribute("data-can-change") !== "true")))),
+      scope: component ? o.getAttribute("data-scope") || null : null,
+      };
+      return {...option, signature: optionSignature(option)};
+    }) : [];
+    // ARIA set-size is evidence about virtualized lists. Without it a custom ARIA list's total
+    // coverage remains unknown; single selection can still pick an observed, unique option.
+    const sizes = all.map(o => Number(o.getAttribute("aria-setsize"))).filter(n => n > 0);
+    const complete = open && !busy && visible.length === all.length &&
+      (component ? !search?.value : sizes.length === all.length && sizes.length > 0 && sizes.every(n => n === all.length));
+    let known = complete && options.every(o => o.selected !== null);
+    let selected = options.filter(o => o.selected === true).map(o => o.label);
+    if (labels) {
+      known = true;
+      selected = labels.chips.filter(shown).map(o => clean(o.querySelector(':scope > span')?.textContent || ""));
+    }
+    if (component && !open) {
+      const summary = component.container.querySelector(":scope > .ui.list");
+      known = Boolean(summary && shown(summary));
+      selected = known ? [...summary.querySelectorAll(":scope > .item:not(.empty-list)")].filter(shown).map(o => optionText(o).label) : [];
+    }
+    const residual = open && !options.length && [...list.querySelectorAll('a[href],button,input,[tabindex]')].some(shown);
+    return {version: 2, adapter: component ? "gitea-sidebar" : labels ? "vikunja-labels" : "aria", ref, popup_ref: list ? refOf(list) : null,
+      search_ref: search ? refOf(search) : null, label: component ? nameOf(el) : null,
+      label_ref: component ? refOf(component.label) : null,
+      mode: multiple ? "multiple" : "single", expanded: open,
+      state: busy ? "loading" : !open ? "closed" : options.length ? "available" : residual && !component ? "unsupported" : "empty",
+      coverage: complete ? "complete" : open ? "partial" : "unknown", selection_known: known, selected, options,
+      query, operation: labels ? "add" : multiple ? "replace-set" : "replace",
+      commit: component ? component.container.getAttribute("data-update-url") ? (multiple ? "close" : "immediate") : "form" : labels ? "immediate" : "unknown",
+    };
   }
   // The option named ``value``: by its whole text, then by its label, exactly (ignoring case and runs
   // of whitespace), or else the one option whose label, then whose text, starts with it.
   function findOption(ref, value) {
     const el = get(ref);
     if (!el) return { state: "stale" };
-    const list = listOf(el);
-    const options = list
-      ? [...list.querySelectorAll("[role=option]")].filter((o) => shown(o) && o.getAttribute("aria-disabled") !== "true")
-      : [];
-    const texts = options.map(optionText);
+    const descriptor = choiceState(ref);
+    if (descriptor.state === "loading") return {state: "missing", coverage: "partial", names: [], open: descriptor.expanded};
+    const options = descriptor.options;
+    const texts = options;
     const want = norm(value);
     const matching = (test) => texts.map((text, i) => [text, i]).filter(([text]) => test(text));
     let hits = matching((text) => norm(text.name) === want);
     if (hits.length === 0) hits = matching((text) => norm(text.label) === want);
     if (hits.length === 0) hits = matching((text) => norm(text.label).startsWith(want));
     if (hits.length === 0) hits = matching((text) => norm(text.name).startsWith(want));
-    if (hits.length === 1) return { state: "found", ref: refOf(options[hits[0][1]]), label: hits[0][0].label };
+    if (hits.length === 1) {
+      const option = options[hits[0][1]];
+      return {state: option.disabled ? "disabled" : ["select", "navigate"].includes(option.kind) ? "found" : "action", ...option,
+        query: descriptor.query, popup_ref: descriptor.popup_ref};
+    }
     if (hits.length > 1) return { state: "ambiguous", names: hits.map(([text]) => text.label) };
-    return { state: "missing", names: texts.map((text) => text.label), open: Boolean(list && shown(list)) };
+    return { state: "missing", names: texts.map((text) => text.label), open: descriptor.expanded, coverage: descriptor.coverage, unsupported: descriptor.state === "unsupported" };
   }
   // After a choice: does the control show the option, or mark it selected?
-  function showsChoice(ref, optionRef, label) {
+  function showsChoice(ref, optionRef, label, before = null) {
     const el = get(ref);
     const option = get(optionRef);
     const want = norm(label);
+    const state = choiceState(ref);
+    if (state.adapter === "vikunja-labels") return state.state !== "loading" && state.selection_known && state.selected.some(v => norm(v) === want);
     if (option && option.getAttribute("aria-selected") === "true") return true;
     if (!el) return false;
     if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
-      if (norm(el.value) === want) return true;
+      // Query equality alone is not a selection. A bound option activation must also change
+      // the displayed value or close its previously open popup. This is UI evidence only.
+      if (norm(el.value) === want) return !state.expanded && before !== null &&
+        (norm(before.value) !== want || before.expanded === true) ? true : null;
       // react-select and Ant Design keep the input empty and show the choice in the box beside it.
       return !el.value && norm(shownBeside(el)) === want;
     }
@@ -1438,6 +1604,7 @@
     let bestScore = null;
     for (const { el: candidate, count } of calendars || shownCalendars(el)) {
       const isNamed = named.some((n) => n && (n === candidate || n.contains(candidate)));
+      if (named.some(Boolean) && !isNamed) continue;
       const isNew = Array.isArray(seen) && !seen.includes(refOf(candidate));
       const near =
         candidate.contains(el) || el.contains(candidate) || boxGap(fieldBox, candidate.getBoundingClientRect()) <= 48;
@@ -1570,29 +1737,51 @@
     }
     return null;
   }
-  // Does the field show the date ``iso``, in any common order of day, month, and year?
   function fieldText(el) {
     return "value" in el && el.tagName !== "BUTTON" ? el.value : el.textContent;
   }
+  // Format evidence comes from a visible placeholder, never from guessing the requested date.
+  function dateFormat(el) {
+    const hint = (el.getAttribute("placeholder") || "").trim().toLowerCase().split(/\s+[–—-]\s+|\s+to\s+/)[0];
+    let m = hint.match(/^(yyyy|mm|dd)([-/.])(yyyy|mm|dd)\2(yyyy|mm|dd)$/);
+    if (m && new Set([m[1], m[3], m[4]]).size === 3) return {order: [m[1][0], m[3][0], m[4][0]], separator: m[2]};
+    m = hint.match(/^(\d{1,4})([-/.])(\d{1,2})\2(\d{2,4})$/);
+    if (!m) return null;
+    const [a, b, c] = [+m[1], +m[3], +m[4]];
+    const order = m[1].length === 4 ? ["y", "m", "d"] : c > 31 && a > 12 && a <= 31 && b <= 12 ? ["d", "m", "y"] :
+      c > 31 && b > 12 && b <= 31 && a <= 12 ? ["m", "d", "y"] : null;
+    return order ? {order, separator: m[2]} : null;
+  }
+  function dateFillValue(el, iso) {
+    if (el.tagName !== "INPUT" || !/^(text|search)$/.test(el.type) || el.readOnly || el.disabled) return null;
+    const format = dateFormat(el);
+    if (!format) return null;
+    const [y, m, d] = iso.split("-");
+    return format.order.map(k => ({y, m, d})[k]).join(format.separator);
+  }
   function showsDate(ref, iso) {
     const el = get(ref);
-    return Boolean(el) && textShowsDate(fieldText(el), iso);
+    return el ? textShowsDate(fieldText(el), iso, dateFormat(el)) : null;
   }
-  // Does the field show the range from ``startIso`` to ``endIso`` ("20/11/2026 - 23/11/2026")?
   function showsRange(ref, startIso, endIso) {
     const el = get(ref);
-    if (!el) return false;
-    const parts = fieldText(el).split(/\s+(?:-|to|until)\s+|\s*[\u2013\u2014]\s*/i).map((t) => t.trim()).filter(Boolean);
-    return parts.length === 2 && textShowsDate(parts[0], startIso) && textShowsDate(parts[1], endIso);
+    if (!el) return null;
+    const parts = fieldText(el).split(/\s+(?:-|to|until)\s+|\s*[\u2013\u2014]\s*/i).map(t => t.trim()).filter(Boolean);
+    if (parts.length !== 2) return false;
+    const matches = [textShowsDate(parts[0], startIso, dateFormat(el)), textShowsDate(parts[1], endIso, dateFormat(el))];
+    return matches.includes(false) ? false : matches.includes(null) ? null : true;
   }
-  function textShowsDate(text, iso) {
+  function textShowsDate(text, iso, format) {
     const [y, m, d] = iso.split("-").map(Number);
     const named = fullDate(text);
     if (named) return named.y === y && named.m === m && named.d === d;
-    const numbers = (text.match(/\d+/g) || []).map(Number);
-    if (numbers.length !== 3) return false;
-    const [a, b, c] = numbers;
-    return (a === y && b === m && c === d) || (c === y && ((a === m && b === d) || (a === d && b === m)));
+    const match = text.trim().match(/^(\d{1,4})[-/.](\d{1,2})[-/.](\d{2,4})$/);
+    if (!match) return false;
+    const [a, b, c] = match.slice(1).map(Number);
+    const order = format?.order || (match[1].length === 4 ? ["y", "m", "d"] : a > 12 ? ["d", "m", "y"] : b > 12 ? ["m", "d", "y"] : a === b ? ["m", "d", "y"] : null);
+    if (!order) return null;
+    const read = Object.fromEntries(order.map((k, i) => [k, [a, b, c][i]]));
+    return read.y === y && read.m === m && read.d === d;
   }
 
   // ---- Uploads --------------------------------------------------------------------------------
@@ -1626,6 +1815,132 @@
     return el.getAttribute("aria-checked") === "true";
   }
 
+  // Private, bounded form state. Only indexes/statuses leave this closure; baselines may contain
+  // passwords. A contract is scoped to one operation and is cleared on every exit.
+  let formContract = null;
+  const equalState = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  function contractTarget(field) {
+    let el = get(field.ref);
+    if (el && (!field.identity || differsFrom(el, field.identity) === null)) return el;
+    if (!field.identity) return null;
+    const next = successor(field.identity);
+    if (next.state !== "one") return null;
+    field.ref = next.ref;
+    return get(next.ref);
+  }
+  function fieldStateFor(el, kind) {
+    if (!el) return undefined;
+    if (kind === "boolean") {
+      if (el.tagName === "INPUT" && /^(checkbox|radio)$/.test(el.type)) return el.checked;
+      const checked = el.getAttribute("aria-checked");
+      return checked === "true" ? true : checked === "false" ? false : undefined;
+    }
+    if (kind === "select" || kind === "multi") {
+      return el.tagName === "SELECT" ? [...el.selectedOptions].map(o => o.value).sort() : undefined;
+    }
+    if (kind === "file") return el.files ? [...el.files].map(f => ({name: f.name, size: f.size})) : undefined;
+    if (kind === "choose") {
+      const state = choiceState(refOf(el));
+      if (state.selection_known) return state.selected.map(norm).sort();
+      if (state.mode === "multiple") return undefined;
+      if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+        if (state.expanded) return undefined;
+        const accepted = acceptedChoices.get(el);
+        if (el.value) return accepted && norm(el.value) === accepted.label ? accepted.label : undefined;
+        return norm(shownBeside(el));
+      }
+      const copy = el.cloneNode(true);
+      copy.querySelectorAll("[role=listbox],[role=option]").forEach(o => o.remove());
+      return norm(copy.textContent);
+    }
+    return fieldText(el);
+  }
+  function beginForm(fields) {
+    clearForm();
+    formContract = {fields, url: location.href, cleanup: null, stopped: null};
+    for (const field of fields) {
+      const el = contractTarget(field);
+      // Store the input kind too: reusing a text element as a hidden/radio field changes its contract.
+      field.inputType = el?.tagName === "INPUT" ? el.type : null;
+      if (field.preserve) field.expected = fieldStateFor(el, field.kind);
+      if (["select", "multi"].includes(field.kind) && field.expected) field.expected.sort();
+      if (field.kind === "choose" && !field.preserve) field.expected = Array.isArray(field.expected)
+        ? field.expected.map(norm).sort() : norm(field.expected);
+    }
+    return checkForm(true);
+  }
+  function checkForm(baselineOnly = false) {
+    if (!formContract) return [{index: 0, status: "unknown"}];
+    return formContract.fields.map((field, i) => {
+      const el = contractTarget(field);
+      let status = "unknown";
+      if (location.href === formContract.url && el &&
+          (el.tagName !== "INPUT" || el.type === field.inputType)) {
+        if (baselineOnly && !field.preserve) status = "not_run";
+        else if (field.expected !== undefined) {
+          let matches;
+          if (!field.preserve && field.kind === "date") matches = showsDate(field.ref, field.expected);
+          else if (!field.preserve && field.kind === "range") matches = showsRange(field.ref, ...field.expected.split("/"));
+          else {
+            const actual = fieldStateFor(el, field.kind);
+            let expected = field.expected;
+            if (field.kind === "choose") {
+              if (Array.isArray(actual) && typeof expected === "string") expected = [expected];
+              if (typeof actual === "string" && Array.isArray(expected) && expected.length === 1) expected = expected[0];
+            }
+            matches = actual === undefined ? null : equalState(actual, expected);
+          }
+          status = matches === true ? "matched" : matches === false ? "mismatch" : "unknown";
+        }
+      }
+      return {index: i + 1, status};
+    });
+  }
+  function acceptFormChoice(ref, chosen, selected) {
+    const el = get(ref);
+    if (el) acceptedChoices.set(el, {label: norm(chosen)});
+    if (!formContract) return;
+    for (const field of formContract.fields) {
+      if (field.ref !== ref || field.preserve || field.kind !== "choose") continue;
+      field.expected = Array.isArray(field.expected) || choiceState(ref).operation === "add" ? selected?.map(norm).sort() : norm(chosen);
+    }
+  }
+  function armForm(submitter) {
+    if (!formContract) return [{index: 0, status: "unknown"}];
+    const contract = formContract;
+    const initial = checkForm();
+    if (initial.some(f => f.status !== "matched")) { contract.stopped = initial; return initial; }
+    const form = submitter.tagName === "FORM" ? submitter : submitter.form || submitter.closest("form");
+    const doc = submitter.ownerDocument;
+    const guard = event => {
+      const path = event.composedPath();
+      if (!(event.type === "submit" ? event.target === form : path.includes(submitter))) return;
+      const fields = checkForm();
+      if (fields.every(f => f.status === "matched") && !contract.stopped) return;
+      contract.stopped ||= fields;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    // Capture before control handlers; native submit is checked again after click handlers. This
+    // guards UI consistency, not arbitrary fetches a page may make inside those handlers.
+    const events = ["pointerdown", "mousedown", "click", "submit"];
+    for (const type of events) doc.defaultView.addEventListener(type, guard, true);
+    contract.cleanup = () => {
+      for (const type of events) doc.defaultView.removeEventListener(type, guard, true);
+      contract.cleanup = null;
+    };
+    return initial;
+  }
+  function disarmForm() {
+    if (!formContract) return null;
+    formContract.cleanup?.();
+    return formContract.stopped;
+  }
+  function clearForm() {
+    disarmForm();
+    formContract = null;
+  }
+
   // ---- Submits the browser refuses --------------------------------------------------------------
   // When a form is sent, the browser fires `invalid` on each field that fails its constraints (a
   // required field left empty, an email with no "@") and shows the reason only in a tooltip that is
@@ -1651,6 +1966,7 @@
 
   window.__viewspecLift = {
     docId,
+    beginForm, checkForm, armForm, disarmForm, clearForm, acceptFormChoice, dateFillValue,
     takeInvalid,
     mutationCount,
     noteSeq,
@@ -1668,6 +1984,8 @@
     blockedNow,
     nextChange,
     findOption,
+    armChoice, finishChoice,
+    choiceState,
     showsChoice,
     scrollStep,
     scrollNow,

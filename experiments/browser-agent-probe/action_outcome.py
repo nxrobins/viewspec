@@ -179,7 +179,10 @@ def outcome_of(result: Mapping[str, Any], activity: Mapping[str, Any] | None = N
     acts_again = bool(asked) or any((step.get("step") or {}).get("op") not in SETS_A_STATE for step in steps)
     if not result.get("ok"):
         refusal = _refused(result, acts_again)
-        if passed and refusal["retry"] == SAFE:
+        changed_choice = any(
+            (field.get("selection") or {}).get("changed") for field in (result.get("progress") or {}).get("fields", [])
+        )
+        if (passed or changed_choice) and refusal["retry"] == SAFE:
             refusal["retry"] = MAY_REPEAT
         return refusal
 
@@ -291,6 +294,14 @@ def _refused(result: Mapping[str, Any], acts_again: bool) -> dict[str, Any]:
     error = (result.get("errors") or [{}])[0]
     code = str(error.get("code", ""))
     message = error.get("message") or result.get("summary") or "The request was refused."
+    if code in {"BROWSER_FORM_MISMATCH", "BROWSER_FORM_UNKNOWN"}:
+        return _made(FAILED if code == "BROWSER_FORM_MISMATCH" else UNCERTAIN, message, MAY_REPEAT)
+    if code == "BROWSER_OBSERVATION_FAILED":
+        return _made(
+            UNCERTAIN,
+            "The action steps finished, but the page could not be read afterwards. Observe it before deciding what to do next.",
+            MAY_REPEAT,
+        )
     if code in NOT_RUN or code.startswith("AGENT_"):
         return _made(
             FAILED, f"Refused, and the refused step did not run: {message}", MAY_REPEAT if acts_again else SAFE

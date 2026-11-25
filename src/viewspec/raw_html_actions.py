@@ -76,7 +76,6 @@ NOT_FILLABLE = frozenset(
     {
         "button",
         "checkbox",
-        "color",
         "file",
         "image",
         "listbox",
@@ -220,7 +219,7 @@ class ActionStep:
         payload: dict[str, Any] = {"op": self.op, "node_id": self.node_id, "ref": self.ref, "name": self.name}
         if self.value is not None:
             payload["value"] = REDACTED if hide else self.value
-        if self.values:
+        if self.values or self.op == "choose_set":
             payload["values"] = [REDACTED] if hide else list(self.values)
         if self.op == "upload":
             payload["files"] = [item.to_json() for item in self.files]
@@ -354,14 +353,75 @@ def plan_upload(control: HtmlControl, files: Any) -> ActionStep:
     )
 
 
+@dataclass(frozen=True)
+class FieldIntent:
+    """Private desired state, independent of whether applying it needs an action.
+
+    Omitted semantic fields take their baseline in the browser before editing. Hidden protocol
+    fields are not form arguments and are not frozen. Values must never enter public progress.
+    """
+
+    key: str
+    control: HtmlControl
+    kind: str
+    preserve: bool
+    expected: Any = field(default=None, repr=False)
+
+
+class FormPlan(tuple):
+    """Tuple-compatible action plan retaining the field contract, including no-op intent."""
+
+    intents: tuple[FieldIntent, ...]
+
+    def __new__(cls, steps: Sequence[ActionStep], intents: Sequence[FieldIntent]):
+        plan = super().__new__(cls, steps)
+        plan.intents = tuple(intents)
+        return plan
+
+
+def _field_intents(fields: Sequence[FormField], arguments: Mapping[str, Any]) -> tuple[FieldIntent, ...]:
+    intents = []
+    for item in fields:
+        preserve = item.key not in arguments
+        if item.kind == "choice":
+            intents.extend(
+                FieldIntent(item.key, control, "boolean", preserve, arguments.get(item.key) == option)
+                for option, control in item.choices
+            )
+            continue
+        expected = None
+        kind = item.kind
+        if not preserve:
+            value = arguments[item.key]
+            steps = _field_steps(item, value)
+            step = steps[0] if steps else None
+            if kind == "boolean":
+                expected = value
+            else:
+                assert step is not None  # Only an already-matching boolean can plan no action.
+                if kind in {"select", "multi"}:
+                    expected = list(step.values)
+                elif kind == "choose":
+                    expected = list(step.values) if step.op == "choose_set" else step.value
+                elif kind == "file":
+                    expected = [{"name": f.name, "size": f.size} for f in step.files]
+                else:
+                    expected = step.value
+        if kind == "date":
+            kind = "text" if _native_date(item.control) else "range" if item.control.date_range == "range" else "date"
+        intents.append(FieldIntent(item.key, item.control, kind, preserve, expected))
+    return tuple(intents)
+
+
 def plan_form_call(
     lift: HtmlLiftResult, tool_name: str, arguments: Mapping[str, Any], *, submit: bool = True
-) -> tuple[ActionStep, ...]:
+) -> FormPlan:
     """Plan a call of a form tool from ``lift.form_tool_schemas()``.
 
     Steps fill the given arguments in document order and then submit: they click the first enabled
     submit control, or submit the form when it has none. ``submit=False`` only fills. Arguments the
-    call leaves out preserve their current values, including hidden values. An explicit empty
+    call leaves out preserve their live semantic field values. Hidden protocol values remain
+    app-owned. An explicit empty
     string clears an editable text/password field. An omitted required field is an error when
     empty (or unchecked); an omitted required secret also needs known filled state.
     """
@@ -404,7 +464,7 @@ def plan_form_call(
         )
     if submit:
         steps.append(_submit_step(form, controls))
-    return tuple(steps)
+    return FormPlan(steps, _field_intents(fields, arguments))
 
 
 def plan_scroll(direction: Any = "end", control: HtmlControl | None = None) -> ActionStep:
@@ -612,6 +672,10 @@ def _fill(control: HtmlControl, value: Any) -> ActionStep:
         raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"Expected text, not {value!r}.")
     if _native_date(control):
         value = date_value(control, value)  # A native date input takes only its own format.
+    if control.control == "color":
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
+            raise AgentActionError("AGENT_ACTION_VALUE_INVALID", "A color must be six-digit sRGB hex (#rrggbb).")
+        value = value.lower()
     return _step("fill", control, value=value)
 
 
@@ -850,6 +914,22 @@ def _choose(control: HtmlControl, value: Any) -> ActionStep:
     it is opened or typed into, so its options are checked in the browser, when they show.
     """
 
+    if control.choice is not None and (control.choice.mode == "unknown" or control.choice.state == "unsupported"):
+        raise AgentActionError(
+            "AGENT_ACTION_UNSUPPORTED", f"{_label(control)} has no supported choice contract; use its visible controls."
+        )
+    if control.multiple:
+        if not isinstance(value, (list, tuple)) or any(not isinstance(v, str) or not v.strip() for v in value):
+            raise AgentActionError(
+                "AGENT_ACTION_VALUE_INVALID",
+                f"{_label(control)} takes an array of option names: the exact selected set; [] clears it.",
+            )
+        wanted = tuple(v.strip() for v in value)
+        if len({v.casefold() for v in wanted}) != len(wanted):
+            raise AgentActionError(
+                "AGENT_ACTION_VALUE_INVALID", "A selected set cannot contain duplicate option names."
+            )
+        return _step("choose_set", control, values=wanted)
     if isinstance(value, (list, tuple)) and len(value) == 1:
         value = value[0]
     if not isinstance(value, str) or not value.strip():
@@ -858,7 +938,11 @@ def _choose(control: HtmlControl, value: Any) -> ActionStep:
     # operable", and a select-only combobox (react-select without search, Ant Design) opens on a click.
     wanted = value.strip()
     if control.control == "listbox":
-        allowed = [option.label for option in control.options if not option.disabled]
+        allowed = [
+            option.label
+            for option in control.options
+            if not option.disabled and option.kind not in {"create", "unknown"}
+        ]
         if wanted.casefold() not in {label.casefold() for label in allowed}:
             raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{wanted!r} is not one of {allowed}.")
     return _step("choose", control, value=wanted)

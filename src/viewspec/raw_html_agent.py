@@ -9,6 +9,7 @@ It works only on the sanitized, lifted nodes. It makes no network calls and runs
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -278,10 +279,13 @@ class HtmlOption:
 
     value: str
     label: str
-    selected: bool
+    selected: bool | None
     disabled: bool
     node_id: str | None = None
     ref: str | None = None
+    name: str | None = None
+    kind: str | None = None
+    description: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -292,7 +296,48 @@ class HtmlOption:
         }
         if self.ref is not None:
             payload["ref"] = self.ref
+        if self.name is not None:
+            payload["name"] = self.name
+        if self.kind is not None:
+            payload["kind"] = self.kind
+        if self.description:
+            payload["description"] = self.description
         return payload
+
+
+@dataclass(frozen=True)
+class HtmlChoice:
+    """Evidence about a custom choice, shared with the live browser descriptor.
+
+    Option coverage and knowledge of the selected set are independent. A filtered list can show
+    one option without establishing which other values would be removed by an exact-set operation.
+    """
+
+    adapter: str = "aria"
+    mode: str = "single"
+    state: str = "closed"
+    coverage: str = "unknown"
+    selection_known: bool = False
+    selected: tuple[str, ...] = ()
+    commit: str = "unknown"
+    popup_ref: str | None = None
+    search_ref: str | None = None
+    label_ref: str | None = None
+    operation: str = "replace"
+    query: str | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "adapter": self.adapter,
+            "mode": self.mode,
+            "state": self.state,
+            "coverage": self.coverage,
+            "selection_known": self.selection_known,
+            "selected": list(self.selected),
+            "commit": self.commit,
+            "operation": self.operation,
+            "query": self.query,
+        }
 
 
 @dataclass(frozen=True)
@@ -342,6 +387,8 @@ class HtmlControl:
     # or "other". A click that reorders the rows changes this and nothing else the diff can see.
     sort: str | None = None
     value_state: ValueState = "unknown"
+    choice: HtmlChoice | None = None
+    choice_owner: str | None = None  # Residual widget controls are actionable, not form arguments.
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -384,6 +431,10 @@ class HtmlControl:
         }
         if self.options:
             payload["options"] = [option.to_json() for option in self.options]
+        if self.choice is not None:
+            payload["choice"] = self.choice.to_json()
+        if self.choice_owner is not None:
+            payload["choice_owner"] = self.choice_owner
         return payload
 
 
@@ -474,6 +525,32 @@ class _Page:
         self._text: dict[tuple[str, bool], str] = {}
         self._child_index: dict[str, int] | None = None
         self._form_headings: dict[str, str] | None = None
+        # Nested listboxes can be owned without an explicit ARIA id reference.
+        for node in nodes:
+            if _role(node) == "listbox" and node.id not in self.popup_owner:
+                owner = next((a for a in self.ancestors(node) if _role(a) == "combobox"), None)
+                if owner is not None:
+                    self.popup_owner[node.id] = owner.id
+                    self.popup_of.setdefault(owner.id, node.id)
+        self.choice_data = {node.id: _live_choice(node) for node in nodes if _role(node) in ARIA_CHOICE}
+        self.by_ref = {node.attrs[HINT_REF]: node for node in nodes if node.attrs.get(HINT_REF)}
+        self.choice_owner: dict[str, str] = {}
+        for node in nodes:
+            owner = self.popup_owner.get(node.id)
+            if owner is None and node.parent_id:
+                parent = self.by_id[node.parent_id]
+                owner = self.choice_owner.get(parent.id)
+                if _role(parent) in ARIA_CHOICE and parent.id not in self.popup_owner:
+                    owner = parent.id
+            if owner is not None:
+                self.choice_owner[node.id] = owner
+        self.option_ids = {
+            option.node_id
+            for node in nodes
+            if _role(node) in ARIA_CHOICE and node.id not in self.popup_owner
+            for option in _choice_state(self, node, _role(node))[0]
+            if option.kind not in {"create", "unknown"}
+        }
 
     def child_index(self, node: LiftNode) -> int | None:
         """Where ``node`` is among its parent's children; None for a node its parent does not list."""
@@ -679,15 +756,16 @@ def _classify(node: LiftNode) -> tuple[str, str, float] | None:
 
 
 def _owns_content(node: LiftNode, kind: str, control: str) -> bool:
-    """Whether everything inside this control is part of it, so nothing inside is a control of its own.
+    """Whether ordinary text and inferred decorations inside this control name it.
 
     ``node`` is a native or ARIA control (``_classify`` found it); ``kind`` is "action" or "field" and
     ``control`` is what ``_classify`` called it: "link", "button", "text", "combobox", "treeitem", ...
-    A control that owns its content is named from it, and a link or button inside it is not counted.
-    A control that does not own it is still named from it, and the controls inside it are counted too.
+    Explicit nested controls retain their own actions regardless of this text-ownership decision.
     Guessed controls ("clickable", "focusable") never own their content and are not passed here.
     """
 
+    if control in ARIA_CHOICE and node.tag != "select":
+        return False  # Only represented options are suppressed; residual controls remain usable.
     if node.tag in {"a", "button", "summary", "input", "select", "textarea"}:
         return True  # Native controls render what they hold as part of themselves.
     # ARIA roles whose children are presentational, and the choice widgets, whose options and
@@ -869,8 +947,17 @@ def _aria_options(page: _Page, root: LiftNode) -> tuple[HtmlOption, ...]:
             if child.id in page.hidden:
                 continue
             if _role(child) == "option":
-                # An option that shows a description under its title is named by the title.
+                # Keep both title and complete meaning. Unexplained qualifiers remain explicit
+                # actions rather than automatically selected values.
                 label = child.attrs.get("aria-label") or page.first_line(child)
+                name = child.attrs.get("aria-label") or page.text(child)
+                descendants = list(child.child_ids)
+                linked = child.tag == "a" and bool(child.attrs.get("href"))
+                while descendants:
+                    descendant = page.by_id[descendants.pop()]
+                    linked |= descendant.tag == "a" and bool(descendant.attrs.get("href"))
+                    descendants.extend(descendant.child_ids)
+                kind = "navigate" if linked else "select" if name == label else "unknown"
                 options.append(
                     HtmlOption(
                         value=label,
@@ -879,6 +966,8 @@ def _aria_options(page: _Page, root: LiftNode) -> tuple[HtmlOption, ...]:
                         disabled=child.attrs.get("aria-disabled", "").lower() == "true",
                         node_id=child.id,
                         ref=child.attrs.get(HINT_REF) or None,
+                        name=name,
+                        kind=kind,
                     )
                 )
             else:
@@ -888,9 +977,88 @@ def _aria_options(page: _Page, root: LiftNode) -> tuple[HtmlOption, ...]:
     return tuple(options)
 
 
+def _live_choice(node: LiftNode) -> dict[str, Any] | None:
+    """Read a snapshot descriptor. The browser overwrites page-authored copies of this hint."""
+
+    try:
+        value = json.loads(node.attrs.get("data-lift-choice", "null"))
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(value, dict) or value.get("version") not in (1, 2):
+        return None
+    if not isinstance(value.get("mode"), str) or value["mode"] not in {"single", "multiple", "unknown"}:
+        return None
+    if not isinstance(value.get("options"), list):
+        return None
+    enums = {
+        "adapter": {"aria", "gitea-sidebar", "vikunja-labels"},
+        "state": {"closed", "loading", "available", "empty", "unsupported"},
+        "coverage": {"complete", "partial", "unknown"},
+        "commit": {"form", "close", "immediate", "unknown"},
+    }
+    if any(not isinstance(value.get(key), str) or value[key] not in allowed for key, allowed in enums.items()):
+        return None
+    if not isinstance(value.get("selected"), list) or not all(isinstance(item, str) for item in value["selected"]):
+        return None
+    if any(
+        value.get(key) is not None and not isinstance(value[key], str)
+        for key in ("popup_ref", "search_ref", "label_ref", "label")
+    ):
+        return None
+    if value.get("expanded") is not None and not isinstance(value["expanded"], bool):
+        return None
+    if any(
+        not isinstance(item, dict)
+        or not isinstance(item.get("ref"), str)
+        or not isinstance(item.get("label"), str)
+        or (item.get("selected") is not None and not isinstance(item["selected"], bool))
+        for item in value["options"]
+    ):
+        return None
+    if value.get("version") == 2:
+        if not isinstance(value.get("operation"), str) or value["operation"] not in {"replace", "replace-set", "add"}:
+            return None
+        query = value.get("query")
+        if query is not None and (not isinstance(query, dict) or not isinstance(query.get("text"), str)):
+            return None
+        if any(
+            not isinstance(item.get("kind"), str)
+            or item["kind"] not in {"select", "create", "navigate", "unknown"}
+            or not isinstance(item.get("name"), str)
+            or not isinstance(item.get("description"), str)
+            for item in value["options"]
+        ):
+            return None
+    return value
+
+
 def _choice_state(page: _Page, node: LiftNode, control: str) -> tuple[tuple[HtmlOption, ...], bool | None]:
     """Options and expanded state of an ARIA combobox or listbox."""
 
+    live = page.choice_data.get(node.id)
+    if live is not None:
+        options = []
+        for item in live["options"]:
+            if not isinstance(item, dict) or not isinstance(item.get("label"), str):
+                continue
+            ref = item.get("ref")
+            target = page.by_ref.get(ref) if isinstance(ref, str) else None
+            if target is None or target.id in page.hidden:
+                continue
+            options.append(
+                HtmlOption(
+                    item["label"],
+                    item["label"],
+                    item.get("selected"),
+                    bool(item.get("disabled")),
+                    target.id,
+                    item["ref"],
+                    item.get("name"),
+                    item.get("kind"),
+                    item.get("description"),
+                )
+            )
+        return tuple(options), live.get("expanded")
     if control == "listbox":
         return _aria_options(page, node), None
     popup_id = page.popup_of.get(node.id)
@@ -902,6 +1070,53 @@ def _choice_state(page: _Page, node: LiftNode, control: str) -> tuple[tuple[Html
     else:
         expanded = popup_id is not None and popup_id not in page.hidden
     return options, expanded
+
+
+def _choice_contract(page: _Page, node: LiftNode, options: tuple[HtmlOption, ...], expanded: bool | None) -> HtmlChoice:
+    live = page.choice_data.get(node.id)
+    if live is not None:
+        return HtmlChoice(
+            adapter=live.get("adapter", "aria"),
+            mode=live["mode"],
+            state=live.get("state", "unsupported"),
+            coverage=live.get("coverage", "unknown"),
+            selection_known=live.get("selection_known") is True,
+            selected=tuple(v for v in live.get("selected", []) if isinstance(v, str)),
+            commit=live.get("commit", "unknown"),
+            popup_ref=live.get("popup_ref"),
+            search_ref=live.get("search_ref"),
+            label_ref=live.get("label_ref"),
+            operation=live.get("operation", "replace-set" if live["mode"] == "multiple" else "replace"),
+            query=(live.get("query") or {}).get("text"),
+        )
+    popup = page.by_id.get(page.popup_of.get(node.id, ""), node)
+    multiple = (popup.attrs.get("aria-multiselectable") or node.attrs.get("aria-multiselectable")) == "true"
+    # Static HTML offers no runtime coverage proof; options with missing state are still presented
+    # as before, but cannot authorize replacing an unknown multi-selection.
+    known = bool(options) and all("aria-selected" in page.by_id[o.node_id].attrs for o in options if o.node_id)
+    residual = (
+        any(
+            page.choice_owner.get(n.id) == node.id and n.id not in page.option_ids and _classify(n)
+            for n in page.nodes
+            if n.id not in page.hidden and n.id != popup.id
+        )
+        if hasattr(page, "option_ids")
+        else False
+    )
+    return HtmlChoice(
+        mode="multiple" if multiple else "single",
+        state="available"
+        if options
+        else "unsupported"
+        if expanded and residual
+        else "closed"
+        if expanded is False
+        else "empty",
+        selection_known=known,
+        selected=tuple(o.label for o in options if o.selected),
+        popup_ref=popup.attrs.get(HINT_REF),
+        operation="replace-set" if multiple else "replace",
+    )
 
 
 def _field_value(
@@ -1052,6 +1267,7 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
     roles: list[tuple[str, str, str, float]] = []
     excluded: set[str] = set(page.hidden)
     inside_control: set[str] = set()
+    inside_option: set[str] = set()
     messages: list[HtmlMessage] = []
     inside_message: set[str] = set()
     for node in nodes:
@@ -1068,20 +1284,25 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 text = page.text(node, skip_controls=True)
                 if text:
                     messages.append(HtmlMessage(node.id, kind, text))
-        if node.parent_id is not None and node.parent_id in inside_control:
-            # The content of a control that owns it is part of that control: its name, its options,
-            # or its value. A control nested in it is not counted again.
+        classified = _classify(node)
+        if node.id in page.option_ids or node.parent_id in inside_option:
+            inside_option.add(node.id)
+            excluded.add(node.id)
+            continue
+        if node.parent_id in inside_control and (classified is None or classified[1] in GUESSED_CONTROLS):
+            # Text and inferred decorations belong to the parent. Explicit nested controls keep
+            # their own actions, even when the page uses nonconforming nested HTML.
             inside_control.add(node.id)
             excluded.add(node.id)
             continue
         if node.id in page.popup_owner:
             # A combobox's list: its options belong to the combobox, not to the page or a field.
-            inside_control.add(node.id)
             excluded.add(node.id)
             continue
         if node.tag in {"label", "legend"}:
             excluded.add(node.id)  # Its text names a control or a group; it is not page content.
-        classified = _classify(node)
+        if classified is None and _role(node) == "option" and node.id in page.choice_owner:
+            classified = ("action", "button", 0.8)  # An unrepresented popup action remains explicit.
         if classified is None:
             continue
         kind, control, confidence = classified
@@ -1100,6 +1321,15 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
             expanded = _aria_bool(node.attrs.get("aria-expanded"))  # A disclosure, a menu button, a tree item.
         value, checked = (None, None) if kind == "action" else _field_value(page, node, control, options)
         name = _clip(_accessible_name(page, node, kind, control))
+        choice = (
+            _choice_contract(page, node, options, expanded) if control in ARIA_CHOICE and node.tag != "select" else None
+        )
+        live_choice = page.choice_data.get(node.id)
+        if choice is not None and live_choice and live_choice.get("adapter") in {"gitea-sidebar", "vikunja-labels"}:
+            name = _clip(live_choice.get("label") or name)
+            value = ", ".join(choice.selected) if choice.selection_known else None
+        elif choice is not None and live_choice and live_choice.get("version") == 2 and choice.query:
+            value = ", ".join(choice.selected) if choice.selection_known else None
         controls.append(
             HtmlControl(
                 node_id=node.id,
@@ -1128,7 +1358,7 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 popup=(node.attrs.get("aria-haspopup") or "").lower() or None,
                 date=_is_date_field(node, control, name),
                 accept=node.attrs.get("accept") or None if node.tag == "input" else None,
-                multiple="multiple" in node.attrs,
+                multiple="multiple" in node.attrs or (choice is not None and choice.mode == "multiple"),
                 download=node.attrs.get("download") if node.tag in {"a", "area"} and "download" in node.attrs else None,
                 pattern=node.attrs.get("pattern") or None,
                 min_length=_length(node.attrs.get("minlength")),
@@ -1137,6 +1367,8 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 pressed=_aria_bool(node.attrs.get("aria-pressed")),
                 selected=_aria_bool(node.attrs.get("aria-selected")),
                 sort=_column_sort(page, node) if kind == "action" else None,
+                choice=choice,
+                choice_owner=page.choice_owner.get(node.id),
             )
         )
         roles.append((node.id, kind, name, confidence))
@@ -1235,6 +1467,8 @@ class FormField:
 
 
 def _field_kind(control: HtmlControl) -> str:
+    if control.control == "color" and control.tag == "input":
+        return "color"
     if control.control == "file" and control.tag == "input":
         return "file"
     if control.date:
@@ -1265,7 +1499,9 @@ def form_fields(form: HtmlForm, controls: Mapping[str, HtmlControl]) -> tuple[Fo
     radio_keys: dict[str, str] = {}
     for control_id in form.control_ids:
         control = controls[control_id]
-        if control.kind != "field" or control.disabled:
+        if control.kind != "field" or control.disabled or control.choice_owner is not None:
+            continue
+        if control.choice is not None and control.choice.state == "unsupported":
             continue
         if control.control == "radio":
             group_id = control.field_name or _slug(control.group or "") or None
@@ -1361,6 +1597,9 @@ def _field_schema(field: FormField) -> dict[str, Any]:
         prop["type"] = "boolean"
         if control.checked is not None:
             prop["default"] = control.checked
+    elif field.kind == "color":
+        prop.update(type="string", pattern="^#[0-9a-fA-F]{6}$")
+        prop["description"] += " (six-digit sRGB hex #rrggbb)"
     elif field.kind == "number":
         prop["type"] = "number"
         for key, limit in (("minimum", control.minimum), ("maximum", control.maximum)):
@@ -1408,14 +1647,26 @@ def _field_schema(field: FormField) -> dict[str, Any]:
             detail += "; picked from its calendar"
         prop["description"] = f"{prop['description']} ({detail})"
     elif field.kind == "choose":
-        prop["type"] = "string"
-        labels = [option.label for option in control.options if not option.disabled]
-        if control.control == "listbox" and labels:
+        prop["type"] = "array" if control.multiple else "string"
+        if control.multiple:
+            prop["items"] = {"type": "string"}
+            prop["uniqueItems"] = True
+            prop["description"] += ": exact selected set; [] clears; omission preserves"
+        labels = [
+            option.label
+            for option in control.options
+            if not option.disabled and option.kind not in {"create", "unknown"}
+        ]
+        if control.control == "listbox" and labels and not control.multiple:
             prop["enum"] = labels
         else:
             prop["description"] = f"{prop['description']}: pick an option from its list"
-            if labels:
+            if labels and not control.multiple:
                 prop["examples"] = labels[:10]
+        if control.choice and control.choice.operation == "add":
+            prop["description"] += (
+                "; add one existing option, preserving selected items; creation requires its explicit action"
+            )
     elif field.kind in {"select", "multi"}:
         values = [option.value for option in control.options if not option.disabled]
         if field.kind == "multi":
@@ -1438,7 +1689,15 @@ def _field_schema(field: FormField) -> dict[str, Any]:
         if control.pattern and pattern_is_bounded(control.pattern):
             prop["pattern"] = f"^(?:{control.pattern})$"
     custom_date = field.kind == "date" and control.control not in DATE_INPUT_TYPES
-    if control.value not in {None, "", "[redacted]"} and field.kind not in {"boolean", "file"} and not custom_date:
+    if field.kind == "choose" and control.multiple:
+        if control.choice and control.choice.selection_known:
+            prop["default"] = list(control.choice.selected)
+    elif (
+        control.value not in {None, "", "[redacted]"}
+        and field.kind not in {"boolean", "file"}
+        and not custom_date
+        and not (control.choice and control.choice.operation == "add")
+    ):
         prop["default"] = control.value  # A calendar's own display format is not the tool's format.
     if control.secret:
         prop["writeOnly"] = True
@@ -1479,7 +1738,7 @@ def form_tool_schema(form: HtmlForm, controls: Mapping[str, HtmlControl], *, nam
         "name": name or form_tool_name(form),
         "description": (
             f"Fill in and submit the form {form.name!r}. "
-            "Omitted arguments preserve current values, including hidden values. "
+            "Omitted arguments preserve live semantic field values; hidden protocol fields remain app-owned. "
             'To clear an editable text or password field, explicitly send an empty string ("").'
         ),
         "input_schema": {

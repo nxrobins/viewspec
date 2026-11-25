@@ -311,7 +311,10 @@ jobs:
       - name: Complete agent tasks through the MCP server
         env:
           VIEWSPEC_RUN_BROWSER_BRIDGE_E2E: "1"
-        run: python -m pytest tests/test_browser_bridge_e2e.py tests/test_browser_bridge_network_e2e.py -q --strict-markers -m e2e
+        run: >-
+          python -m pytest tests/test_browser_bridge_e2e.py tests/test_browser_bridge_network_e2e.py
+          tests/test_browser_bridge_choices.py tests/test_browser_form_contract.py
+          tests/test_browser_submit_recovery.py -q --strict-markers -m e2e
 
   react_tailwind_host:
     runs-on: ubuntu-24.04

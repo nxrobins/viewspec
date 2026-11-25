@@ -339,8 +339,8 @@ def _compare(old: HtmlControl, new: HtmlControl) -> dict[str, tuple[Any, Any]]:
         if name == "value_state" and not (old.secret or new.secret):
             continue  # Ordinary fields already report their value change.
         if name == "options":
-            before: Any = [(o.label, o.selected, o.disabled) for o in old.options]
-            after: Any = [(o.label, o.selected, o.disabled) for o in new.options]
+            before: Any = [(o.label, o.name, o.description, o.kind, o.selected, o.disabled) for o in old.options]
+            after: Any = [(o.label, o.name, o.description, o.kind, o.selected, o.disabled) for o in new.options]
             if before != after:
                 fields["options"] = (_options(old), _options(new))
             continue
@@ -352,7 +352,9 @@ def _compare(old: HtmlControl, new: HtmlControl) -> dict[str, tuple[Any, Any]]:
 
 def _options(control: HtmlControl) -> list[str]:
     return [
-        f"{o.label}{' (selected)' if o.selected else ''}{' (disabled)' if o.disabled else ''}" for o in control.options
+        f"{o.name or o.label}{' [' + o.kind + ']' if o.kind in {'create', 'unknown', 'navigate'} else ''}"
+        f"{' (selected)' if o.selected else ''}{' (disabled)' if o.disabled else ''}"
+        for o in control.options
     ]
 
 
