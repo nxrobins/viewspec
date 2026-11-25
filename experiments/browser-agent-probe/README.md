@@ -172,6 +172,18 @@ the final field contract. `progress.contract` lists field statuses by one-based 
 argument order, with one entry per radio option); `progress.submission` distinguishes `withheld`
 from `attempted`. Existing step progress and passed/blocked write counts remain available.
 
+For a generic single-choice combobox, one visible, explicitly selected option establishes the
+selection even when the list's coverage is partial; an input's display must also match that option.
+Reselecting it needs no option activation,
+and an omitted field can preserve that evidence without a previous agent selection. Input text
+alone remains a query: prefilled text, hidden popup rows, conflicting selections, and create or
+unknown actions do not establish a selected value. If an omitted field has only that evidence,
+the entire form call stops before editing, including `submit=false`. Select the intended value
+explicitly to establish its state, or use individual actions when a whole-form contract cannot
+be established. Losing selection evidence during later edits still withholds submission.
+A prefix query still needs option activation to commit the full value. A selected marker cannot
+verify different query text, or hide query drift caused by editing another field.
+
 This is a UI consistency contract. Earlier autosaves remain real effects; the bridge neither rolls
 back nor automatically replays a batch. Custom JavaScript request payloads and server acceptance
 still require application evidence. Event guards are removed on completion or failure.
@@ -180,6 +192,11 @@ Editable custom dates use typed entry when their visible placeholder establishes
 readonly calendars retain UI interaction. Ambiguous numeric dates cannot prove success. Color
 fields accept six-digit sRGB hex (`#rrggbb`), normalized to lowercase before filling; other CSS
 colors, alpha and wider color-space controls are outside this initial contract.
+For a two-field calendar range, the bridge continues in the start picker when the end field's
+`aria-controls` identifies that same still-open picker, including a grid inside its dialog.
+It activates independent end fields separately; proximity alone does not prove a shared picker.
+Both endpoints must verify before submission, including widgets that fill both fields only after
+the second day is chosen.
 
 A form call checks each argument the way the browser's constraint validation will when the form
 is sent (an email's format, `minlength`, `pattern`, `min`, `max`, `step`, a required field left

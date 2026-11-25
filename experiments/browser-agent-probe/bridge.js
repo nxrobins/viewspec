@@ -1191,7 +1191,11 @@ async function choose(target, value, spec, navigationId, values = null) {
       desired = [found.label];
       const before = await target.evaluate(el => ({value: "value" in el ? el.value : null,
         expanded: window.top.__viewspecLift.choiceState(window.top.__viewspecLift.refOf(el)).expanded}));
-      if (found.selected !== true) await clickOption(found);
+      // A selected marker does not commit a different query in an editable input. Only skip
+      // activation when the shared descriptor also establishes the current selection.
+      if (found.selected !== true || (contract.adapter === "aria" && !(await read()).selection_known)) {
+        await clickOption(found);
+      }
       if (mainNavigations !== navigationId) return result(null, desired);
       // A known immediate-apply widget may already have replaced its whole sidebar.
       if (contract.adapter === "gitea-sidebar" && contract.commit === "immediate") applied = true;
@@ -1402,7 +1406,7 @@ async function pickDay(info, read, changed, clickRef, target, ref, iso) {
   await clickRef(info.target.ref);
   await settle();
   const verified = await page.evaluate(([r, d]) => window.__viewspecLift.showsDate(r, d), [ref, iso]);
-  return { verified, chosen: iso };
+  return { verified, chosen: iso, calendar_ref: info.calendar_ref };
 }
 
 // Pick a date range: the start day, then the end day. ``end`` is the field that holds the end of a
@@ -1435,17 +1439,22 @@ async function chooseDateRange(target, end, value) {
     await handle.click({ timeout: ACTION_TIMEOUT });
   };
   seen = (await read()).visible || [];
-  await chooseDate(target, startIso, Boolean(end));
+  const first = await chooseDate(target, startIso, Boolean(end));
   const info = await read();
-  if (end) {
-    await chooseDate(end, endIso, true);
-  } else if (info.state === "open") {
+  // A shared, still-open picker is already waiting for its second day. Clicking its end input
+  // can reset the range. Require explicit end-field ownership of the picker used for the start;
+  // proximity to an independent field's calendar is insufficient to keep clicking in it.
+  // Some range widgets fill both endpoints only after the second day; verify the pair below.
+  const shared = info.state === "open" && info.owned && info.calendar_ref === first.calendar_ref;
+  if (info.state === "open" && (!end || shared)) {
     try {
       await pickDay(info, read, changed, clickRef, endField, endRef, endIso);
     } catch (error) {
       await endField.press("Escape", { timeout: ACTION_TIMEOUT }).catch(() => {});
       throw error;
     }
+  } else if (end) {
+    await chooseDate(end, endIso, true);
   } else {
     throw new Error(`choose_date_range: the calendar closed after ${startIso}, before the end could be picked`);
   }

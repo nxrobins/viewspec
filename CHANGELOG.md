@@ -73,6 +73,14 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- The browser bridge finishes date ranges in an explicitly shared calendar, including a named
+  grid inside a dialog. This avoids a second input click that can reset the start date. Independent
+  calendars still open separately, and ranges whose fields update only after the second day are
+  verified together.
+- Form calls now recognize an unambiguous visible selection in a single-choice combobox even
+  when its option list is partial. Reselecting that value needs no option activation, and omitted
+  fields can preserve it. Query-only or conflicting state remains unknown; a stale selected
+  marker cannot verify changed query text or allow the wrong value to be submitted.
 - A dismissed `confirm` or `prompt` in the browser bridge no longer marks an action `failed` and
   safe to retry. An observed effect still counts as `succeeded`; without other evidence, the
   result is `uncertain` / `may_repeat`. Four browser regressions place an order before asking
