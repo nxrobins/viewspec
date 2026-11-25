@@ -48,10 +48,15 @@ def app(monkeypatch):
                 "secret": "noteField.oninput=()=>document.querySelector('[name=password]').value='secret-changed'",
                 "replace": "noteField.oninput=()=>{const copy=nameField.cloneNode();copy.value=nameField.value;nameField.replaceWith(copy)}",
                 "type": "noteField.oninput=()=>nameField.type='hidden'",
+                "hidden-heading": "noteField.oninput=()=>document.querySelector('h2').textContent='December 2026'",
             }
             fields = """<label>Name<input id="nameField" name="name" value="Original"></label>
                 <label>Note<input id="noteField" name="note" value="Old"></label>
                 <input type="hidden" name="token" value="protocol">"""
+            if mode == "hidden-heading":
+                fields = """<section><div hidden><h2>November 2026</h2></div>
+                    <label>Name<input id="nameField" name="name" value="Original"></label></section>
+                    <section><label>Note<input id="noteField" name="note" value="Old"></label></section>"""
             if mode in {"noop", "aria"}:
                 fields += f'<button id="terms" type="button" name="terms" role="checkbox" aria-checked="{str(mode == "noop").lower()}">Terms</button>'
             if mode == "focus":
@@ -150,7 +155,7 @@ def test_unmet_contract_never_submits(app, mode):
     assert len(app[2]) == 1 and app[2][0][0] == "/commit"
 
 
-@pytest.mark.parametrize("mode", ["normal", "protocol", "replace"])
+@pytest.mark.parametrize("mode", ["normal", "protocol", "replace", "hidden-heading"])
 def test_correct_contract_submits_exactly_once(app, mode):
     result = call(app, mode)
     assert result["ok"], result
@@ -159,7 +164,8 @@ def test_correct_contract_submits_exactly_once(app, mode):
     assert len(app[2]) == 1
     data = parse_qs(app[2][0][1])
     assert data["name"] == ["Alice"] and data["note"] == ["New"]
-    assert data["token"] == ["renewed" if mode == "protocol" else "protocol"]
+    if mode != "hidden-heading":
+        assert data["token"] == ["renewed" if mode == "protocol" else "protocol"]
 
 
 def test_autosave_is_retained_and_retry_is_not_safe(app):

@@ -560,7 +560,8 @@
       for (const child of composedChildren(node)) visit(child);
     };
     const heading = item.querySelector("h1,h2,h3,h4,h5,h6,[role=heading]");
-    if (heading) add(heading.textContent);
+    // A closed calendar's month is not the visible identity of the field around it.
+    if (heading && shown(heading)) add(heading.textContent);
     visit(item);
     cache.chunks.set(item, chunks);
     return chunks;
