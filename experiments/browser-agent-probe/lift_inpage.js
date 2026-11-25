@@ -1366,6 +1366,10 @@
     return JSON.stringify([option.ref, option.label, option.name, option.description, option.kind,
       option.destination, option.selected, Boolean(option.disabled), option.scope]);
   }
+  function choiceDisplayMatches(el, label) {
+    return Boolean(el) && (!/^(INPUT|TEXTAREA)$/.test(el.tagName) ||
+      norm(el.value || shownBeside(el)) === norm(label));
+  }
   let choiceActivation = null;
   function finishChoice() {
     const active = choiceActivation;
@@ -1427,6 +1431,14 @@
       (component ? !search?.value : sizes.length === all.length && sizes.length > 0 && sizes.every(n => n === all.length));
     let known = complete && options.every(o => o.selected !== null);
     let selected = options.filter(o => o.selected === true).map(o => o.label);
+    if (!component && !labels && !multiple && !busy) {
+      // In a single-choice list, one visible selected option is positive evidence even when
+      // filtered options do not establish complete coverage. Missing or conflicting evidence
+      // cannot establish a selection, and hidden popup rows are not current visible evidence.
+      const picked = options.filter(o => o.selected === true);
+      known = picked.length === 1 && picked[0].kind === "select" && choiceDisplayMatches(el, picked[0].label) ||
+        picked.length === 0 && known;
+    }
     if (labels) {
       known = true;
       selected = labels.chips.filter(shown).map(o => clean(o.querySelector(':scope > span')?.textContent || ""));
@@ -1477,7 +1489,7 @@
     const want = norm(label);
     const state = choiceState(ref);
     if (state.adapter === "vikunja-labels") return state.state !== "loading" && state.selection_known && state.selected.some(v => norm(v) === want);
-    if (option && option.getAttribute("aria-selected") === "true") return true;
+    if (option && option.getAttribute("aria-selected") === "true" && choiceDisplayMatches(el, label)) return true;
     if (!el) return false;
     if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
       // Query equality alone is not a selection. A bound option activation must also change
@@ -1715,6 +1727,9 @@
       buttons.find((b) => /prev|‹|«|←|back/i.test(nameOfButton(b)) || nameOfButton(b).trim() === "<") || icons.find(prevIcon);
     return {
       state: "open",
+      calendar_ref: refOf(cal),
+      owned: (el.getAttribute("aria-controls") || "").split(/\s+/).filter(Boolean)
+        .some(id => { const owner = byId(el, id); return owner && (owner === cal || owner.contains(cal)); }),
       visible,
       shown: shownMonth,
       last: lastMonth,

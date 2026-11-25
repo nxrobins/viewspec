@@ -68,14 +68,84 @@ def app(monkeypatch):
             if mode in {"dates", "dmy"}:
                 placeholder = "25/11/2026" if mode == "dmy" else "11/25/2026"
                 fields += f'<label>Start date<input name="start" placeholder="{placeholder}"></label><label>End date<input name="end" placeholder="{placeholder}"></label>'
-            if mode in {"independent", "ambiguous"}:
+            if mode in {"independent", "independent-unnamed", "ambiguous"}:
                 for key in ["start", "end"]:
-                    fields += f'''<label>{key.title()} date<input name="{key}" id="{key}" readonly aria-controls="cal-{key}" onclick="document.querySelectorAll('.calendar').forEach(c=>c.hidden=true);document.getElementById('cal-{key}').hidden=false"></label>
+                    ownership = "" if mode == "independent-unnamed" else f'aria-controls="cal-{key}"'
+                    fields += f'''<label>{key.title()} date<input name="{key}" id="{key}" readonly {ownership} onclick="document.querySelectorAll('.calendar').forEach(c=>c.hidden=true);document.getElementById('cal-{key}').hidden=false"></label>
                     <div class="calendar" id="cal-{key}" hidden><h2>December 2026</h2><div role="grid">'''
                     for day in range(1, 32):
                         display = f"{day:02}/12/2026" if mode == "ambiguous" else f"2026-12-{day:02}"
                         fields += f"""<button type="button" aria-label="December {day}, 2026" onclick="document.getElementById('{key}').value='{display}'">{day}</button>"""
                     fields += "</div></div>"
+            if mode in {"shared-range", "shared-deferred", "shared-noop"}:
+                fields += """<label>Start date<input name="start" id="start" readonly aria-controls="shared-calendar"></label>
+                    <label>End date<input name="end" id="end" readonly aria-controls="shared-calendar"></label>
+                    <input name="opens" id="opens" type="hidden" value="0">
+                    <output id="picks">Picks 0</output>
+                    <div id="shared-calendar" role="dialog" hidden><h2>December 2026</h2><div role="grid">"""
+                for day in range(1, 32):
+                    fields += f'<button type="button" data-date="2026-12-{day:02}">{day}</button>'
+                fields += "</div></div>"
+                scripts[mode] = """
+                    const calendar=document.getElementById('shared-calendar');
+                    const start=document.getElementById('start'), end=document.getElementById('end');
+                    let picked=0, pending=null;
+                    for(const field of [start,end])field.onclick=()=>{
+                        opens.value=String(Number(opens.value)+1);pending=null;start.value='';end.value='';calendar.hidden=false;
+                    };
+                    calendar.onclick=e=>{
+                        if(!e.target.dataset.date)return;
+                        picks.textContent='Picks '+(++picked);
+                        if(location.pathname==='/shared-noop')return;
+                        if(!pending){
+                            pending=e.target.dataset.date;
+                            if(location.pathname!=='/shared-deferred')start.value=pending;
+                        }else{start.value=pending;end.value=e.target.dataset.date;calendar.hidden=true;}
+                    };
+                """
+            if mode in {
+                "selected-choice",
+                "unknown-choice",
+                "changed-choice",
+                "query-drift-choice",
+                "ignored-selected-choice",
+                "closed-selected-choice",
+                "visible-selected-choice",
+                "ambiguous-choice",
+                "action-choice",
+            }:
+                selected = mode != "unknown-choice"
+                expanded = mode in {
+                    "visible-selected-choice",
+                    "changed-choice",
+                    "query-drift-choice",
+                    "ambiguous-choice",
+                    "action-choice",
+                }
+                label = "Japan<br>Create a new country" if mode == "action-choice" else "Japan"
+                fields += f'''<label>Country<input name="country" id="country" role="combobox"
+                    aria-controls="countries" aria-expanded="{str(expanded).lower()}" value="Japan"></label>
+                    <ul id="countries" role="listbox" {"" if expanded else "hidden"}>
+                    <li role="option" id="japan" aria-selected="{str(selected).lower()}">{label}</li>
+                    <li role="option" aria-selected="{str(mode == "ambiguous-choice").lower()}">France</li></ul>
+                    <input name="activations" id="activations" type="hidden" value="0">'''
+                scripts[mode] = """
+                    const country=document.getElementById('country'), list=document.getElementById('countries');
+                    country.oninput=()=>{list.hidden=false;country.setAttribute('aria-expanded','true')};
+                    list.onclick=e=>{
+                        if(e.target.getAttribute('role')!=='option')return;
+                        activations.value=String(Number(activations.value)+1);
+                        if(location.pathname==='/ignored-selected-choice')return;
+                        list.querySelectorAll('[role=option]').forEach(o=>o.setAttribute('aria-selected',String(o===e.target)));
+                        country.value=e.target.textContent;list.hidden=true;country.setAttribute('aria-expanded','false');
+                    };
+                """
+                if mode == "changed-choice":
+                    scripts[mode] += (
+                        "noteField.oninput=()=>document.getElementById('japan').setAttribute('aria-selected','false');"
+                    )
+                if mode == "query-drift-choice":
+                    scripts[mode] += "noteField.oninput=()=>country.value='France';"
             if mode == "color":
                 fields += '<label>Color<input name="color" type="color" oninput="document.querySelector(\'[name=events]\').value+=\'input,\'" onchange="document.querySelector(\'[name=events]\').value+=\'change,\'"></label><input name="events" type="hidden" value="">'
             body = f'<!doctype html><title>Form</title><form aria-label="Order" method="post" action="/commit">{fields}<button id="save">Save</button></form><script>{scripts.get(mode, "")}</script>'
@@ -225,8 +295,9 @@ def test_guard_is_removed_without_reloading_the_document(app):
     assert len(journal) == 1 and parse_qs(journal[0][1])["name"] == ["New task"]
 
 
-def test_independent_readonly_calendars_keep_each_endpoint(app):
-    result = call(app, "independent", {"start": "2026-12-01", "end": "2026-12-18"})
+@pytest.mark.parametrize("mode", ["independent", "independent-unnamed"])
+def test_independent_readonly_calendars_keep_each_endpoint(app, mode):
+    result = call(app, mode, {"start": "2026-12-01", "end": "2026-12-18"})
     assert result["ok"], result
     assert len(app[2]) == 1
     data = parse_qs(app[2][0][1])
@@ -238,3 +309,103 @@ def test_ambiguous_numeric_date_cannot_prove_the_requested_date(app):
     assert not result["ok"] and not app[2], result
     assert result["outcome"]["status"] == "uncertain"
     assert result["steps"][0]["verified"] is None
+
+
+@pytest.mark.parametrize("use_call", [False, True])
+@pytest.mark.parametrize("mode", ["shared-range", "shared-deferred"])
+def test_shared_range_finishes_in_open_picker_without_reactivating_end(app, use_call, mode):
+    tools, origin, journal = app
+    page = tools.observe(url=origin + "/" + mode)
+    if use_call:
+        result = tools.call(tool="order", arguments={"start": "2026-12-01", "end": "2026-12-18"})
+    else:
+        from tests.test_browser_bridge_e2e import handle
+
+        result = tools.act(action="select", handle=handle(page, "Start date"), value=["2026-12-01", "2026-12-18"])
+        assert result["ok"], result
+        result = tools.call(tool="order", arguments={})
+    assert result["ok"], result
+    assert len(journal) == 1 and journal[0][0] == "/commit"
+    data = parse_qs(journal[0][1])
+    assert data["start"] == ["2026-12-01"] and data["end"] == ["2026-12-18"]
+    assert data["opens"] == ["1"]
+
+
+@pytest.mark.parametrize("submit", [False, True])
+def test_reselecting_explicit_aria_selection_needs_no_activation(app, submit):
+    tools, origin, journal = app
+    page = tools.observe(url=origin + "/selected-choice")
+    from tests.test_browser_bridge_e2e import handle
+
+    selected = tools.act(action="select", handle=handle(page, "Country"), value="Japan")
+    assert selected["ok"] and selected["steps"][0]["verified"] is True, selected
+    assert not selected["steps"][0]["selection"]["changed"]
+    assert "'Country' = 'Japan'" in selected["view"]
+    assert selected["form_tools"][0]["input_schema"]["properties"]["country"]["default"] == "Japan"
+    result = tools.call(tool="order", arguments={"country": "Japan", "note": "New"}, submit=submit)
+    assert result["ok"], result
+    assert all(f["status"] == "matched" for f in result["progress"]["contract"])
+    if not submit:
+        assert not journal
+        result = tools.call(tool="order", arguments={})
+        assert result["ok"], result
+    data = parse_qs(journal[0][1])
+    assert len(journal) == 1 and data["country"] == ["Japan"] and data["note"] == ["New"]
+    assert data["activations"] == ["0"]
+
+
+@pytest.mark.parametrize("submit", [False, True])
+@pytest.mark.parametrize("mode", ["unknown-choice", "closed-selected-choice", "ambiguous-choice", "action-choice"])
+def test_prefilled_query_without_selection_evidence_still_refuses_before_edits(app, submit, mode):
+    tools, _, journal = app
+    result = call(app, mode, {"note": "New"}, submit=submit)
+    assert not result["ok"] and result["errors"][0]["code"] == "BROWSER_FORM_UNKNOWN", result
+    assert not journal and all(f["status"] == "not_run" for f in result["progress"]["fields"])
+    assert "'Note' = 'Old'" in tools.observe()["view"]
+
+
+@pytest.mark.parametrize("submit", [False, True])
+def test_omitted_prefilled_choice_with_explicit_selection_is_preserved(app, submit):
+    _, _, journal = app
+    result = call(app, "visible-selected-choice", {"note": "New"}, submit=submit)
+    assert result["ok"], result
+    assert all(f["status"] == "matched" for f in result["progress"]["contract"])
+    assert len(journal) == int(submit)
+    if submit:
+        data = parse_qs(journal[0][1])
+        assert data["country"] == ["Japan"] and data["activations"] == ["0"]
+
+
+@pytest.mark.parametrize("mode", ["changed-choice", "query-drift-choice"])
+def test_omitted_choice_losing_selection_evidence_cannot_submit(app, mode):
+    result = call(app, mode, {"note": "New"})
+    assert not result["ok"] and not app[2], result
+    assert "'Note' = 'New'" in app[0].observe()["view"]
+    assert result["progress"]["submission"] == "withheld"
+
+
+def test_partial_query_commits_selected_option_before_form_submit(app):
+    tools, _, journal = app
+    result = call(app, "selected-choice", {"country": "Jap"}, submit=False)
+    assert result["ok"] and result["steps"][0]["verified"] is True, result
+    assert "query: 'Japan'" in result["view"]
+    assert not journal
+    repeated = tools.call(tool="order", arguments={"note": "New"})
+    assert repeated["ok"], repeated
+    data = parse_qs(journal[0][1])
+    assert len(journal) == 1 and data["country"] == ["Japan"] and data["note"] == ["New"]
+    assert data["activations"] == ["1"]
+
+
+def test_selected_marker_cannot_verify_an_uncommitted_query(app):
+    result = call(app, "ignored-selected-choice", {"country": "Jap"})
+    assert not result["ok"] and not app[2], result
+    assert result["steps"][0]["verified"] is False
+    assert result["progress"]["submission"] == "not_run"
+
+
+def test_shared_range_that_does_not_commit_either_endpoint_cannot_submit(app):
+    result = call(app, "shared-noop", {"start": "2026-12-01", "end": "2026-12-18"})
+    assert not result["ok"] and not app[2], result
+    assert "Picks 2" in app[0].observe()["view"]
+    assert result["steps"][0]["verified"] is False
