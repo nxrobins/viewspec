@@ -74,7 +74,7 @@ function loadPlaywright() {
 
 const { chromium } = loadPlaywright();
 
-const LIBRARY = fs.readFileSync(path.join(__dirname, "lift_inpage.js"), "utf8");
+const LIBRARY = ["editor_inpage.js", "lift_inpage.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n");
 const INTERACTIVE_SELECTOR = [
   "a[href]",
   "button",
@@ -1628,6 +1628,7 @@ async function act({
   const navigationsBefore = mainNavigations;
   const urlBefore = page.url();
   let verified = null;
+  let editorInputAttempted = false;
   let chosen = null;
   let selection = null;
   let saved = null;
@@ -1646,7 +1647,38 @@ async function act({
       // No dispatch: retain the same response journal and cleanup path as an event-time refusal.
     } else if (op === "click") {
       await target.click(options);
+    } else if (op === "edit") {
+      const operation = value.operations[0];
+      await target.evaluate((el, args) => window.top.__viewspecEditor.prepare(el, args.revision, args.operation),
+        {revision: value.base_revision, operation});
+      try {
+        await target.focus(options);
+        requireObservation(navigationId);
+        await refuseIfBlocked(target, op);
+        await target.evaluate(el => {
+          window.top.__viewspecEditor.caret(el);
+          window.top.__viewspecEditor.guard(el);
+        });
+        requireObservation(navigationId);
+        if (operation.op === "append_paragraph") {
+          editorInputAttempted = true;
+          await target.press("Enter", options);
+          const ready = await target.evaluate(el => window.top.__viewspecEditor.afterParagraph(el));
+          if (ready) {
+            requireObservation(navigationId);
+            await page.keyboard.insertText(operation.text);
+          }
+        } else {
+          editorInputAttempted = true;
+          await target.fill(operation.text, options);
+        }
+        verified = await target.evaluate(el => window.top.__viewspecEditor.verify(el));
+      } finally {
+        await target.evaluate(el => window.top.__viewspecEditor.cleanup(el)).catch(() => null);
+      }
     } else if (op === "fill") {
+      if (await target.evaluate(el => window.top.__viewspecEditor.host(el)))
+        throw new Error("editor: use a typed edit from the current editor contract");
       const supported = await target.evaluate(el => el.type !== "color" ||
         (!el.hasAttribute("alpha") && (!el.hasAttribute("colorspace") || el.getAttribute("colorspace") === "limited-srgb")));
       if (!supported) throw new Error("form-unknown: this color control requires an unsupported alpha or color space contract");
@@ -1680,12 +1712,16 @@ async function act({
     }
   } catch (error) {
     if (formSubmit) await page.evaluate(() => window.__viewspecLift.disarmForm()).catch(() => null);
+    if (op === "edit" && editorInputAttempted) {
+      // A late route/target error must not look like a refusal before input. The page may autosave.
+      throw new Error("editor: the edit was interrupted after input may have started; observe before retrying");
+    }
     // An error the step raised on purpose ("download: no download started") stands. Anything else
     // that broke after the page loaded a new document (a click that submits a search) broke because
     // the in-page library the step was using is gone: say that, not what failed inside.
     const text = String(error.message || "");
     const deliberate =
-      /^(choose|choose_date|choose_date_range|upload|download|drift|stale|stale-view|ambiguous|blocked|navigated):/.test(text);
+      /^(choose|choose_date|choose_date_range|upload|download|editor|drift|stale|stale-view|ambiguous|blocked|navigated):/.test(text);
     if (mainNavigations !== navigationsBefore && !deliberate) {
       throw new Error(`navigated: the page loaded a new document during ${op}, before the step finished; observe it and plan again`);
     }
@@ -1699,6 +1735,7 @@ async function act({
     await settle();
     // Read state after handlers and bounded settling, not immediately after dispatch.
     if (mainNavigations === navigationsBefore && !stopped) {
+      if (op === "edit") verified = await target.evaluate(el => window.top.__viewspecEditor.verify(el));
       if (op === "fill") verified = await target.evaluate((el, v) => window.top.__viewspecLift.hasValue(el, v), value);
       if (op === "check" || op === "uncheck") verified = await target.evaluate((el, desired) =>
         window.top.__viewspecLift.isChecked(el) === desired, op === "check");
@@ -1709,6 +1746,7 @@ async function act({
       }
     }
   } finally {
+    if (op === "edit") await target.evaluate(el => window.top.__viewspecEditor.clear(el)).catch(() => null);
     if (formSubmit) stopped ||= await page.evaluate(() => window.__viewspecLift.disarmForm()).catch(() => null);
   }
   if (stopped) {

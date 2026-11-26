@@ -332,15 +332,22 @@ class BrowserTools:
     @_judged
     def act(
         self,
-        action: Literal["click", "fill", "check", "uncheck", "select", "scroll", "upload", "download"],
+        action: Literal["click", "fill", "edit", "check", "uncheck", "select", "scroll", "upload", "download"],
         handle: int | None = None,
-        value: str | list[str] | dict[str, str] | None = None,
+        value: str | list[str] | dict[str, Any] | None = None,
         observation_id: int | None = None,
         wait_for: WaitFor | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
         files: list[FileArg] | None = None,
     ) -> dict[str, Any]:
         """Do one thing to the control with this handle, then read the page again.
+
+        ``edit`` applies one typed editor operation from the view: value is
+        {"base_revision": "editor-...", "operations": [{"op": "append_paragraph", "text": "..."}]}.
+        append_paragraph preserves the existing rich document and adds one plain-text paragraph.
+        replace_text is available only for supported plain/source or empty rich editors. No Markdown
+        import or automatic mode switching. Nested checklist controls use check/uncheck. The revision
+        must come from the current view. Verification concerns the editor, not a persisted save.
 
         ``upload`` gives ``files`` to a file input, or to the file chooser that a button opens (an "Add
         photos" button whose file input is hidden). A file is ``{"name", "content"}`` (text, or base64
@@ -1063,7 +1070,7 @@ def _public_schema(schema: dict[str, Any]) -> dict[str, Any]:
             return {
                 key: strip(item)
                 for key, item in value.items()
-                if key == "x-value-state" or not str(key).startswith("x-")
+                if key in {"x-value-state", "x-editor"} or not str(key).startswith("x-")
             }
         if isinstance(value, list):
             return [strip(item) for item in value]

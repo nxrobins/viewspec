@@ -341,6 +341,81 @@ class HtmlChoice:
 
 
 @dataclass(frozen=True)
+class HtmlEditor:
+    """Bounded live editor capabilities. Semantic baselines stay in the browser."""
+
+    mode: str = "unknown"
+    adapter: str = "unknown"
+    coverage: str = "unknown"
+    revision: str = ""
+    operations: tuple[str, ...] = ()
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "mode": self.mode,
+            "adapter": self.adapter,
+            "coverage": self.coverage,
+            "revision": self.revision,
+            "operations": list(self.operations),
+            "formats": ["text"],
+        }
+
+
+def _editor(node: LiftNode) -> HtmlEditor | None:
+    if node.attrs.get("contenteditable", "missing").lower() not in {"", "true", "plaintext-only"}:
+        return None
+    try:
+        value = json.loads(node.attrs.get("data-lift-editor", "null"))
+    except (ValueError, TypeError):
+        return HtmlEditor()
+    if not isinstance(value, dict) or value.get("version") != 1:
+        return HtmlEditor()
+    for key, allowed in {
+        "mode": {"plain", "rich", "source", "unknown"},
+        "adapter": {"html-dom-v1", "mbe-dom-v1"},
+        "coverage": {"complete", "unknown"},
+    }.items():
+        if not isinstance(value.get(key), str) or value[key] not in allowed:
+            return HtmlEditor()
+    revision, ops = value.get("revision"), value.get("operations")
+    if (
+        not isinstance(revision, str)
+        or not re.fullmatch(r"editor-[a-f0-9-]{36}", revision)
+        or not isinstance(ops, list)
+        or any(op not in ("append_paragraph", "replace_text") for op in ops)
+    ):
+        return HtmlEditor()
+    return HtmlEditor(value["mode"], value["adapter"], value["coverage"], revision, tuple(ops))
+
+
+def editor_input_schema(editor: HtmlEditor) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "base_revision": {"type": "string", "const": editor.revision},
+            "operations": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "op": {"type": "string", "enum": list(editor.operations)},
+                        "text": {"type": "string", "maxLength": 10000},
+                    },
+                    "required": ["op", "text"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["base_revision", "operations"],
+        "additionalProperties": False,
+        "x-editor": editor.to_json(),
+    }
+
+
+@dataclass(frozen=True)
 class HtmlControl:
     """One thing on the page that an agent can activate (``kind="action"``) or fill in (``"field"``)."""
 
@@ -389,6 +464,8 @@ class HtmlControl:
     value_state: ValueState = "unknown"
     choice: HtmlChoice | None = None
     choice_owner: str | None = None  # Residual widget controls are actionable, not form arguments.
+    editor: HtmlEditor | None = None
+    editor_owner: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -431,6 +508,10 @@ class HtmlControl:
         }
         if self.options:
             payload["options"] = [option.to_json() for option in self.options]
+        if self.editor is not None:
+            payload["editor"] = self.editor.to_json()
+        if self.editor_owner is not None:
+            payload["editor_owner"] = self.editor_owner
         if self.choice is not None:
             payload["choice"] = self.choice.to_json()
         if self.choice_owner is not None:
@@ -1369,6 +1450,8 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 sort=_column_sort(page, node) if kind == "action" else None,
                 choice=choice,
                 choice_owner=page.choice_owner.get(node.id),
+                editor=_editor(node),
+                editor_owner=node.attrs.get("data-lift-editor-owner") or None,
             )
         )
         roles.append((node.id, kind, name, confidence))
@@ -1467,6 +1550,8 @@ class FormField:
 
 
 def _field_kind(control: HtmlControl) -> str:
+    if control.editor is not None:
+        return "editor"
     if control.control == "color" and control.tag == "input":
         return "color"
     if control.control == "file" and control.tag == "input":
@@ -1499,7 +1584,12 @@ def form_fields(form: HtmlForm, controls: Mapping[str, HtmlControl]) -> tuple[Fo
     radio_keys: dict[str, str] = {}
     for control_id in form.control_ids:
         control = controls[control_id]
-        if control.kind != "field" or control.disabled or control.choice_owner is not None:
+        if (
+            control.kind != "field"
+            or control.disabled
+            or control.choice_owner is not None
+            or control.editor_owner is not None
+        ):
             continue
         if control.choice is not None and control.choice.state == "unsupported":
             continue
@@ -1593,7 +1683,11 @@ def _field_schema(field: FormField) -> dict[str, Any]:
             prop["default"] = checked[0]
         return prop
     prop = {"description": control.name or control.field_name or field.key, "x-node-id": control.node_id}
-    if field.kind == "boolean":
+    if field.kind == "editor":
+        assert control.editor is not None
+        prop.update(editor_input_schema(control.editor))
+        prop["description"] += " (typed edit; omission preserves document structure and mode)"
+    elif field.kind == "boolean":
         prop["type"] = "boolean"
         if control.checked is not None:
             prop["default"] = control.checked
@@ -1694,14 +1788,14 @@ def _field_schema(field: FormField) -> dict[str, Any]:
             prop["default"] = list(control.choice.selected)
     elif (
         control.value not in {None, "", "[redacted]"}
-        and field.kind not in {"boolean", "file"}
+        and field.kind not in {"boolean", "file", "editor"}
         and not custom_date
         and not (control.choice and control.choice.operation == "add")
     ):
         prop["default"] = control.value  # A calendar's own display format is not the tool's format.
     if control.secret:
         prop["writeOnly"] = True
-    if control.secret or field.kind == "text":
+    if control.secret or field.kind in {"text", "editor"}:
         prop["x-value-state"] = control.value_state
     if control.secret:
         prop["description"] += f"; current value is {control.value_state} (hidden). Omit to preserve it."

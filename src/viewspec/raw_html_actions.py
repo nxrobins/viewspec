@@ -33,7 +33,7 @@ from viewspec.raw_html_patterns import MAX_PATTERN_VALUE_LENGTH, bounded_pattern
 if TYPE_CHECKING:
     from viewspec.raw_html import HtmlLiftResult
 
-ACTION_OPS = ("click", "fill", "check", "uncheck", "select", "upload", "download", "submit")
+ACTION_OPS = ("click", "fill", "edit", "check", "uncheck", "select", "upload", "download", "submit")
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # One file.
 MAX_UPLOAD_TOTAL_BYTES = 25 * 1024 * 1024  # All files of one step.
 SCROLL_DIRECTIONS = ("end", "down", "up", "top")
@@ -206,7 +206,7 @@ class ActionStep:
     node_id: str
     ref: str | None
     name: str
-    value: str | None = None
+    value: Any = None
     values: tuple[str, ...] = field(default_factory=tuple)
     secret: bool = False
     files: tuple[UploadFile, ...] = field(default_factory=tuple)
@@ -247,6 +247,8 @@ def plan_control_action(
         raise AgentActionError("AGENT_ACTION_DISABLED", f"{_label(control)} is disabled.")
     if op == "click":
         return (_step("click", control),)
+    if op == "edit":
+        return (_edit(control, value),)
     if op == "fill":
         return (_fill(control, value),)
     if op in {"check", "uncheck"}:
@@ -505,6 +507,8 @@ def _field_steps(item: FormField, value: Any) -> tuple[ActionStep, ...]:
                 raise AgentActionError("AGENT_ACTION_VALUE_INVALID", "A radio cannot be turned off; choose another.")
             return plan_control_action(control, "check")
         return plan_control_action(control, "check" if value else "uncheck")
+    if item.kind == "editor":
+        return plan_control_action(control, "edit", value)
     if item.kind == "number":
         if isinstance(value, bool) or not isinstance(value, (int, float, str)):
             raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"Expected a number, not {value!r}.")
@@ -653,12 +657,46 @@ def _empty(item: FormField) -> bool:
         return not any(member.checked for _, member in item.choices)
     if item.kind == "boolean":
         return not item.control.checked
-    if item.control.secret:
+    if item.control.secret or item.control.editor is not None:
         return item.control.value_state != "filled"  # Unknown does not establish that it is filled.
     return not item.control.value
 
 
+def _edit(control: HtmlControl, value: Any) -> ActionStep:
+    editor = control.editor
+    if control.readonly:
+        raise AgentActionError("AGENT_ACTION_READONLY", "The editor is read-only.")
+    if editor is None or editor.coverage != "complete":
+        raise AgentActionError(
+            "AGENT_ACTION_UNSUPPORTED", "This editor has unknown semantic coverage; use its native controls."
+        )
+    if not isinstance(value, dict) or set(value) != {"base_revision", "operations"}:
+        raise AgentActionError(
+            "AGENT_ACTION_VALUE_INVALID", "Use edit with base_revision and one operations item {op, text}."
+        )
+    if value["base_revision"] != editor.revision:
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", "The editor revision changed; observe and plan again.")
+    ops = value["operations"]
+    if not isinstance(ops, list) or len(ops) != 1 or not isinstance(ops[0], dict) or set(ops[0]) != {"op", "text"}:
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", "Supply exactly one editor operation {op, text}.")
+    op, text = ops[0]["op"], ops[0]["text"]
+    if op not in editor.operations or not isinstance(text, str) or len(text) > 10000:
+        raise AgentActionError(
+            "AGENT_ACTION_VALUE_INVALID", "Use an advertised editor operation with at most 10000 text characters."
+        )
+    if (op == "append_paragraph" and not text) or (editor.mode == "rich" and ("\n" in text or "\r" in text)):
+        raise AgentActionError(
+            "AGENT_ACTION_VALUE_INVALID",
+            "Rich edits require one paragraph without line separators; append_paragraph must be nonempty.",
+        )
+    return _step("edit", control, value=value)
+
+
 def _fill(control: HtmlControl, value: Any) -> ActionStep:
+    if control.editor is not None:
+        return _edit(
+            control, {"base_revision": control.editor.revision, "operations": [{"op": "replace_text", "text": value}]}
+        )
     if control.kind != "field" or control.control in NOT_FILLABLE:
         raise AgentActionError("AGENT_ACTION_UNSUPPORTED", f"{_label(control)} ({control.control}) cannot be filled.")
     if control.tag not in {"input", "textarea"} and control.control not in {"textbox", "searchbox"}:
@@ -958,7 +996,7 @@ def _submit_step(form: HtmlForm, controls: Mapping[str, HtmlControl]) -> ActionS
     return ActionStep(op="submit", node_id=form.node_id, ref=form.ref, name=form.name)
 
 
-def _step(op: str, control: HtmlControl, *, value: str | None = None, values: tuple[str, ...] = ()) -> ActionStep:
+def _step(op: str, control: HtmlControl, *, value: Any = None, values: tuple[str, ...] = ()) -> ActionStep:
     return ActionStep(
         op=op,
         node_id=control.node_id,
