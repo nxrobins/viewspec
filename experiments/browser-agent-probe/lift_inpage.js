@@ -1180,7 +1180,7 @@
   // With ``sinceReading``, a change the page made after the last snapshot and before this call
   // counts too: the caller read the page, saw nothing, and only then began to wait.
   const FIELD_POLL_MS = 100;
-  function nextChange(timeoutMs, sinceReading = false) {
+  function nextChange(timeoutMs, sinceReading = false, immediate = false) {
     return new Promise((resolve) => {
       const observers = [];
       const timers = {};
@@ -1194,6 +1194,7 @@
         resolve(changed);
       };
       const onChange = () => {
+        if (immediate) { if (!timers.cap) timers.cap = setTimeout(() => finish(true), 0); return; }
         if (!timers.cap) timers.cap = setTimeout(() => finish(true), 500);
         clearTimeout(timers.quiet);
         timers.quiet = setTimeout(() => finish(true), 100);
@@ -1946,17 +1947,28 @@
       field.expected = Array.isArray(field.expected) || choiceState(ref).operation === "add" ? selected?.map(norm).sort() : norm(chosen);
     }
   }
+  function formBusy(target = null) {
+    if (!formContract) return true;
+    const submitter = typeof target === "string" ? get(target) : target;
+    const busy = el => {
+      for (let node = el; node; node = parentOf(node)) if (node.getAttribute?.("aria-busy") === "true") return true;
+      return el?.form?.getAttribute("aria-busy") === "true";
+    };
+    // Missing or mismatched controls are refused by checkForm, not mistaken for work in flight.
+    // Resolve the same identity-checked successors as the field contract after app re-renders.
+    return busy(submitter) || formContract.fields.some(field => busy(contractTarget(field)));
+  }
   function armForm(submitter) {
     if (!formContract) return [{index: 0, status: "unknown"}];
     const contract = formContract;
-    const initial = checkForm();
+    const initial = formBusy(submitter) ? [{index: 0, status: "unknown"}] : checkForm();
     if (initial.some(f => f.status !== "matched")) { contract.stopped = initial; return initial; }
     const form = submitter.tagName === "FORM" ? submitter : submitter.form || submitter.closest("form");
     const doc = submitter.ownerDocument;
     const guard = event => {
       const path = event.composedPath();
       if (!(event.type === "submit" ? event.target === form : path.includes(submitter))) return;
-      const fields = checkForm();
+      const fields = formBusy(submitter) ? [{index: 0, status: "unknown"}] : checkForm();
       if (fields.every(f => f.status === "matched") && !contract.stopped) return;
       contract.stopped ||= fields;
       event.preventDefault();
@@ -2007,7 +2019,7 @@
 
   window.__viewspecLift = {
     docId,
-    beginForm, checkForm, armForm, disarmForm, clearForm, acceptFormChoice, dateFillValue,
+    beginForm, checkForm, formBusy, armForm, disarmForm, clearForm, acceptFormChoice, dateFillValue,
     takeInvalid,
     mutationCount,
     noteSeq,

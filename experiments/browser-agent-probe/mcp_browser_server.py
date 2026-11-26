@@ -51,7 +51,7 @@ from types import FrameType
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from action_outcome import outcome_of, scroll_outcome
+from action_outcome import action_evidence, outcome_of, scroll_outcome
 from agent_session import (
     BridgeError,
     BrowserSession,
@@ -109,7 +109,12 @@ INSTRUCTIONS = (
     "or uncertain), reason says why, and retry says whether repeating it is not_needed, safe, or may_repeat "
     "(it could do the thing twice). When uncertain, page says what the page did meanwhile: busy (a request "
     "is still in flight: wait, with wait_for or observe), reacted, or quiet (nothing reacted). Read outcome "
-    "before you repeat an action."
+    "before you repeat an action. evidence separates execution, control verification, and completion. "
+    "A succeeded outcome can mean only a UI reaction; evidence.completion never infers persisted success. "
+    "Use wait_for for the task's UI condition when needed; pending or unknown completion does not undo a verified field. "
+    "readiness reports finite, streaming, and unclassified pending work. Initial content may arrive later. "
+    "A form call can return BROWSER_FORM_PENDING with submission withheld; observe or wait for its prerequisite, "
+    "and check prior writes before repeating it."
 )
 DEFAULT_TIMEOUT_MS = 5000
 DEFAULT_VIEW_LIMIT = 200
@@ -159,6 +164,7 @@ def _judged(tool: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]
             result["summary"] = result["outcome"]["reason"]
         elif "outcome" not in result:
             result["outcome"] = outcome_of(result)
+        result["evidence"] = action_evidence(result)
         return result
 
     return judged
@@ -462,6 +468,9 @@ class BrowserTools:
         leave out preserve their live semantic field values; hidden protocol fields remain app-owned. Explicitly send an empty
         string (``""``) to clear an editable text/password field; omission does not clear it.
         ``x-value-state`` is empty, filled, or unknown; unknown does not mean empty.
+        Before automatic submission, known pending requests and scoped busy states must settle within
+        the remaining ``timeout_ms`` budget; otherwise submission is withheld with BROWSER_FORM_PENDING.
+        This checks current UI prerequisites, not arbitrary future application work or persistence.
         ``submit=false`` only fills the form. Every problem
         with the arguments is reported at once, before the browser does anything. ``wait_for`` and
         ``timeout_ms`` work as for ``act``, for example ``{"text": "Order placed"}``, and so does
@@ -710,7 +719,11 @@ class BrowserTools:
         )
         self._said_for_write = self._said
         try:
-            results = session.run(steps, observation=observation) if steps or isinstance(steps, FormPlan) else []
+            results = (
+                session.run(steps, observation=observation, timeout_ms=timeout_ms)
+                if steps or isinstance(steps, FormPlan)
+                else []
+            )
         except BridgeError as error:
             # Some steps may have run; show the agent the page as it is now, if it can be read.
             self._on_steps = frozenset(seq for item in error.steps for seq in item.event_seqs)
@@ -738,7 +751,9 @@ class BrowserTools:
             if condition is None:
                 result = self._observe_result(summary, since=observation)
             else:
-                waited = session.wait(condition, observation, timeout_ms=timeout_ms)
+                waited = session.wait(
+                    condition, observation, timeout_ms=max(0, timeout_ms - int((time.monotonic() - started) * 1000))
+                )
                 result = self._waited_result(summary, waited, since=observation, acted=bool(steps))
         except BridgeError as error:
             result = _error(
@@ -843,6 +858,21 @@ class BrowserTools:
             "view": page.text,
             "view_page": page.to_json(),
             "form_tools": [pair[1] for pair in schemas],
+            "readiness": {
+                "version": 1,
+                "scope": "observation",
+                "state": "pending"
+                if (
+                    observation.activity.get("network", {}).get("finite", 0)
+                    + observation.activity.get("network", {}).get(
+                        "unknown", len(observation.activity.get("pending", []))
+                    )
+                )
+                else "observed",
+                "pending": observation.activity.get(
+                    "network", {"finite": 0, "streams": 0, "unknown": len(observation.activity.get("pending", []))}
+                ),
+            },
         }
         return data, page.describe(observation_id)
 
@@ -1123,6 +1153,8 @@ def _bridge_code(error: BridgeError) -> str:
         return "BROWSER_FORM_MISMATCH"
     if message.startswith("form-unknown:"):
         return "BROWSER_FORM_UNKNOWN"
+    if message.startswith("form-pending:"):
+        return "BROWSER_FORM_PENDING"
     if message.startswith("stale-view:"):
         return "BROWSER_OBSERVATION_STALE"
     if message.startswith("boundary-origin:"):
@@ -1166,6 +1198,9 @@ def _bridge_code(error: BridgeError) -> str:
 # comes back with the error is the page as it is now. "This step" and not "nothing": in a form call,
 # the steps before the refused one have run.
 _TARGET_FIXES = {
+    "BROWSER_FORM_PENDING": (
+        "Submission was withheld while preparatory work remained unresolved. Observe or wait for the form's condition; check prior writes before repeating the call."
+    ),
     "BROWSER_FORM_MISMATCH": (
         "Requested state was not verified. Earlier actions may already have taken effect. "
         "Inspect the current selection and recorded writes before another mutation; do not repeat blindly."
