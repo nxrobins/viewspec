@@ -52,6 +52,12 @@ def control_line(
                 line += " multiple (select an exact array; [] clears)"
             if not control.options:
                 line += f" choices: {control.choice.state}"
+        if control.editor is not None:
+            editor = control.editor
+            line += f" editor:{editor.mode} coverage:{editor.coverage} revision:{editor.revision}"
+            line += f" edit:{'|'.join(editor.operations) or 'unsupported'}"
+        if control.editor_owner is not None:
+            line += " (document control; use check/uncheck, omitted from form arguments)"
         if control.required:
             line += " required"
         if control.secret:

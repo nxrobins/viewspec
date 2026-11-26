@@ -107,6 +107,8 @@
       const text = clean(nameText(el.labels[0], true));
       if (text) return text;
     }
+    const editorLabel = window.__viewspecEditor.controlName(el);
+    if (editorLabel) return clean(editorLabel);
     const tag = el.tagName;
     if (tag === "INPUT" && /^(submit|reset|button|image)$/i.test(el.type)) {
       return clean(el.value || el.getAttribute("alt") || (el.type === "reset" ? "Reset" : "Submit"));
@@ -249,6 +251,15 @@
       }
       result.setAttribute("data-lift-ref", refOf(el));
       // Live descriptors are generated here and re-read at action time, never accepted from the page.
+      result.removeAttribute("data-lift-editor");
+      result.removeAttribute("data-lift-editor-owner");
+      const editor = window.__viewspecEditor.describe(el);
+      if (editor) result.setAttribute("data-lift-editor", JSON.stringify(editor));
+      const editorLabel = window.__viewspecEditor.controlName(el);
+      if (editorLabel && !el.hasAttribute("aria-label") && !el.hasAttribute("aria-labelledby") && !el.labels?.length)
+        result.setAttribute("aria-label", editorLabel);
+      const editorOwner = window.__viewspecEditor.owner(el);
+      if (editorOwner && editorOwner !== el) result.setAttribute("data-lift-editor-owner", refOf(editorOwner));
       result.removeAttribute("data-lift-choice");
       if (/^(combobox|listbox)$/.test(el.getAttribute("role") || "") && tag !== "SELECT") {
         result.setAttribute("data-lift-choice", JSON.stringify(choiceState(refOf(el))));
@@ -266,7 +277,7 @@
       if (textEntry(el)) {
         const value = "value" in el ? el.value : el.textContent;
         result.setAttribute("data-lift-value-state",
-          typeof value === "string" ? (value === "" ? "empty" : "filled") : "unknown");
+          editor ? editor.value_state : typeof value === "string" ? (value === "" ? "empty" : "filled") : "unknown");
       }
       // The private set is independent of the snapshot used to plan interactions. Strict mode
       // treats text-entry values as private regardless of language, label length or field name.
@@ -1822,6 +1833,10 @@
   // Each returns true or false and never returns the element's value, so a secret stays in the page.
   function hasValue(el, value) {
     if (el.tagName === "SELECT") return false;
+    if (window.__viewspecEditor.host(el)) {
+      const state = window.__viewspecEditor.state(el);
+      return !!state && state.mode !== "rich" && state.text === value;
+    }
     return ("value" in el ? el.value : el.textContent) === value;
   }
   function hasSelected(el, values) {
@@ -1841,7 +1856,7 @@
   function contractTarget(field) {
     let el = get(field.ref);
     if (el && (!field.identity || differsFrom(el, field.identity) === null)) return el;
-    if (!field.identity) return null;
+    if (!field.identity || field.kind === "editor") return null;
     const next = successor(field.identity);
     if (next.state !== "one") return null;
     field.ref = next.ref;
@@ -1849,6 +1864,7 @@
   }
   function fieldStateFor(el, kind) {
     if (!el) return undefined;
+    if (kind === "editor") return window.__viewspecEditor.state(el);
     if (kind === "boolean") {
       if (el.tagName === "INPUT" && /^(checkbox|radio)$/.test(el.type)) return el.checked;
       const checked = el.getAttribute("aria-checked");
@@ -1882,6 +1898,11 @@
       // Store the input kind too: reusing a text element as a hidden/radio field changes its contract.
       field.inputType = el?.tagName === "INPUT" ? el.type : null;
       if (field.preserve) field.expected = fieldStateFor(el, field.kind);
+      if (field.kind === "editor") {
+        field.editorMode = window.__viewspecEditor.describe(el)?.mode;
+        if (!field.preserve) field.expected = window.__viewspecEditor.expected(el, field.expected);
+        if (window.__viewspecEditor.describe(el)?.revision !== field.editor_revision) field.expected = undefined;
+      }
       if (["select", "multi"].includes(field.kind) && field.expected) field.expected.sort();
       if (field.kind === "choose" && !field.preserve) field.expected = Array.isArray(field.expected)
         ? field.expected.map(norm).sort() : norm(field.expected);
@@ -1895,7 +1916,8 @@
       let status = "unknown";
       if (location.href === formContract.url && el &&
           (el.tagName !== "INPUT" || el.type === field.inputType)) {
-        if (baselineOnly && !field.preserve) status = "not_run";
+        if (field.kind === "editor" && window.__viewspecEditor.describe(el)?.mode !== field.editorMode) status = "mismatch";
+        else if (baselineOnly && !field.preserve && (field.kind !== "editor" || field.expected !== undefined)) status = "not_run";
         else if (field.expected !== undefined) {
           let matches;
           if (!field.preserve && field.kind === "date") matches = showsDate(field.ref, field.expected);

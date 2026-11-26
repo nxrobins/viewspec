@@ -733,8 +733,12 @@ class BrowserSession:
             "writes": {"passed": 0, "blocked": 0, "blocked-and-simulated": 0},
         }
         for step in steps:
-            if step.secret or (self.privacy.mode == "strict" and step.op == "fill"):
-                self.privacy.remember([step.value or "", *step.values])
+            if step.secret or (self.privacy.mode == "strict" and step.op in {"fill", "edit"}):
+                value = step.value
+                if step.op == "edit" and isinstance(value, dict):
+                    self.privacy.remember([op["text"] for op in value["operations"]])
+                else:
+                    self.privacy.remember([value or "", *step.values])
         self._capture_private()
         results = None
         try:
@@ -786,6 +790,7 @@ class BrowserSession:
                     "ref": item.control.ref,
                     "identity": observation.locators.get(item.control.node_id, {}).get("identity"),
                     "kind": item.kind,
+                    "editor_revision": item.control.editor.revision if item.control.editor else None,
                     "preserve": item.preserve,
                     "expected": item.expected,
                 }

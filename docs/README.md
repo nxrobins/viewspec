@@ -35,6 +35,8 @@ One short page for each idea behind the JSON. Each page has one complete example
 
 ## Source contracts
 
+- [Browser editor contract](browser-editor-contract.md) — typed editor operations, semantic preservation, and coverage limits.
+
 - [AppBundle V1 to V5](app-bundle-v0.md): Multi-screen internal tools: fixtures, bounded state,
   visibility, bounded expressions, the Static Shell V0 proof target, and the runnable
   `react-tailwind-app` target.
