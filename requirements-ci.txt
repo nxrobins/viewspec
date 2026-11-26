@@ -24,7 +24,7 @@ attrs==26.1.0
     #   referencing
 build==1.6.1
     # via viewspec (pyproject.toml)
-certifi==2026.10.23
+certifi==2026.11.20
     # via
     #   httpcore
     #   httpx
@@ -38,7 +38,7 @@ colorama==0.4.6 ; os_name == 'nt' or sys_platform == 'win32'
     #   pytest
 cryptography==50.0.2
     # via pyjwt
-grpcio==1.85.1
+grpcio==1.85.3
     # via grpcio-tools
 grpcio-tools==1.80.0
     # via viewspec (pyproject.toml)
@@ -52,7 +52,7 @@ httpx==0.28.1
     # via mcp
 httpx-sse==0.4.3
     # via mcp
-hypothesis==6.170.15
+hypothesis==6.170.17
     # via viewspec (pyproject.toml)
 idna==3.20
     # via
@@ -82,11 +82,11 @@ protobuf==6.33.6
     #   grpcio-tools
 pycparser==3.12 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
     # via cffi
-pydantic==2.14.3
+pydantic==2.14.4
     # via
     #   mcp
     #   pydantic-settings
-pydantic-core==2.50.4
+pydantic-core==2.50.5
     # via pydantic
 pydantic-settings==2.16.3
     # via mcp
@@ -102,11 +102,11 @@ pytest==9.2.0
     # via viewspec (pyproject.toml)
 python-dotenv==1.2.4
     # via pydantic-settings
-python-multipart==0.0.33
+python-multipart==0.0.34
     # via mcp
 pywin32==312 ; sys_platform == 'win32'
     # via mcp
-pyyaml==6.0.3
+pyyaml==6.0.4
     # via viewspec (pyproject.toml)
 referencing==0.37.0
     # via
@@ -122,7 +122,7 @@ setuptools==84.2.1
     # via grpcio-tools
 sortedcontainers==2.4.0
     # via hypothesis
-sse-starlette==3.7.0
+sse-starlette==3.7.1
     # via mcp
 starlette==1.10.0
     # via
