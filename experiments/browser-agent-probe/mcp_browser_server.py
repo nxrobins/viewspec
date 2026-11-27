@@ -1,20 +1,21 @@
-"""The ViewSpec agent lift as MCP tools: observe a live page, act on a control, call a form tool.
+"""The ViewSpec agent lift as MCP tools: observe, act, submit a form, or prepare a dialog.
 
     python experiments/browser-agent-probe/mcp_browser_server.py --allow-origin ORIGIN --allow-read PATTERN
 
-Three tools, served over stdio:
+Four tools, served over stdio:
 
     observe  open a URL (optional) and read the page: a compact view with a numbered handle for each
-             control, and one typed tool per form
+             control, and typed form and dialog schemas
     act      click, fill, check, uncheck, or select one control, by handle
     call     fill in and submit a form, by its tool name and typed arguments
+    prepare  verify dialog fields together; activate Save separately
 
-``act`` and ``call`` check the request against the page before the browser does anything
+``act``, ``call``, and ``prepare`` check the request against the page before the browser does anything
 (``viewspec.raw_html_actions``), run the steps, and observe again, so each result carries the new
 view. A handle belongs to the observation that showed it; pass ``observation_id`` to act from an
 older one, and a re-rendered element is found again by its saved locator, or the step is refused.
 
-Each ``act`` and ``call`` result also carries ``outcome``: whether the action took effect
+Each ``act``, ``call``, and ``prepare`` result also carries ``outcome``: whether the action took effect
 (``succeeded``, ``blocked``, ``failed``, or ``uncertain``), why, and whether repeating it could do it twice
 (``action_outcome``). A refused request has one too.
 
@@ -72,13 +73,14 @@ from viewspec.raw_html_actions import (
     MAX_UPLOAD_BYTES,
     ActionStep,
     AgentActionError,
-    FormPlan,
+    FieldPlan,
     UploadFile,
     plan_control_action,
+    plan_dialog_prepare,
     plan_form_call,
     plan_scroll,
 )
-from viewspec.raw_html_agent import form_fields, form_tool_names, form_tool_schema, names_a_secret
+from viewspec.raw_html_agent import dialog_tool_schema, form_fields, form_tool_names, form_tool_schema, names_a_secret
 from viewspec.raw_html_diff import ChangeCondition
 
 SERVER_NAME = "viewspec-browser"
@@ -91,7 +93,8 @@ INSTRUCTIONS = (
     'act(action="scroll") scrolls the page, and loads more of an infinite list. Each '
     "form represented by a form or control line in this slice has a complete typed tool in form_tools; "
     "page or find to discover other forms. call(tool=..., arguments={...}) fills a form in and submits it. "
-    "Requests are checked against the page first: on ok=false, read errors and fix the request. act and "
+    "preparation_tools lists observed dialogs: prepare(scope=..., arguments={...}) verifies their covered fields without activating Save. "
+    "Requests are checked against the page first: on ok=false, read errors and fix the request. act, prepare and "
     "call return the new view and changes, the lines that say what the action changed (messages first); "
     "use the new handles next. observe(since=id) shows what changed since an earlier reading. A page "
     "that updates after a delay (a server answer) shows nothing at first: pass wait_for, for example "
@@ -105,7 +108,7 @@ INSTRUCTIONS = (
     "may be opened, which writes are sent, which secrets it holds). What a limit stops is listed in "
     "blocked_navigations, blocked_writes, or blocked_requests. To type a secret the server holds, pass its "
     'name, value={"secret": "NAME"}, to fill a secret field: you never hold the value, and no result shows it. '
-    "Every act and call result has outcome: status says whether the action took effect (succeeded, blocked, failed, "
+    "Every act, prepare and call result has outcome: status says whether the action took effect (succeeded, blocked, failed, "
     "or uncertain), reason says why, and retry says whether repeating it is not_needed, safe, or may_repeat "
     "(it could do the thing twice). When uncertain, page says what the page did meanwhile: busy (a request "
     "is still in flight: wait, with wait_for or observe), reacted, or quiet (nothing reacted). Read outcome "
@@ -183,7 +186,7 @@ def _sealed(tool: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]
                 return self.privacy.clean(result)
             except PrivacyLimit:
                 result = _error("BROWSER_PRIVACY_LIMIT", "Privacy limit reached.", "Start a fresh session.")
-                if tool.__name__ in {"act", "call"}:
+                if tool.__name__ in {"act", "call", "prepare"}:
                     result["outcome"] = {
                         "status": "uncertain",
                         "retry": "may_repeat",
@@ -202,7 +205,7 @@ def _sealed(tool: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]
 
 
 class BrowserTools:
-    """The three tools, over one browser session that starts on the first ``observe``."""
+    """Browser tools, over one browser session that starts on the first ``observe``."""
 
     def __init__(
         self,
@@ -508,6 +511,42 @@ class BrowserTools:
                 return error.result
             return self._run(steps, observation, condition, timeout_ms)
 
+    @_sealed
+    @_judged
+    def prepare(
+        self,
+        scope: str,
+        arguments: dict[str, Any],
+        observation_id: int | None = None,
+        timeout_ms: int = DEFAULT_TIMEOUT_MS,
+    ) -> dict[str, Any]:
+        """Prepare multiple fields in an observed non-native dialog; never activates Save.
+
+        Choose ``scope`` from ``preparation_tools`` and follow its typed ``input_schema``.
+        Supplied fields and omitted covered fields are verified together after finalizing input
+        and waiting for known pending work within timeout_ms. Omission preserves current live
+        values; an explicit empty string clears editable text. Unknown coverage or a changed
+        dialog/document/route refuses preparation. Private baselines remain in the browser.
+        Autosaves can occur: failures report partial progress and writes, never rollback.
+        Success proves current field state, not persistence or a later Save click. Inspect the
+        fresh view, then use act to Save separately. This method supplies no commit guarantee.
+        """
+        with self._lock:
+            observation = self._observation(observation_id)
+            if isinstance(observation, dict):
+                return observation
+            try:
+                scope, arguments = self._resolve_public_call(observation, scope, arguments, dialogs=True)
+                arguments = self._with_secrets(
+                    observation, scope, self._with_files(observation, scope, arguments, dialogs=True), dialogs=True
+                )
+                steps = plan_dialog_prepare(observation.lift, scope, arguments)
+            except AgentActionError as error:
+                return _planning_error(error)
+            except _ToolError as error:
+                return error.result
+            return self._run(steps, observation, timeout_ms=timeout_ms)
+
     # ---- files ------------------------------------------------------------------------------------
     def _files(self, items: list[Any]) -> list[Any]:
         """Files to upload, with each ``path`` read. Other items are checked when the step is planned."""
@@ -542,13 +581,14 @@ class BrowserTools:
         named = UploadFile.named(item.get("name") or target.name, target.read_bytes())
         return UploadFile(named.name, named.data, item.get("mime_type") or named.mime_type)
 
-    def _with_files(self, observation: Observation, tool: str, arguments: Any) -> Any:
+    def _with_files(self, observation: Observation, tool: str, arguments: Any, *, dialogs: bool = False) -> Any:
         """The arguments of a form call, with the ``path`` files of its file fields read."""
 
-        names = form_tool_names(observation.lift.forms)
+        scopes = observation.lift.dialogs if dialogs else observation.lift.forms
+        names = form_tool_names(scopes)
         if tool not in names or not isinstance(arguments, dict):
             return arguments
-        form = observation.lift.forms[names.index(tool)]
+        form = scopes[names.index(tool)]
         controls = {control.node_id: control for control in observation.lift.controls}
         keys = {field.key for field in form_fields(form, controls) if field.kind == "file"}
         resolved = dict(arguments)
@@ -572,19 +612,29 @@ class BrowserTools:
             self._session = BrowserSession(boundary=self.boundary, download_dir=self.download_dir, privacy=self.privacy)
         return self._session
 
-    def _resolve_public_call(self, observation: Observation, tool: str, arguments: Any) -> tuple[str, Any]:
+    def _resolve_public_call(
+        self, observation: Observation, tool: str, arguments: Any, *, dialogs: bool = False
+    ) -> tuple[str, Any]:
         """Map projected schema names to real field names without changing the private lift."""
-        for schema, shown, aliases in self._schema_pairs(observation):
+        for schema, shown, aliases in self._schema_pairs(observation, dialogs=dialogs):
             if tool not in {schema["name"], shown["name"]}:
                 continue
             if not isinstance(arguments, dict):
                 return schema["name"], arguments
-            return schema["name"], {aliases.get(key, key): value for key, value in arguments.items()}
+            keys = [aliases.get(key, key) for key in arguments]
+            if len(keys) != len(set(keys)):
+                raise _ToolError(
+                    "AGENT_FORM_ARGUMENTS_INVALID",
+                    "Two arguments refer to the same field.",
+                    "Use each public field name once.",
+                )
+            return schema["name"], dict(zip(keys, arguments.values(), strict=True))
         return tool, arguments
 
-    def _schema_names(self, observation: Observation) -> list[tuple[str, str]]:
+    def _schema_names(self, observation: Observation, *, dialogs: bool = False) -> list[tuple[str, str]]:
         """Assign names against the whole reading, so paging cannot renumber duplicate names or aliases."""
-        names = form_tool_names(observation.lift.forms)
+        scopes = observation.lift.dialogs if dialogs else observation.lift.forms
+        names = form_tool_names(scopes)
         reserved = set(names)
         result = []
         for number, name in enumerate(names, 1):
@@ -594,20 +644,26 @@ class BrowserTools:
         return result
 
     def _schema_pairs(
-        self, observation: Observation, *, form_ids: frozenset[str] | None = None
+        self, observation: Observation, *, form_ids: frozenset[str] | None = None, dialogs: bool = False
     ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, str]]]:
         result = []
         controls = {control.node_id: control for control in observation.lift.controls}
-        for form, (name, public) in zip(observation.lift.forms, self._schema_names(observation), strict=True):
+        scopes = observation.lift.dialogs if dialogs else observation.lift.forms
+        for form, (name, public) in zip(scopes, self._schema_names(observation, dialogs=dialogs), strict=True):
             if form_ids is not None and form.node_id not in form_ids:
                 continue
-            schema = form_tool_schema(form, controls, name=name)
+            schema = (dialog_tool_schema if dialogs else form_tool_schema)(form, controls, name=name)
             safe_schema = _public_schema(schema)
             shown = self.privacy.clean(safe_schema)
             shown["name"] = public
-            shown["submitters"] = [
-                handle for handle, control in observation.handles.items() if control.node_id in form.submit_ids
-            ]
+            if dialogs:
+                shown["coverage"] = (
+                    "observed" if observation.locators.get(form.node_id, {}).get("dialog_revision") else "unknown"
+                )
+            else:
+                shown["submitters"] = [
+                    handle for handle, control in observation.handles.items() if control.node_id in form.submit_ids
+                ]
             properties = safe_schema.get("input_schema", {}).get("properties", {})
             reserved_fields = set(properties)
             names = {}
@@ -662,13 +718,14 @@ class BrowserTools:
             )
         return self.boundary.secrets[name]
 
-    def _with_secrets(self, observation: Observation, tool: str, arguments: Any) -> Any:
+    def _with_secrets(self, observation: Observation, tool: str, arguments: Any, *, dialogs: bool = False) -> Any:
         """The arguments of a form call, with each ``{"secret": NAME}`` replaced by its value."""
 
-        names = form_tool_names(observation.lift.forms)
+        scopes = observation.lift.dialogs if dialogs else observation.lift.forms
+        names = form_tool_names(scopes)
         if tool not in names or not isinstance(arguments, dict):
             return arguments
-        form = observation.lift.forms[names.index(tool)]
+        form = scopes[names.index(tool)]
         controls = {control.node_id: control for control in observation.lift.controls}
         fields = {field.key: field.control for field in form_fields(form, controls)}
         return {key: self._secret(value, fields.get(key), f"{key!r}") for key, value in arguments.items()}
@@ -740,7 +797,7 @@ class BrowserTools:
         try:
             results = (
                 session.run(steps, observation=observation, timeout_ms=timeout_ms)
-                if steps or isinstance(steps, FormPlan)
+                if steps or isinstance(steps, FieldPlan)
                 else []
             )
         except BridgeError as error:
@@ -866,8 +923,16 @@ class BrowserTools:
             form.node_id: public
             for form, (_, public) in zip(observation.lift.forms, self._schema_names(observation), strict=True)
         }
+        dialog_names = {
+            d.node_id: public
+            for d, (_, public) in zip(
+                observation.lift.dialogs, self._schema_names(observation, dialogs=True), strict=True
+            )
+        }
         lines = [
-            replace(line, text=line.text.rsplit(" tool=", 1)[0] + " tool=" + form_names[line.node_id])
+            replace(line, text=line.text.rsplit(" prepare=", 1)[0] + " prepare=" + dialog_names[line.node_id])
+            if line.kind == "dialog"
+            else replace(line, text=line.text.rsplit(" tool=", 1)[0] + " tool=" + form_names[line.node_id])
             if line.kind == "form"
             else line
             for line in shown.lines
@@ -879,6 +944,9 @@ class BrowserTools:
             "view": page.text,
             "view_page": page.to_json(),
             "form_tools": [pair[1] for pair in schemas],
+            "preparation_tools": [
+                pair[1] for pair in self._schema_pairs(observation, form_ids=page.form_ids, dialogs=True)
+            ],
             "readiness": {
                 "version": 1,
                 "scope": "observation",
@@ -1265,6 +1333,10 @@ def build_server(tools: BrowserTools) -> Any:
     app.add_tool(
         tools.call,
         annotations=ToolAnnotations(title="Submit a form", destructiveHint=changes_world, openWorldHint=True),
+    )
+    app.add_tool(
+        tools.prepare,
+        annotations=ToolAnnotations(title="Prepare dialog fields", destructiveHint=changes_world, openWorldHint=True),
     )
     return app
 

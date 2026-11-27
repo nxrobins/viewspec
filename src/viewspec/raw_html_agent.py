@@ -592,6 +592,19 @@ class HtmlForm:
 
 
 @dataclass(frozen=True)
+class HtmlDialog:
+    """An observed non-native field scope. It has no submission semantics."""
+
+    node_id: str
+    name: str
+    control_ids: tuple[str, ...]
+    ref: str | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        return {"node_id": self.node_id, "name": self.name, "control_ids": list(self.control_ids), "ref": self.ref}
+
+
+@dataclass(frozen=True)
 class HtmlMessage:
     """Text in a region where the page reports what happened (``role="alert"``, ``aria-live``, ...).
 
@@ -616,6 +629,7 @@ class ControlExtraction:
     roles: tuple[tuple[str, str, str, float], ...]
     # Nodes that must not also get content roles: hidden nodes, and nodes inside controls.
     excluded_ids: frozenset[str]
+    dialogs: tuple[HtmlDialog, ...] = ()
 
 
 def _scope(node: LiftNode) -> str:
@@ -1532,12 +1546,36 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
                 ref=node.attrs.get(HINT_REF) or None,
             )
         )
+    dialog_nodes = {
+        node.id: node
+        for node in nodes
+        if (node.tag == "dialog" or _role(node) == "dialog") and node.id not in page.hidden
+    }
+    dialog_members: dict[str, list[str]] = {}
+    for control in controls:
+        if control.form_id is not None:
+            continue
+        owner = next((a for a in page.ancestors(page.by_id[control.node_id]) if a.id in dialog_nodes), None)
+        if owner is not None:
+            dialog_members.setdefault(owner.id, []).append(control.node_id)
+    controls_by_id = {control.node_id: control for control in controls}
+    dialogs = tuple(
+        HtmlDialog(
+            node.id,
+            (node.attrs.get("aria-label") or page.labelled_by(node) or page.form_heading(node) or "dialog"),
+            tuple(members),
+            node.attrs.get(HINT_REF) or None,
+        )
+        for node_id, members in dialog_members.items()
+        if (node := dialog_nodes[node_id]) and any(controls_by_id[member].kind == "field" for member in members)
+    )
     return ControlExtraction(
         controls=tuple(controls),
         forms=tuple(forms),
         messages=tuple(messages),
         roles=tuple(roles),
         excluded_ids=frozenset(excluded),
+        dialogs=dialogs,
     )
 
 
@@ -1621,7 +1659,7 @@ def _field_kind(control: HtmlControl) -> str:
     return "text"
 
 
-def form_fields(form: HtmlForm, controls: Mapping[str, HtmlControl]) -> tuple[FormField, ...]:
+def form_fields(form: HtmlForm | HtmlDialog, controls: Mapping[str, HtmlControl]) -> tuple[FormField, ...]:
     """The arguments of a form tool, in document order. Disabled fields are left out.
 
     Radios that share a ``name`` (or, for ARIA radios, a group label) become one ``choice`` field.
@@ -1856,8 +1894,20 @@ def _field_schema(field: FormField) -> dict[str, Any]:
     return prop
 
 
-def form_tool_name(form: HtmlForm) -> str:
+def form_tool_name(form: HtmlForm | HtmlDialog) -> str:
     return _slug(form.name) or form.node_id
+
+
+def dialog_tool_schema(dialog: HtmlDialog, controls: Mapping[str, HtmlControl], *, name: str) -> dict[str, Any]:
+    return {
+        "name": name,
+        "description": f"Prepare fields in dialog {dialog.name!r}; never activates Save. Omitted covered fields are preserved. Save separately after inspecting the result.",
+        "input_schema": {
+            "type": "object",
+            "properties": {f.key: _field_schema(f) for f in form_fields(dialog, controls)},
+        },
+        "coverage": "requires_live_verification",
+    }
 
 
 def form_tool_schema(form: HtmlForm, controls: Mapping[str, HtmlControl], *, name: str | None = None) -> dict[str, Any]:
@@ -1897,7 +1947,7 @@ def form_tool_schema(form: HtmlForm, controls: Mapping[str, HtmlControl], *, nam
     }
 
 
-def form_tool_names(forms: Sequence[HtmlForm]) -> tuple[str, ...]:
+def form_tool_names(forms: Sequence[HtmlForm] | Sequence[HtmlDialog]) -> tuple[str, ...]:
     """A unique tool name for each form: two forms with the same name get ``_2``, ``_3``, ..."""
 
     used: dict[str, int] = {}
@@ -1943,6 +1993,7 @@ __all__ = [
     "FormField",
     "HtmlControl",
     "HtmlForm",
+    "HtmlDialog",
     "HtmlMessage",
     "HtmlOption",
     "control_aria_role",
@@ -1951,6 +2002,7 @@ __all__ = [
     "form_tool_name",
     "form_tool_names",
     "form_tool_schema",
+    "dialog_tool_schema",
     "hidden_ids",
     "is_sensitive_control",
     "label_secret_ids",

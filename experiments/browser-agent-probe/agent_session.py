@@ -48,7 +48,7 @@ from boundary import Boundary, PrivacyRedactor
 from page_view import ViewLine, view_lines
 
 from viewspec.raw_html import HtmlLiftResult, lift_html
-from viewspec.raw_html_actions import ActionStep, FormPlan, plan_control_action, plan_form_call
+from viewspec.raw_html_actions import ActionStep, FieldPlan, FormPlan, plan_control_action, plan_form_call
 from viewspec.raw_html_agent import HINT_REF, HtmlControl, control_aria_role
 from viewspec.raw_html_diff import ChangeCondition, LiftDiff, diff_lifts
 
@@ -515,7 +515,9 @@ class BrowserSession:
             for c in lift.controls
             if c.ref
         ]
-        requests += [{"key": f.node_id, "ref": f.ref, "role": None, "name": None} for f in lift.forms if f.ref]
+        requests += [
+            {"key": f.node_id, "ref": f.ref, "role": None, "name": None} for f in (*lift.forms, *lift.dialogs) if f.ref
+        ]
         if requests:
             locators = self._call(
                 "locate" if locate else "targets",
@@ -527,6 +529,7 @@ class BrowserSession:
         # defer this reading until action time: the same element may then belong to another item.
         expected = {c.node_id: (c.tag, c.name) for c in lift.controls}
         expected |= {f.node_id: ("form", None) for f in lift.forms}
+        expected |= {d.node_id: (next(n.tag for n in lift.nodes if n.id == d.node_id), None) for d in lift.dialogs}
         for node_id, locator in locators.items():
             locator["tag"], locator["expect_name"] = expected[node_id]
         # A control a person could not use now (a dialog covers it, or the page has switched it off),
@@ -761,7 +764,7 @@ class BrowserSession:
             safe.observation_failed = error.observation_failed
             raise safe from None
         finally:
-            if isinstance(steps, FormPlan):
+            if isinstance(steps, FieldPlan):
                 with contextlib.suppress(BridgeError):
                     progress = self._call("form_progress")
                     for key in ("submission", "writes", "preparation"):
@@ -798,7 +801,7 @@ class BrowserSession:
         }
         if submissions:
             self.action_progress["submission"] = "not_run"
-        if isinstance(steps, FormPlan):
+        if isinstance(steps, FieldPlan):
             fields = [
                 {
                     "ref": item.control.ref,
@@ -806,19 +809,23 @@ class BrowserSession:
                     "kind": item.kind,
                     "editor_revision": item.control.editor.revision if item.control.editor else None,
                     "preserve": item.preserve,
+                    "label_echo": not item.preserve and not item.control.secret and item.kind == "text",
                     "expected": item.expected,
                 }
                 for item in steps.intents
             ]
-            intent = steps.submission
+            intent = steps.submission if isinstance(steps, FormPlan) else None
             reply = self._call(
                 "begin_form",
                 fields=fields,
                 scope={
-                    "form_ref": intent.form.ref,
-                    "form_revision": observation.locators.get(intent.form.node_id, {}).get("form_revision"),
-                    "submit_ref": intent.submitter.ref if intent.submitter else None,
-                    "requested": intent.requested,
+                    "kind": "form" if intent else "dialog",
+                    "form_ref": steps.scope.ref,
+                    "form_revision": observation.locators.get(steps.scope.node_id, {}).get(
+                        "form_revision" if intent else "dialog_revision"
+                    ),
+                    "submit_ref": intent.submitter.ref if intent and intent.submitter else None,
+                    "requested": intent.requested if intent else False,
                 },
                 navigation_id=observation.navigation_id,
             )
@@ -829,13 +836,17 @@ class BrowserSession:
                     self.action_progress["submission"] = "withheld"
                 raise BridgeError("form-unknown: cannot establish the initial field contract; no edits ran")
         for index, step in enumerate(steps):
+            if isinstance(steps, FieldPlan) and not isinstance(steps, FormPlan) and time.monotonic() >= deadline:
+                error = BridgeError("form-pending: dialog preparation budget expired; remaining fields did not run")
+                error.steps = list(results)
+                raise error
             # The locator goes along even when it has no selector: it carries the control's identity,
             # which the bridge checks on the element it acts on, however it finds it.
             locator = observation.locators.get(step.node_id)
             end_locator = observation.locators.get(step.end_node_id) if step.end_node_id else None
             self.action_progress["fields"][index]["status"] = "attempted"
             if index in submissions:
-                self.action_progress["submission"] = "withheld" if isinstance(steps, FormPlan) else "attempted"
+                self.action_progress["submission"] = "withheld" if isinstance(steps, FieldPlan) else "attempted"
             try:
                 reply = self._call(
                     "act",
@@ -903,7 +914,7 @@ class BrowserSession:
                 }
             )
             if reply["verified"] is False or withheld or unknown:
-                if isinstance(steps, FormPlan) and not withheld:
+                if isinstance(steps, FieldPlan) and not withheld:
                     with contextlib.suppress(BridgeError):
                         self.action_progress["contract"] = self._call(
                             "check_form", navigation_id=observation.navigation_id
@@ -923,8 +934,14 @@ class BrowserSession:
                 )
                 interrupted.steps = list(results)
                 raise interrupted
-        if isinstance(steps, FormPlan) and not submissions:
-            final = self._call("check_form", navigation_id=observation.navigation_id, finalize=True)["fields"]
+        if isinstance(steps, FieldPlan) and not submissions:
+            final = self._call(
+                "check_form",
+                navigation_id=observation.navigation_id,
+                finalize=True,
+                wait_ready=not isinstance(steps, FormPlan),
+                timeout_ms=max(0, int((deadline - time.monotonic()) * 1000)),
+            )["fields"]
             self.action_progress["contract"] = final
             if any(item["status"] != "matched" for item in final):
                 code = "form-mismatch" if any(item["status"] == "mismatch" for item in final) else "form-unknown"

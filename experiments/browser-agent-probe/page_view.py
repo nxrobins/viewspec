@@ -196,6 +196,9 @@ def view_lines(
     label_refs = {control.choice.label_ref for control in lift.controls if control.choice and control.choice.label_ref}
     represented.update(node.id for node in lift.nodes if node.attrs.get("data-lift-ref") in label_refs)
     forms = {form.node_id: form for form in lift.forms}
+    dialogs = {d.node_id: d for d in lift.dialogs}
+    dialog_of = {control_id: d.node_id for d in lift.dialogs for control_id in d.control_ids}
+    preparation_names = dict(zip(dialogs, form_tool_names(lift.dialogs), strict=True))
     messages = {message.node_id: message for message in lift.messages}
     tool_names = {form.node_id: name for form, name in zip(lift.forms, form_tool_names(lift.forms), strict=True)}
     roles = {role.node_id: role for role in lift.roles}
@@ -269,6 +272,14 @@ def view_lines(
             add("row " + " | ".join(cell[:TEXT_PREVIEW] for cell in cells), "row", node.id)
             in_row.add(node.id)
             continue
+        if node.id in dialogs:
+            dialog = dialogs[node.id]
+            add(
+                f"dialog {redact(dialog.name)!r} prepare={preparation_names[node.id]}",
+                "dialog",
+                node.id,
+                form_id=node.id,
+            )
         if node.id in controls:
             control = controls[node.id]
             if control.choice is None:
@@ -276,7 +287,7 @@ def view_lines(
             handle = len(handles) + 1
             handles[handle] = control
             line = control_line(handle, control, blocked=node.id in blocked, redact=redact)
-            add(line, "control", node.id, handle=handle, form_id=control.form_id)
+            add(line, "control", node.id, handle=handle, form_id=control.form_id or dialog_of.get(node.id))
             continue
         if node.id in owned_text or node.id in inline_text:
             continue
@@ -472,7 +483,10 @@ def _breadcrumb(lines: list[ViewLine], start: int, shown: list[ViewLine]) -> tup
     crumbs = [headings[node_id] for node_id in reversed(chain) if node_id in headings]
     control = next((line for line in shown if line.kind == "control"), None)
     if control is not None and control.form_id is not None:
-        form = next((line for line in lines[:start] if line.kind == "form" and line.form_id == control.form_id), None)
+        form = next(
+            (line for line in lines[:start] if line.kind in {"form", "dialog"} and line.form_id == control.form_id),
+            None,
+        )
         if form is not None:
             crumbs.append(form)
     return tuple(crumbs)

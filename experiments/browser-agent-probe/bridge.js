@@ -924,6 +924,7 @@ async function targets({ requests, doc_id: docId, navigation_id: navigationId })
     strategy: null,
     identity: infos[ref]?.identity || null,
     form_revision: infos[ref]?.form_revision || null,
+    dialog_revision: infos[ref]?.dialog_revision || null,
     blocked: infos[ref]?.blocked || null,
   }]));
 }
@@ -954,6 +955,7 @@ async function locate({ requests, doc_id: docId, navigation_id: navigationId }) 
     // same code that checks them before a step runs.
     results[request.key].identity = (info && info.identity) || null;
     results[request.key].form_revision = info?.form_revision || null;
+    results[request.key].dialog_revision = info?.dialog_revision || null;
     results[request.key].blocked = (info && info.blocked) || null;
   }
   await requireReading(docId, navigationId);
@@ -1920,9 +1922,20 @@ const COMMANDS = {
       return {fields: result, valid: lift.formStatus().valid};
     }, {fields, scope});
   },
-  check_form: async ({navigation_id: navigationId, finalize = false}) => {
+  check_form: async ({navigation_id: navigationId, finalize = false, wait_ready: waitReady = false, timeout_ms: timeoutMs = 0}) => {
     requireObservation(navigationId);
     if (finalize) { await page.evaluate(() => window.__viewspecLift.finalizeForm()); await settle(); }
+    if (waitReady) {
+      if (timeoutMs <= 0) throw new Error("form-pending: dialog preparation budget expired; Save was not activated");
+      const ready = await activity.wait(async () => {
+        requireObservation(navigationId);
+        const status = await page.evaluate(() => window.__viewspecLift.formStatus());
+        if (!status.valid) throw new Error("form-unknown: the observed dialog scope changed during preparation");
+        return !status.busy && activity.blockers(formBackgroundStreams).length === 0;
+      }, Math.max(0, timeoutMs));
+      if (ready.state !== "ready") throw new Error("form-pending: dialog preparation remains pending; Save was not activated");
+    }
+    requireObservation(navigationId);
     return {fields: await page.evaluate(() => window.__viewspecLift.checkForm())};
   },
   form_progress: formProgress,

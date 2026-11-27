@@ -36,7 +36,7 @@ see [comparison/README.md](comparison/README.md).
 | `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `wait(condition, since, timeout_ms)`, `scroll(step, until, timeout_ms)`, `blocked_writes()`, `blocked_navigations()`. `BrowserSession(download_dir=...)` names the folder for downloads. `changes(before, after)`: what changed between two observations. |
 | `action_outcome.py` | The rule for what an action did: `succeeded`, `blocked`, `failed`, or `uncertain`, why, and whether a retry could do it twice. It imports only the standard library, and `tests/test_browser_bridge_outcome.py` checks it without a browser. See [Outcomes](#outcomes). |
 | `page_view.py` | The compact text view, with a numbered handle for each control, and slices of it (`view_page`: offset and limit, or `find`). An action's ARIA state shows on its line: `pressed`, `selected`, `expanded` or `collapsed`. |
-| `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
+| `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, `call`, and `prepare` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
 | `apg_eval.py` | Opens every W3C ARIA Authoring Practices example page and acts once on one control of each kind inside the example, as an agent would; reports which widget patterns the lift can operate. |
 | `real_sites_eval.py` | Re-runs the real-site tasks that found the lift's bugs (Wikipedia, python.org, gov.uk, react-select, flatpickr, jQuery UI, httpbin, and more), one browser per case. |
@@ -609,13 +609,36 @@ Inline numbers keep their wording and their separate `value` line, including pag
 
 ## MCP tools
 
-`mcp_browser_server.py` serves three tools over stdio:
+`mcp_browser_server.py` serves four tools over stdio:
 
 | Tool | Arguments | Does |
 |---|---|---|
 | `observe` | `url` or `since` (both optional), `wait_for`, `timeout_ms`, `offset`, `limit`, `find`; or `observation_id` with `offset`, `limit`, `find` | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, paragraph, and control; each control has a handle such as `[7]`), `view_page` (which lines these are), `form_tools` (complete typed tools for forms represented in this slice), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. With `observation_id`, it pages through that kept reading without reading the page again. |
 | `act` | `action` (`click`, `fill`, `check`, `uncheck`, `select`, `scroll`, `upload`, `download`), `handle`, `value`, `files`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. `upload` gives `files` to a file input, or to the file chooser a button opens. `download` clicks and saves the file it downloads. `select` on a date range field, or on either field of a pair, takes a range and picks both days. `scroll` needs no handle: it scrolls the page, or the pane of the control with the handle; `value` is the direction, and `wait_for` means "keep scrolling until it shows". The result has `scroll`: `scrolls`, `moved`, `loaded`, `at_end`, `end_reached`, `met`. |
 | `call` | `tool`, `arguments`, `submit`, `submitter`, `observation_id`, `wait_for`, `timeout_ms` | Fills in a form with typed arguments (files too) and submits it, waits for `wait_for` if given, then reads the page again. |
+| `prepare` | `scope`, `arguments`, `observation_id`, `timeout_ms` | Prepares typed fields in an observed non-native dialog, verifies requested and omitted covered fields together, then returns a fresh view. Never activates Save. |
+
+`preparation_tools` describes non-native dialogs represented in the current view slice or its
+context, with stable names across paging and find. Pass its `name` as `prepare(scope=...)` and
+follow `input_schema`; a dialog is separate from native `form_tools`. `coverage: observed` means
+the browser captured a bounded scope descriptor, not that preparation has succeeded. Unknown
+coverage is refused before editing. Live verification additionally requires every enabled root
+field to be represented by the typed contract; unsupported fields cannot silently disappear.
+
+Preparation shares native form field semantics, including choices, dates and editor operations.
+Omitted covered fields retain their current live values; explicit empty text clears a field.
+Required fields may remain empty because this operation does not submit. The scope is bound to
+the observed document, frame, route and field membership. Input is finalized through owned blur,
+known pending work is bounded by `timeout_ms`, and all covered fields are checked again. Private
+baselines remain inside the page. `progress.contract` reports field indexes and verification states.
+An accessible dialog title may follow an exact whitespace-normalized value of a non-private field
+this preparation has touched and verified; unrelated title changes still invalidate the scope.
+
+After preparation, inspect the new view and click Save with `act` separately. Success establishes
+the checked UI field state at that moment, not persistence or the behavior of a later click.
+Autosaves can occur during preparation; a failure retains write evidence and does not roll back.
+Nested dialogs have separate scopes. Mixed native forms, unknown field semantics, changed
+membership and unrecognized/virtualized coverage may require individual actions and a new view.
 
 The view in every result is a slice: 200 lines by default, at most 1000 (`limit`). `view_page` gives
 `offset`, `returned`, `total`, `next_offset`, and for a slice in the middle of the page, `context`.

@@ -87,7 +87,7 @@ async def run(base: str, folder: Path) -> None:
 
         print("\n== the server ==")
         listed = {item.name: item for item in (await session.list_tools()).tools}
-        check(set(listed) == {"observe", "act", "call"}, "the server offers observe, act, and call")
+        check(set(listed) == {"observe", "act", "call", "prepare"}, "the server offers observe, act, call, and prepare")
         check(
             all(listed[name].annotations.destructiveHint is False for name in ("act", "call")),
             "with only operator-classified fixture reads, act and call advertise the read policy",

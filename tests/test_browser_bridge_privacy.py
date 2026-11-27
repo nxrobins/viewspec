@@ -426,6 +426,56 @@ def form_reading(modules, count=80):
     return tools, raw
 
 
+def test_dialog_schema_paging_find_and_private_aliases(modules):
+    source = '<h1>Catalog</h1><input type="password" value="private-name">' + "".join(
+        f'<div role="dialog" aria-label="private-name"><label>Note {i}<input name="private-name"></label>'
+        f'<input type="password" name="password" value="kept-secret"><button>Save {i}</button></div>'
+        for i in range(40)
+    )
+    session = session_for(modules, source)
+    raw = session._observe(locate=False)
+    tools = modules.mcp_browser_server.BrowserTools()
+    tools.privacy, tools._session = session.privacy, session
+    full, _ = tools._view_data(raw, 1, limit=1000)
+    schemas = full["preparation_tools"]
+    assert len(schemas) == 40 and not full["form_tools"]
+    assert "private-name" not in json.dumps(full) and "kept-secret" not in json.dumps(full)
+    for offset, line in enumerate(raw.lines):
+        page, _ = tools._view_data(raw, 1, offset=offset, limit=1)
+        expected = (
+            [schemas[next(i for i, d in enumerate(raw.lift.dialogs) if d.node_id == line.form_id)]]
+            if line.form_id
+            else []
+        )
+        assert page["preparation_tools"] == expected
+    found, _ = tools._view_data(raw, 1, find="Note 39")
+    assert found["preparation_tools"] == [schemas[-1]]
+    empty, _ = tools._view_data(raw, 1, find="absent")
+    assert empty["preparation_tools"] == []
+    schema = schemas[-1]
+    alias = next(k for k in schema["input_schema"]["properties"] if k != "password")
+    name, values = tools._resolve_public_call(raw, schema["name"], {alias: "new"}, dialogs=True)
+    assert name == "private_name_40" and values == {"private-name": "new"}
+
+
+def test_preparation_protocol_keys_and_coverage_survive_private_values(modules):
+    privacy = modules.boundary.PrivacyRedactor()
+    privacy.remember(["preparation_tools", "observed"])
+    result = privacy.clean({"preparation_tools": [{"coverage": "observed", "description": "observed"}]})
+    assert result == {"preparation_tools": [{"coverage": "observed", "description": "[redacted]"}]}
+
+
+def test_mcp_preparation_exposes_fields_without_commit_arguments(modules):
+    import asyncio
+
+    server = modules.mcp_browser_server.build_server(modules.mcp_browser_server.BrowserTools())
+    listed = {tool.name: tool for tool in asyncio.run(server.list_tools())}
+    assert set(listed) == {"observe", "act", "call", "prepare"}
+    schema = listed["prepare"].inputSchema
+    assert set(schema["required"]) == {"scope", "arguments"}
+    assert set(schema["properties"]) == {"scope", "arguments", "observation_id", "timeout_ms"}
+
+
 @pytest.mark.parametrize("paging", [{"limit": 1}, {"offset": 10000}, {"find": "absent"}])
 def test_unrelated_or_empty_pages_have_no_form_schemas(modules, paging):
     tools, raw = form_reading(modules)
