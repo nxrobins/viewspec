@@ -1193,3 +1193,7 @@ select-only `div` combobox is refused before the browser acts.
 2. Let `observe` list the days a calendar offers (the free nights of a hotel), so the agent can choose
    among them.
 3. Let the agent read a downloaded text file (a CSV export) in slices, as it pages through a view.
+
+### Scoped feedback and continuation
+
+After a separate Save action, `act(..., watch=True)` returns observed feedback without guessing a toast. `observe(after_action=result["action_id"], watch=True)` follows the original action without replaying it. Typed `wait_for` conditions bind a source handle, owner, document and route; exact text and boolean state checks distinguish pre-existing truth from transitions. Receipts separate UI evidence, temporal HTTP lifecycles and policy dispositions; persistence remains unverified. See [the readiness contract](../../docs/browser-readiness-contract.md#scoped-waits-feedback-watching-and-action-receipts) for limits and examples.

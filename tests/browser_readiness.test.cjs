@@ -33,3 +33,22 @@ test('a lifecycle change during an asynchronous predicate is not lost', async ()
   const result=await a.wait(async()=>{if(first){first=false;a.finished(r);return false}return true},500);
   assert.equal(result.state,'ready');assert.ok(result.waited_ms<100);
 });
+test('receipts distinguish headers, completed bodies, failure, and temporal intervals', () => {
+  const a=new RequestActivity(), earlier={}, saved={}, failed={};
+  a.started(earlier);const mark=a.sequence;a.started(saved);
+  a.response({request:()=>saved,headers:()=>({'content-type':'application/json'}),status:()=>200});
+  assert.equal(a.since(mark).requests[0].state,'headers');
+  assert.equal(a.since(mark).requests[0].status,200);
+  a.finished(saved);const end=a.sequence;
+  a.started(failed);a.finished(failed,true);
+  assert.deepEqual(a.since(mark,end).requests.map(r=>r.state),['completed']);
+  assert.deepEqual(a.since(mark).requests.map(r=>r.state),['completed','failed']);
+  assert.equal(a.since(mark).association,'temporal');
+});
+test('bounded lifecycle history reports lost coverage explicitly', () => {
+  const a=new RequestActivity();a.limit=2;
+  for(let i=0;i<3;i++){const r={};a.started(r);a.finished(r)}
+  assert.equal(a.since(0).truncated,true);
+  assert.equal(a.since(1).truncated,false);
+  assert.equal(a.records.size,2);
+});

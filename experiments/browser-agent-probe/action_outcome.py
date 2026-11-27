@@ -188,7 +188,11 @@ def action_evidence(result: Mapping[str, Any]) -> dict[str, Any]:
     if wait:
         completion = {
             "scope": "ui_condition",
-            "state": "met" if wait.get("met") else "timed_out",
+            "state": "met"
+            if wait.get("met")
+            else "unknown"
+            if wait.get("reason") in {"scope_changed", "unknown", "already_true"}
+            else "timed_out",
             "requested": True,
             "condition": wait.get("condition"),
         }
@@ -266,6 +270,20 @@ def outcome_of(result: Mapping[str, Any], activity: Mapping[str, Any] | None = N
     retry = MAY_REPEAT if acts_again or passed else SAFE
     if wait:
         state = _page_state(activity, changed)
+        if wait.get("reason") in {"scope_changed", "unknown"}:
+            return _made(
+                UNCERTAIN,
+                "The scoped UI condition could not be verified: its scope changed or evidence is unavailable. Observe before repeating the action.",
+                retry,
+                state,
+            )
+        if wait.get("reason") == "already_true":
+            return _made(
+                UNCERTAIN,
+                "The requested state was already true before the action; no new transition was established. Observe before repeating the action.",
+                retry,
+                state,
+            )
         said = f"What was waited for ({wait.get('for', 'the change')}) did not show in {wait.get('timeout_ms')} ms."
         if state == BUSY:
             said += " A request the action started is still in flight: wait again before you repeat it."

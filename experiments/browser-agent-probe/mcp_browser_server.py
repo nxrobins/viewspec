@@ -41,6 +41,7 @@ import base64
 import functools
 import hashlib
 import os
+import secrets
 import signal
 import sys
 import threading
@@ -65,6 +66,7 @@ from agent_session import (
     request_fields,
 )
 from boundary import Boundary, BoundaryError, PrivacyLimit
+from feedback import ActionReceipt, ScopedCondition, invalid
 from page_view import view_page
 from typing_extensions import TypedDict
 
@@ -117,7 +119,16 @@ INSTRUCTIONS = (
     "Use wait_for for the task's UI condition when needed; pending or unknown completion does not undo a verified field. "
     "readiness reports finite, streaming, and unclassified pending work. Initial content may arrive later. "
     "A form call can return BROWSER_FORM_PENDING with submission withheld; observe or wait for its prerequisite, "
-    "and check prior writes before repeating it."
+    "and check prior writes before repeating it. "
+    "After a Save/submit with unknown feedback, prefer act(..., watch=true) over guessing a toast or disappearance. "
+    "watch returns typed feedback, not saved success. action_id lets observe(after_action=id, watch=true) continue "
+    "watching without replay; use observe(after_action=id) for current evidence. Receipts retain 16 actions. "
+    "For known UI requirements use wait_for={target: handle, state: {disabled: true}} or "
+    "{target: handle, text_equals: 'Saved', source: 'message', transition: true}. "
+    "These bind the target and owner from the source observation; any_of/all_of combine scoped conditions. "
+    "Exact text is case-sensitive with normalized whitespace; scope/message exclude editable values. "
+    "transition=true requires a predicate false before the action; already-true text is not new evidence. "
+    "Transport responses and UI changes do not prove persistence; verify the task result before declaring success."
 )
 DEFAULT_TIMEOUT_MS = 5000
 DEFAULT_VIEW_LIMIT = 200
@@ -149,6 +160,13 @@ class WaitFor(TypedDict, total=False):
     gone: str
     control: str
     enabled: bool
+    target: int
+    state: dict[str, Any]
+    text_equals: str
+    source: Literal["control", "scope", "message"]
+    transition: bool
+    any_of: list[dict[str, Any]]
+    all_of: list[dict[str, Any]]
 
 
 def _judged(tool: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
@@ -229,6 +247,7 @@ class BrowserTools:
         self._session: BrowserSession | None = None
         self._history: dict[int, Observation] = {}
         self._latest = 0
+        self._actions: dict[str, ActionReceipt] = {}
         # How far each of the bridge's records has been reported: a count, or for dialogs and
         # opened tabs ("events") the highest sequence number.
         self._reported = {"writes": 0, "passed": 0, "navigations": 0, "events": 0}
@@ -255,6 +274,8 @@ class BrowserTools:
         offset: int = 0,
         limit: int = DEFAULT_VIEW_LIMIT,
         find: str | None = None,
+        after_action: str | None = None,
+        watch: bool | WaitFor | None = None,
     ) -> dict[str, Any]:
         """Read the current page, or open ``url`` first and read it.
 
@@ -282,12 +303,29 @@ class BrowserTools:
         (or the latest reading, or the page as it first loads): ``{"change": "any"}``, ``{"change":
         "message"}``, ``{"text": "..."}``, ``{"gone": "Loading"}``, or ``{"control": "...",
         "enabled": true}``. ``wait.met`` says whether it showed.
+
+        Scoped wait_for accepts {target: handle, state: {disabled: true}} or
+        {target: handle, text_equals: "Saved", source: "message", transition: true}.
+        any_of/all_of combine scoped conditions. Targets bind to the source reading's owner,
+        document and route. State may already be true; transition requires false at baseline.
+        observe(after_action=id, watch=true) watches NEW feedback without replaying the action.
+        Omit watch to sample once. A scoped wait_for uses ORIGINAL bound handles, not newer handles.
+        after_action excludes url/since/observation_id. Later actions supersede UI attribution;
+        unknown or evicted receipts return BROWSER_ACTION_UNKNOWN (16 receipts retained).
         """
 
         with self._lock:
             paging = {"offset": offset, "limit": limit, "find": find}
+            if after_action is not None:
+                if url is not None or since is not None or observation_id is not None:
+                    return _error(
+                        "BROWSER_INVALID_REQUEST",
+                        "after_action cannot be combined with url, since or observation_id.",
+                        "Resume the action or choose a page reading.",
+                    )
+                return self._resume_action(after_action, wait_for, watch, timeout_ms, paging)
             if observation_id is not None:
-                if url is not None or since is not None or wait_for is not None:
+                if url is not None or since is not None or wait_for is not None or watch is not None:
                     return _error(
                         "BROWSER_INVALID_REQUEST",
                         "observation_id pages through a kept reading; it cannot be used with url, since, or wait_for.",
@@ -300,7 +338,11 @@ class BrowserTools:
                 data |= {"url": kept.url, "title": kept.title}
                 return tool_response(True, _join(f"Reading {observation_id}, not read again.", note), data=data)
             try:
-                condition = _condition(wait_for)
+                condition, watching = _feedback_condition(wait_for, watch)
+                if watching:
+                    invalid("watch on observe requires after_action; use a scoped wait_for for a fresh UI check.")
+                if url is not None and isinstance(condition, ScopedCondition):
+                    invalid("Observe the URL first, then bind a scoped condition to its handles.")
             except AgentActionError as error:
                 return _planning_error(error)
             try:
@@ -332,6 +374,14 @@ class BrowserTools:
                 if condition is None:
                     return self._observe_result("Observed the page.", since=earlier, paging=paging)
                 base = earlier or self._history[self._latest]
+                if isinstance(condition, ScopedCondition):
+                    try:
+                        receipt = self._begin_receipt(base, (), condition, store=False)
+                    except AgentActionError as error:
+                        return _planning_error(error)
+                    checked = receipt.wait(self._session, condition, watch=False, timeout_ms=timeout_ms)
+                    result = self._observe_result("Checked the scoped UI condition.", since=base, paging=paging)
+                    return self._receipt_result(result, receipt, checked, resumed=True)
                 waited = self._session.wait(condition, base, timeout_ms=timeout_ms)
                 return self._waited_result("Observed the page.", waited, since=base, paging=paging)
             except BridgeError as error:
@@ -348,6 +398,7 @@ class BrowserTools:
         wait_for: WaitFor | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
         files: list[FileArg] | None = None,
+        watch: bool | WaitFor | None = None,
     ) -> dict[str, Any]:
         """Do one thing to the control with this handle, then read the page again.
 
@@ -402,6 +453,13 @@ class BrowserTools:
         ``{"gone": "..."}``, or ``{"control": "...", "enabled": true}``. The action is done either way;
         ``wait.met`` says whether the change showed. Do not repeat the action only because it is false.
 
+        With unknown feedback after Save, use watch=true instead of guessing a toast. It returns
+        when the acted control/owner changes, a scoped message appears, or a temporally associated
+        request completes/fails. watch and wait_for are mutually exclusive; watch can also take a
+        typed scoped condition. Feedback is not application success. Use the returned action_id with
+        observe(after_action=id, watch=true) to continue without clicking again. Save stays separate
+        from prepare. Every mutation result retains bounded, secret-safe UI/transport evidence.
+
         ``outcome`` says whether the action took effect. ``status`` is ``succeeded`` (the wait was
         met or the page showed an effect), ``blocked`` (a write was stopped by policy), ``failed``
         (refused or the browser would not send the form), or ``uncertain`` (it ran and nothing shows
@@ -422,10 +480,16 @@ class BrowserTools:
             if isinstance(observation, dict):
                 return observation
             try:
-                condition = _condition(wait_for)
+                condition, watching = _feedback_condition(wait_for, watch)
             except AgentActionError as error:
                 return _planning_error(error)
             if action == "scroll":
+                if watching or isinstance(condition, ScopedCondition):
+                    return _error(
+                        "BROWSER_INVALID_REQUEST",
+                        "Scoped feedback is not supported for scroll.",
+                        "Use a legacy scroll wait, then observe a scoped condition.",
+                    )
                 return self._scroll(observation, handle, value, condition, timeout_ms)
             if handle is None:
                 return _error(
@@ -456,7 +520,7 @@ class BrowserTools:
                 return _planning_error(error)
             except _ToolError as error:
                 return error.result
-            return self._run(steps, observation, condition, timeout_ms)
+            return self._run(steps, observation, condition, timeout_ms, watching=watching)
 
     @_sealed
     @_judged
@@ -469,6 +533,7 @@ class BrowserTools:
         wait_for: WaitFor | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
         submitter: int | None = None,
+        watch: bool | WaitFor | None = None,
     ) -> dict[str, Any]:
         """Fill in a form with ``arguments`` and submit it, then read the page again.
 
@@ -494,7 +559,7 @@ class BrowserTools:
             if isinstance(observation, dict):
                 return observation
             try:
-                condition = _condition(wait_for)
+                condition, watching = _feedback_condition(wait_for, watch)
                 tool, arguments = self._resolve_public_call(observation, tool, arguments)
                 arguments = self._with_secrets(observation, tool, self._with_files(observation, tool, arguments))
                 chosen = observation.handles.get(submitter) if type(submitter) is int else None
@@ -509,7 +574,7 @@ class BrowserTools:
                 return _planning_error(error)
             except _ToolError as error:
                 return error.result
-            return self._run(steps, observation, condition, timeout_ms)
+            return self._run(steps, observation, condition, timeout_ms, watching=watching)
 
     @_sealed
     @_judged
@@ -778,11 +843,28 @@ class BrowserTools:
         self,
         steps: tuple[ActionStep, ...],
         observation: Observation,
-        condition: ChangeCondition | None = None,
+        condition: ChangeCondition | ScopedCondition | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
+        *,
+        watching: bool = False,
     ) -> dict[str, Any]:
         session = self._browser()
         started = time.monotonic()
+        try:
+            receipt = self._begin_receipt(
+                observation, steps, condition if isinstance(condition, ScopedCondition) else None
+            )
+        except AgentActionError as error:
+            return _planning_error(error)
+        except BridgeError as error:
+            # Receipt binding can discover stale identity before run() does. Preserve the existing
+            # refusal contract: include the current page so recovery never requires another write.
+            try:
+                current = self._observe_data(since=observation)
+                current.pop("_note")
+            except BridgeError:
+                current = None
+            return tool_error_response(_bridge_code(error), str(error), "Observe again before acting.", data=current)
         self._write_source = observation
         # What the agent itself sends: the values it set and the files it gave, on this page so far.
         # A stopped request may show these back to it (see _field_shown).
@@ -819,13 +901,22 @@ class BrowserTools:
                 for key in ("contract", "preparation"):
                     if key in session.action_progress:
                         refused["progress"][key] = session.action_progress[key]
-            return refused
+            return self._receipt_result(refused, receipt)
         self._on_steps = frozenset(seq for item in results for seq in item.event_seqs)
         self._said += "".join(f"\n{item.chosen}" for item in results if item.chosen and not item.step.secret)
         self._said_for_write = self._said
         summary = "Nothing to do: the control is already in that state." if not steps else _summary(results)
+        checked = None
         try:
-            if condition is None:
+            if watching or isinstance(condition, ScopedCondition):
+                checked = receipt.wait(
+                    session,
+                    condition if isinstance(condition, ScopedCondition) else None,
+                    watch=watching,
+                    timeout_ms=max(0, timeout_ms - int((time.monotonic() - started) * 1000)),
+                )
+                result = self._observe_result(summary, since=observation)
+            elif condition is None:
                 result = self._observe_result(summary, since=observation)
             else:
                 waited = session.wait(
@@ -847,8 +938,146 @@ class BrowserTools:
                 if key in session.action_progress:
                     result["progress"][key] = session.action_progress[key]
         result["navigated"] = any(item.navigated for item in results)
+        if checked is not None and not watching:
+            result["wait"] = {"for": condition.describe(), "condition": condition.to_json(), **checked}
         result["outcome"] = outcome_of(result, self._activity(results, observation, started))
+        return self._receipt_result(result, receipt, checked)
+
+    def _begin_receipt(self, observation, steps, condition, *, store=True):
+        handles = condition.targets() if condition else set()
+        if steps:
+            last = steps[-1]
+            handles.update(h for h, control in observation.handles.items() if control.node_id == last.node_id)
+        if len(handles) > 16:
+            invalid("A feedback request can bind at most 16 controls.")
+        bindings = []
+        for handle in sorted(handles):
+            control = observation.handles.get(handle)
+            if control is None:
+                invalid(f"Target {handle} is not in the source observation.")
+            if condition and control.secret:
+                # Never turn a scoped check into a private-value guessing oracle.
+                def private_value(node, target=handle):
+                    if "target" in node:
+                        return node["target"] == target and ("value" in node.get("state", {}) or "text_equals" in node)
+                    return any(private_value(c) for c in next(iter(node.values())))
+
+                if private_value(condition.spec):
+                    invalid("Private controls support boolean state checks only.")
+            spec = observation.locators.get(control.node_id, {})
+            bindings.append(
+                {
+                    "ref": control.ref,
+                    "identity": spec.get("identity"),
+                    "feedback_scope": spec.get("feedback_scope"),
+                    "secret": control.secret,
+                }
+            )
+        mark = self._browser()._call(
+            "feedback_begin", bindings=bindings, doc_id=observation.doc_id, navigation_id=observation.navigation_id
+        )
+        baseline = dict(zip(sorted(handles), mark.pop("samples"), strict=True))
+        if condition and any(s.get("state") != "observed" for s in baseline.values()):
+            invalid("The scoped condition cannot be bound; observe the target again before acting.")
+        receipt = ActionReceipt(
+            "action_" + secrets.token_hex(12) if store else "",
+            observation,
+            bindings,
+            sorted(handles),
+            mark,
+            source_observation_id=self._id_of(observation),
+            condition=condition,
+            baseline=baseline,
+        )
+        if store:
+            for previous in self._actions.values():
+                if not previous.superseded:
+                    previous.superseded = True
+                    previous.through = dict(mark)
+            self._actions[receipt.action_id] = receipt
+            while len(self._actions) > 16:
+                del self._actions[next(iter(self._actions))]
+        return receipt
+
+    def _receipt_result(self, result, receipt, checked=None, *, resumed=False):
+        if not resumed:
+            receipt.execution = action_evidence(result)["execution"]
+        try:
+            if checked is None:
+                receipt.sample(self._browser())
+        except BridgeError:
+            receipt.last = {
+                "version": 1,
+                "action_id": receipt.action_id,
+                "scope_state": "unknown",
+                "persistence": "unverified",
+            }
+        receipt.last["execution"] = receipt.execution
+        if receipt.action_id:
+            result["action_id"] = receipt.action_id
+        result["action_evidence"] = dict(receipt.last)
+        if not receipt.action_id:
+            result["action_evidence"].pop("action_id", None)
+        if checked is not None:
+            result["feedback"] = checked
+            if checked["mode"] == "assert":
+                result["wait"] = {"for": "the scoped UI condition", **checked}
+        if receipt.last.get("blocked") and not result.get("blocked_writes"):
+            result["blocked_writes"] = [w for w in receipt.last["writes"] if w["state"] != "passed"]
+        if resumed:
+            result["evidence"] = {
+                "version": 1,
+                "execution": receipt.execution,
+                "control_verification": "unknown",
+                "completion": {"scope": "application", "state": "unknown", "requested": bool(checked)},
+            }
+            if checked and checked["mode"] == "assert":
+                result["evidence"]["completion"] = {
+                    "scope": "ui_condition",
+                    "state": "met"
+                    if checked["met"]
+                    else "unknown"
+                    if checked["reason"] in {"scope_changed", "unknown", "already_true"}
+                    else "timed_out",
+                    "requested": True,
+                }
+            if receipt.last.get("blocked"):
+                result["evidence"]["completion"] = {
+                    "scope": "transport",
+                    "state": "blocked",
+                    "requested": bool(checked),
+                }
+        result["summary"] += " Action evidence reports UI/transport observations; persistence is unverified."
+        receipt.delivered()
         return result
+
+    def _resume_action(self, action_id, wait_for, watch, timeout_ms, paging):
+        receipt = self._actions.get(action_id)
+        if receipt is None:
+            return _error(
+                "BROWSER_ACTION_UNKNOWN",
+                "The action receipt is unknown or expired (16 retained).",
+                "Observe the current page; do not replay a write to recover evidence.",
+            )
+        try:
+            condition, watching = _feedback_condition(wait_for, watch)
+            if condition is not None and not isinstance(condition, ScopedCondition):
+                invalid("after_action accepts a scoped wait_for or watch=true. Global legacy waits use since instead.")
+            if condition and not condition.targets().issubset(receipt.handles):
+                invalid("Use targets bound by the original action receipt, not handles from a later observation.")
+            checked = (
+                receipt.wait(self._browser(), condition, watch=watching, timeout_ms=timeout_ms)
+                if condition or watching
+                else None
+            )
+            result = self._observe_result(
+                "Observed the original action without dispatching it again.", since=receipt.observation, paging=paging
+            )
+            return self._receipt_result(result, receipt, checked, resumed=True)
+        except AgentActionError as error:
+            return _planning_error(error)
+        except BridgeError as error:
+            return _error(_bridge_code(error), str(error), "Observe again; do not replay the original action.")
 
     @staticmethod
     def _progress(steps, results, observation, error=None):
@@ -1202,8 +1431,24 @@ def _join(*parts: str) -> str:
     return " ".join(part for part in parts if part)
 
 
-def _condition(wait_for: WaitFor | dict[str, Any] | None) -> ChangeCondition | None:
-    return None if wait_for is None else ChangeCondition.from_json(dict(wait_for))
+def _condition(wait_for: WaitFor | dict[str, Any] | None) -> ChangeCondition | ScopedCondition | None:
+    if wait_for is None:
+        return None
+    if not isinstance(wait_for, dict):
+        invalid("wait_for must be an object.")
+    if set(wait_for) & {"target", "any_of", "all_of"}:
+        return ScopedCondition.from_json(wait_for)
+    return ChangeCondition.from_json(dict(wait_for))
+
+
+def _feedback_condition(wait_for, watch):
+    if watch is None or watch is False:
+        return _condition(wait_for), False
+    if wait_for is not None:
+        invalid("watch and wait_for are mutually exclusive.")
+    if watch is True:
+        return None, True
+    return ScopedCondition.from_json(watch), True
 
 
 def _error(code: str, message: str, fix: str) -> dict[str, Any]:
