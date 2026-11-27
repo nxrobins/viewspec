@@ -322,15 +322,21 @@ def test_form_without_a_submit_button_is_submitted_directly():
     assert (step.op, step.ref, step.node_id) == ("submit", "f1", lift.forms[0].node_id)
 
 
-def test_disabled_submit_buttons_are_skipped():
+def test_submission_choice_is_independent_of_readiness():
     lift = _lift('<form aria-label="F"><button disabled>Old</button><button>New</button></form>')
-    [step] = plan_form_call(lift, "f", {})
-    assert step.name == "New"
-
-    lift = _lift('<form aria-label="F"><button disabled>Only</button></form>')
     with pytest.raises(AgentActionError) as caught:
         plan_form_call(lift, "f", {})
-    assert caught.value.code == "AGENT_ACTION_DISABLED"
+    assert caught.value.code == "AGENT_FORM_SUBMITTER_AMBIGUOUS"
+    [step] = plan_form_call(lift, "f", {}, submitter=lift.forms[0].submit_ids[0])
+    assert step.name == "Old"
+    assert plan_form_call(lift, "f", {}, submit=False) == ()
+    for submitter, submit in [("unknown", True), (lift.forms[0].submit_ids[0], False)]:
+        with pytest.raises(AgentActionError) as caught:
+            plan_form_call(lift, "f", {}, submit=submit, submitter=submitter)
+        assert caught.value.code == "AGENT_FORM_SUBMITTER_INVALID"
+    lift = _lift('<form aria-label="F"><button disabled>Only</button></form>')
+    [step] = plan_form_call(lift, "f", {})
+    assert step.name == "Only"
 
 
 def test_forms_with_the_same_name_get_unique_tool_names():

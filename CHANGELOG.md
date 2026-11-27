@@ -63,6 +63,9 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- Browser form calls can prepare a form whose submit button is initially disabled, then wait
+  within the call's readiness budget after blur and focus validation. Forms with multiple submit
+  actions now require an explicit observed `submitter` instead of choosing the first enabled one.
 - Generated React apps now use Tailwind CSS and `@tailwindcss/vite` 4.3.5, Vite 8.3.8, and
   `@vitejs/plugin-react` 6.3.0.
 - The weekly `agent-eval.yml` workflow skips until the repository variable `VIEWSPEC_EVAL_MODEL`
@@ -73,6 +76,10 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- Browser form preparation prevents premature and duplicate native submission events and withholds
+  activation when the observed form, participating fields, or submission destination changes.
+  Results include preparation evidence; edits and application autosaves can still occur before
+  a withheld submission, so preparation does not provide rollback or make retries safe.
 - The browser bridge finishes date ranges in an explicitly shared calendar, including a named
   grid inside a dialog. This avoids a second input click that can reset the start date. Independent
   calendars still open separately, and ranges whose fields update only after the second day are

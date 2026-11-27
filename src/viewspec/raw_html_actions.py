@@ -370,14 +370,25 @@ class FieldIntent:
     expected: Any = field(default=None, repr=False)
 
 
+@dataclass(frozen=True)
+class SubmissionIntent:
+    """The observed native form and chosen submitter, independent of current readiness."""
+
+    form: HtmlForm
+    submitter: HtmlControl | None
+    requested: bool
+
+
 class FormPlan(tuple):
     """Tuple-compatible action plan retaining the field contract, including no-op intent."""
 
     intents: tuple[FieldIntent, ...]
+    submission: SubmissionIntent
 
-    def __new__(cls, steps: Sequence[ActionStep], intents: Sequence[FieldIntent]):
+    def __new__(cls, steps: Sequence[ActionStep], intents: Sequence[FieldIntent], submission: SubmissionIntent):
         plan = super().__new__(cls, steps)
         plan.intents = tuple(intents)
+        plan.submission = submission
         return plan
 
 
@@ -416,12 +427,18 @@ def _field_intents(fields: Sequence[FormField], arguments: Mapping[str, Any]) ->
 
 
 def plan_form_call(
-    lift: HtmlLiftResult, tool_name: str, arguments: Mapping[str, Any], *, submit: bool = True
+    lift: HtmlLiftResult,
+    tool_name: str,
+    arguments: Mapping[str, Any],
+    *,
+    submit: bool = True,
+    submitter: str | None = None,
 ) -> FormPlan:
     """Plan a call of a form tool from ``lift.form_tool_schemas()``.
 
-    Steps fill the given arguments in document order and then submit: they click the first enabled
-    submit control, or submit the form when it has none. ``submit=False`` only fills. Arguments the
+    Steps fill the given arguments in document order and then activate the selected submitter.
+    A single submitter is selected even when initially disabled; multiple submitters require an
+    explicit observed node id. A buttonless form uses native submission. ``submit=False`` only fills. Arguments the
     call leaves out preserve their live semantic field values. Hidden protocol values remain
     app-owned. An explicit empty
     string clears an editable text/password field. An omitted required field is an error when
@@ -464,9 +481,16 @@ def plan_form_call(
         raise AgentActionError(
             "AGENT_FORM_ARGUMENTS_INVALID", f"The call to {tool_name} has {len(problems)} problem(s).", problems
         )
+    if submitter is not None and (not submit or submitter not in form.submit_ids):
+        raise AgentActionError(
+            "AGENT_FORM_SUBMITTER_INVALID", "Choose an observed submitter of this form, with submit=true."
+        )
+    chosen = None
     if submit:
-        steps.append(_submit_step(form, controls))
-    return FormPlan(steps, _field_intents(fields, arguments))
+        step = _submit_step(form, controls, submitter=submitter)
+        chosen = controls.get(step.node_id)
+        steps.append(step)
+    return FormPlan(steps, _field_intents(fields, arguments), SubmissionIntent(form, chosen, submit))
 
 
 def plan_scroll(direction: Any = "end", control: HtmlControl | None = None) -> ActionStep:
@@ -993,13 +1017,16 @@ def _choose(control: HtmlControl, value: Any) -> ActionStep:
     return _step("choose", control, value=wanted)
 
 
-def _submit_step(form: HtmlForm, controls: Mapping[str, HtmlControl]) -> ActionStep:
-    for node_id in form.submit_ids:
-        control = controls[node_id]
-        if not control.disabled:
-            return _step("click", control)
+def _submit_step(form: HtmlForm, controls: Mapping[str, HtmlControl], *, submitter: str | None = None) -> ActionStep:
+    if submitter is not None:
+        return _step("click", controls[submitter])
+    if len(form.submit_ids) > 1:
+        raise AgentActionError(
+            "AGENT_FORM_SUBMITTER_AMBIGUOUS",
+            "This form has multiple submit actions; choose an observed submitter explicitly.",
+        )
     if form.submit_ids:
-        raise AgentActionError("AGENT_ACTION_DISABLED", f"Every submit control of {form.name!r} is disabled.")
+        return _step("click", controls[form.submit_ids[0]])
     return ActionStep(op="submit", node_id=form.node_id, ref=form.ref, name=form.name)
 
 

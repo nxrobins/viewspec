@@ -45,7 +45,7 @@ from pathlib import Path
 from agent_session import BridgeError, BrowserSession, StepResult, changes
 from boundary import Boundary
 
-from viewspec.raw_html_actions import AgentActionError, UploadFile, plan_control_action, plan_scroll
+from viewspec.raw_html_actions import AgentActionError, UploadFile, plan_control_action, plan_form_call, plan_scroll
 from viewspec.raw_html_diff import ChangeCondition
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -295,15 +295,18 @@ def shop(session: BrowserSession, base: str) -> None:
     session.observe()
     try:
         session.call(tool, {"q": "Clamp lamp"})
-        check(False, "a form call whose suggestion loads the results page stops")
+        check(False, "a form call whose suggestion submits before preparation finishes stops")
     except BridgeError as error:
         print(f"  !!  {error}")
         check(
-            "navigated after step 1 of 2 (choose 'Search products')" in str(error)
-            and "1 step(s) did not run" in str(error),
-            "a form call whose suggestion loads the results page stops and names the submit step that did not run",
+            str(error).startswith("form-unknown:")
+            and session.action_progress["submission"] == "withheld"
+            and session.action_progress["preparation"]["prevented_submissions"] == 1,
+            "preparation prevents the suggestion's premature submit and withholds the unverified form",
         )
-    check("/search?q=Clamp+lamp" in session.observe().url, "the search ran all the same")
+    check(session.observe().url.endswith("/shop.html"), "the premature search did not navigate")
+    session.act(handle_named(session, "Search products"), "select", "Clamp lamp")
+    check("/search?q=Clamp+lamp" in session.observe().url, "a fresh individual selection can run the search")
 
 
 def spa(session: BrowserSession, base: str) -> None:
@@ -552,8 +555,14 @@ def dates(session: BrowserSession, base: str) -> None:
         "the field shows 03/07/1990",
     )
 
-    results = session.call(
-        "book_a_stay", {"checkin": "2026-12-01", "checkout": "December 5, 2026", "dob": "1985-06-15", "guests": 3}
+    # Moving both custom calendars consumes the shared budget before final activation.
+    results = session.run(
+        plan_form_call(
+            session.observe().lift,
+            "book_a_stay",
+            {"checkin": "2026-12-01", "checkout": "December 5, 2026", "dob": "1985-06-15", "guests": 3},
+        ),
+        timeout_ms=15000,
     )
     show(results)
     [write] = session.blocked_writes()

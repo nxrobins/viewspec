@@ -465,6 +465,7 @@ class BrowserTools:
         observation_id: int | None = None,
         wait_for: WaitFor | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
+        submitter: int | None = None,
     ) -> dict[str, Any]:
         """Fill in a form with ``arguments`` and submit it, then read the page again.
 
@@ -472,6 +473,10 @@ class BrowserTools:
         leave out preserve their live semantic field values; hidden protocol fields remain app-owned. Explicitly send an empty
         string (``""``) to clear an editable text/password field; omission does not clear it.
         ``x-value-state`` is empty, filled, or unknown; unknown does not mean empty.
+        With multiple submit actions, supply ``submitter`` as the button handle from this observation.
+        A unique submitter can start disabled: fields are prepared before readiness is checked.
+        Preparation guards native submits, finalizes the last field and focuses the chosen button
+        before waiting for validation. Autosaves can still occur; this is not a transaction.
         Before automatic submission, known pending requests and scoped busy states must settle within
         the remaining ``timeout_ms`` budget; otherwise submission is withheld with BROWSER_FORM_PENDING.
         This checks current UI prerequisites, not arbitrary future application work or persistence.
@@ -489,7 +494,14 @@ class BrowserTools:
                 condition = _condition(wait_for)
                 tool, arguments = self._resolve_public_call(observation, tool, arguments)
                 arguments = self._with_secrets(observation, tool, self._with_files(observation, tool, arguments))
-                steps = plan_form_call(observation.lift, tool, arguments, submit=submit)
+                chosen = observation.handles.get(submitter) if type(submitter) is int else None
+                if submitter is not None and chosen is None:
+                    raise AgentActionError(
+                        "AGENT_FORM_SUBMITTER_INVALID", "Use a submitter handle from this observation."
+                    )
+                steps = plan_form_call(
+                    observation.lift, tool, arguments, submit=submit, submitter=chosen.node_id if chosen else None
+                )
             except AgentActionError as error:
                 return _planning_error(error)
             except _ToolError as error:
@@ -593,6 +605,9 @@ class BrowserTools:
             safe_schema = _public_schema(schema)
             shown = self.privacy.clean(safe_schema)
             shown["name"] = public
+            shown["submitters"] = [
+                handle for handle, control in observation.handles.items() if control.node_id in form.submit_ids
+            ]
             properties = safe_schema.get("input_schema", {}).get("properties", {})
             reserved_fields = set(properties)
             names = {}
@@ -744,8 +759,9 @@ class BrowserTools:
             if session.action_progress:
                 refused["progress"]["writes"] = dict(session.action_progress["writes"])
                 refused["progress"]["submission"] = session.action_progress["submission"]
-                if "contract" in session.action_progress:
-                    refused["progress"]["contract"] = session.action_progress["contract"]
+                for key in ("contract", "preparation"):
+                    if key in session.action_progress:
+                        refused["progress"][key] = session.action_progress[key]
             return refused
         self._on_steps = frozenset(seq for item in results for seq in item.event_seqs)
         self._said += "".join(f"\n{item.chosen}" for item in results if item.chosen and not item.step.secret)
@@ -770,8 +786,9 @@ class BrowserTools:
         if session.action_progress:
             result["progress"]["writes"] = dict(session.action_progress["writes"])
             result["progress"]["submission"] = session.action_progress["submission"]
-            if "contract" in session.action_progress:
-                result["progress"]["contract"] = session.action_progress["contract"]
+            for key in ("contract", "preparation"):
+                if key in session.action_progress:
+                    result["progress"][key] = session.action_progress[key]
         result["navigated"] = any(item.navigated for item in results)
         result["outcome"] = outcome_of(result, self._activity(results, observation, started))
         return result

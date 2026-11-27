@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import os
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from tests.test_browser_bridge_e2e import BODIES, PROBE, RECEIVED, handle
+from tests.test_browser_bridge_e2e import BODIES, PROBE, RECEIVED, _QuietHandler, handle
 from tests.test_browser_bridge_e2e import site as site
 
 pytestmark = [
@@ -111,7 +111,7 @@ def test_route_change_after_first_option_stops_the_rest_of_the_batch(browser, si
     )
     assert not refused["ok"], refused
     assert "Clicks 1" in refused["view"]
-    assert refused["progress"]["submission"] == "not_run"
+    assert refused["progress"]["submission"] == "withheld"
     assert not RECEIVED
 
 
@@ -124,7 +124,7 @@ def test_unverified_choice_stops_batch_before_submit(browser, site):
         observation_id=page["observation_id"],
     )
     assert not refused["ok"], refused
-    assert refused["progress"]["submission"] == "not_run"
+    assert refused["progress"]["submission"] == "withheld"
     assert [f["status"] for f in refused["progress"]["fields"]] == ["verified", "failed", "not_run"]
     assert not RECEIVED
 
@@ -164,6 +164,42 @@ def test_delayed_replaced_typeahead_still_navigates(browser, site):
     )
     assert chosen["ok"], chosen
     assert chosen["url"].endswith("/wiki/Alan_Turing")
+
+
+@pytest.mark.parametrize("submit", [False, True])
+def test_form_preparation_prevents_native_suggestion_submit(browser, site, monkeypatch, submit):
+    searches = []
+    original = _QuietHandler.do_GET
+
+    def record_search(handler):
+        if urlsplit(handler.path).path == "/search":
+            searches.append(handler.path)
+        original(handler)
+
+    monkeypatch.setattr(_QuietHandler, "do_GET", record_search)
+    page = browser.observe(url=site + "/shop.html")
+    refused = browser.call(
+        tool=page["form_tools"][0]["name"],
+        arguments={"q": "Clamp lamp"},
+        submit=submit,
+        observation_id=page["observation_id"],
+    )
+    assert not refused["ok"], refused
+    assert refused["errors"][0]["code"] == "BROWSER_FORM_UNKNOWN"
+    assert refused["progress"]["submission"] == ("withheld" if submit else "not_requested")
+    assert refused["progress"]["preparation"]["prevented_submissions"] == 1
+    assert refused["progress"]["preparation"]["native_submissions"] == 0
+    assert refused["url"].endswith("/shop.html")
+    assert not searches
+
+    chosen = browser.act(
+        action="select",
+        handle=handle(refused, "Search products"),
+        value="Clamp lamp",
+        observation_id=refused["observation_id"],
+    )
+    assert chosen["ok"] and chosen["navigated"], chosen
+    assert searches == ["/search?q=Clamp+lamp&sort=Price"]
 
 
 def test_multi_choice_defaults_are_arrays(browser, site):
