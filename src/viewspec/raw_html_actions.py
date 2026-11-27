@@ -24,6 +24,7 @@ from viewspec.raw_html_agent import (
     DATE_INPUT_TYPES,
     FormField,
     HtmlControl,
+    HtmlDialog,
     HtmlForm,
     form_fields,
     form_tool_names,
@@ -379,20 +380,44 @@ class SubmissionIntent:
     requested: bool
 
 
-class FormPlan(tuple):
-    """Tuple-compatible action plan retaining the field contract, including no-op intent."""
+class FieldPlan(tuple):
+    """Shared typed field contract, independent of commit semantics."""
 
     intents: tuple[FieldIntent, ...]
+    scope: HtmlForm | HtmlDialog
+
+    def __new__(cls, steps: Sequence[ActionStep], intents: Sequence[FieldIntent], scope: HtmlForm | HtmlDialog):
+        plan = super().__new__(cls, steps)
+        plan.intents = tuple(intents)
+        plan.scope = scope
+        return plan
+
+
+class FormPlan(FieldPlan):
     submission: SubmissionIntent
 
     def __new__(cls, steps: Sequence[ActionStep], intents: Sequence[FieldIntent], submission: SubmissionIntent):
-        plan = super().__new__(cls, steps)
-        plan.intents = tuple(intents)
+        plan = super().__new__(cls, steps, intents, submission.form)
         plan.submission = submission
         return plan
 
 
-def _field_intents(fields: Sequence[FormField], arguments: Mapping[str, Any]) -> tuple[FieldIntent, ...]:
+def plan_dialog_prepare(lift: HtmlLiftResult, name: str, arguments: Mapping[str, Any]) -> FieldPlan:
+    names = form_tool_names(lift.dialogs)
+    if name not in names:
+        raise AgentActionError("AGENT_DIALOG_UNKNOWN", "Choose a dialog from preparation_tools in this observation.")
+    dialog = lift.dialogs[names.index(name)]
+    fields = form_fields(dialog, {c.node_id: c for c in lift.controls})
+    return FieldPlan(
+        _plan_fields(fields, arguments, name, require_complete=False),
+        _field_intents(fields, arguments, require_complete=False),
+        dialog,
+    )
+
+
+def _field_intents(
+    fields: Sequence[FormField], arguments: Mapping[str, Any], *, require_complete: bool = True
+) -> tuple[FieldIntent, ...]:
     intents = []
     for item in fields:
         preserve = item.key not in arguments
@@ -406,7 +431,7 @@ def _field_intents(fields: Sequence[FormField], arguments: Mapping[str, Any]) ->
         kind = item.kind
         if not preserve:
             value = arguments[item.key]
-            steps = _field_steps(item, value)
+            steps = _field_steps(item, value, require_complete=require_complete)
             step = steps[0] if steps else None
             if kind == "boolean":
                 expected = value
@@ -453,6 +478,24 @@ def plan_form_call(
     form = lift.forms[names.index(tool_name)]
     controls = {control.node_id: control for control in lift.controls}
     fields = form_fields(form, controls)
+    steps = _plan_fields(fields, arguments, tool_name)
+    if submitter is not None and (not submit or submitter not in form.submit_ids):
+        raise AgentActionError(
+            "AGENT_FORM_SUBMITTER_INVALID", "Choose an observed submitter of this form, with submit=true."
+        )
+    chosen = None
+    if submit:
+        step = _submit_step(form, controls, submitter=submitter)
+        chosen = controls.get(step.node_id)
+        steps.append(step)
+    return FormPlan(steps, _field_intents(fields, arguments), SubmissionIntent(form, chosen, submit))
+
+
+def _plan_fields(
+    fields: Sequence[FormField], arguments: Mapping[str, Any], tool_name: str, *, require_complete: bool = True
+) -> list[ActionStep]:
+    if not isinstance(arguments, Mapping):
+        raise AgentActionError("AGENT_FORM_ARGUMENTS_INVALID", "Arguments must be an object.")
     by_key = {item.key: item for item in fields}
     problems: list[dict[str, str]] = []
     for key in arguments:
@@ -470,27 +513,18 @@ def plan_form_call(
             planned.add(end.key)
             continue
         if item.key not in arguments:
-            if item.required and _empty(item):
+            if require_complete and item.required and _empty(item):
                 problems.append({"argument": item.key, "problem": "missing", "message": f"{item.key!r} is required."})
             continue
         try:
-            steps.extend(_field_steps(item, arguments[item.key]))
+            steps.extend(_field_steps(item, arguments[item.key], require_complete=require_complete))
         except AgentActionError as error:
             problems.append({"argument": item.key, "problem": "invalid", "message": error.message})
     if problems:
         raise AgentActionError(
             "AGENT_FORM_ARGUMENTS_INVALID", f"The call to {tool_name} has {len(problems)} problem(s).", problems
         )
-    if submitter is not None and (not submit or submitter not in form.submit_ids):
-        raise AgentActionError(
-            "AGENT_FORM_SUBMITTER_INVALID", "Choose an observed submitter of this form, with submit=true."
-        )
-    chosen = None
-    if submit:
-        step = _submit_step(form, controls, submitter=submitter)
-        chosen = controls.get(step.node_id)
-        steps.append(step)
-    return FormPlan(steps, _field_intents(fields, arguments), SubmissionIntent(form, chosen, submit))
+    return steps
 
 
 def plan_scroll(direction: Any = "end", control: HtmlControl | None = None) -> ActionStep:
@@ -515,7 +549,7 @@ def plan_scroll(direction: Any = "end", control: HtmlControl | None = None) -> A
     )
 
 
-def _field_steps(item: FormField, value: Any) -> tuple[ActionStep, ...]:
+def _field_steps(item: FormField, value: Any, *, require_complete: bool = True) -> tuple[ActionStep, ...]:
     control = item.control
     if item.kind == "choice":
         allowed = [option for option, _ in item.choices]
@@ -555,7 +589,7 @@ def _field_steps(item: FormField, value: Any) -> tuple[ActionStep, ...]:
     problem = constraint_problem(control, value) if isinstance(value, str) else None
     if problem:
         raise AgentActionError("AGENT_ACTION_VALUE_INVALID", problem)
-    if item.required and isinstance(value, str) and not value.strip():
+    if require_complete and item.required and isinstance(value, str) and not value.strip():
         raise AgentActionError("AGENT_ACTION_VALUE_INVALID", f"{item.key!r} is required and cannot be left empty.")
     return steps
 
@@ -1056,6 +1090,8 @@ __all__ = [
     "AgentActionError",
     "plan_control_action",
     "plan_form_call",
+    "plan_dialog_prepare",
+    "FieldPlan",
     "plan_scroll",
     "plan_download",
     "plan_upload",

@@ -44,6 +44,31 @@ def _result(*steps: dict[str, Any], lines: tuple[str, ...] = (), **extra: Any) -
     return {"ok": True, "summary": "s", "steps": list(steps), "navigated": False, "changes": changes, **extra}
 
 
+@pytest.mark.parametrize(
+    "states,expected",
+    [
+        (["matched", "mismatch"], "mismatch"),
+        (["matched", "unknown"], "unknown"),
+        (["matched", "not_run"], "unknown"),
+        (["matched", "matched"], "matched"),
+    ],
+)
+def test_final_field_contract_takes_precedence_over_individual_step_checks(states, expected):
+    result = _result(
+        _step("fill", verified=True),
+        progress={"contract": [{"index": index, "status": state} for index, state in enumerate(states, 1)]},
+    )
+    assert _rule().action_evidence(result)["control_verification"] == expected
+
+
+def test_noop_preparation_still_has_verified_field_evidence():
+    result = _result(progress={"contract": [{"index": 1, "status": "matched"}]})
+    evidence = _rule().action_evidence(result)
+    assert evidence["execution"] == "not_dispatched"
+    assert evidence["control_verification"] == "matched"
+    assert evidence["completion"]["state"] == "unknown"
+
+
 def _refusal(code: str, message: str = "why", *steps: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {"ok": False, "summary": message, "errors": [{"code": code, "message": message}]}
     if steps:

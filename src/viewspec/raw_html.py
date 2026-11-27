@@ -23,6 +23,7 @@ from viewspec.raw_html_agent import (
     AGENT_VIEWSPEC_DATA_ATTRS,
     HINT_SECRET,
     HtmlControl,
+    HtmlDialog,
     HtmlForm,
     HtmlMessage,
     extract_controls,
@@ -318,6 +319,7 @@ class HtmlLiftResult:
     controls: tuple[HtmlControl, ...] = ()
     forms: tuple[HtmlForm, ...] = ()
     messages: tuple[HtmlMessage, ...] = ()
+    dialogs: tuple[HtmlDialog, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -334,6 +336,7 @@ class HtmlLiftResult:
             payload["profile"] = self.profile
             payload["controls"] = [control.to_json() for control in self.controls]
             payload["forms"] = [form.to_json() for form in self.forms]
+            payload["dialogs"] = [dialog.to_json() for dialog in self.dialogs]
             payload["messages"] = [message.to_json() for message in self.messages]
         return payload
 
@@ -506,9 +509,11 @@ def lift_html(
     controls: tuple[HtmlControl, ...] = ()
     forms: tuple[HtmlForm, ...] = ()
     messages: tuple[HtmlMessage, ...] = ()
+    dialogs: tuple[HtmlDialog, ...] = ()
     if profile == "agent":
         extraction = extract_controls(nodes)
         controls, forms, messages = extraction.controls, extraction.forms, extraction.messages
+        dialogs = extraction.dialogs
         content_roles = [
             role
             for role in _infer_roles([node for node in nodes if node.id not in extraction.excluded_ids])
@@ -534,6 +539,7 @@ def lift_html(
         profile=profile,
         controls=controls,
         forms=forms,
+        dialogs=dialogs,
         messages=messages,
     )
 

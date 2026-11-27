@@ -166,6 +166,16 @@ def action_evidence(result: Mapping[str, Any]) -> dict[str, Any]:
     verification = (
         "mismatch" if False in verified else "matched" if verified and all(v is True for v in verified) else "unknown"
     )
+    contract = progress.get("contract")
+    if contract is not None:
+        states = [field.get("status") for field in contract]
+        verification = (
+            "mismatch"
+            if "mismatch" in states
+            else "matched"
+            if states and all(state == "matched" for state in states)
+            else "unknown"
+        )
     wait = result.get("wait")
     network = (result.get("readiness") or {}).get("pending") or {}
     finite_pending = network.get("finite", 0) + network.get("unknown", 0)

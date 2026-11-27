@@ -864,6 +864,7 @@
       connected: true,
       identity: identityOf(el, cache),
       form_revision: el.tagName === "FORM" ? observeForm(el) : null,
+      dialog_revision: el.matches(FIELD_DIALOG) ? observeDialog(el) : null,
       blocked: el.tagName === "FORM" ? null : blockedBy(el, { keys: typeable(el), cover }),
     };
   }
@@ -1928,10 +1929,74 @@
     }
     return record.revision;
   }
+  // Dialog scopes share field semantics, but never acquire native submit authority.
+  const FIELD_DIALOG = 'dialog,[role="dialog"]';
+  function ownsDialogField(scope, el) {
+    return Boolean(el && !el.form && !el.closest("form") && el.closest(FIELD_DIALOG) === scope);
+  }
+  function dialogMembers(scope) {
+    if (!scope?.isConnected || !scope.matches(FIELD_DIALOG) || !shown(scope)) return null;
+    const candidates = [...scope.querySelectorAll('input,select,textarea,[role],[contenteditable]')];
+    if (candidates.length > 512) return null;
+    return candidates.filter(el => shown(el) && el.closest(FIELD_DIALOG) === scope &&
+      (businessField(el) || /^(slider|spinbutton|listbox)$/.test(el.getAttribute("role"))));
+  }
+  function dialogFieldRoots(scope) {
+    return dialogMembers(scope)?.filter(el => {
+      const editor = window.__viewspecEditor.owner(el);
+      if (editor && editor !== el) return false;
+      const choice = el.parentElement?.closest('[role=combobox],[role=listbox]');
+      return !choice || !scope.contains(choice);
+    });
+  }
+  function dialogDescriptor(scope) {
+    const members = dialogFieldRoots(scope);
+    if (!members?.length || members.length > 256 || members.some(el => !ownsDialogField(scope, el))) return null;
+    let doc = scope.ownerDocument;
+    try {
+      while (doc !== document) {
+        const frame = doc.defaultView?.frameElement;
+        if (!frame?.isConnected || frame.contentDocument !== doc) return null;
+        doc = frame.ownerDocument;
+      }
+    } catch { return null; }
+    const state = {url: scope.ownerDocument.location.href, tag: scope.tagName, role: scope.getAttribute("role"),
+      name: nameOf(scope), parent: scope.parentElement?.closest(FIELD_DIALOG) ? refOf(scope.parentElement.closest(FIELD_DIALOG)) : null,
+      fields: members.map(el => ({tag: el.tagName, type: el.type, name: el.getAttribute("name"),
+        label: nameOf(el), role: el.getAttribute("role"), multiple: el.multiple,
+        disabled: !formEnabled(el), readonly: Boolean(el.readOnly)}))};
+    if (JSON.stringify(state).length > 65536) return null;
+    return {state, buttons: [], document: scope.ownerDocument};
+  }
+  function observeDialog(scope) {
+    const descriptor = dialogDescriptor(scope);
+    if (!descriptor) return null;
+    let record = formObservations.get(scope);
+    if (!record || record.document !== descriptor.document || !equalState(record.state, descriptor.state)) {
+      record = {...descriptor, revision: `dialog-${docId}-${++formRevision}`};
+      formObservations.set(scope, record);
+    }
+    return record.revision;
+  }
+  function contractOwns(el) {
+    return formContract.kind === "dialog" ? ownsDialogField(formContract.form, el) : ownsField(formContract.form, el);
+  }
+  function contractMembers() {
+    return formContract.kind === "dialog" ? dialogFieldRoots(formContract.form) : formMembers(formContract.form);
+  }
   function formScopeValid() {
     const c = formContract;
     if (!c || !c.bound || location.href !== c.url || c.form.ownerDocument !== c.document) return false;
-    const current = formDescriptor(c.form);
+    const current = c.kind === "dialog" ? dialogDescriptor(c.form) : formDescriptor(c.form);
+    // Record editors often echo a newly supplied Name in the dialog's accessible label.
+    // Accept only an exact echo of a non-private, touched field that currently matches its
+    // requested value. Every other scope component and every field identity must still match.
+    if (current && c.kind === "dialog" && current.state.name !== c.state.name &&
+        equalState({...current.state, name: c.state.name}, c.state) && c.fields.some(field => {
+          const el = get(field.ref);
+          return field.label_echo && c.edited.has(el) && ownsDialogField(c.form, el) &&
+            fieldStateFor(el, field.kind) === field.expected && field.expected.replace(/\s+/g, " ").trim() === current.state.name;
+        })) c.state = {...c.state, name: current.state.name};
     return current !== null && equalState(current.state, c.state);
   }
   function boundSubmitter() {
@@ -1954,9 +2019,9 @@
   function contractTarget(field) {
     const c = formContract;
     let el = get(field.ref);
-    if (el) return ownsField(c.form, el) && (!field.identity || differsFrom(el, field.identity) === null) ? el : null;
+    if (el) return contractOwns(el) && (!field.identity || differsFrom(el, field.identity) === null) ? el : null;
     if (!field.identity || field.kind === "editor" || !c.form?.isConnected) return null;
-    const fits = (formMembers(c.form) || []).filter(el => businessField(el) && differsFrom(el, field.identity) === null);
+    const fits = (contractMembers() || []).filter(el => businessField(el) && differsFrom(el, field.identity) === null);
     if (fits.length !== 1) return null;
     field.ref = refOf(fits[0]);
     return fits[0];
@@ -1996,13 +2061,23 @@
     const index = observed?.buttons.indexOf(button) ?? -1;
     const bound = Boolean(observed && observed.revision === scope.form_revision &&
       (!scope.requested || (scope.submit_ref ? index >= 0 : observed.buttons.length === 0)));
-    formContract = {fields, form, document: observed?.document, button, state: observed?.state, bound,
+    formContract = {fields, form, kind: scope.kind || "form", document: observed?.document, button, state: observed?.state, bound,
       buttonState: index >= 0 ? observed.state.buttons[index] : null,
       requested: scope.requested, url: location.href, cleanup: null, stopped: null,
       phase: "preparing", activation: "not_dispatched", native_submissions: 0, prevented_submissions: 0,
-      touched: null, deadline: Infinity};
+      touched: null, edited: new Set(), deadline: Infinity};
     if (!formScopeValid()) { formContract.bound = false; return fields.map((_, i) => ({index: i + 1, status: "unknown"})); }
-    installFormGuard();
+    if (formContract.kind === "dialog") {
+      // Exact coverage: every enabled root field must have an intent, and no intent may
+      // reach outside this observed dialog. Unsupported/omitted fields cannot disappear.
+      const members = (dialogFieldRoots(form) || []).filter(formEnabled);
+      const targets = fields.map(field => contractTarget(field));
+      if (scope.requested || targets.some(el => !el) || new Set(targets).size !== targets.length ||
+          members.length !== targets.length || members.some(el => !targets.includes(el))) {
+        formContract.bound = false;
+        return fields.map((_, i) => ({index: i + 1, status: "unknown"}));
+      }
+    } else installFormGuard();
     for (const field of fields) {
       const el = contractTarget(field);
       // Store the input kind too: reusing a text element as a hidden/radio field changes its contract.
@@ -2076,9 +2151,10 @@
   }
   function touchForm(el) {
     if (!formContract) return;
-    if (!formScopeValid() || !ownsField(formContract.form, el))
+    if (!formScopeValid() || !contractOwns(el))
       throw new Error("form-unknown: the observed form scope changed; submission withheld");
     formContract.touched = el;
+    formContract.edited.add(el);
   }
   function finalizeForm() {
     const c = formContract;
