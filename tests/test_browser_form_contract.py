@@ -402,7 +402,7 @@ def test_selected_marker_cannot_verify_an_uncommitted_query(app):
     result = call(app, "ignored-selected-choice", {"country": "Jap"})
     assert not result["ok"] and not app[2], result
     assert result["steps"][0]["verified"] is False
-    assert result["progress"]["submission"] == "not_run"
+    assert result["progress"]["submission"] == "withheld"
 
 
 def test_shared_range_that_does_not_commit_either_endpoint_cannot_submit(app):

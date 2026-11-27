@@ -111,7 +111,7 @@ def test_route_change_after_first_option_stops_the_rest_of_the_batch(browser, si
     )
     assert not refused["ok"], refused
     assert "Clicks 1" in refused["view"]
-    assert refused["progress"]["submission"] == "not_run"
+    assert refused["progress"]["submission"] == "withheld"
     assert not RECEIVED
 
 
@@ -124,7 +124,7 @@ def test_unverified_choice_stops_batch_before_submit(browser, site):
         observation_id=page["observation_id"],
     )
     assert not refused["ok"], refused
-    assert refused["progress"]["submission"] == "not_run"
+    assert refused["progress"]["submission"] == "withheld"
     assert [f["status"] for f in refused["progress"]["fields"]] == ["verified", "failed", "not_run"]
     assert not RECEIVED
 

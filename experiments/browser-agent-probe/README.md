@@ -172,6 +172,13 @@ the final field contract. `progress.contract` lists field statuses by one-based 
 argument order, with one entry per radio option); `progress.submission` distinguishes `withheld`
 from `attempted`. Existing step progress and passed/blocked write counts remain available.
 
+Native form calls select a unique submitter even when it starts disabled. Multiple submit actions
+require an explicit `submitter` handle from `form_tools[].submitters`; fill-only calls do not accept
+one. Preparation guards native submits, finalizes field blur, and waits again after submitter focus.
+Changes to form ownership, visible membership, or submission semantics withhold activation.
+`progress.preparation` separates activation and native-submit evidence from saved state. See the
+[readiness contract](../../docs/browser-readiness-contract.md) for limits, budgets and compatibility.
+
 For a generic single-choice combobox, one visible, explicitly selected option establishes the
 selection even when the list's coverage is partial; an input's display must also match that option.
 Reselecting it needs no option activation,
@@ -608,7 +615,7 @@ Inline numbers keep their wording and their separate `value` line, including pag
 |---|---|---|
 | `observe` | `url` or `since` (both optional), `wait_for`, `timeout_ms`, `offset`, `limit`, `find`; or `observation_id` with `offset`, `limit`, `find` | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, paragraph, and control; each control has a handle such as `[7]`), `view_page` (which lines these are), `form_tools` (complete typed tools for forms represented in this slice), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. With `observation_id`, it pages through that kept reading without reading the page again. |
 | `act` | `action` (`click`, `fill`, `check`, `uncheck`, `select`, `scroll`, `upload`, `download`), `handle`, `value`, `files`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. `upload` gives `files` to a file input, or to the file chooser a button opens. `download` clicks and saves the file it downloads. `select` on a date range field, or on either field of a pair, takes a range and picks both days. `scroll` needs no handle: it scrolls the page, or the pane of the control with the handle; `value` is the direction, and `wait_for` means "keep scrolling until it shows". The result has `scroll`: `scrolls`, `moved`, `loaded`, `at_end`, `end_reached`, `met`. |
-| `call` | `tool`, `arguments`, `submit`, `observation_id`, `wait_for`, `timeout_ms` | Fills in a form with typed arguments (files too) and submits it, waits for `wait_for` if given, then reads the page again. |
+| `call` | `tool`, `arguments`, `submit`, `submitter`, `observation_id`, `wait_for`, `timeout_ms` | Fills in a form with typed arguments (files too) and submits it, waits for `wait_for` if given, then reads the page again. |
 
 The view in every result is a slice: 200 lines by default, at most 1000 (`limit`). `view_page` gives
 `offset`, `returned`, `total`, `next_offset`, and for a slice in the middle of the page, `context`.

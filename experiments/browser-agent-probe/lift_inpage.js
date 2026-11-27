@@ -863,6 +863,7 @@
     return {
       connected: true,
       identity: identityOf(el, cache),
+      form_revision: el.tagName === "FORM" ? observeForm(el) : null,
       blocked: el.tagName === "FORM" ? null : blockedBy(el, { keys: typeable(el), cover }),
     };
   }
@@ -1854,14 +1855,111 @@
   // passwords. A contract is scoped to one operation and is cleared on every exit.
   let formContract = null;
   const equalState = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const formObservations = new WeakMap();
+  let formRevision = 0;
+  // Native getters avoid named controls shadowing form.action/elements/requestSubmit. The
+  // descriptor remains private: URLs, button values and field names never enter public metadata.
+  function nativeForm(form, property) {
+    const proto = form.ownerDocument.defaultView.HTMLFormElement.prototype;
+    return Object.getOwnPropertyDescriptor(proto, property).get.call(form);
+  }
+  function ownsField(form, el) {
+    return el && ("form" in el ? el.form === form : el.closest("form") === form);
+  }
+  function formMembers(form) {
+    const native = [...nativeForm(form, "elements")];
+    const custom = [...form.querySelectorAll('[role=combobox],[role=checkbox],[role=radio],[role=switch],[role=textbox],[contenteditable=true],input[type=image]')];
+    if (native.length + custom.length > 512) return null;
+    return [...new Set([...native, ...custom])].filter(el => ownsField(form, el) && shown(el));
+  }
+  function submitControl(el) {
+    return /^(BUTTON|INPUT)$/.test(el.tagName) && /^(submit|image)$/.test(el.type);
+  }
+  function businessField(el) {
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) return !/^(hidden|submit|image|button|reset)$/.test(el.type);
+    return /^(combobox|checkbox|radio|switch|textbox)$/.test(el.getAttribute("role")) ||
+      (el.isContentEditable && !el.parentElement?.isContentEditable);
+  }
+  function submissionState(form, button = null) {
+    return {
+      tag: button?.tagName, type: button?.type, name: button?.getAttribute("name"),
+      value: button?.value, label: button ? nameOf(button) : null,
+      action: button?.hasAttribute("formaction") ? button.formAction : nativeForm(form, "action"),
+      method: button?.hasAttribute("formmethod") ? button.formMethod : nativeForm(form, "method"),
+      enctype: button?.hasAttribute("formenctype") ? button.formEnctype : nativeForm(form, "enctype"),
+      target: button?.hasAttribute("formtarget") ? button.formTarget : nativeForm(form, "target"),
+      noValidate: nativeForm(form, "noValidate") || Boolean(button?.formNoValidate),
+    };
+  }
+  function formDescriptor(form) {
+    if (!form?.isConnected || form.tagName !== "FORM") return null;
+    // isConnected alone is true for nodes in a detached/replaced iframe document.
+    let doc = form.ownerDocument;
+    try {
+      while (doc !== document) {
+        const frame = doc.defaultView?.frameElement;
+        if (!frame?.isConnected || frame.contentDocument !== doc) return null;
+        doc = frame.ownerDocument;
+      }
+    } catch { return null; }
+    const members = formMembers(form);
+    if (!members || members.length > 256) return null;
+    const fields = members.filter(businessField).map(el => ({tag: el.tagName, type: el.type,
+      name: el.getAttribute("name"), role: el.getAttribute("role"), label: nameOf(el), multiple: el.multiple,
+      // Disabled fields are absent from the observed argument/omission contract. Becoming
+      // enabled changes field coverage; this is distinct from submitter readiness.
+      disabled: el.matches(":disabled") || el.getAttribute("aria-disabled") === "true"}));
+    const buttons = members.filter(submitControl);
+    const state = {url: form.ownerDocument.location.href, name: form.getAttribute("aria-label"), fields, submission: submissionState(form),
+      buttons: buttons.map(el => submissionState(form, el))};
+    if (JSON.stringify(state).length > 65536) return null;
+    return {state, buttons, document: form.ownerDocument};
+  }
+  function observeForm(form) {
+    const descriptor = formDescriptor(form);
+    if (!descriptor) return null;
+    let record = formObservations.get(form);
+    if (!record || record.document !== descriptor.document || !equalState(record.state, descriptor.state)) {
+      record = {...descriptor, revision: `form-${docId}-${++formRevision}`};
+      formObservations.set(form, record);
+    } else {
+      // Refresh equivalent DOM successors without changing the observation's semantic revision.
+      record.buttons = descriptor.buttons;
+    }
+    return record.revision;
+  }
+  function formScopeValid() {
+    const c = formContract;
+    if (!c || !c.bound || location.href !== c.url || c.form.ownerDocument !== c.document) return false;
+    const current = formDescriptor(c.form);
+    return current !== null && equalState(current.state, c.state);
+  }
+  function boundSubmitter() {
+    const c = formContract;
+    if (!formScopeValid()) return null;
+    if (!c.button) return c.form;
+    if (c.button.isConnected) return ownsField(c.form, c.button) &&
+      equalState(submissionState(c.form, c.button), c.buttonState) ? c.button : null;
+    const fits = formMembers(c.form).filter(el => submitControl(el) && equalState(submissionState(c.form, el), c.buttonState));
+    if (fits.length !== 1) return null;
+    c.button = fits[0];
+    return c.button;
+  }
+  function formEnabled(el) {
+    if (!el || el.matches(":disabled")) return false;
+    for (let node = el; node; node = parentOf(node))
+      if (node.hasAttribute?.("inert") || node.getAttribute?.("aria-disabled") === "true") return false;
+    return true;
+  }
   function contractTarget(field) {
+    const c = formContract;
     let el = get(field.ref);
-    if (el && (!field.identity || differsFrom(el, field.identity) === null)) return el;
-    if (!field.identity || field.kind === "editor") return null;
-    const next = successor(field.identity);
-    if (next.state !== "one") return null;
-    field.ref = next.ref;
-    return get(next.ref);
+    if (el) return ownsField(c.form, el) && (!field.identity || differsFrom(el, field.identity) === null) ? el : null;
+    if (!field.identity || field.kind === "editor" || !c.form?.isConnected) return null;
+    const fits = (formMembers(c.form) || []).filter(el => businessField(el) && differsFrom(el, field.identity) === null);
+    if (fits.length !== 1) return null;
+    field.ref = refOf(fits[0]);
+    return fits[0];
   }
   function fieldStateFor(el, kind) {
     if (!el) return undefined;
@@ -1891,9 +1989,20 @@
     }
     return fieldText(el);
   }
-  function beginForm(fields) {
+  function beginForm(fields, scope) {
     clearForm();
-    formContract = {fields, url: location.href, cleanup: null, stopped: null};
+    const form = get(scope.form_ref), observed = formObservations.get(form);
+    const button = scope.submit_ref ? get(scope.submit_ref) : null;
+    const index = observed?.buttons.indexOf(button) ?? -1;
+    const bound = Boolean(observed && observed.revision === scope.form_revision &&
+      (!scope.requested || (scope.submit_ref ? index >= 0 : observed.buttons.length === 0)));
+    formContract = {fields, form, document: observed?.document, button, state: observed?.state, bound,
+      buttonState: index >= 0 ? observed.state.buttons[index] : null,
+      requested: scope.requested, url: location.href, cleanup: null, stopped: null,
+      phase: "preparing", activation: "not_dispatched", native_submissions: 0, prevented_submissions: 0,
+      touched: null, deadline: Infinity};
+    if (!formScopeValid()) { formContract.bound = false; return fields.map((_, i) => ({index: i + 1, status: "unknown"})); }
+    installFormGuard();
     for (const field of fields) {
       const el = contractTarget(field);
       // Store the input kind too: reusing a text element as a hidden/radio field changes its contract.
@@ -1912,10 +2021,11 @@
   }
   function checkForm(baselineOnly = false) {
     if (!formContract) return [{index: 0, status: "unknown"}];
+    const validScope = formScopeValid();
     return formContract.fields.map((field, i) => {
       const el = contractTarget(field);
       let status = "unknown";
-      if (location.href === formContract.url && el &&
+      if (validScope && el &&
           (el.tagName !== "INPUT" || el.type === field.inputType)) {
         if (field.kind === "editor" && window.__viewspecEditor.describe(el)?.mode !== field.editorMode) status = "mismatch";
         else if (baselineOnly && !field.preserve && (field.kind !== "editor" || field.expected !== undefined)) status = "not_run";
@@ -1958,39 +2068,96 @@
     // Resolve the same identity-checked successors as the field contract after app re-renders.
     return busy(submitter) || formContract.fields.some(field => busy(contractTarget(field)));
   }
-  function armForm(submitter) {
-    if (!formContract) return [{index: 0, status: "unknown"}];
-    const contract = formContract;
-    const initial = formBusy(submitter) ? [{index: 0, status: "unknown"}] : checkForm();
-    if (initial.some(f => f.status !== "matched")) { contract.stopped = initial; return initial; }
-    const form = submitter.tagName === "FORM" ? submitter : submitter.form || submitter.closest("form");
-    const doc = submitter.ownerDocument;
+  function formStatus() {
+    const target = boundSubmitter();
+    return {valid: formScopeValid() && (!formContract.requested || Boolean(target)),
+      target_ref: target ? refOf(target) : null, enabled: formEnabled(target), busy: formBusy(target),
+      fields: checkForm()};
+  }
+  function touchForm(el) {
+    if (!formContract) return;
+    if (!formScopeValid() || !ownsField(formContract.form, el))
+      throw new Error("form-unknown: the observed form scope changed; submission withheld");
+    formContract.touched = el;
+  }
+  function finalizeForm() {
+    const c = formContract;
+    if (!c) return;
+    c.phase = "finalizing";
+    const active = c.form?.ownerDocument.activeElement;
+    if (c.touched && active && (active === c.touched || c.touched.contains(active))) active.blur();
+  }
+  function installFormGuard() {
+    const c = formContract;
+    const seen = new WeakSet();
     const guard = event => {
-      const path = event.composedPath();
-      if (!(event.type === "submit" ? event.target === form : path.includes(submitter))) return;
-      const fields = formBusy(submitter) ? [{index: 0, status: "unknown"}] : checkForm();
-      if (fields.every(f => f.status === "matched") && !contract.stopped) return;
-      contract.stopped ||= fields;
-      event.preventDefault();
-      event.stopImmediatePropagation();
+      const target = boundSubmitter();
+      const submit = event.type === "submit";
+      if (!(submit ? event.target === c.form || event.submitter === c.button :
+        event.composedPath().includes(c.button))) return;
+      if (seen.has(event)) return;
+      seen.add(event);
+      if (submit && c.phase !== "activating") {
+        c.prevented_submissions++;
+        event.preventDefault(); event.stopImmediatePropagation();
+        return;
+      }
+      if (c.phase !== "activating") return;
+      const fields = checkForm();
+      const allowed = target && formEnabled(target) && !formBusy(target) &&
+        performance.now() < c.deadline && fields.every(f => f.status === "matched") &&
+        (!submit || (event.target === c.form && (event.submitter || c.form) === target && c.native_submissions === 0));
+      if (allowed && !c.stopped) {
+        if (event.type === "click" || submit) c.activation = "dispatched";
+        if (submit) c.native_submissions++;
+        return;
+      }
+      if (submit) c.prevented_submissions++;
+      // Duplicate native submits are prevented without erasing the first approved dispatch.
+      if (!submit || c.native_submissions === 0) c.stopped ||= fields.every(f => f.status === "matched") ? [{index: 0, status: "unknown"}] : fields;
+      event.preventDefault(); event.stopImmediatePropagation();
     };
-    // Capture before control handlers; native submit is checked again after click handlers. This
-    // guards UI consistency, not arbitrary fetches a page may make inside those handlers.
     const events = ["pointerdown", "mousedown", "click", "submit"];
-    for (const type of events) doc.defaultView.addEventListener(type, guard, true);
-    contract.cleanup = () => {
-      for (const type of events) doc.defaultView.removeEventListener(type, guard, true);
-      contract.cleanup = null;
+    const view = c.form.ownerDocument.defaultView;
+    // The form listener travels with DOM adoption, so a move cannot bypass the native-submit
+    // guard before the next scope check. Each event is counted only once across both listeners.
+    const targets = [view, c.form];
+    for (const target of targets) for (const type of events) target.addEventListener(type, guard, true);
+    c.cleanup = () => {
+      for (const target of targets) for (const type of events) target.removeEventListener(type, guard, true);
     };
-    return initial;
+  }
+  function armForm(submitter, remaining) {
+    const c = formContract;
+    if (!c) return [{index: 0, status: "unknown"}];
+    const fields = checkForm();
+    if (boundSubmitter() !== submitter || !formEnabled(submitter) || formBusy(submitter) || remaining <= 0 || fields.some(f => f.status !== "matched")) {
+      c.stopped = fields.some(f => f.status !== "matched") ? fields : [{index: 0, status: "unknown"}];
+      return c.stopped;
+    }
+    c.deadline = performance.now() + remaining;
+    c.phase = "activating";
+    return fields;
   }
   function disarmForm() {
     if (!formContract) return null;
-    formContract.cleanup?.();
+    formContract.phase = "finished";
     return formContract.stopped;
   }
+  function formProgress() {
+    if (!formContract) return null;
+    const c = formContract;
+    const fields = checkForm();
+    const reason = c.native_submissions ? "native_submit_seen" : c.stopped ? "event_refused" :
+      c.activation === "dispatched" ? "activation_only" : !formScopeValid() ? "scope_changed" :
+      fields.some(f => f.status === "mismatch") ? "field_mismatch" :
+      fields.some(f => f.status !== "matched") ? "field_unknown" : c.requested ? "readiness_pending" : "prepared";
+    return {fields, submission: !c.requested ? "not_requested" : c.activation === "dispatched" && !c.stopped ? "attempted" : "withheld",
+      preparation: {version: 1, phase: c.phase, activation: c.activation, reason_code: reason,
+        native_submissions: c.native_submissions, prevented_submissions: c.prevented_submissions}};
+  }
   function clearForm() {
-    disarmForm();
+    formContract?.cleanup?.();
     formContract = null;
   }
 
@@ -2020,6 +2187,7 @@
   window.__viewspecLift = {
     docId,
     beginForm, checkForm, formBusy, armForm, disarmForm, clearForm, acceptFormChoice, dateFillValue,
+    formStatus, touchForm, finalizeForm, formProgress,
     takeInvalid,
     mutationCount,
     noteSeq,

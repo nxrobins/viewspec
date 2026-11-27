@@ -721,10 +721,12 @@ class BrowserSession:
             raise KeyError(f"no control [{handle}] in the current view")
         return self.run(plan_control_action(observation.handles[handle], op, value, lift=observation.lift))
 
-    def call(self, tool_name: str, arguments: dict[str, Any], *, submit: bool = True) -> list[StepResult]:
+    def call(
+        self, tool_name: str, arguments: dict[str, Any], *, submit: bool = True, submitter: str | None = None
+    ) -> list[StepResult]:
         """Plan and run a form tool call from the current view's ``form_tool_schemas()``."""
 
-        return self.run(plan_form_call(self._current().lift, tool_name, arguments, submit=submit))
+        return self.run(plan_form_call(self._current().lift, tool_name, arguments, submit=submit, submitter=submitter))
 
     def run(
         self, steps: tuple[ActionStep, ...], *, observation: Observation | None = None, timeout_ms: int = 5000
@@ -760,6 +762,13 @@ class BrowserSession:
             raise safe from None
         finally:
             if isinstance(steps, FormPlan):
+                with contextlib.suppress(BridgeError):
+                    progress = self._call("form_progress")
+                    for key in ("submission", "writes", "preparation"):
+                        if key in progress:
+                            self.action_progress[key] = progress[key]
+                    if "fields" in progress:
+                        self.action_progress["contract"] = progress["fields"]
                 with contextlib.suppress(BridgeError):
                     self._call("clear_form")
             self._observation = None
@@ -801,9 +810,21 @@ class BrowserSession:
                 }
                 for item in steps.intents
             ]
-            initial = self._call("begin_form", fields=fields, navigation_id=observation.navigation_id)["fields"]
+            intent = steps.submission
+            reply = self._call(
+                "begin_form",
+                fields=fields,
+                scope={
+                    "form_ref": intent.form.ref,
+                    "form_revision": observation.locators.get(intent.form.node_id, {}).get("form_revision"),
+                    "submit_ref": intent.submitter.ref if intent.submitter else None,
+                    "requested": intent.requested,
+                },
+                navigation_id=observation.navigation_id,
+            )
+            initial = reply["fields"]
             self.action_progress["contract"] = initial
-            if any(item["status"] == "unknown" for item in initial):
+            if not reply["valid"] or any(item["status"] == "unknown" for item in initial):
                 if submissions:
                     self.action_progress["submission"] = "withheld"
                 raise BridgeError("form-unknown: cannot establish the initial field contract; no edits ran")
@@ -814,7 +835,7 @@ class BrowserSession:
             end_locator = observation.locators.get(step.end_node_id) if step.end_node_id else None
             self.action_progress["fields"][index]["status"] = "attempted"
             if index in submissions:
-                self.action_progress["submission"] = "attempted"
+                self.action_progress["submission"] = "withheld" if isinstance(steps, FormPlan) else "attempted"
             try:
                 reply = self._call(
                     "act",
@@ -903,7 +924,7 @@ class BrowserSession:
                 interrupted.steps = list(results)
                 raise interrupted
         if isinstance(steps, FormPlan) and not submissions:
-            final = self._call("check_form", navigation_id=observation.navigation_id)["fields"]
+            final = self._call("check_form", navigation_id=observation.navigation_id, finalize=True)["fields"]
             self.action_progress["contract"] = final
             if any(item["status"] != "matched" for item in final):
                 code = "form-mismatch" if any(item["status"] == "mismatch" for item in final) else "form-unknown"

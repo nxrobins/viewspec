@@ -36,9 +36,41 @@ re-rendered controls cannot silently bypass those field and busy-state checks. I
 unresolved, `BROWSER_FORM_PENDING` reports `progress.submission = "withheld"`. Earlier field handlers
 may already have sent writes; withholding submit is not rollback and does not make retry safe.
 
-`timeout_ms` supplies one bounded budget for the form readiness wait and a subsequent `wait_for`.
-It is not a hard deadline for browser startup, every Playwright actionability check, or result
-serialization. `submit=false` checks the fields without waiting for application completion.
+A native form call binds its form and submission semantics at observation time, before edits.
+A unique submit button may initially be disabled. When several buttons submit the form, choose
+an observed handle with `submitter`; `form_tools[].submitters` lists the candidates. The choice
+never falls back to another enabled action. Whole-form replacement, changed ownership or
+submission overrides, and new visible fields require a fresh observation. Equivalent field or
+button replacements are accepted only with matching scoped identity and unique semantics.
+Hidden protocol values remain app-owned. Private descriptors are bounded to 256 visible members
+and 64 KiB; unsupported coverage withholds the call before edits.
+The exact owner document is bound even across same-URL frame adoption. Field enabled/disabled
+participation is also bound: an initially disabled field becoming enabled requires re-observation,
+because it was absent from the original argument and omission contract. Submitter disabled state
+remains a readiness condition and may change during preparation.
+
+Preparation prevents native submit events for the bound form from the first edit through cleanup.
+The guard follows the form node if page code moves it to another document.
+It blurs only the last touched, still-focused field, then focuses the chosen button without
+activating it and waits again for observable validation. During activation the guard permits at
+most one native submit event for the bound operation. Native validation and button click handlers
+are retained; buttonless forms use native `requestSubmit`. Direct `form.submit()`, autosaves and
+arbitrary writes from page handlers are outside this event guarantee. This is not a transaction.
+
+`timeout_ms` supplies one remaining budget for preparation readiness, submitter scrolling/focus,
+final activation actionability, and a subsequent `wait_for`. Expiry before activation withholds it.
+It is not a hard deadline for browser startup, field actionability, an already dispatched action,
+or result serialization. `submit=false` finalizes and verifies fields without waiting for application
+completion or automatically activating a submitter.
+
+`progress.preparation` is version 1: `phase` describes the last phase reached; `activation` is
+`not_dispatched`, `dispatched`, or `unknown`; `native_submissions` and `prevented_submissions`
+count observed native events (null when a navigation loses that evidence). A fixed `reason_code`
+identifies pending readiness, changed scope, unmatched fields, refused events, preparation,
+activation alone, a native submit, or unavailable document evidence. These are distinct
+from persistence. `progress.submission` is `withheld` when the final submission was prevented,
+even if a click was dispatched. Field contract and passed/blocked write counts are refreshed on
+failure too; an earlier autosave still makes retry potentially duplicative.
 
 These are bounded, observable guarantees. Request counts describe HTTP request lifecycles;
 WebSocket messages do not establish a finite validation barrier or an application acknowledgement.

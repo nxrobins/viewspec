@@ -121,6 +121,7 @@ let popups = [];
 let eventSeq = 0;
 let activity = new RequestActivity();
 let formBackgroundStreams = null;
+let formRun = null;
 // Whether the mandatory request handler has been installed, and how many requests for
 // a page of their own the tabs that the page opened have made so far.
 let routing = false;
@@ -730,21 +731,47 @@ async function settle({navigation = false} = {}) {
   if (navigation) await activity.wait(() => activity.blockers().length === 0, 1000);
 }
 
-async function prepareSubmit(navigationId, timeoutMs, submitRef) {
+async function prepareSubmit(navigationId, timeoutMs) {
   if (formBackgroundStreams === null) throw new Error("form-unknown: no current form readiness scope");
-  const result = await activity.wait(async () => {
+  const deadline = performance.now() + Math.max(0, timeoutMs);
+  const remaining = () => Math.max(0, deadline - performance.now());
+  await page.evaluate(() => window.__viewspecLift.finalizeForm());
+  const gate = async () => {
     requireObservation(navigationId);
-    return activity.blockers(formBackgroundStreams).length === 0 &&
-      !(await page.evaluate(ref => window.__viewspecLift.formBusy(ref), submitRef));
-  }, timeoutMs);
-  requireObservation(navigationId);
-  if (result.state !== "ready") throw new Error("form-pending: validation or other preparatory work remains unresolved; submission withheld");
+    const status = await page.evaluate(() => window.__viewspecLift.formStatus());
+    if (!status.valid) throw new Error("form-unknown: the observed form or submission semantics changed; submission withheld");
+    return status.enabled && !status.busy && activity.blockers(formBackgroundStreams).length === 0;
+  };
+  const wait = async () => {
+    const result = await activity.wait(gate, remaining());
+    if (result.state !== "ready" || remaining() <= 0)
+      throw new Error("form-pending: preparation did not become ready within the remaining budget; submission withheld");
+  };
+  await wait();
+  const status = await page.evaluate(() => window.__viewspecLift.formStatus());
+  const target = await handleOf(status.target_ref);
+  if (!target) throw new Error("form-unknown: the bound submitter disappeared; submission withheld");
+  const isForm = await target.evaluate(el => el.tagName === "FORM");
+  if (!isForm) {
+    await target.scrollIntoViewIfNeeded({timeout: Math.max(1, remaining())});
+    requireObservation(navigationId);
+    if (remaining() <= 0) throw new Error("form-pending: readiness budget expired before focus; submission withheld");
+    await target.focus({timeout: Math.max(1, remaining())});
+  }
   await settle();
+  await wait(); // Include validation started by blur, scrolling, and submitter focus.
   requireObservation(navigationId);
-  // Rendering can start another request. Never dispatch on the strength of an earlier check.
-  if (activity.blockers(formBackgroundStreams).length || await page.evaluate(ref => window.__viewspecLift.formBusy(ref), submitRef))
-    throw new Error("form-pending: new preparatory work started before submission; submission withheld");
-  return result;
+  return {target, resolvedBy: "form", deadline, readiness: {state: "ready", waited_ms: Math.round(timeoutMs - remaining())}};
+}
+
+async function formProgress() {
+  if (!formRun) return {};
+  const live = await page.evaluate(() => window.__viewspecLift?.formProgress()).catch(() => null);
+  if (live) formRun.progress = live;
+  const counts = {passed: 0, blocked: 0, "blocked-and-simulated": 0};
+  for (const item of [...writes.slice(formRun.writeMark), ...passedWrites.slice(formRun.passedMark)])
+    if (item.state in counts) counts[item.state]++;
+  return {...formRun.progress, writes: counts};
 }
 
 async function snapshot({ collect_secrets: collectSecrets = false }) {
@@ -896,6 +923,7 @@ async function targets({ requests, doc_id: docId, navigation_id: navigationId })
   return Object.fromEntries(requests.map(({ key, ref }) => [key, {
     strategy: null,
     identity: infos[ref]?.identity || null,
+    form_revision: infos[ref]?.form_revision || null,
     blocked: infos[ref]?.blocked || null,
   }]));
 }
@@ -925,6 +953,7 @@ async function locate({ requests, doc_id: docId, navigation_id: navigationId }) 
     // What the control is, and what stops a person from using it now: read in the page, with the
     // same code that checks them before a step runs.
     results[request.key].identity = (info && info.identity) || null;
+    results[request.key].form_revision = info?.form_revision || null;
     results[request.key].blocked = (info && info.blocked) || null;
   }
   await requireReading(docId, navigationId);
@@ -1626,12 +1655,13 @@ async function act({
   // A surviving DOM node and an identical name do not identify the same product on another route.
   // Check every step here, including form steps and scrolling, rather than once per Python plan.
   requireObservation(navigationId);
-  const submitReadiness = formSubmit ? await prepareSubmit(navigationId, readinessTimeout, ref) : null;
+  const submitReadiness = formSubmit ? await prepareSubmit(navigationId, readinessTimeout) : null;
   if (op === "scroll" && !ref && !spec) {
     const result = await asAside(() => scroll(null, value, waitMs));
     return { resolved_by: "page", verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
   }
-  const { target, resolvedBy } = await resolveTarget(ref, spec);
+  const { target, resolvedBy } = submitReadiness || await resolveTarget(ref, spec);
+  if (formRun && !formSubmit) await target.evaluate(el => window.top.__viewspecLift.touchForm(el));
   if (op === "click") {
     const destination = await target.evaluate((el) => {
       const anchor = el.closest("a[href],area[href]");
@@ -1664,12 +1694,16 @@ async function act({
   let saved = null;
   strayDownloads = [];
   const requestsBefore = navigationRequests;
-  const options = { timeout: ACTION_TIMEOUT };
+  const options = { timeout: formSubmit ? Math.max(1, submitReadiness.deadline - performance.now()) : ACTION_TIMEOUT };
   let contract = null;
   let stopped = null;
   if (formSubmit) {
-    const fields = await target.evaluate(el => window.top.__viewspecLift.armForm(el));
-    contract = {fields, submission: "attempted", readiness: submitReadiness};
+    const remaining = submitReadiness.deadline - performance.now();
+    if (remaining <= 0) throw new Error("form-pending: readiness budget expired before activation; submission withheld");
+    const fields = await target.evaluate((el, ms) => window.top.__viewspecLift.armForm(el, ms), remaining);
+    contract = {fields, submission: "attempted", readiness: submitReadiness.readiness};
+    formRun.progress = {fields, submission: "attempted", preparation: {version: 1, phase: "activating",
+      activation: "unknown", reason_code: "document_unavailable", native_submissions: null, prevented_submissions: null}};
     if (fields.some(f => f.status !== "matched")) stopped = fields;
   }
   try {
@@ -1744,7 +1778,7 @@ async function act({
       const result = await asAside(() => scroll(liveRef, value, waitMs));
       return { resolved_by: resolvedBy, verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
     } else if (op === "submit") {
-      await target.evaluate((form) => form.requestSubmit());
+      await target.evaluate(form => form.ownerDocument.defaultView.HTMLFormElement.prototype.requestSubmit.call(form));
     } else {
       throw new Error(`unknown op ${op}`);
     }
@@ -1769,6 +1803,7 @@ async function act({
     if (taker) throw new Error(`blocked: the pointer cannot reach the control; ${taker[1].slice(0, 120)} is over it`);
     throw error;
   }
+  if (formSubmit && !stopped) formRun.progress.preparation.activation = "dispatched";
   try {
     await settle();
     // Read state after handlers and bounded settling, not immediately after dispatch.
@@ -1871,19 +1906,29 @@ const COMMANDS = {
     await page.waitForLoadState("domcontentloaded", {timeout: 1000}).catch(() => {});
     return {};
   },
-  begin_form: async ({fields, navigation_id: navigationId}) => {
+  begin_form: async ({fields, scope, navigation_id: navigationId}) => {
     requireObservation(navigationId);
     await ensureLibrary();
     requireObservation(navigationId);
     formBackgroundStreams = activity.streams();
-    return {fields: await page.evaluate(fields => window.__viewspecLift.beginForm(fields), fields)};
+    formRun = {writeMark: writes.length, passedMark: passedWrites.length, progress: {fields: fields.map((_, i) => ({index: i + 1, status: "unknown"})),
+      submission: scope.requested ? "withheld" : "not_requested",
+      preparation: {version: 1, phase: "preparing", activation: "not_dispatched", reason_code: "document_unavailable", native_submissions: 0, prevented_submissions: 0}}};
+    return page.evaluate(({fields, scope}) => {
+      const lift = window.__viewspecLift;
+      const result = lift.beginForm(fields, scope);
+      return {fields: result, valid: lift.formStatus().valid};
+    }, {fields, scope});
   },
-  check_form: async ({navigation_id: navigationId}) => {
+  check_form: async ({navigation_id: navigationId, finalize = false}) => {
     requireObservation(navigationId);
+    if (finalize) { await page.evaluate(() => window.__viewspecLift.finalizeForm()); await settle(); }
     return {fields: await page.evaluate(() => window.__viewspecLift.checkForm())};
   },
+  form_progress: formProgress,
   clear_form: async () => {
     formBackgroundStreams = null;
+    formRun = null;
     await page.evaluate(() => window.__viewspecLift?.clearForm()).catch(() => {});
     return {};
   },
