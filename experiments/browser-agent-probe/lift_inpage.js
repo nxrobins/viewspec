@@ -886,25 +886,25 @@
     if (!scope || !identity) return {state: "unknown"};
     const root = get(scope.document_ref), owner = get(scope.owner_ref);
     if (!root || root.ownerDocument.documentElement !== root || root.ownerDocument.location.href !== scope.document_url)
-      return {state: "scope_changed"};
+      return {state: "scope_changed", reason: "document"};
     const doc = root.ownerDocument;
     if (doc !== document && (!doc.defaultView?.frameElement || doc.defaultView.frameElement.contentDocument !== doc))
-      return {state: "scope_changed"};
+      return {state: "scope_changed", reason: "document"};
     if (!owner) {
       const replacement = successor(scope.owner_identity);
-      return {state: replacement.state === "none" ? "scope_gone" : "scope_changed"};
+      return {state: replacement.state === "none" ? "scope_gone" : "scope_changed", reason: "owner"};
     }
-    if (owner.ownerDocument !== doc || feedbackOwner(owner) !== owner) return {state: "scope_changed"};
-    if (owner !== root && differsFrom(owner, scope.owner_identity)) return {state: "scope_changed"};
+    if (owner.ownerDocument !== doc || feedbackOwner(owner) !== owner) return {state: "scope_changed", reason: "owner"};
+    if (owner !== root && differsFrom(owner, scope.owner_identity)) return {state: "scope_changed", reason: "owner"};
     let el = get(ref);
     if (el && (el.ownerDocument !== doc || feedbackOwner(el) !== owner || changedSince(ref, identity)))
-      return {state: "scope_changed"};
+      return {state: "scope_changed", reason: "target"};
     if (!el) {
       const next = successor(identity);
       if (next.state === "one") {
         el = get(next.ref);
-        if (!el || el.ownerDocument !== doc || feedbackOwner(el) !== owner) return {state: "scope_changed"};
-      } else if (next.state === "many" || next.state === "moved") return {state: "scope_changed"};
+        if (!el || el.ownerDocument !== doc || feedbackOwner(el) !== owner) return {state: "scope_changed", reason: "target"};
+      } else if (next.state === "many" || next.state === "moved") return {state: "scope_changed", reason: "target"};
       else return {state: "target_gone"};
     }
     const attrs = {visible: shown(el), disabled: el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true'};

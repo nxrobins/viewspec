@@ -40,7 +40,9 @@ import argparse
 import base64
 import functools
 import hashlib
+import inspect
 import os
+import re
 import secrets
 import signal
 import sys
@@ -68,6 +70,15 @@ from agent_session import (
 from boundary import Boundary, BoundaryError, PrivacyLimit
 from feedback import ActionReceipt, ScopedCondition, invalid
 from page_view import view_page
+from response_view import (
+    DEFAULT_RESPONSE_BYTES,
+    MAX_RESPONSE_BYTES,
+    MIN_RESPONSE_BYTES,
+    compact_json,
+    detail_page,
+    project,
+    qualified,
+)
 from typing_extensions import TypedDict
 
 from viewspec.local_tools_response import tool_error_response, tool_response
@@ -130,6 +141,22 @@ INSTRUCTIONS = (
     "transition=true requires a predicate false before the action; already-true text is not new evidence. "
     "Transport responses and UI changes do not prove persistence; verify the task result before declaring success."
 )
+
+BOUNDED_INSTRUCTIONS = (
+    " Bounded responses use [observation:handle], for example [3:7]: pass handle='3:7'. "
+    "A bare numeric handle needs observation_id; call and prepare always need observation_id from their schema. "
+    "A qualified wait target also binds its source observation. Never substitute a newer observation ID for an old handle. "
+    "Focused replies show the active owner and global messages/blockers; omitted background content remains available "
+    "with observe(observation_id=id, response='full'). Reply presentation reports omitted/summarized sections. "
+    "To expand an original result without another page read, use observe(details={result_id: id, section: 'steps'}); "
+    "omit section for the whole result. detail.text contains JSON character slices; continue using detail.next_offset "
+    "as details.offset with detail.revision as details.revision, and concatenate slices before parsing. "
+    "If the redacted version changes, restart at offset zero. Details keep 16 results within 8 MiB. "
+    "A schema marked schema_coverage='omitted' must be expanded before using its arguments. "
+    "A receipt-only observe(after_action=id) does not change the active observation; observe() reads a fresh page. "
+    "Omitted information is unknown, never empty, false or verified. response='full' retains the server's byte budget. "
+    "Policy counts, execution, retry and verification states remain authoritative over any page success message."
+)
 DEFAULT_TIMEOUT_MS = 5000
 DEFAULT_VIEW_LIMIT = 200
 MAX_VIEW_LIMIT = 1000
@@ -146,6 +173,15 @@ class FileArg(TypedDict, total=False):
     path: str
 
 
+class ResultDetails(TypedDict, total=False):
+    """Read an original result or one top-level section; offsets count JSON characters."""
+
+    result_id: str
+    section: str
+    offset: int
+    revision: str
+
+
 class _ToolError(Exception):
     def __init__(self, code: str, message: str, fix: str) -> None:
         super().__init__(message)
@@ -160,7 +196,7 @@ class WaitFor(TypedDict, total=False):
     gone: str
     control: str
     enabled: bool
-    target: int
+    target: int | str
     state: dict[str, Any]
     text_equals: str
     source: Literal["control", "scope", "message"]
@@ -198,10 +234,24 @@ def _sealed(tool: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]
     @functools.wraps(tool)
     def sealed(self: BrowserTools, *args: Any, **kwargs: Any) -> dict[str, Any]:
         with self._lock:
+            result = None
             try:
                 self.privacy.require_capacity()
-                result = tool(self, *args, **kwargs)
-                return self.privacy.clean(result)
+                arguments = dict(inspect.signature(tool).bind(self, *args, **kwargs).arguments)
+                arguments.pop("self")
+                try:
+                    arguments = self._address_request(tool.__name__, arguments)
+                    result = tool(self, **arguments)
+                except _ToolError as error:
+                    result = error.result
+                    if tool.__name__ in {"act", "call", "prepare"}:
+                        result["outcome"] = outcome_of(result)
+                        result["evidence"] = action_evidence(result)
+                if arguments.get("details") is not None and result.get("detail") is not None:
+                    # _read_details redacts the structured value before serializing its JSON.
+                    return result
+                result = self.privacy.clean(result)
+                return self._present(result, arguments) if self._bounded else result
             except PrivacyLimit:
                 result = _error("BROWSER_PRIVACY_LIMIT", "Privacy limit reached.", "Start a fresh session.")
                 if tool.__name__ in {"act", "call", "prepare"}:
@@ -212,9 +262,22 @@ def _sealed(tool: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]
                     }
                 return result
             except Exception:
-                return _error(
+                failed = _error(
                     "BROWSER_INTERNAL_ERROR", "The browser operation failed.", "Observe the page before retrying."
                 )
+                if tool.__name__ in {"act", "call", "prepare"}:
+                    failed["outcome"] = {
+                        "status": "uncertain",
+                        "retry": "may_repeat",
+                        "reason": "The operation may already have taken effect; observe before deciding whether to retry.",
+                    }
+                    execution = (result or {}).get("evidence", {}).get("execution", "unknown")
+                    failed["evidence"] = {
+                        "execution": execution if execution in {"dispatched", "not_dispatched"} else "unknown",
+                        "control_verification": "unknown",
+                        "completion": {"scope": "application", "state": "unknown"},
+                    }
+                return failed
             finally:
                 self._write_source = None
                 self._said_for_write = ""
@@ -233,6 +296,8 @@ class BrowserTools:
         upload_dir: Path | None = None,
         download_dir: Path | None = None,
         boundary: Boundary | None = None,
+        response_mode: Literal["full", "focused"] = "full",
+        response_bytes: int = DEFAULT_RESPONSE_BYTES,
     ) -> None:
         # The limits of this server (see boundary.py). ``block_writes`` and ``allowed_origins`` are
         # the older way to state two of them; a combination the boundary refuses is refused here.
@@ -261,6 +326,16 @@ class BrowserTools:
         self._said = ""  # What the agent has sent since the page was opened.
         self._said_for_write = ""
         self._lock = threading.RLock()
+        if response_mode not in {"full", "focused"}:
+            raise ValueError("response_mode must be full or focused")
+        if type(response_bytes) is not int or not MIN_RESPONSE_BYTES <= response_bytes <= MAX_RESPONSE_BYTES:
+            raise ValueError(f"response_bytes must be {MIN_RESPONSE_BYTES}..{MAX_RESPONSE_BYTES}")
+        self._bounded = response_mode == "focused"
+        self._response_mode = response_mode
+        self.response_bytes = response_bytes
+        self._results: dict[str, tuple[dict, int]] = {}
+        self._detail_versions: dict[str, dict[str | None, tuple[str, str]]] = {}
+        self._focus_node: str | None = None
 
     # ---- tools ------------------------------------------------------------------------------------
     @_sealed
@@ -276,8 +351,17 @@ class BrowserTools:
         find: str | None = None,
         after_action: str | None = None,
         watch: bool | WaitFor | None = None,
+        response: Literal["full", "focused", "receipt"] | None = None,
+        details: ResultDetails | None = None,
     ) -> dict[str, Any]:
         """Read the current page, or open ``url`` first and read it.
+
+        ``response='focused'`` opts into bounded replies and qualified handles for this session;
+        ``response='full'`` expands the page within the same budget. ``details={result_id, section?, offset?}``
+        reads retained redacted result JSON without reading the browser or advancing observation IDs.
+        Continue JSON slices using detail.next_offset and detail.revision; restart if the redacted version changes.
+        after_action defaults to receipt-only
+        in bounded sessions. Receipt mode is only for observe(after_action=...).
 
         A long view comes in slices of ``limit`` lines (200 by default, at most 1000). ``view_page``
         says which lines you have and ``next_offset``. To read more of a reading without reading the
@@ -315,6 +399,8 @@ class BrowserTools:
         """
 
         with self._lock:
+            if details is not None:
+                return self._read_details(details)
             paging = {"offset": offset, "limit": limit, "find": find}
             if after_action is not None:
                 if url is not None or since is not None or observation_id is not None:
@@ -392,15 +478,20 @@ class BrowserTools:
     def act(
         self,
         action: Literal["click", "fill", "edit", "check", "uncheck", "select", "scroll", "upload", "download"],
-        handle: int | None = None,
+        handle: int | str | None = None,
         value: str | list[str] | dict[str, Any] | None = None,
         observation_id: int | None = None,
         wait_for: WaitFor | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
         files: list[FileArg] | None = None,
         watch: bool | WaitFor | None = None,
+        response: Literal["full", "focused"] | None = None,
     ) -> dict[str, Any]:
         """Do one thing to the control with this handle, then read the page again.
+
+        A qualified handle such as "3:7" binds observation 3, control 7. In bounded sessions,
+        numeric handles require observation_id. Conflicting addresses are refused before dispatch.
+        ``response`` selects full or focused output without changing action safety or Save semantics.
 
         ``edit`` applies one typed editor operation from the view: value is
         {"base_revision": "editor-...", "operations": [{"op": "append_paragraph", "text": "..."}]}.
@@ -532,10 +623,14 @@ class BrowserTools:
         observation_id: int | None = None,
         wait_for: WaitFor | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
-        submitter: int | None = None,
+        submitter: int | str | None = None,
         watch: bool | WaitFor | None = None,
+        response: Literal["full", "focused"] | None = None,
     ) -> dict[str, Any]:
         """Fill in a form with ``arguments`` and submit it, then read the page again.
+
+        In bounded sessions supply observation_id from the schema. submitter may be a qualified
+        observation:handle address. response selects full or focused output within the byte budget.
 
         ``tool`` is a name from ``form_tools``; ``arguments`` follows its ``input_schema``. Arguments you
         leave out preserve their live semantic field values; hidden protocol fields remain app-owned. Explicitly send an empty
@@ -584,8 +679,12 @@ class BrowserTools:
         arguments: dict[str, Any],
         observation_id: int | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
+        response: Literal["full", "focused"] | None = None,
     ) -> dict[str, Any]:
         """Prepare multiple fields in an observed non-native dialog; never activates Save.
+
+        In bounded sessions supply observation_id from preparation_tools. response selects full
+        or focused output within the byte budget; an omitted schema requires explicit expansion.
 
         Choose ``scope`` from ``preparation_tools`` and follow its typed ``input_schema``.
         Supplied fields and omitted covered fields are verified together after finalizing input
@@ -672,6 +771,181 @@ class BrowserTools:
                 self._session = None
 
     # ---- internals --------------------------------------------------------------------------------
+    def _address_request(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Resolve qualified addresses before any read/navigation/mutation, under the session lock."""
+        arguments = dict(arguments)
+        mode = arguments.get("response")
+        if mode is not None and mode not in {"full", "focused", "receipt"}:
+            raise _ToolError("BROWSER_INVALID_REQUEST", "Unknown response mode.", "Use full, focused or receipt.")
+        if mode == "receipt" and not (name == "observe" and arguments.get("after_action")):
+            raise _ToolError(
+                "BROWSER_INVALID_REQUEST",
+                "receipt mode requires observe(after_action=...).",
+                "Resume an action receipt.",
+            )
+        self._bounded |= mode in {"focused", "receipt"}
+        self._response_mode = mode or ("focused" if self._bounded else "full")
+        if name == "observe" and arguments.get("after_action") and mode is None and self._bounded:
+            self._response_mode = "receipt"
+        self._focus_node = None
+        if arguments.get("details") is not None:
+            defaults = {"offset": 0, "limit": DEFAULT_VIEW_LIMIT, "timeout_ms": DEFAULT_TIMEOUT_MS}
+            if name != "observe" or any(
+                k not in {"details", "response"} and v != defaults.get(k) for k, v in arguments.items()
+            ):
+                raise _ToolError(
+                    "BROWSER_INVALID_REQUEST", "details cannot be combined with page operations.", "Read details alone."
+                )
+            return arguments
+        identity_key = "since" if name == "observe" else "observation_id"
+        observed = arguments.get(identity_key)
+        if observed is not None and (type(observed) is not int or observed <= 0):
+            raise _ToolError("BROWSER_INVALID_REQUEST", "Invalid observation ID.", "Use the ID from a reading.")
+        receipt = self._actions.get(arguments.get("after_action", "")) if name == "observe" else None
+        if receipt is not None:
+            observed = receipt.source_observation_id
+        qualified_ids: set[int] = set()
+        unqualified_targets = False
+
+        def handle(value):
+            nonlocal unqualified_targets
+            if isinstance(value, str) and (match := re.fullmatch(r"([1-9][0-9]*):([1-9][0-9]*)", value)):
+                qualified_ids.add(int(match[1]))
+                return int(match[2])
+            if type(value) is int and value > 0:
+                unqualified_targets = True
+                return value
+            raise _ToolError(
+                "BROWSER_HANDLE_INVALID",
+                "Invalid control address.",
+                "Use observation:handle, or an integer with observation_id.",
+            )
+
+        for key in ("handle", "submitter"):
+            if arguments.get(key) is not None:
+                if key == "submitter" and not (
+                    type(arguments[key]) is int
+                    and arguments[key] > 0
+                    or isinstance(arguments[key], str)
+                    and re.fullmatch(r"[1-9][0-9]*:[1-9][0-9]*", arguments[key])
+                ):
+                    # The existing form planner owns invalid submitter classification, before
+                    # any field writes. Address normalization must not replace that diagnosis.
+                    continue
+                arguments[key] = handle(arguments[key])
+
+        def condition(value, depth=0):
+            if not isinstance(value, dict):
+                return value
+            if depth > 3:
+                raise _ToolError(
+                    "BROWSER_INVALID_REQUEST", "Condition nesting exceeds three levels.", "Use a smaller condition."
+                )
+            result = dict(value)
+            if "target" in result:
+                result["target"] = handle(result["target"])
+            for key in ("any_of", "all_of"):
+                if isinstance(result.get(key), list):
+                    result[key] = [condition(item, depth + 1) for item in result[key]]
+            return result
+
+        for key in ("wait_for", "watch"):
+            if key in arguments:
+                arguments[key] = condition(arguments[key])
+        if len(qualified_ids) > 1 or qualified_ids and observed is not None and observed not in qualified_ids:
+            raise _ToolError(
+                "BROWSER_OBSERVATION_CONFLICT",
+                "Control addresses refer to different observations.",
+                "Use one source observation.",
+            )
+        if qualified_ids:
+            observed = next(iter(qualified_ids))
+            if not arguments.get("after_action"):
+                arguments[identity_key] = observed
+        needs_source = unqualified_targets or name in {"call", "prepare"}
+        if self._bounded and needs_source and observed is None:
+            raise _ToolError(
+                "BROWSER_OBSERVATION_REQUIRED",
+                "Bounded replies require observation-qualified targets.",
+                "Use handle='observation:handle'; for call/prepare supply observation_id from the schema.",
+            )
+        return arguments
+
+    def _present(self, result: dict, arguments: dict) -> dict:
+        canonical = qualified(result)
+        size = len(compact_json(canonical).encode())
+        result_id = None
+        # Result detail is bounded by both count and retained bytes. Oversized details are
+        # explicitly unavailable; they never evict all useful history merely to fail insertion.
+        if size <= 8 * 1024 * 1024:
+            result_id = "result_" + secrets.token_hex(12)
+            self._results[result_id] = (canonical, size)
+            while len(self._results) > 16 or sum(item[1] for item in self._results.values()) > 8 * 1024 * 1024:
+                expired = next(iter(self._results))
+                del self._results[expired]
+                self._detail_versions.pop(expired, None)
+        focused = None
+        observation_id = result.get("observation_id")
+        if (
+            self._response_mode == "focused"
+            and observation_id in self._history
+            and not arguments.get("find")
+            and not arguments.get("offset")
+        ):
+            focused, _ = self._view_data(
+                self._history[observation_id],
+                observation_id,
+                limit=arguments.get("limit", DEFAULT_VIEW_LIMIT),
+                focused=True,
+            )
+            focused = self.privacy.clean(focused)
+        return project(
+            canonical, mode=self._response_mode, budget=self.response_bytes, result_id=result_id, focused=focused
+        )
+
+    def _read_details(self, details: ResultDetails) -> dict:
+        if not isinstance(details, dict) or set(details) - {"result_id", "section", "offset", "revision"}:
+            return _error(
+                "BROWSER_INVALID_REQUEST", "Invalid details request.", "Supply result_id, optional section and offset."
+            )
+        result_id, section, offset = details.get("result_id"), details.get("section"), details.get("offset", 0)
+        if not isinstance(result_id, str) or result_id not in self._results:
+            return _error(
+                "BROWSER_RESULT_UNKNOWN",
+                "Result details are unknown or expired.",
+                "Observe again; do not repeat a write to recover evidence.",
+            )
+        value = self.privacy.clean(self._results[result_id][0])
+        if section is not None:
+            if not isinstance(section, str) or section not in value:
+                return _error(
+                    "BROWSER_RESULT_SECTION_UNKNOWN",
+                    "That section is not in the retained result.",
+                    "Omit section to read the original result.",
+                )
+            value = value[section]
+        serialized = compact_json(value)
+        if type(offset) is not int or not 0 <= offset <= len(serialized):
+            return _error(
+                "BROWSER_INVALID_REQUEST", "Invalid detail offset.", "Use detail.next_offset, or start at zero."
+            )
+        # This digest never leaves the server. The public cursor is random, not a digest of
+        # field values. New privacy knowledge must invalidate offsets, not splice two versions.
+        digest = hashlib.sha256(serialized.encode()).hexdigest()
+        versions = self._detail_versions.setdefault(result_id, {})
+        if section not in versions or versions[section][0] != digest:
+            versions[section] = (digest, "detail_" + secrets.token_hex(12))
+        revision = versions[section][1]
+        if offset and details.get("revision") != revision:
+            return _error(
+                "BROWSER_RESULT_CHANGED",
+                "The detail cursor is missing or its redacted result changed.",
+                "Restart at offset zero; continue with both detail.next_offset and detail.revision.",
+            )
+        return detail_page(
+            value, result_id=result_id, section=section, offset=offset, budget=self.response_bytes, revision=revision
+        )
+
     def _browser(self) -> BrowserSession:
         if self._session is None:
             self._session = BrowserSession(boundary=self.boundary, download_dir=self.download_dir, privacy=self.privacy)
@@ -849,6 +1123,18 @@ class BrowserTools:
         watching: bool = False,
     ) -> dict[str, Any]:
         session = self._browser()
+        if isinstance(steps, FieldPlan):
+            self._focus_node = steps.scope.node_id
+        elif steps:
+            control_id = steps[-1].node_id
+            self._focus_node = next(
+                (
+                    scope.node_id
+                    for scope in [*observation.lift.dialogs, *observation.lift.forms]
+                    if control_id in scope.control_ids
+                ),
+                None,
+            )
         started = time.monotonic()
         try:
             receipt = self._begin_receipt(
@@ -977,6 +1263,11 @@ class BrowserTools:
             "feedback_begin", bindings=bindings, doc_id=observation.doc_id, navigation_id=observation.navigation_id
         )
         baseline = dict(zip(sorted(handles), mark.pop("samples"), strict=True))
+        if store and any(
+            s.get("state") in {"scope_changed", "scope_gone"} and s.get("reason") in {"document", "owner"}
+            for s in baseline.values()
+        ):
+            raise BridgeError("stale-view: the action's observed owner, frame or route changed; no step was dispatched")
         if condition and any(s.get("state") != "observed" for s in baseline.values()):
             invalid("The scoped condition cannot be bound; observe the target again before acting.")
         receipt = ActionReceipt(
@@ -1070,9 +1361,14 @@ class BrowserTools:
                 if condition or watching
                 else None
             )
-            result = self._observe_result(
-                "Observed the original action without dispatching it again.", since=receipt.observation, paging=paging
-            )
+            if self._response_mode == "receipt":
+                result = tool_response(True, "Observed the original action without dispatching it again.")
+            else:
+                result = self._observe_result(
+                    "Observed the original action without dispatching it again.",
+                    since=receipt.observation,
+                    paging=paging,
+                )
             return self._receipt_result(result, receipt, checked, resumed=True)
         except AgentActionError as error:
             return _planning_error(error)
@@ -1144,6 +1440,7 @@ class BrowserTools:
         offset: int = 0,
         limit: int = DEFAULT_VIEW_LIMIT,
         find: str | None = None,
+        focused: bool = False,
     ) -> tuple[dict[str, Any], str]:
         """A slice of a reading's view, and one sentence on how to get more."""
 
@@ -1166,6 +1463,37 @@ class BrowserTools:
             else line
             for line in shown.lines
         ]
+        scope_info = None
+        if focused:
+            active = [d for d in observation.lift.dialogs if any(c not in observation.blocked for c in d.control_ids)]
+            owner = (
+                active[0]
+                if len(active) == 1
+                else next(
+                    (s for s in [*observation.lift.dialogs, *observation.lift.forms] if s.node_id == self._focus_node),
+                    None,
+                )
+            )
+            if owner is not None:
+                descendants = {owner.node_id}
+                for node in observation.lift.nodes:
+                    if node.parent_id in descendants:
+                        descendants.add(node.id)
+                selected = [
+                    line
+                    for line in lines
+                    if line.node_id in descendants
+                    or line.form_id == owner.node_id
+                    or line.kind in {"message", "blocked"}
+                    or line.kind == "control"
+                    and line.node_id not in observation.blocked
+                ]
+                scope_info = {
+                    "kind": "owner",
+                    "omitted_lines": len(lines) - len(selected),
+                    "expand": {"observation_id": observation_id, "response": "full"},
+                }
+                lines = selected
         page = view_page(lines, offset=offset, limit=max(1, min(int(limit), MAX_VIEW_LIMIT)), find=find or None)
         schemas = self._schema_pairs(observation, form_ids=page.form_ids)
         data = {
@@ -1192,6 +1520,12 @@ class BrowserTools:
                 ),
             },
         }
+        if scope_info is not None:
+            scope_info.update(returned=len(page.lines), total=page.total, complete=page.next_offset is None)
+            data["view_scope"] = scope_info
+            # Focused offsets are not offsets into the full reading. The explicit expansion
+            # opens ordinary full-view paging; never advertise a misleading continuation.
+            del data["view_page"]
         return data, page.describe(observation_id)
 
     def _waited_result(
@@ -1563,24 +1897,70 @@ def _bridge_fix(code: str) -> str:
 
 def build_server(tools: BrowserTools) -> Any:
     from mcp.server.fastmcp import FastMCP
-    from mcp.types import ToolAnnotations
+    from mcp.server.fastmcp.exceptions import ToolError
+    from mcp.types import CallToolResult, TextContent, ToolAnnotations
+    from pydantic import ValidationError
 
-    app = FastMCP(SERVER_NAME, instructions=INSTRUCTIONS, log_level="ERROR")
+    class BrowserMCP(FastMCP):
+        async def call_tool(self, name, arguments):
+            try:
+                return await super().call_tool(name, arguments)
+            except ToolError as error:
+                # SDK argument errors occur before the sealed method, and may otherwise echo
+                # arbitrarily large/private input values. Keep this boundary bounded as well.
+                requested = arguments.get("response") if isinstance(arguments, dict) else None
+                if not tools._bounded and requested not in ("focused", "receipt"):
+                    raise
+                rejected = isinstance(error.__cause__, ValidationError)
+                value = _error(
+                    "BROWSER_INVALID_REQUEST" if rejected else "BROWSER_INTERNAL_ERROR",
+                    "Tool arguments do not match the input schema; nothing was dispatched."
+                    if rejected
+                    else "The tool result could not be delivered; execution is unknown.",
+                    "Check the tool input schema."
+                    if rejected
+                    else "Observe the page before deciding whether to retry.",
+                )
+                if name in {"act", "call", "prepare"}:
+                    value["outcome"] = {
+                        "status": "failed" if rejected else "uncertain",
+                        "retry": "safe" if rejected else "may_repeat",
+                        "reason": value["summary"],
+                    }
+                    value["evidence"] = {
+                        "execution": "not_dispatched" if rejected else "unknown",
+                        "control_verification": "unknown",
+                        "completion": {"scope": "application", "state": "unknown"},
+                    }
+                value = project(value, mode="focused", budget=tools.response_bytes, result_id=None)
+                return CallToolResult(
+                    content=[TextContent(type="text", text=compact_json(value))], structuredContent=value, isError=True
+                )
+
+    def compact(method):
+        @functools.wraps(method)
+        def invoke(*args, **kwargs):
+            value = method(*args, **kwargs)
+            return CallToolResult(content=[TextContent(type="text", text=compact_json(value))], structuredContent=value)
+
+        return invoke
+
+    app = BrowserMCP(SERVER_NAME, instructions=INSTRUCTIONS + BOUNDED_INSTRUCTIONS, log_level="ERROR")
     changes_world = tools.boundary.sends_writes or tools.boundary.read_policy == "permissive"
     app.add_tool(
-        tools.observe,
+        compact(tools.observe),
         annotations=ToolAnnotations(title="Observe a page", readOnlyHint=False, openWorldHint=True),
     )
     app.add_tool(
-        tools.act,
+        compact(tools.act),
         annotations=ToolAnnotations(title="Act on a control", destructiveHint=changes_world, openWorldHint=True),
     )
     app.add_tool(
-        tools.call,
+        compact(tools.call),
         annotations=ToolAnnotations(title="Submit a form", destructiveHint=changes_world, openWorldHint=True),
     )
     app.add_tool(
-        tools.prepare,
+        compact(tools.prepare),
         annotations=ToolAnnotations(title="Prepare dialog fields", destructiveHint=changes_world, openWorldHint=True),
     )
     return app
@@ -1588,6 +1968,13 @@ def build_server(tools: BrowserTools) -> Any:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--response-mode", choices=["full", "focused"], default="full")
+    parser.add_argument(
+        "--response-bytes",
+        type=int,
+        default=DEFAULT_RESPONSE_BYTES,
+        help="Bounded MCP reply budget, including both result channels (4096..65536 bytes).",
+    )
     parser.add_argument(
         "--allow-origin",
         action="append",
@@ -1716,6 +2103,8 @@ def main(argv: list[str] | None = None) -> int:
         help="Return synthetic success to the page for a blocked HTTP write. The agent still sees blocked.",
     )
     args = parser.parse_args(argv)
+    if not MIN_RESPONSE_BYTES <= args.response_bytes <= MAX_RESPONSE_BYTES:
+        parser.error(f"--response-bytes must be {MIN_RESPONSE_BYTES}..{MAX_RESPONSE_BYTES}")
     if args.download_dir is not None and not args.download_dir.is_dir():
         parser.error(f"--download-dir {args.download_dir} is not a folder")
     try:
@@ -1745,7 +2134,13 @@ def main(argv: list[str] | None = None) -> int:
     # The limits, for whoever starts the server. stdout carries the protocol, so they go to stderr.
     lines = [*boundary.describe(), boundary.privacy_description()]
     print(boundary.scrub("\n".join(["viewspec-browser limits:", *(f"  {line}" for line in lines)])), file=sys.stderr)
-    tools = BrowserTools(boundary=boundary, upload_dir=args.upload_dir, download_dir=args.download_dir)
+    tools = BrowserTools(
+        boundary=boundary,
+        upload_dir=args.upload_dir,
+        download_dir=args.download_dir,
+        response_mode=args.response_mode,
+        response_bytes=args.response_bytes,
+    )
     app = build_server(tools)
 
     def stop(signum: int, _frame: FrameType | None) -> None:

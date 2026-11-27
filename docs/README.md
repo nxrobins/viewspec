@@ -35,6 +35,7 @@ One short page for each idea behind the JSON. Each page has one complete example
 
 ## Source contracts
 
+- [Browser response contract](browser-response-contract.md) — bounded focused replies, observation-qualified addresses, and expandable action evidence.
 - [Browser readiness contract](browser-readiness-contract.md) — scoped waits, guarded form submission, completion evidence, and streaming benchmark transport.
 - [Browser editor contract](browser-editor-contract.md) — typed editor operations, semantic preservation, and coverage limits.
 

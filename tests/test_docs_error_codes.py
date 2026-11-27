@@ -31,6 +31,8 @@ REPOSITORY_SCRIPT_CODES = {
     # Emitted by the repository's own Node checks, which are not part of the Python package.
     "HOST_VERIFY_DOCS_OVERCLAIM": ROOT / "tests/react-tailwind-host/scripts/verify.mjs",
     "PUBLIC_FACTS_DRIFT": ROOT / "tests/seo_static_smoke.mjs",
+    # The browser bridge experiment is served from the checkout, outside the installed package.
+    "BROWSER_RESULT_UNKNOWN": ROOT / "experiments/browser-agent-probe/mcp_browser_server.py",
 }
 # Tokens that match neither a registry prefix nor a registry suffix need no allowlist entry; the
 # heuristic already skips them.
