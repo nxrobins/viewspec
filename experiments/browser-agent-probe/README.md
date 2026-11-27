@@ -632,6 +632,16 @@ needs no extra `observe`. With `wait_for`, the result also has `wait`: what it w
 and `waited_ms`. A wait that is not met is not an error: the action is done, `ok` stays true, and the
 summary says the change did not show, so the agent does not repeat an action that may have worked.
 
+Observations include `readiness` with finite, streaming, and unclassified pending-request counts.
+Ordinary actions no longer wait for global network idle. A form call waits within its remaining
+readiness budget before auto-submit, then rechecks the field contract and event-time guard;
+`BROWSER_FORM_PENDING` withholds submission when known prerequisites remain unresolved.
+
+`act` and `call` also include versioned `evidence`, separating execution, control verification,
+and completion. A visible reaction is not proof of application completion. Without an explicit
+`wait_for`, completion remains pending or unknown; a met wait establishes only its UI condition.
+See the [readiness contract](../../docs/browser-readiness-contract.md) for scope and limitations.
+
 `act` and `call` results also carry `outcome`: `status` (`succeeded`, `blocked`, `failed`, or `uncertain`),
 `reason`, `retry` (`not_needed`, `safe`, or `may_repeat`), and, when uncertain, `page` (`busy`,
 `reacted`, or `quiet`). See [Outcomes](#outcomes). `ok` says that the request was accepted and run;

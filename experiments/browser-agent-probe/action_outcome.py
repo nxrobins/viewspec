@@ -148,6 +148,47 @@ def _unseen(activity: Mapping[str, Any]) -> str:
     return f"The page did something the view does not show ({', '.join(done)}, none still in flight)."
 
 
+def action_evidence(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Versioned evidence alongside the legacy effect-based outcome; never infer persistence.
+
+    A satisfied explicit condition proves that UI condition only. Without one, a reaction or
+    verified control does not establish application completion, including after all requests end.
+    """
+    steps = result.get("steps") or []
+    verified = [step.get("verified") for step in steps]
+    progress = result.get("progress") or {}
+    attempted = steps or any(field.get("status") != "not_run" for field in progress.get("fields", []))
+    execution = "dispatched" if steps else "unknown" if attempted else "not_dispatched"
+    if progress.get("submission") == "withheld":
+        execution = (
+            "partial" if any((step.get("step") or {}).get("op") in SETS_A_STATE for step in steps) else "unknown"
+        )
+    verification = (
+        "mismatch" if False in verified else "matched" if verified and all(v is True for v in verified) else "unknown"
+    )
+    wait = result.get("wait")
+    network = (result.get("readiness") or {}).get("pending") or {}
+    finite_pending = network.get("finite", 0) + network.get("unknown", 0)
+    form_pending = any(error.get("code") == "BROWSER_FORM_PENDING" for error in result.get("errors", []))
+    completion: dict[str, Any] = {
+        "scope": "application",
+        "state": "pending" if finite_pending or form_pending else "unknown",
+        "requested": False,
+    }
+    if wait:
+        completion = {
+            "scope": "ui_condition",
+            "state": "met" if wait.get("met") else "timed_out",
+            "requested": True,
+            "condition": wait.get("condition"),
+        }
+    if result.get("blocked_writes") or any(
+        w.get("state") in {"blocked", "blocked-and-simulated"} for step in steps for w in step.get("writes", [])
+    ):
+        completion = {"scope": "transport", "state": "blocked", "requested": bool(wait)}
+    return {"version": 1, "execution": execution, "control_verification": verification, "completion": completion}
+
+
 def outcome_of(result: Mapping[str, Any], activity: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """The outcome of one ``act`` or ``call`` result.
 

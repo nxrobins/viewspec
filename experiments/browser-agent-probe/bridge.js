@@ -50,6 +50,7 @@ const http = require("http");
 const net = require("net");
 const path = require("path");
 const readline = require("readline");
+const { RequestActivity } = require("./readiness");
 const { execSync } = require("child_process");
 
 // MCP hosts often start servers with a small environment (no NODE_PATH), so look for Playwright
@@ -118,8 +119,8 @@ let navigationRequests = 0;
 let dialogs = [];
 let popups = [];
 let eventSeq = 0;
-let requestSeq = 0;
-let pendingRequests = new Map(); // A request still in flight -> its sequence number.
+let activity = new RequestActivity();
+let formBackgroundStreams = null;
 // Whether the mandatory request handler has been installed, and how many requests for
 // a page of their own the tabs that the page opened have made so far.
 let routing = false;
@@ -593,14 +594,14 @@ async function open({
 async function loadDocument(url) {
   let response;
   try {
-    response = await page.goto(url, { waitUntil: "load", timeout: 30000 });
+    response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
   } catch (error) {
     const refused = navigations.at(-1);
     if (!refused) throw error;
     const code = refused.reason.includes("origin") ? "boundary-origin:" : "boundary:";
     throw new Error(code + " " + refused.reason);
   }
-  await settle();
+  await settle({navigation: true});
   return { url: page.url(), status: response ? response.status() : null, static_html: response ? await response.text() : "" };
 }
 
@@ -679,7 +680,8 @@ async function tabRequestsChecked(count) {
 async function watchPageEvents(target) {
   dialogs = [];
   popups = [];
-  pendingRequests = new Map();
+  activity = new RequestActivity();
+  formBackgroundStreams = null;
   target.on("dialog", async (dialog) => {
     // What Playwright does when nothing listens: leave a page that asks before it unloads, and
     // dismiss every other box. A listener must do it itself, or the page waits for ever.
@@ -708,15 +710,41 @@ async function watchPageEvents(target) {
     if (!asked) popups.push({ seq: ++eventSeq, url: popup.url() });
     popup.close().catch(() => {}); // The agent reads one page. A tab it cannot see is not kept.
   });
-  target.on("request", (request) => pendingRequests.set(request, ++requestSeq));
-  target.on("requestfinished", (request) => pendingRequests.delete(request));
-  target.on("requestfailed", (request) => pendingRequests.delete(request));
+  const watched = activity;
+  target.on("request", request => watched.started(request));
+  target.on("response", response => watched.response(response));
+  target.on("requestfinished", request => watched.finished(request));
+  target.on("requestfailed", request => watched.finished(request));
 }
 
-async function settle() {
-  await page.waitForLoadState("load", { timeout: 10000 }).catch(() => {});
-  await landing; // If a redirect left the listed origins, the page is on its way back.
-  await page.waitForLoadState("networkidle", { timeout: 3000 }).catch(() => {});
+async function settle({navigation = false} = {}) {
+  await landing; // Keep redirect containment independent from readiness.
+  // Yield for handlers/rendering before reading a field again. This is an observation boundary,
+  // not a claim that validation, a save, or an arbitrary future timer has completed.
+  await page.evaluate(() => new Promise(resolve => {
+    const timer = setTimeout(resolve, 50);
+    requestAnimationFrame(() => { clearTimeout(timer); resolve(); });
+  })).catch(error => {
+    if (!/Execution context was destroyed|Cannot find context/.test(error.message)) throw error;
+  });
+  if (navigation) await activity.wait(() => activity.blockers().length === 0, 1000);
+}
+
+async function prepareSubmit(navigationId, timeoutMs, submitRef) {
+  if (formBackgroundStreams === null) throw new Error("form-unknown: no current form readiness scope");
+  const result = await activity.wait(async () => {
+    requireObservation(navigationId);
+    return activity.blockers(formBackgroundStreams).length === 0 &&
+      !(await page.evaluate(ref => window.__viewspecLift.formBusy(ref), submitRef));
+  }, timeoutMs);
+  requireObservation(navigationId);
+  if (result.state !== "ready") throw new Error("form-pending: validation or other preparatory work remains unresolved; submission withheld");
+  await settle();
+  requireObservation(navigationId);
+  // Rendering can start another request. Never dispatch on the strength of an earlier check.
+  if (activity.blockers(formBackgroundStreams).length || await page.evaluate(ref => window.__viewspecLift.formBusy(ref), submitRef))
+    throw new Error("form-pending: new preparatory work started before submission; submission withheld");
+  return result;
 }
 
 async function snapshot({ collect_secrets: collectSecrets = false }) {
@@ -730,15 +758,16 @@ async function snapshot({ collect_secrets: collectSecrets = false }) {
   );
   // How busy the page is: DOM mutations so far in this document, requests so far, and the sequence
   // numbers of the requests still in flight.
-  const activity = {
+  const observedActivity = {
     mutations: result.recorder.mutations,
-    requests: requestSeq,
-    pending: [...pendingRequests.values()],
+    requests: activity.sequence,
+    pending: [...activity.pending.values()],
+    network: activity.counts(),
   };
   const cookies = await page.context().cookies();
   if (navigationId !== mainNavigations) throw new Error("read-interrupted: the page changed during snapshot");
   return { ...result, credential_values: cookies.map((cookie) => cookie.value),
-    navigationId, activity };
+    navigationId, activity: observedActivity };
 
 }
 
@@ -1592,11 +1621,12 @@ function requireObservation(navigationId) {
 
 async function act({
   op, ref, locator: spec, end_ref: endRef, end_locator: endSpec, value, values, files,
-  wait_ms: waitMs = 2500, navigation_id: navigationId, form_submit: formSubmit = false,
+  wait_ms: waitMs = 2500, navigation_id: navigationId, form_submit: formSubmit = false, readiness_timeout_ms: readinessTimeout = 5000,
 }) {
   // A surviving DOM node and an identical name do not identify the same product on another route.
   // Check every step here, including form steps and scrolling, rather than once per Python plan.
   requireObservation(navigationId);
+  const submitReadiness = formSubmit ? await prepareSubmit(navigationId, readinessTimeout, ref) : null;
   if (op === "scroll" && !ref && !spec) {
     const result = await asAside(() => scroll(null, value, waitMs));
     return { resolved_by: "page", verified: null, chosen: null, navigated: false, url: page.url(), scroll: result };
@@ -1620,7 +1650,7 @@ async function act({
     .catch(() => null);
   const writeMark = writes.length;
   const passedMark = passedWrites.length;
-  const requestMark = requestSeq;
+  const requestMark = activity.sequence;
   const eventMark = eventSeq;
   const tabMark = tabRequests;
   // Resolving and scrolling can yield to page code. Refuse if it changed routes in the meantime.
@@ -1639,7 +1669,7 @@ async function act({
   let stopped = null;
   if (formSubmit) {
     const fields = await target.evaluate(el => window.top.__viewspecLift.armForm(el));
-    contract = {fields, submission: "attempted"};
+    contract = {fields, submission: "attempted", readiness: submitReadiness};
     if (fields.some(f => f.status !== "matched")) stopped = fields;
   }
   try {
@@ -1762,8 +1792,8 @@ async function act({
   const sameDocument = mutationMark !== null && mutationsNow !== null && mutationsNow.doc === mutationMark.doc;
   const reaction = {
     mutations: sameDocument ? mutationsNow.mutations - mutationMark.mutations : null,
-    requests: requestSeq - requestMark,
-    pending: [...pendingRequests.values()].filter((seq) => seq > requestMark).length,
+    requests: activity.sequence - requestMark,
+    pending: [...activity.pending.values()].filter((seq) => seq > requestMark).length,
   };
   const opened = popups.filter((item) => item.seq > eventMark);
   await tabRequestsChecked(tabMark + opened.filter((item) => /^https?:/i.test(item.url)).length);
@@ -1809,7 +1839,7 @@ async function waitChange({ timeout_ms: timeoutMs = 5000 }) {
     .then(() => "navigation")
     .catch(() => "timeout");
   const mutation = page
-    .evaluate((ms) => window.__viewspecLift.nextChange(ms, true), limit)
+    .evaluate((ms) => window.__viewspecLift.nextChange(ms, true, true), limit)
     .then((changed) => (changed ? "mutation" : "timeout"))
     .catch(() => "navigation"); // The page went away while it was being watched.
   const reason = await Promise.race([navigation, mutation]);
@@ -1837,6 +1867,7 @@ const COMMANDS = {
     requireObservation(navigationId);
     await ensureLibrary();
     requireObservation(navigationId);
+    formBackgroundStreams = activity.streams();
     return {fields: await page.evaluate(fields => window.__viewspecLift.beginForm(fields), fields)};
   },
   check_form: async ({navigation_id: navigationId}) => {
@@ -1844,6 +1875,7 @@ const COMMANDS = {
     return {fields: await page.evaluate(() => window.__viewspecLift.checkForm())};
   },
   clear_form: async () => {
+    formBackgroundStreams = null;
     await page.evaluate(() => window.__viewspecLift?.clearForm()).catch(() => {});
     return {};
   },
@@ -1856,8 +1888,8 @@ const COMMANDS = {
   act,
   aria: async () => ({ aria: await page.locator("body").ariaSnapshot() }),
   reload: async () => {
-    await page.reload({ waitUntil: "load", timeout: 30000 });
-    await settle();
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
+    await settle({navigation: true});
     return { url: page.url() };
   },
   writes: async () => ({ writes, passed_writes: passedWrites, navigations, dialogs, popups, refusals }),

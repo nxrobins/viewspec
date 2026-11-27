@@ -1,5 +1,11 @@
 # Browser tool comparison: revised Books contracts
 
+Fresh application cohorts can use [`transport.py`](transport.py), the shared streaming HTTP/WS
+relay, with the same public origin for every arm. It preserves binary journals and invalidates
+attempts with incomplete audits. See the [readiness and transport contract](../../../docs/browser-readiness-contract.md).
+The legacy Books/static runner below retains its original read-only proxy protocol; its old
+measurements are not retroactively reclassified as streaming-conformant.
+
 This is the reusable harness from the Agent Lift comparison, with the diagnosed evidence and
 output-contract problems in WebArena-Verified tasks 68 and 69 corrected under protocol
 `books-evidence-v1`. It is a local experimental revision, not an upstream dataset release.

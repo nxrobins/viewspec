@@ -726,7 +726,9 @@ class BrowserSession:
 
         return self.run(plan_form_call(self._current().lift, tool_name, arguments, submit=submit))
 
-    def run(self, steps: tuple[ActionStep, ...], *, observation: Observation | None = None) -> list[StepResult]:
+    def run(
+        self, steps: tuple[ActionStep, ...], *, observation: Observation | None = None, timeout_ms: int = 5000
+    ) -> list[StepResult]:
         self.action_progress = {
             "fields": [{"index": index + 1, "status": "not_run"} for index in range(len(steps))],
             "submission": "not_requested",
@@ -739,10 +741,11 @@ class BrowserSession:
                     self.privacy.remember([op["text"] for op in value["operations"]])
                 else:
                     self.privacy.remember([value or "", *step.values])
+        deadline = time.monotonic() + max(0, min(timeout_ms, MAX_WAIT_MS)) / 1000
         self._capture_private()
         results = None
         try:
-            results = self._run(steps, observation=observation)
+            results = self._run(steps, observation=observation, deadline=deadline)
             self._capture_private()
             return self.privacy.clean(results)
         except BridgeError as error:
@@ -761,7 +764,9 @@ class BrowserSession:
                     self._call("clear_form")
             self._observation = None
 
-    def _run(self, steps: tuple[ActionStep, ...], *, observation: Observation | None = None) -> list[StepResult]:
+    def _run(
+        self, steps: tuple[ActionStep, ...], *, observation: Observation | None = None, deadline: float
+    ) -> list[StepResult]:
         """Run planned steps in order. The view is stale afterwards; call ``observe()`` again.
 
         ``observation`` is the view the steps were planned from (by default, the current one). Its
@@ -815,6 +820,7 @@ class BrowserSession:
                     "act",
                     navigation_id=observation.navigation_id,
                     form_submit=isinstance(steps, FormPlan) and index in submissions,
+                    readiness_timeout_ms=max(0, int((deadline - time.monotonic()) * 1000)),
                     op=step.op,
                     ref=step.ref,
                     locator=locator,
@@ -828,6 +834,8 @@ class BrowserSession:
                     ],
                 )
             except BridgeError as error:
+                if str(error).startswith("form-pending:"):
+                    self.action_progress["submission"] = "withheld"
                 error.steps = list(results)  # What ran before the step that could not.
                 error.failed_step = step
                 raise
