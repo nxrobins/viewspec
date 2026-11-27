@@ -127,7 +127,11 @@ def app(monkeypatch):
               <div id="editor" role="textbox" aria-label="Body" contenteditable="{mode}" {attrs}>{html}</div>
               <label>Note<input id="note" name="note" value="old"></label><button>Save</button><output id="status"></output></form>
               <script>const editor=document.getElementById('editor'),note=document.getElementById('note');{script}
-              document.querySelector('form').onsubmit=async e=>{{e.preventDefault();await fetch('/save',{{method:'POST',body:JSON.stringify({{html:editor.innerHTML,text:editor.textContent,mode:editor.contentEditable,note:note.value,checked:editor.querySelector('input')?.checked}})}});document.getElementById('status').textContent='Saved';}};</script>'''.encode()
+              const savedBlocks=()=>Array.from(editor.children,block=>({{
+                kind:block.localName,text:block.textContent,strong:block.querySelector('strong')?.textContent,
+                href:block.querySelector('a')?.getAttribute('href')
+              }}));
+              document.querySelector('form').onsubmit=async e=>{{e.preventDefault();await fetch('/save',{{method:'POST',body:JSON.stringify({{html:editor.innerHTML,text:editor.textContent,blocks:savedBlocks(),mode:editor.contentEditable,note:note.value,checked:editor.querySelector('input')?.checked}})}});document.getElementById('status').textContent='Saved';}};</script>'''.encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -353,14 +357,12 @@ def test_scoped_replacement_preserves_block_kind_and_siblings(app, batch, positi
         assert result["ok"] and result["steps"][0]["verified"], result
         result = browser.call(tool="article", arguments={})
     assert result["ok"] and len(journal) == 1, result
-    from bs4 import BeautifulSoup
-
-    blocks = BeautifulSoup(json.loads(journal[0][1])["html"], "html.parser").find_all(recursive=False)
-    assert [b.name for b in blocks] == ["h1", "p", "p", "p"]
-    assert blocks[position - 1].get_text() == text
-    assert blocks[2].strong.get_text() == "Preserve" and blocks[2].a["href"] == "/original"
-    assert blocks[3].get_text() == "Tail"
-    assert blocks[1 if position == 1 else 0].get_text() == ("Old introduction." if position == 1 else "Old title")
+    blocks = json.loads(journal[0][1])["blocks"]
+    assert [b["kind"] for b in blocks] == ["h1", "p", "p", "p"]
+    assert blocks[position - 1]["text"] == text
+    assert blocks[2]["strong"] == "Preserve" and blocks[2]["href"] == "/original"
+    assert blocks[3]["text"] == "Tail"
+    assert blocks[1 if position == 1 else 0]["text"] == ("Old introduction." if position == 1 else "Old title")
 
 
 @pytest.mark.parametrize("case", ["pm-drift", "pm-replaced"])
