@@ -26,6 +26,10 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Added
 
+- The browser bridge has opt-in bounded replies with observation-qualified handles, focused
+  owner views, receipt-only reads, and paged redacted result details. The complete MCP result
+  budget covers schemas and evidence as well as text; blocked writes, partial application and
+  conservative retry states remain visible. Known owner/frame/route drift refuses dispatch.
 - The browser bridge supports scoped UI waits, feedback watching, and bounded action receipts.
   Agents can distinguish an existing state from a new transition and resume observing an action
   without repeating it. Preparation still leaves Save separate; UI and HTTP feedback do not

@@ -473,7 +473,7 @@ def test_mcp_preparation_exposes_fields_without_commit_arguments(modules):
     assert set(listed) == {"observe", "act", "call", "prepare"}
     schema = listed["prepare"].inputSchema
     assert set(schema["required"]) == {"scope", "arguments"}
-    assert set(schema["properties"]) == {"scope", "arguments", "observation_id", "timeout_ms"}
+    assert set(schema["properties"]) == {"scope", "arguments", "observation_id", "timeout_ms", "response"}
 
 
 @pytest.mark.parametrize("paging", [{"limit": 1}, {"offset": 10000}, {"find": "absent"}])
