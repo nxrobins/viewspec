@@ -351,6 +351,10 @@ class BrowserTools:
         ``edit`` applies one typed editor operation from the view: value is
         {"base_revision": "editor-...", "operations": [{"op": "append_paragraph", "text": "..."}]}.
         append_paragraph preserves the existing rich document and adds one plain-text paragraph.
+        replace_block_text replaces one observed plain-text paragraph or heading while preserving
+        its kind and all other blocks: {"op": "replace_block_text", "block": "block-...", "text": "..."}.
+        Use the block ref from the view's blocks list (position is one-based document block order),
+        with that editor's current base_revision. At most 32 eligible blocks are advertised.
         replace_text is available only for supported plain/source or empty rich editors. No Markdown
         import or automatic mode switching. Nested checklist controls use check/uncheck. The revision
         must come from the current view. Verification concerns the editor, not a persisted save.

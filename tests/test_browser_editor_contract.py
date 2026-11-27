@@ -100,6 +100,28 @@ def app(monkeypatch):
                 script = "Object.defineProperty(crypto,'randomUUID',{value:undefined});"
             if case == "spoof":
                 attrs = "data-lift-editor='{}' data-lift-editor-owner='fake'"
+            if case.startswith("pm-"):
+                attrs = 'class="tiptap ProseMirror"'
+                html = '<h1>Old title</h1><p>Old introduction.</p><p><strong>Preserve</strong> <a href="/original">link</a></p><p>Tail</p>'
+                if case == "pm-empty":
+                    html = '<p class="is-empty is-editor-empty"><br class="ProseMirror-trailingBreak"></p>'
+                if case == "pm-breaks":
+                    html = "<p>A<br>B</p><p><br><br></p><p>Tail</p>"
+                if case == "pm-unknown":
+                    html = '<p><span class="custom-widget">Opaque</span></p>'
+                if case == "pm-fake-filler":
+                    html = '<p>A<br class="ProseMirror-trailingBreak"></p>'
+                if case == "pm-many":
+                    html = "".join(f"<p>Block {n}</p>" for n in range(40))
+                script = """editor.onfocus=()=>editor.classList.add('ProseMirror-focused');
+                  editor.onblur=()=>editor.classList.remove('ProseMirror-focused');
+                  editor.oninput=()=>{for(const block of editor.children){if(block.childNodes.length===1&&block.firstChild.nodeName==='BR')block.firstChild.className='ProseMirror-trailingBreak'}};"""
+                if case == "pm-drift":
+                    script += (
+                        "editor.addEventListener('focus',()=>editor.children[2].querySelector('a').href='/different');"
+                    )
+                if case == "pm-replaced":
+                    script += "editor.addEventListener('focus',()=>editor.firstElementChild.replaceWith(editor.firstElementChild.cloneNode(true)));"
             mode = "plaintext-only" if case == "plain" else "true"
             body = f'''<!doctype html><meta charset="utf-8"><form aria-label="Article">
               <div id="editor" role="textbox" aria-label="Body" contenteditable="{mode}" {attrs}>{html}</div>
@@ -284,3 +306,115 @@ def test_route_error_after_editor_input_is_not_safe_to_repeat(app):
     assert not result["ok"], result
     assert journal and journal[0][0] == "/autosave"
     assert result["outcome"]["retry"] == "may_repeat"
+
+
+def block_value(page, position, text):
+    editor = page["form_tools"][0]["input_schema"]["properties"]["body"]["x-editor"]
+    block = next(b for b in editor.get("blocks", []) if b["position"] == position)
+    return {
+        "base_revision": editor["revision"],
+        "operations": [{"op": "replace_block_text", "block": block["ref"], "text": text}],
+    }
+
+
+def test_prosemirror_empty_fill_and_focus_decorations(app):
+    browser, origin, journal = app
+    page = browser.observe(url=origin + "/pm-empty")
+    assert "coverage:complete" in page["view"]
+    result = browser.act(action="fill", handle=handle(page), value="Team description.")
+    assert result["ok"], result
+    result = browser.call(tool="article", arguments={})
+    assert result["ok"] and len(journal) == 1, result
+    assert json.loads(journal[0][1])["text"] == "Team description."
+
+
+@pytest.mark.parametrize("case", ["pm-document", "pm-breaks"])
+def test_prosemirror_append_normalizes_only_empty_filler(app, case):
+    browser, origin, journal = app
+    page = browser.observe(url=origin + "/" + case)
+    result = browser.call(tool="article", arguments={"body": edit_value(page)})
+    assert result["ok"] and len(journal) == 1, result
+    saved = json.loads(journal[0][1])
+    assert saved["text"].endswith("Added paragraph.")
+    if case == "pm-breaks":
+        assert "A<br>B" in saved["html"] and "<br><br>" in saved["html"]
+
+
+@pytest.mark.parametrize("batch", [False, True])
+@pytest.mark.parametrize("position,text", [(1, "New title"), (2, "New introduction 👋."), (2, "")])
+def test_scoped_replacement_preserves_block_kind_and_siblings(app, batch, position, text):
+    browser, origin, journal = app
+    page = browser.observe(url=origin + "/pm-document")
+    value = block_value(page, position, text)
+    if batch:
+        result = browser.call(tool="article", arguments={"body": value})
+    else:
+        result = browser.act(action="edit", handle=handle(page), value=value)
+        assert result["ok"] and result["steps"][0]["verified"], result
+        result = browser.call(tool="article", arguments={})
+    assert result["ok"] and len(journal) == 1, result
+    from bs4 import BeautifulSoup
+
+    blocks = BeautifulSoup(json.loads(journal[0][1])["html"], "html.parser").find_all(recursive=False)
+    assert [b.name for b in blocks] == ["h1", "p", "p", "p"]
+    assert blocks[position - 1].get_text() == text
+    assert blocks[2].strong.get_text() == "Preserve" and blocks[2].a["href"] == "/original"
+    assert blocks[3].get_text() == "Tail"
+    assert blocks[1 if position == 1 else 0].get_text() == ("Old introduction." if position == 1 else "Old title")
+
+
+@pytest.mark.parametrize("case", ["pm-drift", "pm-replaced"])
+def test_scoped_replacement_refuses_focus_content_or_identity_drift(app, case):
+    browser, origin, journal = app
+    page = browser.observe(url=origin + "/" + case)
+    result = browser.act(action="edit", handle=handle(page), value=block_value(page, 1, "New title"))
+    assert not result["ok"] and not journal, result
+    assert "Old title" in browser.observe()["view"]
+
+
+def test_scoped_replacement_rejects_old_revision_and_block_reference(app):
+    browser, origin, journal = app
+    page = browser.observe(url=origin + "/pm-document")
+    old = block_value(page, 1, "New title")
+    result = browser.act(action="edit", handle=handle(page), value=old)
+    assert result["ok"], result
+    new = block_value(result, 2, "New paragraph")
+    new["operations"][0]["block"] = old["operations"][0]["block"]
+    result = browser.act(action="edit", handle=handle(result), value=new)
+    assert not result["ok"] and not journal, result
+
+
+@pytest.mark.parametrize("case", ["pm-unknown", "pm-fake-filler"])
+def test_prosemirror_normalization_does_not_hide_unknown_semantics(app, case):
+    browser, origin, journal = app
+    page = browser.observe(url=origin + "/" + case)
+    assert "coverage:unknown" in page["view"]
+    result = browser.act(action="fill", handle=handle(page), value="Replacement")
+    assert not result["ok"] and not journal
+
+
+def test_scoped_block_metadata_is_bounded_and_omits_document_values(app):
+    browser, origin, _ = app
+    page = browser.observe(url=origin + "/pm-many")
+    editor = page["form_tools"][0]["input_schema"]["properties"]["body"]["x-editor"]
+    assert len(editor["blocks"]) == 32
+    assert all(set(block) == {"ref", "position", "kind"} for block in editor["blocks"])
+    assert [b["position"] for b in editor["blocks"]] == list(range(1, 33))
+
+
+def test_empty_scoped_clear_preserves_empty_block(app):
+    browser, origin, journal = app
+    page = browser.observe(url=origin + "/pm-empty")
+    result = browser.call(tool="article", arguments={"body": block_value(page, 1, "")})
+    assert result["ok"] and len(journal) == 1, result
+    assert json.loads(journal[0][1])["html"].startswith("<p")
+    assert json.loads(journal[0][1])["text"] == ""
+
+
+def test_formatted_block_is_not_advertised_and_cannot_be_flattened(app):
+    browser, origin, journal = app
+    page = browser.observe(url=origin + "/pm-document")
+    editor = page["form_tools"][0]["input_schema"]["properties"]["body"]["x-editor"]
+    assert [b["position"] for b in editor["blocks"]] == [1, 2, 4]
+    result = browser.act(action="fill", handle=handle(page), value="Flattened")
+    assert not result["ok"] and not journal
