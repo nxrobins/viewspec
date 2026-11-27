@@ -341,6 +341,18 @@ class HtmlChoice:
 
 
 @dataclass(frozen=True)
+class HtmlEditorBlock:
+    """An observed plain-text block; its reference is bound to one editor revision."""
+
+    ref: str
+    position: int
+    kind: str
+
+    def to_json(self) -> dict[str, Any]:
+        return {"ref": self.ref, "position": self.position, "kind": self.kind}
+
+
+@dataclass(frozen=True)
 class HtmlEditor:
     """Bounded live editor capabilities. Semantic baselines stay in the browser."""
 
@@ -349,6 +361,7 @@ class HtmlEditor:
     coverage: str = "unknown"
     revision: str = ""
     operations: tuple[str, ...] = ()
+    blocks: tuple[HtmlEditorBlock, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -359,6 +372,7 @@ class HtmlEditor:
             "revision": self.revision,
             "operations": list(self.operations),
             "formats": ["text"],
+            **({"blocks": [block.to_json() for block in self.blocks]} if self.blocks else {}),
         }
 
 
@@ -383,13 +397,57 @@ def _editor(node: LiftNode) -> HtmlEditor | None:
         not isinstance(revision, str)
         or not re.fullmatch(r"editor-[a-f0-9-]{36}", revision)
         or not isinstance(ops, list)
-        or any(op not in ("append_paragraph", "replace_text") for op in ops)
+        or any(op not in ("append_paragraph", "replace_text", "replace_block_text") for op in ops)
     ):
         return HtmlEditor()
-    return HtmlEditor(value["mode"], value["adapter"], value["coverage"], revision, tuple(ops))
+    blocks = value.get("blocks", [])
+    if not isinstance(blocks, list) or len(blocks) > 32:
+        return HtmlEditor()
+    parsed = []
+    for block in blocks:
+        if (
+            not isinstance(block, dict)
+            or set(block) != {"ref", "position", "kind"}
+            or not isinstance(block["ref"], str)
+            or not re.fullmatch(r"block-[a-f0-9-]{36}", block["ref"])
+            or type(block["position"]) is not int
+            or not 1 <= block["position"] <= 1000
+            or not isinstance(block["kind"], str)
+            or block["kind"] not in {"p", "h1", "h2", "h3", "h4", "h5", "h6"}
+        ):
+            return HtmlEditor()
+        parsed.append(HtmlEditorBlock(**block))
+    if len({b.ref for b in parsed}) != len(parsed) or len({b.position for b in parsed}) != len(parsed):
+        return HtmlEditor()
+    if ("replace_block_text" in ops) != bool(parsed):
+        return HtmlEditor()
+    if parsed and (value["mode"], value["adapter"], value["coverage"]) != ("rich", "html-dom-v1", "complete"):
+        return HtmlEditor()
+    return HtmlEditor(value["mode"], value["adapter"], value["coverage"], revision, tuple(ops), tuple(parsed))
 
 
 def editor_input_schema(editor: HtmlEditor) -> dict[str, Any]:
+    operation = {
+        "type": "object",
+        "properties": {
+            "op": {"type": "string", "enum": [op for op in editor.operations if op != "replace_block_text"]},
+            "text": {"type": "string", "maxLength": 10000},
+        },
+        "required": ["op", "text"],
+        "additionalProperties": False,
+    }
+    if editor.blocks:
+        scoped = {
+            "type": "object",
+            "properties": {
+                "op": {"const": "replace_block_text"},
+                "block": {"type": "string", "enum": [b.ref for b in editor.blocks]},
+                "text": {"type": "string", "maxLength": 10000},
+            },
+            "required": ["op", "block", "text"],
+            "additionalProperties": False,
+        }
+        operation = {"oneOf": [operation, scoped]} if operation["properties"]["op"]["enum"] else scoped
     return {
         "type": "object",
         "properties": {
@@ -398,15 +456,7 @@ def editor_input_schema(editor: HtmlEditor) -> dict[str, Any]:
                 "type": "array",
                 "minItems": 1,
                 "maxItems": 1,
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "op": {"type": "string", "enum": list(editor.operations)},
-                        "text": {"type": "string", "maxLength": 10000},
-                    },
-                    "required": ["op", "text"],
-                    "additionalProperties": False,
-                },
+                "items": operation,
             },
         },
         "required": ["base_revision", "operations"],

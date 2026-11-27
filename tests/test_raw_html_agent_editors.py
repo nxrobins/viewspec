@@ -11,7 +11,7 @@ from viewspec.raw_html_actions import AgentActionError, plan_control_action, pla
 REVISION = "editor-00000000-0000-4000-8000-000000000000"
 
 
-def page(*, mode="rich", coverage="complete", ops=("append_paragraph",), text="Existing document"):
+def page(*, mode="rich", coverage="complete", ops=("append_paragraph",), text="Existing document", blocks=()):
     descriptor = {
         "version": 1,
         "mode": mode,
@@ -19,6 +19,7 @@ def page(*, mode="rich", coverage="complete", ops=("append_paragraph",), text="E
         "coverage": coverage,
         "revision": REVISION,
         "operations": list(ops),
+        "blocks": list(blocks),
     }
     return lift_html(
         f"""<form aria-label="Article"><div role="textbox" aria-label="Body"
@@ -77,3 +78,39 @@ def test_static_editor_without_live_capabilities_is_unknown():
     assert lift.controls[0].editor.coverage == "unknown"
     with pytest.raises(AgentActionError):
         plan_control_action(lift.controls[0], "fill", "replacement")
+
+
+BLOCK = {"ref": "block-00000000-0000-4000-8000-000000000001", "position": 1, "kind": "h1"}
+
+
+def test_scoped_editor_operation_has_same_schema_and_plan_for_act_and_call():
+    from jsonschema import validate
+
+    lift = page(ops=("replace_block_text", "append_paragraph"), blocks=(BLOCK,))
+    editor = next(c for c in lift.controls if c.name == "Body")
+    scoped = value("New title", "replace_block_text")
+    scoped["operations"][0]["block"] = BLOCK["ref"]
+    schema = lift.form_tool_schemas()[0]["input_schema"]["properties"]["body"]
+    validate(scoped, schema)
+    validate(value(), schema)
+    assert (
+        plan_control_action(editor, "edit", scoped)[0]
+        == plan_form_call(lift, "article", {"body": scoped}, submit=False)[0]
+    )
+    assert schema["x-editor"]["blocks"] == [BLOCK]
+
+
+@pytest.mark.parametrize("block", [None, [], {}, "wrong", "block-00000000-0000-4000-8000-000000000002"])
+def test_scoped_editor_rejects_missing_foreign_or_invalid_block(block):
+    lift = page(ops=("replace_block_text",), blocks=(BLOCK,))
+    scoped = value("New", "replace_block_text")
+    if block is not None:
+        scoped["operations"][0]["block"] = block
+    with pytest.raises(AgentActionError):
+        plan_form_call(lift, "article", {"body": scoped})
+
+
+@pytest.mark.parametrize("blocks", [[BLOCK, BLOCK], [BLOCK | {"kind": []}], [BLOCK | {"position": True}], [BLOCK] * 33])
+def test_malformed_block_descriptors_do_not_advertise_usable_editor(blocks):
+    lift = page(ops=("replace_block_text",), blocks=blocks)
+    assert next(c for c in lift.controls if c.name == "Body").editor.coverage == "unknown"

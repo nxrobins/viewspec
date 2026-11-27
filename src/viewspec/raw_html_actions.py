@@ -677,8 +677,15 @@ def _edit(control: HtmlControl, value: Any) -> ActionStep:
     if value["base_revision"] != editor.revision:
         raise AgentActionError("AGENT_ACTION_VALUE_INVALID", "The editor revision changed; observe and plan again.")
     ops = value["operations"]
-    if not isinstance(ops, list) or len(ops) != 1 or not isinstance(ops[0], dict) or set(ops[0]) != {"op", "text"}:
-        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", "Supply exactly one editor operation {op, text}.")
+    if not isinstance(ops, list) or len(ops) != 1 or not isinstance(ops[0], dict):
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", "Supply exactly one editor operation.")
+    scoped = ops[0].get("op") == "replace_block_text"
+    if set(ops[0]) != ({"op", "block", "text"} if scoped else {"op", "text"}):
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", "Use {op, text}, plus block for replace_block_text.")
+    if scoped and (
+        not isinstance(ops[0]["block"], str) or ops[0]["block"] not in {block.ref for block in editor.blocks}
+    ):
+        raise AgentActionError("AGENT_ACTION_VALUE_INVALID", "Use a block reference from this editor revision.")
     op, text = ops[0]["op"], ops[0]["text"]
     if op not in editor.operations or not isinstance(text, str) or len(text) > 10000:
         raise AgentActionError(

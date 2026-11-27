@@ -1698,6 +1698,14 @@ async function act({
             requireObservation(navigationId);
             await page.keyboard.insertText(operation.text);
           }
+        } else if (operation.op === "replace_block_text") {
+          // A scoped native selection preserves the heading/paragraph container and its siblings.
+          // An empty block can contain a selected filler BR: deleting that would merge/remove it.
+          if (await target.evaluate(el => window.top.__viewspecEditor.needsInput(el))) {
+            editorInputAttempted = true;
+            if (operation.text) await page.keyboard.insertText(operation.text);
+            else await target.press("Backspace", options);
+          }
         } else {
           editorInputAttempted = true;
           await target.fill(operation.text, options);

@@ -27,12 +27,35 @@ Markdown or HTML. Legacy `fill` on those surfaces uses this same operation; fill
 document with a string is refused. Form arguments use the typed object above, with the same planner
 and verifier as `act`. There is no automatic editor-mode toggle.
 
+`replace_block_text` replaces the literal text of one observed paragraph or heading, preserving
+its block kind and the supported semantics of every other block. Supply `block` from that editor's
+current descriptor and its `base_revision`:
+
+```json
+{"base_revision":"editor-...","operations":[{"op":"replace_block_text","block":"block-...","text":"Updated title"}]}
+```
+
+The view and `x-editor.blocks` expose at most 32 eligible blocks as opaque `ref`, one-based document
+`position`, and `kind`; they contain no duplicate document text. Only fully covered generic rich
+documents and top-level plain-text paragraphs/headings are eligible. A marked or linked target,
+unknown widget, or unsupported structure cannot be flattened through this operation. References
+are scoped to the editor revision and live block identity; observe again after an edit. Empty text
+clears the target without merging it with a neighboring block. Multiline replacement is refused.
+
 The native editing path validates document/route identity, editor revision and mode before focusing,
 after focus, and before input. Paragraph insertion uses a native Enter key and native text input.
 After Enter, the bridge checks that the preceding blocks remain intact and the caret is in the new
 empty paragraph before inserting text. It checks the full intended result again after settling.
 Verification is about editor state, **not whether the application persisted it**. Save and reread the
 saved result separately.
+
+Scoped replacement uses a native selection inside the observed block and native text input; it
+never writes `innerHTML` or accesses framework state. The event-time guard checks selection scope
+as well as document state. ProseMirror focus decoration is normalized out of the semantic revision.
+Its sole `ProseMirror-trailingBreak` BR in an otherwise empty top-level paragraph/heading is treated
+as a filler. Other classed inline elements, styled placeholders, real hard breaks and unknown
+widgets retain their existing conservative treatment. A framework class alone does not grant
+arbitrary editor coverage.
 
 ## Supported semantics and limits
 

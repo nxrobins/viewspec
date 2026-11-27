@@ -10,6 +10,12 @@
   const owner = el => { for (let p = el; p; p = p.parentElement) if (host(p)) return p; return null; };
   const fail = () => { throw new Error("unsupported editor semantics"); };
   const paragraph = text => ({kind: "p", children: text ? [{text}] : []});
+  const proseMirror = el => host(el) && el.classList.contains("ProseMirror");
+  // Only the sole empty-block filler has no document meaning. Real hard breaks remain breaks.
+  const trailingFiller = (node, root) => proseMirror(root) && node.matches?.('br.ProseMirror-trailingBreak') &&
+    node.attributes.length === 1 && node.classList.length === 1 &&
+    node.parentElement?.parentElement === root && /^(P|H[1-6])$/.test(node.parentElement.tagName) &&
+    node.parentElement.childNodes.length === 1;
   function read(el) {
     if (!host(el)) return undefined;
     listen(el.ownerDocument);
@@ -57,6 +63,7 @@
       if (node.nodeType === 3) return node.data ? [{text: node.data}] : [];
       if (node.nodeType !== 1) return [];
       const tag = node.tagName.toLowerCase();
+      if (trailingFiller(node, el)) return [];
       if (node.contentEditable === "false" || node.hasAttribute("style") ||
           (adapter === "html-dom-v1" && node.hasAttribute("class"))) fail();
       if (tag === "br") return node.hasAttribute("data-mbe-fill") ? [] : [{kind: "br"}];
@@ -103,6 +110,8 @@
       touch(el);
       result.root = {dir: attr(el, "dir"), style: attr(el, "style"),
         classes: adapter === "html-dom-v1" ? attr(el, "class") : null};
+      if (proseMirror(el) && result.root.classes)
+        result.root.classes = result.root.classes.split(/\s+/).filter(c => c !== "ProseMirror-focused").join(" ");
       if (el.getAttribute("aria-readonly") === "true") fail();
       if (mode === "source") {
         if (adapter !== "mbe-dom-v1" || el.children.length !== 1 || !el.firstElementChild.matches('.mbe-source')) fail();
@@ -151,11 +160,24 @@
     const state = read(el);
     if (!state) return null;
     let record = revisions.get(el);
-    if (!record || !same(record.state, state)) {
-      record = {state, revision: revision()}; revisions.set(el, record);
+    const nodes = state.coverage === "complete" ? [...el.children] : [];
+    if (!record || !same(record.state, state) || nodes.length !== record.nodes.length || nodes.some((n, i) => n !== record.nodes[i])) {
+      const blocks = [];
+      if (state.coverage === "complete" && state.mode === "rich" && state.adapter === "html-dom-v1" &&
+          nodes.length === state.blocks.length && ![...el.childNodes].some(n => n.nodeType === 3 && n.data.trim())) {
+        for (let i = 0; i < nodes.length && blocks.length < 32; i++) {
+          const node = nodes[i], block = state.blocks[i];
+          if (/^(P|H[1-6])$/.test(node.tagName) && /^(p|h[1-6])$/.test(block.kind) && block.children.every(n => Object.hasOwn(n, "text")) &&
+              [...node.childNodes].every(n => n.nodeType === 3 || trailingFiller(n, el) ||
+                (n.nodeName === "BR" && !n.attributes.length && node.childNodes.length === 1)))
+            blocks.push({ref: revision().replace("editor-", "block-"), position: i + 1, kind: block.kind, node});
+        }
+      }
+      record = {state, revision: revision(), nodes, blocks}; revisions.set(el, record);
     }
     const operations = [];
     if (state.coverage === "complete") {
+      if (record.blocks.length) operations.push("replace_block_text");
       if (state.mode !== "rich" || same(state.blocks, [paragraph("")])) operations.push("replace_text");
       const tail = state.blocks?.at(-1);
       if (state.mode === "rich" && tail?.kind === "p" && tail.children.length &&
@@ -166,11 +188,16 @@
     const valueState = state.coverage !== "complete" ? "unknown" :
       (state.mode === "rich" ? same(state.blocks, [paragraph("")]) : state.text === "") ? "empty" : "filled";
     return {version: 1, value_state: valueState, ...Object.fromEntries(["mode", "adapter", "coverage"].map(k => [k, state[k]])),
-      revision: record.revision, operations, formats: ["text"]};
+      revision: record.revision, operations, formats: ["text"],
+      ...(record.blocks.length ? {blocks: record.blocks.map(({node, ...block}) => block)} : {})};
   }
-  function fits(before, operation) {
+  function fits(before, operation, block = null) {
     if (!before || typeof operation?.text !== "string") return false;
     const size = sizes.get(before);
+    if (operation.op === "replace_block_text")
+      return block && size && size.nodes + 2 <= MAX_NODES &&
+        size.chars - before.blocks[block.position - 1].children.map(n => n.text).join("").length + operation.text.length <= MAX_CHARS &&
+        !/[\r\n]/.test(operation.text);
     if (operation.op === "append_paragraph")
       return size && size.nodes + 2 <= MAX_NODES && size.chars + operation.text.length <= MAX_CHARS;
     const rootChars = Object.values(before.root || {}).reduce((n, value) => n + (value?.length || 0), 0);
@@ -178,10 +205,19 @@
       operation.text.split("\n").length * 2 + 4 <= MAX_NODES &&
       (before.mode !== "rich" || !/[\r\n]/.test(operation.text));
   }
+  function targetBlock(el, operation) {
+    return revisions.get(el)?.blocks.find(b => b.ref === operation.block);
+  }
+  function replacement(before, operation, block) {
+    return {...before, blocks: before.blocks.map((b, i) => i === block.position - 1 ?
+      {...b, children: operation.text ? [{text: operation.text}] : []} : b)};
+  }
   function expected(el, value) {
     if (!value || !Array.isArray(value.operations) || value.operations.length !== 1) return undefined;
     const descriptor = describe(el), op = value.operations[0], before = state(el);
-    if (!fits(before, op) || descriptor.revision !== value.base_revision || !descriptor.operations.includes(op.op)) return undefined;
+    const block = targetBlock(el, op);
+    if (!fits(before, op, block) || descriptor.revision !== value.base_revision || !descriptor.operations.includes(op.op)) return undefined;
+    if (op.op === "replace_block_text") return replacement(before, op, block);
     return op.op === "append_paragraph" ? {...before, blocks: [...before.blocks, paragraph(op.text)]} :
       before.mode === "rich" ? {...before, blocks: [paragraph(op.text)]} : {...before, text: op.text};
   }
@@ -194,21 +230,28 @@
         operation.text.length > 10000 || (operation.op === "append_paragraph" && (!operation.text || /[\r\n]/.test(operation.text))))
       throw new Error("editor: unsupported edit; use the observed operations and one plain-text paragraph");
     const before = state(el);
-    if (!fits(before, operation)) throw new Error("editor: the requested result exceeds this editor contract; no input ran");
-    const expected = operation.op === "append_paragraph" ? {...before, blocks: [...before.blocks, paragraph(operation.text)]} : null;
-    plans.set(el, {before, expected, operation, url: el.ownerDocument.location.href, allowed: before, stopped: false, cleanup: null});
+    const block = targetBlock(el, operation);
+    if (!fits(before, operation, block)) throw new Error("editor: the requested result exceeds this editor contract; no input ran");
+    const expected = operation.op === "replace_block_text" ? replacement(before, operation, block) :
+      operation.op === "append_paragraph" ? {...before, blocks: [...before.blocks, paragraph(operation.text)]} : null;
+    plans.set(el, {before, expected, operation, block, url: el.ownerDocument.location.href, allowed: before, stopped: false, cleanup: null});
     return true;
   }
   function valid(el) {
     const p = plans.get(el);
-    return !!p && el.isConnected && !composing.has(el) && el.ownerDocument.location.href === p.url && same(state(el), p.allowed);
+    return !!p && el.isConnected && !composing.has(el) && el.ownerDocument.location.href === p.url &&
+      (!p.block || el.children[p.block.position - 1] === p.block.node) && same(state(el), p.allowed);
   }
   const focused = el => el.ownerDocument.activeElement === el || el.contains(el.ownerDocument.activeElement);
   function guard(el) {
     if (!valid(el) || !focused(el)) throw new Error("editor: editor changed before input; observe and plan again");
     const p = plans.get(el), win = el.ownerDocument.defaultView;
     const stop = event => {
-      if (!event.composedPath().includes(el) || !valid(el) || !focused(el)) { event.preventDefault(); event.stopImmediatePropagation(); p.stopped = true; }
+      const selection = el.ownerDocument.getSelection();
+      const range = selection?.rangeCount === 1 ? selection.getRangeAt(0) : null;
+      const selected = !p.block || (range && p.block.node.contains(range.startContainer) &&
+        p.block.node.contains(range.endContainer) && range.toString() === p.block.node.textContent);
+      if (!event.composedPath().includes(el) || !valid(el) || !focused(el) || !selected) { event.preventDefault(); event.stopImmediatePropagation(); p.stopped = true; }
     };
     win.addEventListener("beforeinput", stop, true);
     p.cleanup = () => win.removeEventListener("beforeinput", stop, true);
@@ -216,6 +259,11 @@
   function caret(el) {
     if (!valid(el) || !focused(el)) throw new Error("editor: editor changed on focus; observe and plan again");
     const p = plans.get(el);
+    if (p.block) {
+      const range = el.ownerDocument.createRange(); range.selectNodeContents(p.block.node);
+      const selection = el.ownerDocument.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      return;
+    }
     if (p.operation.op !== "append_paragraph") return;
     const tail = el.lastElementChild;
     if (!tail || !/^(P|DIV)$/.test(tail.tagName)) throw new Error("editor: no supported paragraph tail");
@@ -241,6 +289,10 @@
     return same(actual.blocks, [paragraph(p.operation.text)]);
   }
   function cleanup(el) { plans.get(el)?.cleanup?.(); }
+  function needsInput(el) {
+    const p = plans.get(el);
+    return !p?.block || !same(p.before, p.expected);
+  }
   function clear(el) { cleanup(el); plans.delete(el); }
   // Composition is unfinished state, including editors in same-origin frames.
   function listen(doc) {
@@ -256,5 +308,5 @@
         block.querySelectorAll('input[type="checkbox"]').length !== 1) return null;
     return block.querySelector(':scope > .mbe-content')?.textContent || null;
   }
-  window.__viewspecEditor = {host, owner, controlName, describe, state, expected, prepare, valid, guard, caret, afterParagraph, verify, cleanup, clear};
+  window.__viewspecEditor = {host, owner, controlName, describe, state, expected, prepare, valid, guard, caret, afterParagraph, verify, needsInput, cleanup, clear};
 })();
