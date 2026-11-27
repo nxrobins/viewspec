@@ -863,10 +863,76 @@
     return {
       connected: true,
       identity: identityOf(el, cache),
+      feedback_scope: feedbackScope(el),
       form_revision: el.tagName === "FORM" ? observeForm(el) : null,
       dialog_revision: el.matches(FIELD_DIALOG) ? observeDialog(el) : null,
       blocked: el.tagName === "FORM" ? null : blockedBy(el, { keys: typeable(el), cover }),
     };
+  }
+
+  // Read-only feedback uses the observed owner and document, never a same-named sibling.
+  function feedbackOwner(el) {
+    for (let p = el; p && p.ownerDocument === el.ownerDocument; p = parentOf(p))
+      if (p.matches?.('form,dialog,[role="dialog"],[role="alertdialog"]')) return p;
+    return el.ownerDocument.documentElement;
+  }
+  function feedbackScope(el) {
+    const owner = feedbackOwner(el), doc = el.ownerDocument;
+    return {owner_ref: refOf(owner), document_ref: refOf(doc.documentElement),
+      document_url: doc.location.href, owner_identity: owner === doc.documentElement
+        ? {tag: 'html', name: null, items: []} : identityOf(owner)};
+  }
+  function feedbackSample({ref, identity, feedback_scope: scope, secret = false}) {
+    if (!scope || !identity) return {state: "unknown"};
+    const root = get(scope.document_ref), owner = get(scope.owner_ref);
+    if (!root || root.ownerDocument.documentElement !== root || root.ownerDocument.location.href !== scope.document_url)
+      return {state: "scope_changed"};
+    const doc = root.ownerDocument;
+    if (doc !== document && (!doc.defaultView?.frameElement || doc.defaultView.frameElement.contentDocument !== doc))
+      return {state: "scope_changed"};
+    if (!owner) {
+      const replacement = successor(scope.owner_identity);
+      return {state: replacement.state === "none" ? "scope_gone" : "scope_changed"};
+    }
+    if (owner.ownerDocument !== doc || feedbackOwner(owner) !== owner) return {state: "scope_changed"};
+    if (owner !== root && differsFrom(owner, scope.owner_identity)) return {state: "scope_changed"};
+    let el = get(ref);
+    if (el && (el.ownerDocument !== doc || feedbackOwner(el) !== owner || changedSince(ref, identity)))
+      return {state: "scope_changed"};
+    if (!el) {
+      const next = successor(identity);
+      if (next.state === "one") {
+        el = get(next.ref);
+        if (!el || el.ownerDocument !== doc || feedbackOwner(el) !== owner) return {state: "scope_changed"};
+      } else if (next.state === "many" || next.state === "moved") return {state: "scope_changed"};
+      else return {state: "target_gone"};
+    }
+    const attrs = {visible: shown(el), disabled: el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true'};
+    for (const key of ['checked','expanded','pressed']) {
+      const value = el.getAttribute('aria-' + key);
+      if (value === 'true' || value === 'false') attrs[key] = value === 'true';
+    }
+    if (el.matches('input[type=checkbox],input[type=radio]')) attrs.checked = el.checked;
+    if (!secret && !isSecret(el) && el.matches('input:not([type=password]):not([type=file]),textarea,select') && el.value.length <= 4096) attrs.value = el.value;
+    // Scope text excludes editable values. Secret-bearing nodes and hidden prose are not evidence.
+    const texts = [], messages = [], candidates = [owner, ...owner.querySelectorAll('*')];
+    let truncated = candidates.length > 512 || candidates.some(node => node.shadowRoot);
+    for (const node of candidates.slice(0, 512)) {
+      if (!shown(node) || node.matches('input,textarea,script,style,[data-lift-secret],[contenteditable]') ||
+          node.closest('[data-lift-secret],[contenteditable]')) continue;
+      if (feedbackOwner(node) !== owner) continue;
+      const text = clean(node.innerText || '');
+      if (!text || text.length > 4096) continue;
+      if (node.matches('[role=status],[role=alert],[aria-live]')) messages.push(text);
+      if (!node.children.length || node.matches('p,label,h1,h2,h3,h4,button,output')) texts.push(text);
+    }
+    flush();
+    const messageEvents = recorder.notes.filter(note => note.owner_ref === scope.owner_ref && note.document_ref === scope.document_ref)
+      .map(({seq, text}) => ({seq, text}));
+    return {state: "observed", ref: refOf(el), attributes: attrs, name: nameOf(el),
+      texts: [...new Set(texts)].slice(0,128), messages: [...new Set(messages)].slice(0,128),
+      message_events: messageEvents, note_seq: recorder.seq,
+      truncated: truncated || texts.length > 128 || messages.length > 128};
   }
 
   function readTargets(refs) {
@@ -1056,7 +1122,8 @@
     const last = recorder.notes.findLast((note) => note.ref === ref);
     if (last && last.text === text) recorder.notes.splice(recorder.notes.indexOf(last), 1);
     recorder.seq += 1;
-    recorder.notes.push({ seq: recorder.seq, ref, kind, text });
+    recorder.notes.push({ seq: recorder.seq, ref, kind, text,
+      owner_ref: refOf(feedbackOwner(region)), document_ref: refOf(region.ownerDocument.documentElement) });
     if (recorder.notes.length > NOTE_LIMIT) recorder.notes.shift();
   }
 
@@ -2272,6 +2339,7 @@
     describe,
     locateAll,
     readTargets,
+    feedbackSample,
     refOf,
     get,
     nameOf,

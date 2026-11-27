@@ -110,6 +110,7 @@ let passedWrites = [];
 let sessionPolicy;
 let navigations = [];
 let mainNavigations = 0;
+let feedbackNavigations = 0;
 let downloadDir = null;
 let expectingDownload = false;
 let strayDownloads = [];
@@ -532,6 +533,7 @@ async function open({
     if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigationRequests += 1;
   });
   page.on("framenavigated", (frame) => {
+    feedbackNavigations += 1;
     if (frame !== page.mainFrame()) return;
     mainNavigations += 1;
     checkLanding(frame.url());
@@ -715,7 +717,7 @@ async function watchPageEvents(target) {
   target.on("request", request => watched.started(request));
   target.on("response", response => watched.response(response));
   target.on("requestfinished", request => watched.finished(request));
-  target.on("requestfailed", request => watched.finished(request));
+  target.on("requestfailed", request => watched.finished(request, true));
 }
 
 async function settle({navigation = false} = {}) {
@@ -790,6 +792,7 @@ async function snapshot({ collect_secrets: collectSecrets = false }) {
     requests: activity.sequence,
     pending: [...activity.pending.values()],
     network: activity.counts(),
+    feedback_navigation: feedbackNavigations,
   };
   const cookies = await page.context().cookies();
   if (navigationId !== mainNavigations) throw new Error("read-interrupted: the page changed during snapshot");
@@ -923,6 +926,7 @@ async function targets({ requests, doc_id: docId, navigation_id: navigationId })
   return Object.fromEntries(requests.map(({ key, ref }) => [key, {
     strategy: null,
     identity: infos[ref]?.identity || null,
+    feedback_scope: infos[ref]?.feedback_scope || null,
     form_revision: infos[ref]?.form_revision || null,
     dialog_revision: infos[ref]?.dialog_revision || null,
     blocked: infos[ref]?.blocked || null,
@@ -954,6 +958,7 @@ async function locate({ requests, doc_id: docId, navigation_id: navigationId }) 
     // What the control is, and what stops a person from using it now: read in the page, with the
     // same code that checks them before a step runs.
     results[request.key].identity = (info && info.identity) || null;
+    results[request.key].feedback_scope = info?.feedback_scope || null;
     results[request.key].form_revision = info?.form_revision || null;
     results[request.key].dialog_revision = info?.dialog_revision || null;
     results[request.key].blocked = (info && info.blocked) || null;
@@ -1903,6 +1908,32 @@ async function confirm({ items }) {
 }
 
 const COMMANDS = {
+  feedback_begin: async ({bindings, doc_id: docId, navigation_id: navigationId}) => {
+    await ensureLibrary();
+    requireObservation(navigationId);
+    await requireReading(docId, navigationId);
+    return {request_mark: activity.sequence, write_mark: writes.length, passed_mark: passedWrites.length, epoch: activity.epoch,
+      navigation: feedbackNavigations,
+      samples: await page.evaluate(bs => bs.map(b => window.__viewspecLift.feedbackSample(b)), bindings)};
+  },
+  feedback_read: async ({bindings, mark, through}) => {
+    await ensureLibrary();
+    const navigation = feedbackNavigations;
+    let samples = navigation === mark.navigation
+      ? await page.evaluate(bs => bs.map(b => window.__viewspecLift.feedbackSample(b)), bindings)
+      : bindings.map(() => ({state: "scope_changed"}));
+    if (navigation !== feedbackNavigations) samples = bindings.map(() => ({state: "scope_changed"}));
+    const sameEpoch = mark.epoch === activity.epoch;
+    const dispositions = (sameEpoch ? [...writes.slice(mark.write_mark, through?.write_mark), ...passedWrites.slice(mark.passed_mark, through?.passed_mark)] : [])
+      .map(({method, url, state}) => ({method, url, state}));
+    return {samples, transport: sameEpoch ? activity.since(mark.request_mark, through?.request_mark ?? activity.sequence) : {association: "temporal", truncated: true, requests: []},
+      dispositions, revision: activity.revision};
+  },
+  feedback_wait: async ({revision, timeout_ms: timeoutMs = 100}) => {
+    // Network lifecycle events wake immediately; property/DOM changes have a bounded fallback.
+    // The caller rechecks its original condition and deadline, never dispatches an action.
+    return activity.wait(() => activity.revision !== revision, Math.min(100, Math.max(0, timeoutMs)));
+  },
   read_ready: async () => {
     await landing;
     await page.waitForLoadState("domcontentloaded", {timeout: 1000}).catch(() => {});

@@ -317,7 +317,7 @@ jobs:
         run: >-
           python -m pytest tests/test_browser_bridge_e2e.py tests/test_browser_bridge_network_e2e.py
           tests/test_browser_bridge_choices.py tests/test_browser_form_contract.py tests/test_browser_editor_contract.py
-          tests/test_browser_readiness.py tests/test_browser_form_preparation.py tests/test_browser_dialog_preparation.py
+          tests/test_browser_readiness.py tests/test_browser_form_preparation.py tests/test_browser_dialog_preparation.py tests/test_browser_feedback.py
           tests/test_browser_submit_recovery.py -q --strict-markers -m e2e
 
   react_tailwind_host:

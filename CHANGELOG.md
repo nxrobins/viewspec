@@ -26,6 +26,10 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Added
 
+- The browser bridge supports scoped UI waits, feedback watching, and bounded action receipts.
+  Agents can distinguish an existing state from a new transition and resume observing an action
+  without repeating it. Preparation still leaves Save separate; UI and HTTP feedback do not
+  establish persistence, and blocked writes remain blocked when their evidence is resumed.
 - CI runs the browser bridge in `experiments/browser-agent-probe`. The new `browser_bridge` job of
   `ci.yml` runs `demo_agent.py` and `demo_mcp.py` in Chromium on Python 3.11, then
   `tests/test_browser_bridge_e2e.py`: thirty-four whole agent task cases through the experiment's MCP server,

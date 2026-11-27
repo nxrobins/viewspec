@@ -97,6 +97,83 @@ result also includes `evidence.version = 1`:
 Read completion evidence and retry advice together. Wait or observe after an uncertain effect;
 do not repeat a possibly completed write just to recover its result.
 
+## Scoped waits, feedback watching and action receipts
+
+Legacy `wait_for` strings retain their existing global matching semantics. Typed predicates bind
+to a handle from the source observation instead:
+
+```python
+saved_ui = browser.act(
+    action="click", handle=save_handle,
+    wait_for={"target": save_handle, "state": {"disabled": True}, "transition": True},
+)
+# This checks a UI transition, not an independently verified database commit.
+```
+
+`state` accepts `visible`, `disabled`, `checked`, `expanded`, and `pressed` booleans, plus a public
+native control's `value` string. Unknown or unsupported attributes remain unknown. Private
+controls accept boolean checks only. Values/text expectations are bounded to 4096 characters.
+Exact text conditions use `text_equals`, with `source` set to `control` (accessible name),
+`scope` (bounded visible prose in the owner), or `message` (scoped live/status/alert feedback).
+Matching is case-sensitive with normalized whitespace; scope/message text excludes input values.
+`any_of` and `all_of` combine typed conditions, bounded to 32 nodes, depth 3, and 16 targets.
+
+The owner is the nearest native form or explicit dialog in the control's document, otherwise the
+document root. Owner identity, exact document, frame and route generations remain bound. An
+equivalent control replacement is accepted only with unique matching identity in that owner.
+Owner replacement/renaming, a reused control with different semantics, or navigation makes the
+scope unknown. Conservatively, any frame navigation invalidates the bound generation. This does
+not relax the independent identity/actionability checks for subsequent mutations.
+
+Each predicate reports matched, already_true, unmet, or unknown. An ordinary state predicate
+can be met before the action. `transition=true` requires it to be false at the pre-dispatch
+baseline, so an existing field value does not become evidence of a new effect. A previously true
+transition returns `already_true` without consuming the entire wait budget. Scoped message
+transitions may use retained message events; `source=message_event` denotes an occurrence, not
+text that necessarily remains visible in the returned view. Bound coverage is not unlimited:
+512 scope elements and 128 text/message candidates are inspected. Missing coverage is unknown.
+
+When an app's feedback convention is unknown, use `watch`:
+
+```python
+prepared = browser.prepare(scope="contact", arguments={"name": "Cedar Logistics"})
+# Use the Save handle from the returned view. Preparation never activates it.
+saved = browser.act(action="click", handle=save_handle, watch=True)
+later = browser.observe(after_action=saved["action_id"], watch=True, timeout_ms=2000)
+```
+
+`watch=true` returns on a new state change of the acted control, owner/target removal, a scoped
+message, or a terminal HTTP lifecycle event from the action interval. It can also take a typed
+predicate; pre-existing truth is not new feedback. `watch` and strict `wait_for` are mutually
+exclusive. Watch reports its wake reason without converting it into a persistence assertion.
+It never substitutes disabled Save for a specifically requested toast. Ordinary actions retain
+their fast default, without automatic waits. Network events wake immediately; DOM/property
+feedback is checked with a bounded 100 ms fallback and one remaining deadline. Background work
+does not reset the deadline. No new action is dispatched by either kind of wait.
+
+`act`, `call` and `prepare` return `action_id` and `action_evidence` version 1. Evidence includes
+the source observation and bound handles, original execution status, current scope state, typed
+signals, request lifecycles and write-policy dispositions. `persistence` remains `unverified`.
+Request association is explicitly **temporal**, not proven causal ownership. Headers/status,
+completed response body, streaming, connection failure and pending work are separate states.
+Response bodies and request payloads are not collected for this receipt. Policy-blocked and
+simulated writes remain blocked on later observations too.
+
+`observe(after_action=id)` samples the original receipt once; `watch=true` waits for new feedback
+since its last delivery. A typed `wait_for` uses the receipt's ORIGINAL bound handles and baseline.
+It can resume after the initial timeout without clicking again. Global legacy waits continue to
+use `observe(since=...)`. A standalone scoped observation captures its baseline when that check
+begins, even when `since` selects an older reading's handles; it cannot reconstruct a past
+transition. Use `after_action` to retain the pre-dispatch baseline. Receipts are session-local and
+bounded to 16; request history is bounded
+to 512 records with explicit truncation. A later action closes earlier temporal intervals and
+supersedes their UI attribution. Receipt expiry, changed scope or truncated evidence cannot
+silently become success or safe retry. Receipts confer no mutation authority or idempotency.
+
+A UI message, disabled Save, closed editor, or HTTP 200 can occur without a committed record.
+Conversely, a lost response can follow a successful commit. Use an appropriate application
+readback/acknowledgement for stronger verification, and retain uncertainty when none is available.
+
 ## Benchmark transport
 
 `experiments/browser-agent-probe/comparison/transport.py` owns the shared Node relay. Fresh app
