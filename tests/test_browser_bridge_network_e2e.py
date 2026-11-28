@@ -81,6 +81,9 @@ def network_site() -> Iterator[tuple[str, list[str]]]:
                 "/frame-srcdoc": "const f=document.createElement('iframe');f.onload=()=>{const b=f.contentDocument.querySelector('button');if(b)document.querySelector('h1').textContent=b.textContent};f.srcdoc='<button>Srcdoc ready</button>';document.body.append(f)",
                 "/frame-schemes": "const a=document.createElement('iframe');a.src='data:text/html,Data%20frame';document.body.append(a);const b=document.createElement('iframe');b.src=URL.createObjectURL(new Blob(['Blob frame'],{type:'text/html'}));document.body.append(b)",
                 "/popup": "window.open('/read')",
+                # Each tab is driven before Playwright can know it: a form written into it and sent.
+                "/blank-tab-posts": "for(let i=0;i<4;i++){const tab=window.open('');tab.document.write('<form method=POST action=\"'+location.origin+'/write?tab='+i+'\"><input name=item value=fixture></form>');tab.document.querySelector('form').submit()}",
+                "/blank-tab-frame": "window.open('').document.write('<iframe src=/read></iframe>')",
             }
             self.send_response(404 if route == "/workers404" else 200)
             self.send_header("Content-Type", "text/html")
@@ -198,6 +201,34 @@ def test_unsupported_execution_channels_fail_closed(
     base, received = network_site
     _open(base + path, _build(allow_origin=[base], allow_read=[base + "/*"]))
     assert all(absent not in entry for entry in received)
+
+
+def test_forms_written_into_blank_tabs_never_reach_the_server(network_site: tuple[str, list[str]]) -> None:
+    """A page writes a form into each of four blank tabs of its own and sends it at once.
+
+    Playwright can let such a request go unrouted, so the tab guard checks it on the browser as well.
+    A tab can also close before its request exists, and then there is nothing to record. Either way
+    the server never hears from a tab, and each new-tab write the bridge saw is listed once, blocked.
+    """
+    base, received = network_site
+    _, journal = _open(base + "/blank-tab-posts", _build(allow_origin=[base], allow_read=[base + "/*"]))
+    assert len(journal["popups"]) == 4, journal
+    assert [entry.split()[:2] for entry in received] == [["GET", "/blank-tab-posts"]], received
+    urls = [write["url"] for write in journal["writes"]]
+    assert len(set(urls)) == len(urls), journal["writes"]
+    assert set(urls) <= {f"{base}/write?tab={i}" for i in range(4)}, journal["writes"]
+    for write in journal["writes"]:
+        assert (write["method"], write["state"], write["new_tab"]) == ("POST", "blocked", True), write
+
+
+def test_a_frame_written_into_a_blank_tab_is_refused(network_site: tuple[str, list[str]]) -> None:
+    """A frame in a new tab is not a frame of the page the agent reads: it may not load."""
+    base, received = network_site
+    _, journal = _open(base + "/blank-tab-frame", _build(allow_origin=[base], allow_read=[base + "/*"]))
+    assert len(journal["popups"]) == 1, journal
+    assert [entry.split()[:2] for entry in received] == [["GET", "/blank-tab-frame"]], received
+    assert not journal["writes"], journal
+    assert all(entry["url"] == base + "/read" for entry in journal["refusals"]), journal
 
 
 def test_socket_deny_applies_even_when_writes_are_allowed(network_site: tuple[str, list[str]]) -> None:
