@@ -110,7 +110,14 @@ impl Browser {
                 "--disable-field-trial-config",
                 "--disable-component-update",
                 "--disable-sync",
-                "--disable-features=MediaRouter,OptimizationHints,PreconnectToSearch",
+                // Chromium honours only the last --disable-features, so every feature is listed
+                // here. A full Chrome build otherwise contacts Google in the background through
+                // the policy gate: autofill crowdsourcing on pages with forms, and the omnibox
+                // AI-mode eligibility check at startup. The Playwright baseline's headless shell
+                // has neither service.
+                "--disable-features=MediaRouter,OptimizationHints,PreconnectToSearch,\
+                 AutofillServerCommunication,AimServerEligibilityEnabled,\
+                 AimServerRequestOnStartupEnabled",
                 "--disable-extensions",
                 "--disable-popup-blocking",
                 "--disable-quic",

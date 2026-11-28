@@ -260,6 +260,12 @@ async function startGate() {
   });
   // A tunnel: every https request, and every WebSocket.
   server.on("connect", async (request, socket, head) => {
+    // Node removed its own error listener from this socket before emitting "connect". Until this
+    // handler adds one, a client reset (ECONNRESET) is an unhandled error that stops the bridge.
+    // So the listener comes first, and serves every stage: while the name is vetted, after a
+    // refusal, during the dial and inside the tunnel. A reset leaves the far side nothing to carry.
+    let out;
+    socket.on("error", () => out?.destroy());
     const match = /^(.+):(\d+)$/.exec(request.url);
     let addresses;
     try {
@@ -269,15 +275,14 @@ async function startGate() {
       refuse(request.url, String(error.message || error));
       return socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
     }
-    socket.on("error", () => {});
-    let out;
     try {
       out = await dial(addresses, Number(match[2]));
     } catch (error) {
       return socket.end("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n");
     }
+    // The browser left while the gate dialled: its "close" has passed, so drop the new connection now.
+    if (socket.destroyed) return out.destroy();
     out.on("error", () => socket.destroy());
-    socket.on("error", () => out.destroy());
     socket.on("close", () => out.destroy());
     out.on("close", () => socket.destroy());
     socket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
