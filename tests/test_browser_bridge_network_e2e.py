@@ -413,7 +413,7 @@ def test_https_redirect_chain_and_target_policy(tmp_path: Path) -> None:
     pin = base64.b64encode(hashlib.sha256(der).digest()).decode()
     preload = tmp_path / "pin-test-certificate.cjs"
     preload.write_text(
-        f"const {{chromium}} = require({json.dumps(str(PROBE / 'node_modules' / 'playwright'))});\n"
+        f"const {{chromium}} = require({json.dumps(str(PROBE / ('rust_browser.js' if os.environ.get('VIEWSPEC_BROWSER_BACKEND') == 'rust' else 'node_modules/playwright')))});\n"
         "const launch = chromium.launch.bind(chromium);\n"
         "chromium.launch = (options) => launch({...options,args:[...(options.args||[]),"
         f"{json.dumps('--ignore-certificate-errors-spki-list=' + pin)}]}});\n",

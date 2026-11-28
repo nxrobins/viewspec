@@ -73,7 +73,9 @@ function loadPlaywright() {
   }
 }
 
-const { chromium } = loadPlaywright();
+const backend = process.env.VIEWSPEC_BROWSER_BACKEND || "playwright";
+if (!["playwright", "rust"].includes(backend)) throw new Error("Unknown browser backend");
+const { chromium } = backend === "rust" ? require("./rust_browser") : loadPlaywright();
 
 const LIBRARY = ["editor_inpage.js", "lift_inpage.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n");
 const INTERACTIVE_SELECTOR = [

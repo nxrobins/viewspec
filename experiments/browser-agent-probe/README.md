@@ -19,6 +19,12 @@ evals that open real sites (`apg_eval.py`, `real_sites_eval.py`) and `probe.py` 
 For the reproducible three-tool comparison and the revised Books evidence/output contracts,
 see [comparison/README.md](comparison/README.md).
 
+For the independent Rust/CDP backend and its capability gate, see
+[rust-adapter/README.md](rust-adapter/README.md). The operator can select it with
+`VIEWSPEC_BROWSER_BACKEND=rust` after building its host and supplying
+`VIEWSPEC_CHROMIUM`. It reuses this bridge's policy and privacy layers. Playwright
+remains the default; the independent backend's full conformance work is ongoing.
+
 ## The loop
 
 ```text
