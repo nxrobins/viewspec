@@ -346,7 +346,8 @@ function requestPolicy(method, address, { document = false, frameOrigin = null, 
 
 // Playwright routes only the first request of a redirect chain. Chromium's response pause runs
 // before following each Location, including HTTPS, so policy is checked before the next contact.
-// Popup requests are refused by the context route: their first response has no installed guard.
+// Popup requests are refused by the context route, and by the tab guard where Playwright routes
+// none (see installTabGuard): their first response has no installed guard.
 // Workers are disabled by an enforced document CSP because their sockets lack a complete hook.
 async function installResponsePolicy(target) {
   const cdp = await target.context().newCDPSession(target);
@@ -451,6 +452,92 @@ async function installResponsePolicy(target) {
     }
   });
   await cdp.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Response" }] });
+}
+
+// The context route is asked only about the requests Playwright intercepts, and in a new tab
+// Playwright starts intercepting a moment after the tab exists. A tab that the page drives at once
+// (window.open(''), then a form written into the blank tab and submitted) can start its request in
+// that moment, and then no route is asked at all; Playwright 1.60 also lets a paused request go
+// unrouted while it has no frame for it. Holding each new tab until a guard is ready does not help:
+// Chromium holds a new tab only for a page it loads itself, not for one its opener writes. So every
+// request is checked once more, on the browser. This handler is in place before the page loads, so
+// a request in any tab starts out intercepted; Chromium asks it after Playwright's own handler and
+// holds the request until it answers. A request of the page the agent reads goes on: the context
+// route has judged it. Any other is refused and recorded as the context route records a new tab's
+// request. Each request of the page costs one more round trip to the bridge.
+async function installTabGuard(target) {
+  const pageCdp = await target.context().newCDPSession(target);
+  const frames = new Set(); // The frames of the page the agent reads, by id.
+  const learnFrames = async () => {
+    const { frameTree } = await pageCdp.send("Page.getFrameTree");
+    const walk = (node) => {
+      frames.add(node.frame.id);
+      for (const child of node.childFrames || []) walk(child);
+    };
+    walk(frameTree);
+  };
+  await learnFrames();
+  const cdp = await browser.newBrowserCDPSession();
+  // The browser's tabs by id. A tab's id is also the id of its top frame.
+  const tabs = new Set();
+  cdp.on("Target.targetCreated", ({ targetInfo }) => {
+    if (targetInfo.type === "page") tabs.add(targetInfo.targetId);
+  });
+  await cdp.send("Target.setDiscoverTargets", { discover: true });
+  const check = async (event) => {
+    // A frame the page added a moment ago is in its frame tree before the frame can ask for anything.
+    if (event.frameId && !frames.has(event.frameId)) await learnFrames();
+    if (event.frameId && frames.has(event.frameId)) {
+      await cdp.send("Fetch.continueRequest", { requestId: event.requestId }).catch(() => {});
+      return;
+    }
+    const { request } = event;
+    const address = request.url + (request.urlFragment || "");
+    const headers = Object.fromEntries(Object.entries(request.headers).map(([name, value]) => [name.toLowerCase(), value]));
+    const navigation = event.resourceType === "Document";
+    const top = navigation && tabs.has(event.frameId);
+    if (top) tabRequests += 1;
+    const verdict = requestPolicy(request.method, address, {
+      document: navigation,
+      frameOrigin: navigation && !top ? originOf(target.url()) : null,
+      eventSource: event.resourceType === "EventSource" || /text\/event-stream/i.test(headers.accept || ""),
+      methodOverride: ["x-http-method-override", "x-method-override", "x-http-method"].some((name) => name in headers),
+    });
+    const reason = verdict.reason || "new tabs have no installed response policy";
+    const mark = { new_tab: true };
+    let answer = null;
+    if (verdict.write) {
+      const parts = request.postDataEntries || [];
+      const postBuffer = parts.length ? Buffer.concat(parts.map((part) => Buffer.from(part.bytes || "", "base64"))) : null;
+      answer = recordBlockedWrite({
+        method: request.method, url: address, resourceType: event.resourceType.toLowerCase(), headers,
+        postData: postBuffer ? postBuffer.toString("utf8") : null, postBuffer, navigation,
+      }, { ...mark, reason }, { allowSimulation: false });
+    }
+    if (top) navigations.push({ url: address, reason, ...mark });
+    else refuse(address, reason);
+    if (!answer) {
+      await cdp.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" });
+      return;
+    }
+    await cdp.send("Fetch.fulfillRequest", {
+      requestId: event.requestId,
+      responseCode: answer.status,
+      responseHeaders: [
+        ...Object.entries(answer.headers).map(([name, value]) => ({ name, value })),
+        { name: "content-type", value: answer.contentType },
+      ],
+      body: Buffer.from(answer.body).toString("base64"),
+    });
+  };
+  cdp.on("Fetch.requestPaused", (event) => {
+    check(event).catch(() => {
+      // A request the guard could not check is never sent. Only a tab or a browser on its way out
+      // makes the check fail: the request is gone by then, or about to be.
+      cdp.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" }).catch(() => {});
+    });
+  });
+  await cdp.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
 }
 
 function readableDocument(address) {
@@ -590,6 +677,7 @@ async function open({
     return socket.close({ code: 1008, reason: "blocked" });
   });
   await installResponsePolicy(page);
+  await installTabGuard(page);
   policyInstalled = true;
   return loadDocument(url);
 }
@@ -610,16 +698,27 @@ async function loadDocument(url) {
 
 // A blocked HTTP request is never sent. Simulation is an explicit operator decision and
 // changes only what the page sees. Both dispositions are authoritative in the outcome journal.
-async function blockWrite(route, mark = {}, { allowSimulation = true } = {}) {
+async function blockWrite(route, mark = {}, options = {}) {
   const request = route.request();
+  const buffer = request.postDataBuffer();
+  return route.fulfill(recordBlockedWrite({
+    method: request.method(), url: request.url(), resourceType: request.resourceType(),
+    headers: request.headers(), postData: request.postData(), postBuffer: buffer,
+    navigation: request.isNavigationRequest(),
+  }, mark, options));
+}
+
+// Record a write the bridge stopped, and make the answer the page gets instead. The request is
+// described plainly ({method, url, resourceType, headers with lower-case names, postData,
+// postBuffer, navigation}), so that the context route and the new-tab guard record it the same way.
+function recordBlockedWrite(request, mark = {}, { allowSimulation = true } = {}) {
   const simulated = allowSimulation && Boolean(limits?.simulate_writes);
   const state = simulated ? "blocked-and-simulated" : "blocked";
-  const headers = request.headers();
-  const buffer = request.postDataBuffer();
-  writes.push({method: request.method(), url: request.url(), resource_type: request.resourceType(),
-    state, content_type: headers["content-type"] || null, post_data: request.postData(),
+  const { headers, postBuffer: buffer } = request;
+  writes.push({method: request.method, url: request.url, resource_type: request.resourceType,
+    state, content_type: headers["content-type"] || null, post_data: request.postData,
     post_data_b64: buffer ? buffer.toString("base64") : null, ...mark});
-  const html = request.isNavigationRequest();
+  const html = request.navigation;
   const json = !html && /(?:application\/(?:[^;, ]+\+)?json)/i.test(
     (headers.accept || "") + "," + (headers["content-type"] || ""));
   const responseHeaders = {
@@ -631,9 +730,9 @@ async function blockWrite(route, mark = {}, { allowSimulation = true } = {}) {
     responseHeaders["access-control-allow-credentials"] = "true";
     responseHeaders.vary = "Origin";
   }
-  return route.fulfill({status: simulated ? 200 : 403, headers: responseHeaders,
+  return {status: simulated ? 200 : 403, headers: responseHeaders,
     contentType: html ? "text/html" : json ? "application/json" : "text/plain",
-    body: html ? stubPage("Write blocked", request) : json ? JSON.stringify({blocked: true, state, sent: false}) : state});
+    body: html ? stubPage("Write blocked", request) : json ? JSON.stringify({blocked: true, state, sent: false}) : state};
 }
 
 // The small page that answers a request the bridge stopped.
@@ -641,7 +740,7 @@ function stubHtml(heading, line) {
   return `<!doctype html><title>Blocked</title><h1>${escapeHtml(heading)}</h1><p>${escapeHtml(line)}</p>`;
 }
 function stubPage(heading, request) {
-  return stubHtml(heading, `${request.method()} ${request.url()}`);
+  return stubHtml(heading, `${request.method} ${request.url}`);
 }
 
 // Recover the previous document if Chromium commits an error or a non-web navigation.
@@ -679,6 +778,20 @@ async function tabRequestsChecked(count) {
   }
 }
 
+// Close a tab the page opened, through Chromium rather than Playwright's page.close(). Playwright
+// stops handing a page's requests to routes as soon as close() is called on it, before the tab is
+// gone, and a request the tab made meanwhile was left to the teardown. Closed this way, the context
+// route goes on refusing and recording the tab's requests until Chromium has destroyed the tab.
+async function closeTab(popup) {
+  try {
+    const cdp = await popup.context().newCDPSession(popup);
+    const { targetInfo } = await cdp.send("Target.getTargetInfo");
+    await cdp.send("Target.closeTarget", { targetId: targetInfo.targetId });
+  } catch (error) {
+    // The tab closed itself first, or the browser is going: nothing is left to close.
+  }
+}
+
 // Record the dialogs a page raises, the tabs it opens, and the requests it has in flight.
 async function watchPageEvents(target) {
   dialogs = [];
@@ -711,7 +824,7 @@ async function watchPageEvents(target) {
   }
   target.on("popup", (popup) => {
     if (!asked) popups.push({ seq: ++eventSeq, url: popup.url() });
-    popup.close().catch(() => {}); // The agent reads one page. A tab it cannot see is not kept.
+    closeTab(popup); // The agent reads one page. A tab it cannot see is not kept.
   });
   const watched = activity;
   target.on("request", request => watched.started(request));

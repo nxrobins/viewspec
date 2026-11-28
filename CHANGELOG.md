@@ -9,6 +9,17 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Security
 
+- In the browser bridge experiment, a page with writes blocked could still post from a blank tab
+  of its own: it called `window.open('')`, wrote a form into the tab and submitted it at once. The
+  test server received the post in 9 of 30 runs, and `blocked_writes` stayed empty in all of
+  them. Two things in Playwright 1.60 let it through. The bridge closed each new tab with
+  `page.close()`, and Playwright stops routing a page's requests as soon as that is called. And a
+  tab driven this fast can start its request before Playwright intercepts anything in it, so no
+  route is asked at all. New tabs are now closed through Chromium, and every request also waits
+  for a check on the browser itself, which is in place before the page loads: a request of the
+  page the agent reads goes on, and any other is refused and listed with `new_tab: true`, like
+  the other requests of a new tab. A test opens four such tabs at once and fails if the server
+  hears from any of them. Each request of the page now takes about 0.2 ms longer.
 - In the browser bridge experiment, write blocking and the origin allowlist now cover the tabs a
   page opens. Both were set on the page alone, and a new tab is another page: a form with
   `target="_blank"` that posts was sent to the server with `block_writes` on, a script in a new tab
