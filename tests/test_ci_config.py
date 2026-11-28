@@ -483,6 +483,11 @@ def test_browser_bridge_job_switches_on_the_suites_it_runs() -> None:
     assert "VIEWSPEC_CHROMIUM=" in suite["run"]
     for script in ("demo_agent.py", "demo_mcp.py"):
         assert f"VIEWSPEC_BROWSER_BACKEND=rust python {probe}/{script}" in suite["run"]
+    # The Rust host keeps Chromium's sandbox, which needs unprivileged user namespaces; the runner's
+    # AppArmor setting forbids them until a step allows them, before anything launches that host.
+    sandbox = commands.index("sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0")
+    rust_launches = [i for i, command in enumerate(commands) if "VIEWSPEC_CHROMIUM=" in command]
+    assert rust_launches and sandbox < min(rust_launches)
 
 
 # --- Dependabot -------------------------------------------------------------------------------

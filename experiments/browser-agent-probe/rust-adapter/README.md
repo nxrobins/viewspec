@@ -44,6 +44,13 @@ browser-test skip. Existing bridge CI supplies Chromium using its locked
 Playwright downloader and runs this command. Playwright only provisions the
 binary there; the Rust tests do not import or invoke its driver.
 
+The host keeps Chromium's sandbox on; Playwright, by contrast, launches with
+`--no-sandbox` unless asked not to. On Linux the sandbox needs unprivileged user
+namespaces, which Ubuntu 23.10 and later restrict through AppArmor. There every
+launch fails at once with `Closed`. Allow them
+(`sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`, as CI does) or
+give the Chromium executable an AppArmor profile that permits them.
+
 The HTTP fixture and its request journal are implemented in Rust. The workflow
 asserts exact saved values, Unicode round-tripping, clearing, preservation of an
 omitted password/tier, trusted input/change/click events, no fixture writes before

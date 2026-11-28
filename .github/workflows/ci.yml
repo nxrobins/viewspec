@@ -308,6 +308,12 @@ jobs:
       - name: Install Rust adapter toolchain
         run: rustup toolchain install 1.96.1 --profile minimal --component rustfmt --component clippy
 
+      # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor, and Chromium's sandbox
+      # needs them: without this, every launch through the Rust host closes at once. Playwright
+      # launches with --no-sandbox; the Rust host keeps the sandbox, so the runner allows them.
+      - name: Allow Chromium's sandbox on the runner
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: Independent Rust adapter and native browser regressions
         working-directory: experiments/browser-agent-probe/rust-adapter
         run: |
