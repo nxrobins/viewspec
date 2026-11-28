@@ -132,9 +132,17 @@ def test_the_browser_bridge_installs_the_playwright_the_seeds_pin():
     assert manifest["devDependencies"] == {"playwright": _shared_pin("@playwright/test")}
     assert lock["lockfileVersion"] == 3
     assert lock["packages"][""]["devDependencies"] == manifest["devDependencies"]
+    # The bridge's own runtime dependencies (the Rust backend's WebSocket relay uses ws) are not in
+    # the seeds. Each is pinned to one exact version, and the lockfile holds that version.
+    runtime = manifest.get("dependencies", {})
+    assert lock["packages"][""].get("dependencies", {}) == runtime
     installed = {name: package for name, package in lock["packages"].items() if name}
     assert {"node_modules/playwright", "node_modules/playwright-core"} <= set(installed)
     for name, package in installed.items():
+        pinned = runtime.get(name.removeprefix("node_modules/"))
+        if pinned is not None:
+            assert package["version"] == pinned and package["integrity"].startswith("sha512-"), name
+            continue
         for key in ("version", "resolved", "integrity"):
             assert package[key] == seed_lock[name][key], (name, key)
 

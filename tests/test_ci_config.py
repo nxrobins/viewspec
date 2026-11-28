@@ -16,7 +16,6 @@ from typing import Any
 import pytest
 import yaml
 
-from tests.test_browser_bridge_e2e import E2E_OPT_IN as BRIDGE_E2E_OPT_IN
 from tests.test_browser_bridge_e2e import PROBE as BRIDGE_PROBE
 from tests.test_react_dependency_seeds import SEEDS
 
@@ -478,12 +477,17 @@ def test_browser_bridge_job_switches_on_the_suites_it_runs() -> None:
     # The experiment's two scripts exit 1 on their first failed check.
     for script in ("demo_agent.py", "demo_mcp.py"):
         assert f"python {probe}/{script}" in commands
-    # The task suite skips, and so passes, unless its opt-in is set. The job sets the variable the
-    # suite reads, so renaming one without the other fails here instead of skipping every task.
-    (suite,) = [step for step in steps if "tests/test_browser_bridge_e2e.py" in step.get("run", "")]
-    assert "tests/test_browser_bridge_network_e2e.py" in suite["run"]
-    assert suite["env"] == {BRIDGE_E2E_OPT_IN: "1"}
-    assert "-m e2e" in suite["run"]
+    # The conformance runner opts in both backends and rejects skipped/differing
+    # cases. Its execution contract is tested in test_browser_conformance_gate.py.
+    (suite,) = [step for step in steps if f"python {probe}/check_conformance.py" in step.get("run", "")]
+    assert "VIEWSPEC_CHROMIUM=" in suite["run"]
+    for script in ("demo_agent.py", "demo_mcp.py"):
+        assert f"VIEWSPEC_BROWSER_BACKEND=rust python {probe}/{script}" in suite["run"]
+    # The Rust host keeps Chromium's sandbox, which needs unprivileged user namespaces; the runner's
+    # AppArmor setting forbids them until a step allows them, before anything launches that host.
+    sandbox = commands.index("sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0")
+    rust_launches = [i for i, command in enumerate(commands) if "VIEWSPEC_CHROMIUM=" in command]
+    assert rust_launches and sandbox < min(rust_launches)
 
 
 # --- Dependabot -------------------------------------------------------------------------------

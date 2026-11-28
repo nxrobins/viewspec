@@ -19,6 +19,12 @@ evals that open real sites (`apg_eval.py`, `real_sites_eval.py`) and `probe.py` 
 For the reproducible three-tool comparison and the revised Books evidence/output contracts,
 see [comparison/README.md](comparison/README.md).
 
+For the independent Rust/CDP backend and its capability gate, see
+[rust-adapter/README.md](rust-adapter/README.md). The operator can select it with
+`VIEWSPEC_BROWSER_BACKEND=rust` after building its host and supplying
+`VIEWSPEC_CHROMIUM`. It reuses this bridge's policy and privacy layers. Playwright
+remains the default; the independent backend's full conformance work is ongoing.
+
 ## The loop
 
 ```text
@@ -1197,3 +1203,11 @@ select-only `div` combobox is refused before the browser acts.
 ### Scoped feedback and continuation
 
 After a separate Save action, `act(..., watch=True)` returns observed feedback without guessing a toast. `observe(after_action=result["action_id"], watch=True)` follows the original action without replaying it. Typed `wait_for` conditions bind a source handle, owner, document and route; exact text and boolean state checks distinguish pre-existing truth from transitions. Receipts separate UI evidence, temporal HTTP lifecycles and policy dispositions; persistence remains unverified. See [the readiness contract](../../docs/browser-readiness-contract.md#scoped-waits-feedback-watching-and-action-receipts) for limits and examples.
+
+`--response-mode focused` opts into bounded replies (12 KiB by default, configurable with
+`--response-bytes`). Controls use observation-qualified addresses such as `handle="3:7"`;
+`call` and `prepare` need the schema's `observation_id`. Focused owner views preserve global
+messages and blockers, and receipt-only observations do not advance the active observation.
+`observe(details={"result_id": "result_…", "section": "steps"})` expands retained redacted
+JSON without another browser read. See the [response contract](../../docs/browser-response-contract.md)
+for coverage, paging, expiry, compatibility and the complete MCP output budget.

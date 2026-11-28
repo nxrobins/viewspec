@@ -26,6 +26,16 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Added
 
+- The browser bridge experiment has an opt-in Rust browser backend
+  (`VIEWSPEC_BROWSER_BACKEND=rust`, with `VIEWSPEC_CHROMIUM` set to a Chromium executable). A Rust
+  host owns Chromium's launch, profile and CDP transport, and the bridge's policy gate, privacy
+  projection and outcome contracts are unchanged. It passes the same shared browser cases as the
+  Playwright backend, with no skips and no fallback to Playwright. Playwright stays the default;
+  `experiments/browser-agent-probe/rust-adapter/PARITY.md` lists what was checked.
+- The browser bridge has opt-in bounded replies with observation-qualified handles, focused
+  owner views, receipt-only reads, and paged redacted result details. The complete MCP result
+  budget covers schemas and evidence as well as text; blocked writes, partial application and
+  conservative retry states remain visible. Known owner/frame/route drift refuses dispatch.
 - The browser bridge supports scoped UI waits, feedback watching, and bounded action receipts.
   Agents can distinguish an existing state from a new transition and resume observing an action
   without repeating it. Preparation still leaves Save separate; UI and HTTP feedback do not
@@ -80,6 +90,12 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- In the browser bridge experiment, a browser that reset a tunnel request (`CONNECT`) could stop the
+  bridge. Node's HTTP server removes its error listener from a tunnel's socket before handing it
+  over, and the gate added its own only after vetting the destination, so a reset during vetting or
+  after a refusal was an unhandled error. The bridge exited, and the agent's next call failed with
+  `bridge.js stopped`. The gate now listens first, and drops a connection it dialled for a browser
+  that has already gone.
 - Browser form preparation prevents premature and duplicate native submission events and withholds
   activation when the observed form, participating fields, or submission destination changes.
   Results include preparation evidence; edits and application autosaves can still occur before

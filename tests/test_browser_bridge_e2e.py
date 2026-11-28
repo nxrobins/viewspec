@@ -835,7 +835,16 @@ async def _attempt(
     downloads.mkdir()
     # Like a host's MCP config: only where Playwright keeps its browsers, if that is not the
     # default. NODE_PATH is left out, so the bridge loads the Playwright installed beside it.
-    env = {key: os.environ[key] for key in ("PLAYWRIGHT_BROWSERS_PATH",) if key in os.environ} | (secrets or {})
+    env = {
+        key: os.environ[key]
+        for key in (
+            "PLAYWRIGHT_BROWSERS_PATH",
+            "VIEWSPEC_BROWSER_BACKEND",
+            "VIEWSPEC_CHROMIUM",
+            "VIEWSPEC_RUST_BROWSER_HOST",
+        )
+        if key in os.environ
+    } | (secrets or {})
     params = StdioServerParameters(
         command=sys.executable,
         args=[

@@ -7,9 +7,12 @@ import hashlib
 import http.server
 import json
 import os
+import socket
 import ssl
+import struct
 import subprocess
 import threading
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -125,6 +128,80 @@ def _run(commands: list[dict], node_args: tuple[str, ...] = ()) -> list[dict]:
     replies = [json.loads(line) for line in result.stdout.splitlines()]
     assert len(replies) == len(commands), result.stdout + result.stderr
     return replies
+
+
+def _gate_port(pid: int) -> int:
+    """The bridge's only listening TCP port, which is its network gate."""
+    listing = subprocess.run(
+        ["lsof", "-nP", "-a", "-p", str(pid), "-iTCP", "-sTCP:LISTEN", "-Fn"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+    ).stdout
+    ports = {int(line.rsplit(":", 1)[1]) for line in listing.splitlines() if line.startswith("n")}
+    assert len(ports) == 1, listing
+    return ports.pop()
+
+
+def _reset_tunnel(port: int, *, await_answer: bool) -> bytes:
+    """Ask the gate for a tunnel it must refuse, then abort the connection with a TCP reset."""
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as client:
+        client.sendall(b"CONNECT unlisted.example:443 HTTP/1.1\r\nHost: unlisted.example:443\r\n\r\n")
+        answer = client.recv(1024) if await_answer else b""
+        # A zero linger turns close() into a reset instead of an orderly shutdown.
+        client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    return answer
+
+
+@pytest.mark.parametrize("await_answer", [True, False], ids=["after-refusal", "during-vetting"])
+def test_reset_tunnel_does_not_stop_the_bridge(network_site: tuple[str, list[str]], await_answer: bool) -> None:
+    """A client that resets a tunnel request is the gate's to absorb, not a reason for the bridge to exit.
+
+    Before emitting "connect", Node's HTTP server removes its own error listener from the socket. A
+    reset in the window before the gate adds one used to stop the bridge with an unhandled error.
+    """
+    base, _ = network_site
+    policy = _build(allow_origin=[base], allow_read=[base + "/*"]).browser_config()
+    bridge = subprocess.Popen(
+        ["node", str(PROBE / "bridge.js")],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert bridge.stdin is not None and bridge.stdout is not None and bridge.stderr is not None
+
+    def call(request: dict) -> dict:
+        try:
+            bridge.stdin.write(json.dumps(request) + "\n")
+            bridge.stdin.flush()
+            line = bridge.stdout.readline()
+        except BrokenPipeError:
+            line = ""
+        assert line, "bridge.js stopped: " + bridge.stderr.read()
+        return json.loads(line)
+
+    try:
+        assert call({"id": 1, "cmd": "open", "url": base + "/read", "policy": policy})["ok"]
+        port = _gate_port(bridge.pid)
+        for _ in range(5):
+            try:
+                answer = _reset_tunnel(port, await_answer=await_answer)
+            except ConnectionError:
+                break  # The gate is gone; the next call reports why.
+            assert not await_answer or answer.startswith(b"HTTP/1.1 403"), answer
+        time.sleep(0.3)  # Let the resets reach the gate before asking the bridge anything else.
+        journal = call({"id": 2, "cmd": "writes"})
+        assert journal["ok"], journal
+        assert any(entry["url"] == "unlisted.example:443" for entry in journal["result"]["refusals"]), journal
+        assert call({"id": 3, "cmd": "close"})["ok"]
+    finally:
+        if bridge.poll() is None:
+            bridge.kill()
+        bridge.wait(timeout=10)
+        for stream in (bridge.stdin, bridge.stdout, bridge.stderr):
+            stream.close()
 
 
 def test_allowed_redirect_chain_keeps_browser_url(network_site: tuple[str, list[str]]) -> None:
@@ -413,7 +490,7 @@ def test_https_redirect_chain_and_target_policy(tmp_path: Path) -> None:
     pin = base64.b64encode(hashlib.sha256(der).digest()).decode()
     preload = tmp_path / "pin-test-certificate.cjs"
     preload.write_text(
-        f"const {{chromium}} = require({json.dumps(str(PROBE / 'node_modules' / 'playwright'))});\n"
+        f"const {{chromium}} = require({json.dumps(str(PROBE / ('rust_browser.js' if os.environ.get('VIEWSPEC_BROWSER_BACKEND') == 'rust' else 'node_modules/playwright')))});\n"
         "const launch = chromium.launch.bind(chromium);\n"
         "chromium.launch = (options) => launch({...options,args:[...(options.args||[]),"
         f"{json.dumps('--ignore-certificate-errors-spki-list=' + pin)}]}});\n",

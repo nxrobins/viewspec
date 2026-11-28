@@ -5,6 +5,10 @@ persistence from a quiet network, a navigation, or a message such as â€œSavingâ€
 permission, target identity, route checks, editor preservation, and event-time form guards remain
 independent from readiness.
 
+The optional [bounded response contract](browser-response-contract.md) projects this evidence
+into focused replies, qualifies handles by observation, and makes receipt-only reads independent
+of full-page observations. It does not change the meaning of completion or persistence.
+
 ## Observation and actions
 
 Navigation waits for DOM content and gives outstanding finite or unclassified requests a bounded

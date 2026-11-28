@@ -58,7 +58,16 @@ async def tool(session: ClientSession, name: str, **arguments: Any) -> dict[str,
 async def run(base: str, folder: Path) -> None:
     # Like a host's MCP config: pass where Playwright keeps its browsers, if that is not the default.
     # NODE_PATH is left out on purpose: the bridge must find Playwright without it.
-    env = {key: os.environ[key] for key in ("PLAYWRIGHT_BROWSERS_PATH",) if key in os.environ}
+    env = {
+        key: os.environ[key]
+        for key in (
+            "PLAYWRIGHT_BROWSERS_PATH",
+            "VIEWSPEC_BROWSER_BACKEND",
+            "VIEWSPEC_CHROMIUM",
+            "VIEWSPEC_RUST_BROWSER_HOST",
+        )
+        if key in os.environ
+    }
     uploads = folder / "uploads"
     uploads.mkdir()
     downloads = folder / "downloads"
